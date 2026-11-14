@@ -28,7 +28,9 @@ function Start-Servers {
     return
   }
   if (-not (Test-Port $ApiPort)) {
-    Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "pnpm dev:api > scripts\.shot-api.log 2>&1" -WorkingDirectory $Root -WindowStyle Hidden
+    # P1 (r1 verify): tsx watch exits in a detached process group without a console;
+    # "< NUL" gives it a stdin handle so the watcher survives.
+    Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "pnpm dev:api < NUL > scripts\.shot-api.log 2>&1" -WorkingDirectory $Root -WindowStyle Hidden
     Start-Sleep -Seconds 3
   }
   if (-not (Test-Port $WebPort)) {
