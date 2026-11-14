@@ -1,0 +1,29 @@
+{
+  "name": "xieflow",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "packageManager": "pnpm@11.7.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "pnpm -r --parallel dev",
+    "dev:web": "pnpm --filter @xieflow/web dev",
+    "dev:api": "pnpm --filter @xieflow/api dev",
+    "build": "pnpm -r build",
+    "test": "tsx scripts/e2e-test.ts",
+    "typecheck": "pnpm -r typecheck && tsc -p tsconfig.scripts.json --noEmit",
+    "test:all": "pnpm typecheck && pnpm test",
+    "shot:up": "pwsh scripts/shot.ps1 up",
+    "shot:down": "pwsh scripts/shot.ps1 down",
+    "shot:status": "pwsh scripts/shot.ps1 status"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@xieflow/db": "workspace:*",
+    "@xieflow/shared": "workspace:*",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  }
+}

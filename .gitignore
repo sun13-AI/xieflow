@@ -1,0 +1,14 @@
+node_modules/
+dist/
+out/
+release/
+data/*.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+data/backups/
+scripts/.shot-server.json
+scripts/.shot-*.log
+scripts/.tmp-e2e/
+*.tsbuildinfo
+.DS_Store

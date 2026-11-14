@@ -1,0 +1,19 @@
+{
+  "name": "@xieflow/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@xieflow/shared": "workspace:*",
+    "node-sqlite3-wasm": "^0.8.45"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0"
+  }
+}
