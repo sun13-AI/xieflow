@@ -35,11 +35,13 @@
 4. 发布后**用 GitHub API 核对 Release 资产**并记账进 `docs/plan.md`
 5. 不挪已发布的旧 tag；坏了就发下一个版本修（r1 先例：v0.0.1 release 坏 → v0.0.2 补发）
 
-## 三、双 agent 迭代流程（既定）
+## 三、双 agent 迭代流程（IKanBot 模式，既定）
 
-- `yanfa`（研发）实现 → `waizhuan`（使用者）实跑复验 → 打回则返工。岗位提示词在 `workflows/`（yanfa-prompt.md / waizhuan-prompt.md / lead-inspect-prompt.md）。
-- 员工是按提示词临时拉起的独立会话，不是常驻进程；**持久化靠仓库**：宪法 + 提示词 + 报告 + 截图。
-- 报告写 `docs/feedback/<日期>-r<N>-yanfa.md` / `-verify.md`；复验报告末行 `VERDICT: 通过` 或 `VERDICT: 打回`。
+- **基准流程**：`yanfa`（研发）实现 → `waizhuan`（使用者）实跑复验 → 打回则返工 → 通过则每轮发小版本。
+  流水线脚本与岗位提示词在 `workflows/`；编制表见 `workflows/org.md`。
+- **员工档案与履历**：每个岗位一份 `docs/staff/<岗位>.md`（岗位章程 + 逐轮工作履历 + 绩效纪要），由 lead 每轮收尾更新。履历跟岗位走，不跟会话走。
+- **扩展岗（观察中）**：UI 审查官（ui-reviewer）自 r2 起并行运行、出 UI-VERDICT 报告但**不阻断发版**；达标后升级为阻断岗（门槛见 org.md 第三节）。发版裁决以使用者视角的 VERDICT 为准。
+- 报告写 `docs/feedback/<日期>-r<N>-yanfa.md` / `-verify.md` / `-ui.md`；复验报告末行 `VERDICT: 通过` 或 `VERDICT: 打回`。
 - 每轮记账进 `docs/plan.md`，照现有条目风格。
 - 报告纪律：写了「做了」的必须真验过；每条标「已做并验过 / 已做但没验 / 没做（原因）」。
 - waizhuan 复验**不读 yanfa 报告的实现细节**，只读任务单与验收标准，模拟真实用户路径。
