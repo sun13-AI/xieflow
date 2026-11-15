@@ -120,7 +120,27 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
   4. 双 VERDICT（waizhuan + ui 阻断岗）通过
 - 前置：r4 已发版（v0.0.8）✅
 
-### r6（预占）· M3 第 1 片：多维表格字段引擎
+### r6 · M3 第 1 片：多维表格字段引擎与网格视图（M3 起步）
+- 目标：多维表格（bases/tables）落库 + 字段类型引擎 + 网格视图——M3 起步轮，字段引擎是 M3 技术重心
+- 交付清单：
+  1. schema v4→v5：tables（id/name/description）、fields（id/table_id/name/type/position/options JSON）、records（id/table_id/data JSON/position）
+  2. 字段类型引擎（全部集中 shared，禁散落 if-else）：type = text / number / date / select / multi-select / checkbox / url
+     - validateFieldValue(type, value) —— 类型校验（number 数值型、date ISO 日期、select 必须在 options 内、multi-select 子集、checkbox 布尔）
+     - coerceFieldValue —— 写入前归一（number 字符串→数字、日期补齐）
+     - compareValues(type, a, b) —— 排序比较器（null 恒最后、数值按值、日期按时间、select 按 options 顺序）
+  3. api：tables/fields/records CRUD + 查询（按字段筛选 + 按字段排序 + 分页）
+  4. web：多维表格页——网格视图（表头=字段列、行=记录、单元格按类型渲染与编辑、字段管理面板增删改字段）
+  5. 断言：e2e ≥+40（每种字段类型 ≥6：校验/归一/比较器）、audit ≥+25（含 4xx：非法类型/未知字段/筛选值类型不符）
+  6. 截图 ≥6：空表态/多类型网格/字段管理面板/筛选排序后/窄屏/错误态
+- 验收标准：
+  1. 全量绿：e2e ≥328、audit ≥338，README 同步
+  2. 字段类型引擎三个函数全在 shared 且各有断言；api 层不出现类型分支
+  3. 网格的筛选/排序结果与手算一致（waizhuan 会真手算）
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r5 已发版 ✅
+- 特别项：r5 遗留 U2-1（列级「完成率」与列名「已完成」语义冲突）本轮一并修
+
+### r7（预占）· M3 第 2 片：多维表格视图与导入（M3 收官）
 - 前置：r3 已发版
 
 ## 历史轮次（r1~r2 已收档，见下方记账区）
