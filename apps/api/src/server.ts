@@ -33,6 +33,7 @@ import {
   normalizeCsvImportPayload,
   planCsvImport,
   shouldCommitImport,
+  assertValidDocumentTitle,
   type Schedule,
   type FieldType,
   type ViewFilterCondition,
@@ -1227,6 +1228,239 @@ app.post("/api/tables/:id/import.csv", async (req, reply) => {
     }
     const created = store.importRecords(tableId, plan.rows);
     return reply.code(201).send({ imported: created.length, total: plan.total, records: created });
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+// ---- r8：documents CRUD + blocks CRUD（拆 / 合 / 移动 / 批重排 / 类型转换 / 全文读） ----
+// 块类型引擎（归一 / 可转性 / 拆合装配）与位置重排规则全部集中在 shared 与 db 服务层；
+// 路由层只做「路径 / 请求体形状 → 服务层调用 → 400 / 404 映射」，不出现任何块类型分支。
+
+interface CreateDocumentBody {
+  title?: unknown;
+}
+
+interface PatchDocumentBody {
+  title?: unknown;
+}
+
+interface CreateBlockBody {
+  type?: unknown;
+  content?: unknown;
+  position?: unknown;
+  parentId?: unknown;
+  /** 可选：显式声明归属文档；与路径 id 不一致即「越权 document_id」→ 400 */
+  documentId?: unknown;
+}
+
+interface PatchBlockBody {
+  content?: unknown;
+  position?: unknown;
+  parentId?: unknown;
+  documentId?: unknown;
+}
+
+/** 请求体里显式带的 documentId 必须与路径 / 块归属一致（越权 → 400） */
+function assertBodyDocumentId(raw: unknown, expected: number): void {
+  if (raw === undefined || raw === null) return;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n !== expected) {
+    throw new ValidationError(`越权 document_id：${String(raw)}（应为 ${expected}）`);
+  }
+}
+
+/** 文档存在性：不存在 → 404（与 todos / tables 等既有路由同一契约） */
+function requireDocument(id: number, reply: FastifyReply): boolean {
+  if (requireDb().getDocument(id) === null) {
+    reply.code(404).send({ error: `文档不存在：${id}` });
+    return false;
+  }
+  return true;
+}
+
+app.post("/api/documents", async (req, reply) => {
+  try {
+    const body = (req.body ?? {}) as CreateDocumentBody;
+    if (typeof body.title !== "string") throw new ValidationError("文档标题不能为空");
+    const doc = requireDb().createDocument(body.title);
+    return reply.code(201).send(doc);
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.get("/api/documents", async () => {
+  return { documents: requireDb().listDocuments() };
+});
+
+app.get("/api/documents/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const doc = requireDb().getDocument(id);
+    if (!doc) return reply.code(404).send({ error: `文档不存在：${id}` });
+    return doc;
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.patch("/api/documents/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const body = (req.body ?? {}) as PatchDocumentBody;
+    const store = requireDb();
+    if (store.getDocument(id) === null) return reply.code(404).send({ error: `文档不存在：${id}` });
+    if (typeof body.title !== "string") throw new ValidationError("文档标题不能为空");
+    return store.updateDocument(id, body.title);
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.delete("/api/documents/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const deleted = requireDb().deleteDocument(id);
+    if (!deleted) return reply.code(404).send({ error: `文档不存在：${id}` });
+    return { deleted: true };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+/** 文档全文读：按 position 拼装（shared assembleDocumentText 唯一口径） */
+app.get("/api/documents/:id/text", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const assembled = requireDb().assembleDocument(id);
+    if (!assembled) return reply.code(404).send({ error: `文档不存在：${id}` });
+    return assembled;
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.get("/api/documents/:id/blocks", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    if (!requireDocument(id, reply)) return reply;
+    return { blocks: requireDb().listBlocks(id) };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.post("/api/documents/:id/blocks", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const body = (req.body ?? {}) as CreateBlockBody;
+    const store = requireDb();
+    if (store.getDocument(id) === null) return reply.code(404).send({ error: `文档不存在：${id}` });
+    assertBodyDocumentId(body.documentId, id);
+    const block = store.createBlock(id, body.type, body.content, body.position, body.parentId);
+    return reply.code(201).send(block);
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+/** 批移动重排：order 必须是本文档块 id 的完整排列（shared planBlockReorder 守卫） */
+app.post("/api/documents/:id/blocks/reorder", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const body = (req.body ?? {}) as { order?: unknown };
+    const store = requireDb();
+    if (store.getDocument(id) === null) return reply.code(404).send({ error: `文档不存在：${id}` });
+    return { blocks: store.reorderBlocks(id, body.order) };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.get("/api/blocks/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const block = requireDb().getBlock(id);
+    if (!block) return reply.code(404).send({ error: `块不存在：${id}` });
+    return block;
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.patch("/api/blocks/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const body = (req.body ?? {}) as PatchBlockBody;
+    const store = requireDb();
+    const current = store.getBlock(id);
+    if (current === null) return reply.code(404).send({ error: `块不存在：${id}` });
+    assertBodyDocumentId(body.documentId, current.documentId);
+    if (body.content === undefined) throw new ValidationError("缺少块内容 content");
+    return store.updateBlock(id, body.content);
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.delete("/api/blocks/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const deleted = requireDb().deleteBlock(id);
+    if (!deleted) return reply.code(404).send({ error: `块不存在：${id}` });
+    return { deleted: true };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+/** 类型切换下拉：shared canConvertBlockType 判定（divider 等结构块拒绝互转） */
+app.post("/api/blocks/:id/convert", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const body = (req.body ?? {}) as { type?: unknown };
+    const store = requireDb();
+    if (store.getBlock(id) === null) return reply.code(404).send({ error: `块不存在：${id}` });
+    return store.convertBlock(id, body.type);
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+/** 回车拆块：后半段落新块，整表 position 连号（201） */
+app.post("/api/blocks/:id/split", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const body = (req.body ?? {}) as { caret?: unknown };
+    const store = requireDb();
+    if (store.getBlock(id) === null) return reply.code(404).send({ error: `块不存在：${id}` });
+    return reply.code(201).send(store.splitBlock(id, body.caret));
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+/** 退格合块：与前一块合并，块数减一、position 收拢 */
+app.post("/api/blocks/:id/merge", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const store = requireDb();
+    if (store.getBlock(id) === null) return reply.code(404).send({ error: `块不存在：${id}` });
+    return { blocks: store.mergeBlock(id) };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+/** 上移 / 下移：复用 shared reorderPositions 的重排口径 */
+app.post("/api/blocks/:id/move", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const body = (req.body ?? {}) as { position?: unknown };
+    const store = requireDb();
+    if (store.getBlock(id) === null) return reply.code(404).send({ error: `块不存在：${id}` });
+    return { blocks: store.moveBlock(id, body.position) };
   } catch (err) {
     return toErrorReply(err, reply);
   }

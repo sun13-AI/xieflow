@@ -139,6 +139,30 @@ export const MIGRATIONS: Migration[] = [
       `CREATE INDEX IF NOT EXISTS idx_views_table ON views (table_id)`,
     ],
   },
+  {
+    version: 7,
+    name: "r8 · documents / blocks 表（文档块编辑器：块类型 / 顺序 / 内容 JSON / 可空父块）",
+    up: [
+      `CREATE TABLE IF NOT EXISTS documents (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+      `CREATE TABLE IF NOT EXISTS blocks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        document_id INTEGER NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+        type TEXT NOT NULL CHECK (type IN ('paragraph','heading1','heading2','heading3','bullet','numbered','todo','quote','code','divider')),
+        position INTEGER NOT NULL,
+        content TEXT NOT NULL DEFAULT '{}',
+        parent_id INTEGER REFERENCES blocks(id) ON DELETE SET NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_blocks_document ON blocks (document_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_blocks_parent ON blocks (parent_id)`,
+    ],
+  },
 ];
 
 /** 当前 schema 版本（与 shared 的 SCHEMA_VERSION 保持一致，e2e 会断言二者相等） */

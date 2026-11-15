@@ -20,6 +20,8 @@ import {
   mapRowToTableField,
   mapRowToTableRecord,
   mapRowToTableView,
+  mapRowToDocument,
+  mapRowToDocumentBlock,
 } from "./mappers.js";
 import type {
   AppSetting,
@@ -35,6 +37,9 @@ import type {
   TableView,
   ViewSpecInput,
   FieldType,
+  Document,
+  DocumentBlock,
+  BlockType,
 } from "@xieflow/shared";
 import {
   canTransitionTodo,
@@ -59,6 +64,17 @@ import {
   DEFAULT_TABLE_FIELDS,
   LINK_SCHEDULE_DEFAULT_START,
   LINK_SCHEDULE_DEFAULT_END,
+  assertValidDocumentTitle,
+  assertValidBlockType,
+  assertValidBlockPosition,
+  normalizeBlockContent,
+  convertBlockContent,
+  planBlockSplit,
+  mergeBlockContent,
+  planBlockReorder,
+  assembleDocumentText,
+  DEFAULT_DOCUMENT_FIRST_BLOCK,
+  ValidationError,
 } from "@xieflow/shared";
 import { REPEATS_ORDER } from "./repeat-order.js";
 
@@ -1065,5 +1081,325 @@ export class XieFlowDb {
       throw err;
     }
     return created;
+  }
+
+  // ---- r8：文档 / 块（块内容归一 / 类型转换 / 拆合 / 顺序 / 全文装配全在 shared） ----
+
+  /** 单事务包装：拆 / 合 / 移动 / 重排多语句原子落库，异常整体 ROLLBACK（零半态） */
+  private withTransaction<T>(fn: () => T): T {
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      const out = fn();
+      this.db.exec("COMMIT");
+      return out;
+    } catch (err: unknown) {
+      this.db.exec("ROLLBACK");
+      throw err;
+    }
+  }
+
+  /** 文档 updated_at 随块变化刷新（列表按最近编辑排序） */
+  private touchDocument(documentId: number): void {
+    this.db.run("UPDATE documents SET updated_at = ? WHERE id = ?", [
+      new Date().toISOString(),
+      documentId,
+    ]);
+  }
+
+  /** 内部：插入一块并把后续块整体后移一位（不含守卫，调用方已校验；不自带事务） */
+  private insertBlockRow(
+    documentId: number,
+    type: BlockType,
+    content: ReturnType<typeof normalizeBlockContent>,
+    position: number,
+    parentId: number | null,
+  ): DocumentBlock {
+    this.db.run(
+      "UPDATE blocks SET position = position + 1 WHERE document_id = ? AND position >= ?",
+      [documentId, position],
+    );
+    const now = new Date().toISOString();
+    const res = this.db.run(
+      "INSERT INTO blocks (document_id, type, position, content, parent_id, created_at, updated_at) " +
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+      [documentId, type, position, JSON.stringify(content), parentId, now, now],
+    );
+    const row = this.db.get("SELECT * FROM blocks WHERE id = ?", [res.lastInsertRowid]);
+    if (!row) throw new Error("块写入后读回失败");
+    this.touchDocument(documentId);
+    return mapRowToDocumentBlock(row);
+  }
+
+  /** 内部：删块 / 合块后把剩余块 position 重排为 0..n-1 连续（不留空洞） */
+  private renumberBlocks(documentId: number): void {
+    const blocks = this.listBlocks(documentId);
+    for (let i = 0; i < blocks.length; i += 1) {
+      if (blocks[i]!.position !== i) {
+        this.db.run("UPDATE blocks SET position = ? WHERE id = ?", [i, blocks[i]!.id]);
+      }
+    }
+    this.touchDocument(documentId);
+  }
+
+  /**
+   * 建文档：r4 教训「用户第一次用」——自动带一个空 paragraph 首块，
+   * 消灭「建完文档零块、编辑器无从下手」的死路。文档与首块一个事务落库。
+   */
+  createDocument(title: string): Document {
+    assertValidDocumentTitle(title);
+    return this.withTransaction(() => {
+      const now = new Date().toISOString();
+      const res = this.db.run(
+        "INSERT INTO documents (title, created_at, updated_at) VALUES (?, ?, ?)",
+        [title, now, now],
+      );
+      const row = this.db.get("SELECT * FROM documents WHERE id = ?", [res.lastInsertRowid]);
+      if (!row) throw new Error("文档写入后读回失败");
+      const doc = mapRowToDocument(row);
+      this.insertBlockRow(
+        doc.id,
+        DEFAULT_DOCUMENT_FIRST_BLOCK.type,
+        DEFAULT_DOCUMENT_FIRST_BLOCK.content,
+        0,
+        null,
+      );
+      return doc;
+    });
+  }
+
+  getDocument(id: number): Document | null {
+    const row = this.db.get("SELECT * FROM documents WHERE id = ?", [id]);
+    return row ? mapRowToDocument(row) : null;
+  }
+
+  listDocuments(): Document[] {
+    return this.db
+      .all("SELECT * FROM documents ORDER BY updated_at DESC, id DESC")
+      .map(mapRowToDocument);
+  }
+
+  updateDocument(id: number, title: string): Document {
+    if (this.getDocument(id) === null) throw new Error(`文档不存在：${id}`);
+    assertValidDocumentTitle(title);
+    this.db.run("UPDATE documents SET title = ?, updated_at = ? WHERE id = ?", [
+      title,
+      new Date().toISOString(),
+      id,
+    ]);
+    return this.getDocument(id)!;
+  }
+
+  /** 删文档：块经 schema 级联（ON DELETE CASCADE）随行删除 */
+  deleteDocument(id: number): boolean {
+    const res = this.db.run("DELETE FROM documents WHERE id = ?", [id]);
+    return res.changes > 0;
+  }
+
+  /**
+   * 建块：守卫集中在 shared（类型 / 内容归一 / 位置 0..count）；
+   * parentId 非空时必须指向**同文档**已存在的块（越权 document_id / 孤儿父块一律拒绝）；
+   * 指定 position 时后续块整体后移，保证 position 连号。
+   */
+  createBlock(
+    documentId: number,
+    type: unknown,
+    content: unknown,
+    position?: unknown,
+    parentId?: unknown,
+  ): DocumentBlock {
+    if (this.getDocument(documentId) === null) throw new Error(`文档不存在：${documentId}`);
+    assertValidBlockType(type);
+    const normalized = normalizeBlockContent(type, content);
+    const count = this.listBlocks(documentId).length;
+    const pos = position === undefined || position === null ? count : position;
+    assertValidBlockPosition(pos, count);
+    let parent: number | null = null;
+    if (parentId !== undefined && parentId !== null) {
+      const pid = Number(parentId);
+      if (!Number.isInteger(pid) || pid <= 0) {
+        throw new ValidationError(`非法父块 id：${String(parentId)}`);
+      }
+      const parentBlock = this.getBlock(pid);
+      if (parentBlock === null || parentBlock.documentId !== documentId) {
+        throw new ValidationError(`父块不属于本文档（越权 document_id）：${pid}`);
+      }
+      parent = pid;
+    }
+    return this.withTransaction(() =>
+      this.insertBlockRow(documentId, type, normalized, Number(pos), parent),
+    );
+  }
+
+  getBlock(id: number): DocumentBlock | null {
+    const row = this.db.get("SELECT * FROM blocks WHERE id = ?", [id]);
+    return row ? mapRowToDocumentBlock(row) : null;
+  }
+
+  listBlocks(documentId: number): DocumentBlock[] {
+    return this.db
+      .all("SELECT * FROM blocks WHERE document_id = ? ORDER BY position, id", [documentId])
+      .map(mapRowToDocumentBlock);
+  }
+
+  /** 编辑块内容：按块当前类型重新归一（api 层零类型分支） */
+  updateBlock(id: number, content: unknown): DocumentBlock {
+    const current = this.getBlock(id);
+    if (!current) throw new Error(`块不存在：${id}`);
+    const normalized = normalizeBlockContent(current.type, content);
+    this.db.run("UPDATE blocks SET content = ?, updated_at = ? WHERE id = ?", [
+      JSON.stringify(normalized),
+      new Date().toISOString(),
+      id,
+    ]);
+    this.touchDocument(current.documentId);
+    return this.getBlock(id)!;
+  }
+
+  /** 类型转换：shared convertBlockContent 判定可转性 + 按目标类型归一内容 */
+  convertBlock(id: number, to: unknown): DocumentBlock {
+    const current = this.getBlock(id);
+    if (!current) throw new Error(`块不存在：${id}`);
+    const normalized = convertBlockContent(current.type, to, current.content);
+    this.db.run("UPDATE blocks SET type = ?, content = ?, updated_at = ? WHERE id = ?", [
+      to as string,
+      JSON.stringify(normalized),
+      new Date().toISOString(),
+      id,
+    ]);
+    this.touchDocument(current.documentId);
+    return this.getBlock(id)!;
+  }
+
+  /**
+   * 回车拆块：shared planBlockSplit 给出前半段 / 后半段 / 新块类型，
+   * 原块收前半段、新块插其后、后续块整体后移——一个事务，绝不半态。
+   */
+  splitBlock(id: number, caret: unknown): {
+    before: DocumentBlock;
+    after: DocumentBlock;
+    blocks: DocumentBlock[];
+  } {
+    const current = this.getBlock(id);
+    if (!current) throw new Error(`块不存在：${id}`);
+    const c = typeof caret === "number" ? caret : Number(caret);
+    const plan = planBlockSplit(current.type, current.content, c);
+    return this.withTransaction(() => {
+      this.db.run("UPDATE blocks SET content = ?, updated_at = ? WHERE id = ?", [
+        JSON.stringify(plan.before),
+        new Date().toISOString(),
+        id,
+      ]);
+      const after = this.insertBlockRow(
+        current.documentId,
+        plan.afterType,
+        plan.after,
+        current.position + 1,
+        current.parentId,
+      );
+      return {
+        before: this.getBlock(id)!,
+        after,
+        blocks: this.listBlocks(current.documentId),
+      };
+    });
+  }
+
+  /**
+   * 退格合块：与前一块合并（结果沿用前一块类型，shared mergeBlockContent 拒绝 divider 作前驱），
+   * 删掉当前块并把 position 收拢连续——一个事务。首块无前驱直接抛 ValidationError。
+   */
+  mergeBlock(id: number): DocumentBlock[] {
+    const current = this.getBlock(id);
+    if (!current) throw new Error(`块不存在：${id}`);
+    return this.withTransaction(() => {
+      const blocks = this.listBlocks(current.documentId);
+      const idx = blocks.findIndex((b) => b.id === id);
+      if (idx <= 0) throw new ValidationError("首块没有可合并的前驱块");
+      const prev = blocks[idx - 1]!;
+      const merged = mergeBlockContent(prev.type, prev.content, current.type, current.content);
+      this.db.run("UPDATE blocks SET content = ?, updated_at = ? WHERE id = ?", [
+        JSON.stringify(merged),
+        new Date().toISOString(),
+        prev.id,
+      ]);
+      this.db.run("DELETE FROM blocks WHERE id = ?", [id]);
+      this.renumberBlocks(current.documentId);
+      return this.listBlocks(current.documentId);
+    });
+  }
+
+  /** 上移 / 下移：复用 r4 shared reorderPositions 的重排口径，整表 position 一次落库 */
+  moveBlock(id: number, to: unknown): DocumentBlock[] {
+    const current = this.getBlock(id);
+    if (!current) throw new Error(`块不存在：${id}`);
+    const target = typeof to === "number" ? to : Number(to);
+    const blocks = this.listBlocks(current.documentId);
+    const plan = reorderPositions(
+      blocks.map((b) => ({ id: b.id, position: b.position })),
+      id,
+      target,
+    );
+    return this.withTransaction(() => {
+      const now = new Date().toISOString();
+      for (const p of plan) {
+        this.db.run("UPDATE blocks SET position = ?, updated_at = ? WHERE id = ?", [
+          p.position,
+          now,
+          p.id,
+        ]);
+      }
+      this.touchDocument(current.documentId);
+      return this.listBlocks(current.documentId);
+    });
+  }
+
+  /** 批移动重排：shared planBlockReorder 校验 order 是本文档块 id 的完整排列 */
+  reorderBlocks(documentId: number, order: unknown): DocumentBlock[] {
+    if (this.getDocument(documentId) === null) throw new Error(`文档不存在：${documentId}`);
+    const blocks = this.listBlocks(documentId);
+    const plan = planBlockReorder(blocks, order);
+    return this.withTransaction(() => {
+      const now = new Date().toISOString();
+      for (const p of plan) {
+        this.db.run("UPDATE blocks SET position = ?, updated_at = ? WHERE id = ?", [
+          p.position,
+          now,
+          p.id,
+        ]);
+      }
+      this.touchDocument(documentId);
+      return this.listBlocks(documentId);
+    });
+  }
+
+  /** 删块：删后 position 收拢连续（不留空洞，重开不丢顺序） */
+  deleteBlock(id: number): boolean {
+    const current = this.getBlock(id);
+    if (!current) return false;
+    return this.withTransaction(() => {
+      const res = this.db.run("DELETE FROM blocks WHERE id = ?", [id]);
+      this.renumberBlocks(current.documentId);
+      return res.changes > 0;
+    });
+  }
+
+  /** 文档全文读：按 position 拼装（shared assembleDocumentText 唯一口径） */
+  assembleDocument(documentId: number): {
+    documentId: number;
+    title: string;
+    blockCount: number;
+    text: string;
+    blocks: DocumentBlock[];
+  } | null {
+    const doc = this.getDocument(documentId);
+    if (doc === null) return null;
+    const blocks = this.listBlocks(documentId);
+    return {
+      documentId: doc.id,
+      title: doc.title,
+      blockCount: blocks.length,
+      text: assembleDocumentText(blocks),
+      blocks,
+    };
   }
 }

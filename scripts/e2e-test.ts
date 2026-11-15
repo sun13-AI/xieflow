@@ -91,6 +91,26 @@ import {
   type ViewFilterCondition,
   type ViewSortRule,
   type CsvImportRowError,
+  BLOCK_TYPES,
+  BLOCK_TYPE_LABELS,
+  isBlockType,
+  assertValidBlockType,
+  normalizeBlockContent,
+  canConvertBlockType,
+  convertBlockContent,
+  splitBlockText,
+  planBlockSplit,
+  mergeBlockContent,
+  planBlockReorder,
+  assembleDocumentText,
+  assertValidDocumentTitle,
+  DEFAULT_DOCUMENT_FIRST_BLOCK,
+  MAX_BLOCK_TEXT,
+  MAX_DOCUMENT_TITLE,
+  type BlockType,
+  type BlockContent,
+  type Document,
+  type DocumentBlock,
 } from "@xieflow/shared";
 import type { TodoStatus } from "@xieflow/shared";
 
@@ -184,6 +204,7 @@ try {
         { version: 5, name: "e", up: [] },
         { version: 6, name: "f", up: [] },
         { version: 7, name: "g", up: [] },
+        { version: 8, name: "h", up: [] },
       ]),
     "队列超出 SCHEMA_VERSION：一致性校验抛错",
   );
@@ -571,8 +592,8 @@ try {
     const v3Migrated = openDatabaseRaw({ path: v3Path });
     eq(
       v3Migrated.appliedMigrations,
-      [3, 4, 5, 6],
-      "v2 旧库重开补跑 v3+v4+v5+v6 迁移（真实 PRAGMA 升级路径，r7 起队列追加 v6）",
+      [3, 4, 5, 6, 7],
+      "v2 旧库重开补跑 v3+v4+v5+v6+v7 迁移（真实 PRAGMA 升级路径，r8 起队列追加 v7）",
     );
     const tables = v3Migrated.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -797,8 +818,8 @@ try {
     const v4Open = openDatabaseRaw({ path: v4Path });
     eq(
       v4Open.appliedMigrations,
-      [4, 5, 6],
-      "v3 旧库重开只补跑 v4+v5+v6 迁移（真实 PRAGMA 升级路径）",
+      [4, 5, 6, 7],
+      "v3 旧库重开只补跑 v4+v5+v6+v7 迁移（真实 PRAGMA 升级路径）",
     );
     const tables = v4Open.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -809,7 +830,7 @@ try {
     eq(
       (v4Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（6）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（7）",
     );
     const rawDb: SqliteDatabase = v4Open.raw;
     throws(
@@ -1456,7 +1477,7 @@ try {
     v4Open2.raw.exec("PRAGMA user_version = 4");
     v4Open2.raw.close();
     const v5Open = openDatabaseRaw({ path: v5Path });
-    eq(v5Open.appliedMigrations, [5, 6], "v4 旧库重开只补跑 v5+v6 迁移（真实 PRAGMA 升级路径）");
+    eq(v5Open.appliedMigrations, [5, 6, 7], "v4 旧库重开只补跑 v5+v6+v7 迁移（真实 PRAGMA 升级路径）");
     const tableNames = v5Open.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
       .map((r) => String((r as unknown as { name: unknown }).name));
@@ -1466,7 +1487,7 @@ try {
     eq(
       (v5Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（6）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（7）",
     );
     const rawDb5: SqliteDatabase = v5Open.raw;
     throws(
@@ -2175,7 +2196,7 @@ try {
     v5Open.raw.exec("PRAGMA user_version = 5");
     v5Open.raw.close();
     const v6Open = openDatabaseRaw({ path: v6Path });
-    eq(v6Open.appliedMigrations, [6], "v5 旧库重开只补跑 v6 迁移（真实 PRAGMA 升级路径）");
+    eq(v6Open.appliedMigrations, [6, 7], "v5 旧库重开只补跑 v6+v7 迁移（真实 PRAGMA 升级路径）");
     const tableNames = v6Open.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
       .map((r) => String((r as unknown as { name: unknown }).name));
@@ -2183,7 +2204,7 @@ try {
     eq(
       (v6Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（6）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（7）",
     );
     const rawDb6: SqliteDatabase = v6Open.raw;
     eq(
@@ -2322,7 +2343,7 @@ try {
     eq(
       (reopened.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "重启后 user_version 仍为 6",
+      "重启后 user_version 仍为 7",
     );
     eq(JSON.stringify(reopened.db.listViews(tbl.id)), beforeViews, "视图持久化：重启前后 spec 逐字节相等");
     eq(
@@ -2341,7 +2362,286 @@ try {
     db = null;
   }
 
-  // 24. HTTP 冒烟 /api/health
+  // 24. r8：块类型引擎（shared，api 层零类型分支）
+  section("块类型引擎（normalizeBlockContent / canConvertBlockType / 拆合装配）");
+  eq(BLOCK_TYPES.length, 10, "块类型共 10 种");
+  eq(BLOCK_TYPES[0], "paragraph", "块类型首项 = paragraph");
+  eq(BLOCK_TYPES[9], "divider", "块类型末项 = divider");
+  eq(BLOCK_TYPE_LABELS.heading1, "一级标题", "块类型中文标签：一级标题");
+  eq(BLOCK_TYPE_LABELS.todo, "待办", "块类型中文标签：待办");
+  eq(isBlockType("quote"), true, "isBlockType：quote 合法");
+  eq(isBlockType("mystery"), false, "isBlockType：未知类型非法");
+  eq(isBlockType(42), false, "isBlockType：非字符串非法");
+  throws(() => assertValidBlockType("mystery"), "assertValidBlockType：未知类型抛错");
+  noThrow(() => assertValidBlockType("code"), "assertValidBlockType：code 通过");
+  eq(normalizeBlockContent("paragraph", "你好"), { text: "你好" }, "归一：字符串内容转 text");
+  eq(normalizeBlockContent("paragraph", undefined), { text: "" }, "归一：空内容默认空文本");
+  eq(normalizeBlockContent("paragraph", { text: " 保留空格 " }), { text: " 保留空格 " }, "归一：正文空格原样保留");
+  eq(normalizeBlockContent("divider", { text: "丢弃" }), { text: "" }, "归一：divider 强制丢弃文本");
+  eq(normalizeBlockContent("todo", { text: "买菜", checked: "true" }), { text: "买菜", checked: true }, "归一：todo 勾选值字符串 true→布尔");
+  eq(normalizeBlockContent("todo", { text: "买菜" }), { text: "买菜", checked: false }, "归一：todo 缺省未勾选");
+  eq(normalizeBlockContent("paragraph", { text: "x", checked: true }), { text: "x" }, "归一：paragraph 丢弃 checked 专属字段");
+  eq(normalizeBlockContent("code", { text: "let a=1", language: "  TS " }), { text: "let a=1", language: "TS" }, "归一：code 语言去空白保留大小写");
+  eq(normalizeBlockContent("code", { text: "x" }), { text: "x", language: "" }, "归一：code 语言缺省空串");
+  eq(normalizeBlockContent("quote", { text: "x", language: "js" }), { text: "x" }, "归一：quote 丢弃 language");
+  throws(() => normalizeBlockContent("mystery", "x"), "归一：非法类型抛错");
+  throws(() => normalizeBlockContent("paragraph", 42), "归一：内容非字符串/对象抛错");
+  throws(() => normalizeBlockContent("paragraph", { text: 42 }), "归一：text 非字符串抛错");
+  throws(() => normalizeBlockContent("paragraph", "x".repeat(MAX_BLOCK_TEXT + 1)), "归一：超长文本抛错");
+  eq(canConvertBlockType("paragraph", "heading1"), true, "转换：paragraph→heading1 允许");
+  eq(canConvertBlockType("todo", "paragraph"), true, "转换：todo→paragraph 允许");
+  eq(canConvertBlockType("paragraph", "paragraph"), true, "转换：同类型恒允许");
+  eq(canConvertBlockType("divider", "paragraph"), false, "转换：divider→paragraph 禁止（结构块）");
+  eq(canConvertBlockType("paragraph", "divider"), false, "转换：paragraph→divider 禁止");
+  eq(canConvertBlockType("divider", "divider"), true, "转换：divider→divider 恒等允许");
+  throws(() => canConvertBlockType("mystery", "paragraph"), "转换：非法源类型抛错");
+  eq(convertBlockContent("todo", "paragraph", { text: "x", checked: true }), { text: "x" }, "转换归一：todo→paragraph 丢 checked");
+  eq(convertBlockContent("paragraph", "todo", { text: "x" }), { text: "x", checked: false }, "转换归一：paragraph→todo 补 checked");
+  eq(convertBlockContent("paragraph", "code", { text: "x" }), { text: "x", language: "" }, "转换归一：paragraph→code 补 language");
+  throws(() => convertBlockContent("divider", "paragraph", { text: "" }), "转换归一：非法转换抛错");
+  eq(splitBlockText("abcdef", 3), { before: "abc", after: "def" }, "拆块文本：中间拆分");
+  eq(splitBlockText("abcdef", 0), { before: "", after: "abcdef" }, "拆块文本：行首拆分");
+  eq(splitBlockText("abcdef", 6), { before: "abcdef", after: "" }, "拆块文本：行尾拆分");
+  throws(() => splitBlockText("abc", 4), "拆块文本：caret 越界抛错");
+  throws(() => splitBlockText("abc", -1), "拆块文本：caret 负数抛错");
+  throws(() => splitBlockText("abc", 1.5), "拆块文本：caret 非整数抛错");
+  eq(planBlockSplit("paragraph", "abcdef", 3).afterType, "paragraph", "拆块计划：paragraph 续 paragraph");
+  eq(planBlockSplit("heading1", "标题", 2).afterType, "paragraph", "拆块计划：heading 续 paragraph");
+  eq(planBlockSplit("heading2", "标题", 0).afterType, "paragraph", "拆块计划：heading2 续 paragraph");
+  eq(planBlockSplit("bullet", "项目", 1).afterType, "bullet", "拆块计划：bullet 续 bullet（列表延续）");
+  eq(planBlockSplit("numbered", "项目", 1).afterType, "numbered", "拆块计划：numbered 续 numbered");
+  eq(planBlockSplit("todo", "任务", 1).afterType, "todo", "拆块计划：todo 续 todo");
+  eq(planBlockSplit("todo", { text: "任务任务", checked: true }, 2).after, { text: "任务", checked: false }, "拆块计划：todo 新块重置未勾选");
+  eq(planBlockSplit("code", { text: "abc", language: "ts" }, 1).after, { text: "bc", language: "ts" }, "拆块计划：code 保留语言");
+  eq(planBlockSplit("paragraph", "abcdef", 3).before, { text: "abc" }, "拆块计划：前半段归原块");
+  throws(() => planBlockSplit("divider", "", 0), "拆块计划：divider 不可拆");
+  eq(
+    mergeBlockContent("paragraph", "abc", "paragraph", "def"),
+    { text: "abcdef" },
+    "合块：两段文本拼接",
+  );
+  eq(
+    mergeBlockContent("todo", { text: "a", checked: true }, "paragraph", "b"),
+    { text: "ab", checked: true },
+    "合块：todo 保留勾选态",
+  );
+  eq(
+    mergeBlockContent("code", { text: "a", language: "ts" }, "paragraph", "b"),
+    { text: "ab", language: "ts" },
+    "合块：code 保留语言",
+  );
+  throws(() => mergeBlockContent("divider", "", "paragraph", "b"), "合块：divider 不参与合块");
+  eq(assembleDocumentText([]), "", "全文装配：空文档为空串");
+  eq(
+    assembleDocumentText([
+      { id: 1, position: 0, type: "heading1", content: { text: "标题" } },
+      { id: 2, position: 1, type: "paragraph", content: { text: "正文" } },
+    ]),
+    "# 标题\n正文",
+    "全文装配：按 position 拼装标题+正文",
+  );
+  eq(
+    assembleDocumentText([
+      { id: 2, position: 1, type: "paragraph", content: { text: "后" } },
+      { id: 1, position: 0, type: "paragraph", content: { text: "先" } },
+    ]),
+    "先\n后",
+    "全文装配：乱序输入按 position 排序",
+  );
+  eq(
+    assembleDocumentText([
+      { id: 1, position: 0, type: "bullet", content: { text: "甲" } },
+      { id: 2, position: 1, type: "bullet", content: { text: "乙" } },
+      { id: 3, position: 2, type: "numbered", content: { text: "一" } },
+      { id: 4, position: 3, type: "numbered", content: { text: "二" } },
+      { id: 5, position: 4, type: "todo", content: { text: "任务", checked: true } },
+      { id: 6, position: 5, type: "quote", content: { text: "引" } },
+      { id: 7, position: 6, type: "divider", content: { text: "" } },
+    ]),
+    "- 甲\n- 乙\n1. 一\n2. 二\n- [x] 任务\n> 引\n---",
+    "全文装配：无序/有序编号/todo/引用/分割线同一口径",
+  );
+  noThrow(() => assertValidDocumentTitle("周报"), "文档名守卫：合法名通过");
+  throws(() => assertValidDocumentTitle(""), "文档名守卫：空名抛错");
+  throws(() => assertValidDocumentTitle("x".repeat(MAX_DOCUMENT_TITLE + 1)), "文档名守卫：超长抛错");
+  eq(DEFAULT_DOCUMENT_FIRST_BLOCK.type, "paragraph", "默认首块：paragraph（零块死路防御）");
+  eq(DEFAULT_DOCUMENT_FIRST_BLOCK.content, { text: "" }, "默认首块：空文本");
+
+  // 25. r8：schema v6→v7 迁移与文档数据层（拆/合/移动持久化 + 全文装配）
+  section("schema v6→v7 迁移与文档数据层（持久化 / 拆合移动 / 全文装配）");
+  {
+    mkdirSync("scripts/.tmp-e2e", { recursive: true });
+    const v7Path = `scripts/.tmp-e2e/r8-v7-${Date.now()}.db`;
+    const oldOpen = openDatabaseRaw({ path: v7Path });
+    oldOpen.raw.exec("PRAGMA user_version = 6");
+    oldOpen.raw.close();
+    const v7Open = openDatabaseRaw({ path: v7Path });
+    eq(v7Open.appliedMigrations, [7], "v6 旧库重开只补跑 v7 迁移（真实 PRAGMA 升级路径）");
+    eq(
+      (v7Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
+      CURRENT_SCHEMA_VERSION,
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（7）",
+    );
+    const tables = (v7Open.raw.all(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('documents','blocks') ORDER BY name",
+    ) as { name: string }[]).map((r) => r.name);
+    eq(tables, ["blocks", "documents"], "v7 迁移建出 documents / blocks 两表");
+    const docCols = (v7Open.raw.all("PRAGMA table_info(documents)") as { name: string }[]).map((r) => r.name);
+    eq(docCols, ["id", "title", "created_at", "updated_at"], "documents 表 4 列逐名核对");
+    const blockCols = (v7Open.raw.all("PRAGMA table_info(blocks)") as { name: string }[]).map((r) => r.name);
+    eq(blockCols, [
+      "id", "document_id", "type", "position", "content", "parent_id", "created_at", "updated_at",
+    ], "blocks 表 8 列逐名核对（含 parent_id 可空）");
+    // raw 直达约束：先插一篇合法文档，再验 blocks 的 CHECK 与外键
+    v7Open.raw.run(
+      "INSERT INTO documents (title, created_at, updated_at) VALUES (?, ?, ?)",
+      ["raw-doc", "t", "t"],
+    );
+    eq(
+      (v7Open.raw.all("SELECT id, title FROM documents") as { id: number; title: string }[]).length,
+      1,
+      "raw：documents 可插入合法行",
+    );
+    throws(
+      () =>
+        v7Open.raw.run(
+          "INSERT INTO blocks (document_id, type, position, content, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+          [1, "mystery", 0, "{}", "t", "t"],
+        ),
+      "raw：blocks.type CHECK 拒绝非法块类型",
+    );
+    throws(
+      () =>
+        v7Open.raw.run(
+          "INSERT INTO blocks (document_id, type, position, content, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+          [9999, "paragraph", 0, "{}", "t", "t"],
+        ),
+      "raw：blocks.document_id 外键拒绝越权文档",
+    );
+    v7Open.raw.close();
+
+    // 服务层：建文档自动带首块（r4 教训「用户第一次用」）
+    const ddb = openDatabase({ path: ":memory:" });
+    const doc = ddb.createDocument("第一次用的文档");
+    eq(doc.title, "第一次用的文档", "createDocument 标题读回");
+    const firstBlocks = ddb.listBlocks(doc.id);
+    eq(firstBlocks.length, 1, "建文档默认首块自动在场（不是零块死路）");
+    eq(firstBlocks[0]!.type, "paragraph", "默认首块类型 = paragraph");
+    eq(firstBlocks[0]!.content, { text: "" }, "默认首块内容为空文本");
+    eq(firstBlocks[0]!.position, 0, "默认首块 position = 0");
+    eq(firstBlocks[0]!.parentId, null, "默认首块 parentId 可空");
+    throws(() => ddb.createDocument(""), "createDocument 空名被 shared 守卫拒绝");
+    const doc2 = ddb.createDocument("第二篇");
+    eq(ddb.listDocuments().length, 2, "listDocuments 返回 2 篇文档");
+    eq(ddb.getDocument(doc.id)!.title, "第一次用的文档", "getDocument 读回");
+    eq(ddb.updateDocument(doc.id, "改名后").title, "改名后", "updateDocument 改名生效");
+    eq(ddb.getDocument(99999), null, "getDocument 不存在返回 null");
+
+    // 追加块：position 连号 + 内容归一
+    const b1 = ddb.createBlock(doc.id, "heading1", { text: "标题" });
+    eq(b1.position, 1, "createBlock 追加 position=1");
+    eq(b1.content, { text: "标题" }, "createBlock 内容归一读回");
+    const b2 = ddb.createBlock(doc.id, "todo", { text: "买菜", checked: "true" });
+    eq(b2.content, { text: "买菜", checked: true }, "createBlock todo 勾选归一落库");
+    const b3 = ddb.createBlock(doc.id, "code", { text: "let a=1", language: "ts" });
+    eq(b3.content, { text: "let a=1", language: "ts" }, "createBlock code 语言落库");
+    throws(() => ddb.createBlock(doc.id, "mystery", "x"), "createBlock 非法类型被拒");
+    throws(() => ddb.createBlock(doc.id, "paragraph", "x", 999), "createBlock 非法 position 被拒");
+    throws(() => ddb.createBlock(99999, "paragraph", "x"), "createBlock 越权 document_id 被拒");
+    eq(ddb.listBlocks(doc.id).map((b) => b.position), [0, 1, 2, 3], "listBlocks 按 position 升序");
+
+    // 改块 / 类型转换（真实走 shared convertBlockContent）
+    const edited = ddb.updateBlock(b1.id, "标题（改）");
+    eq(edited.content, { text: "标题（改）" }, "updateBlock 改文本生效");
+    const converted = ddb.convertBlock(b2.id, "paragraph");
+    eq(converted.type, "paragraph", "convertBlock 类型切换生效");
+    eq(converted.content, { text: "买菜" }, "convertBlock 丢弃 todo 专属 checked");
+    throws(() => ddb.convertBlock(b2.id, "divider"), "convertBlock 非法转换被 shared 拒绝");
+    throws(() => ddb.updateBlock(99999, "x"), "updateBlock 不存在块抛错");
+
+    // 回车拆块：后半段落到新块，position 连号，重开不丢
+    const split = ddb.splitBlock(b1.id, 2);
+    eq(split.before.content.text, "标题", "splitBlock 前半段留原块");
+    eq(split.after.content.text, "（改）", "splitBlock 后半段落新块");
+    eq(split.after.position, split.before.position + 1, "splitBlock 新块插在原块之后");
+    eq(ddb.listBlocks(doc.id).map((b) => b.position), [0, 1, 2, 3, 4], "splitBlock 后 position 连续无空洞");
+    eq(ddb.listBlocks(doc.id).map((b) => b.content.text).slice(1, 3), ["标题", "（改）"], "splitBlock 后顺序正确");
+
+    // 上移 / 下移：复用 shared reorderPositions
+    const moved = ddb.moveBlock(split.after.id, 1);
+    eq(moved.length, 5, "moveBlock 返回全部 5 块");
+    eq(ddb.listBlocks(doc.id)[1]!.id, split.after.id, "moveBlock 上移到 position=1 生效");
+    eq(ddb.listBlocks(doc.id).map((b) => b.position), [0, 1, 2, 3, 4], "moveBlock 后 position 仍连续");
+    throws(() => ddb.moveBlock(split.after.id, 99), "moveBlock 越界位置被 shared 拒绝");
+
+    // 批移动重排：整份新顺序一次落库
+    const current = ddb.listBlocks(doc.id);
+    const reversed = [...current].reverse().map((b) => b.id);
+    const reordered = ddb.reorderBlocks(doc.id, reversed);
+    eq(reordered.map((b) => b.id), reversed, "reorderBlocks 按传入 id 顺序重排");
+    eq(reordered.map((b) => b.position), [0, 1, 2, 3, 4], "reorderBlocks 后 position 连续");
+    throws(() => ddb.reorderBlocks(doc.id, [1, 1, 2]), "reorderBlocks 重复 id 被拒");
+    throws(() => ddb.reorderBlocks(doc.id, [99999]), "reorderBlocks 越权 id 被拒");
+
+    // 退格合块：与前一块合并，块数 -1，position 收拢
+    const beforeMerge = ddb.listBlocks(doc.id);
+    const merged = ddb.mergeBlock(beforeMerge[2]!.id);
+    eq(merged.length, beforeMerge.length - 1, "mergeBlock 块数减一");
+    eq(merged.map((b) => b.position), [0, 1, 2, 3], "mergeBlock 后 position 收拢连续");
+    throws(() => ddb.mergeBlock(merged[0]!.id), "mergeBlock 首块无前驱被拒");
+
+    // 父块归属：parent_id 可空、必须同文档（b3 是 code 块，合块后仍在场）
+    const withParent = ddb.createBlock(doc.id, "paragraph", "子块", undefined, b3.id);
+    eq(withParent.parentId, b3.id, "createBlock parentId 同文档落库");
+    throws(
+      () => ddb.createBlock(doc2.id, "paragraph", "跨文档子块", undefined, b3.id),
+      "createBlock parentId 跨文档（越权）被拒",
+    );
+    eq(ddb.deleteBlock(withParent.id), true, "deleteBlock 返回 true");
+    eq(ddb.listBlocks(doc.id).map((b) => b.position), [0, 1, 2, 3], "deleteBlock 后 position 收拢连续");
+
+    // 全文读：按 position 拼装（真实数据，不是纯函数自证）
+    const textResult = ddb.assembleDocument(doc.id);
+    ok(textResult !== null, "assembleDocument 命中已存在文档");
+    eq(textResult!.documentId, doc.id, "assembleDocument 回显 documentId");
+    eq(textResult!.title, "改名后", "assembleDocument 回显最新标题");
+    eq(textResult!.blocks.length, 4, "assembleDocument 回显全部 4 块");
+    eq(
+      textResult!.text,
+      assembleDocumentText(ddb.listBlocks(doc.id).map((b) => ({
+        id: b.id, position: b.position, type: b.type, content: b.content,
+      }))),
+      "assembleDocument 全文与 shared 装配逐字相等（按 position）",
+    );
+    eq(ddb.assembleDocument(99999), null, "assembleDocument 不存在文档返回 null");
+
+    // 持久化：关库重开，块顺序与内容逐字节相等（拆/合/移动/重排后重开不丢）
+    const persistPath = `scripts/.tmp-e2e/r8-persist-${Date.now()}.db`;
+    const pdb = openDatabase({ path: persistPath });
+    const pdoc = pdb.createDocument("持久化文档");
+    pdb.updateBlock(pdb.listBlocks(pdoc.id)[0]!.id, "第一段");
+    const p2 = pdb.createBlock(pdoc.id, "paragraph", "第二段文字");
+    pdb.createBlock(pdoc.id, "heading2", "小标题");
+    pdb.splitBlock(p2.id, 2);
+    pdb.moveBlock(pdb.listBlocks(pdoc.id)[3]!.id, 0);
+    const beforeClose = JSON.stringify(pdb.listBlocks(pdoc.id));
+    const beforeText = pdb.assembleDocument(pdoc.id)!.text;
+    pdb.close();
+    const reopened8 = openDatabaseRaw({ path: persistPath });
+    eq(reopened8.appliedMigrations, [], "重启不重复迁移（幂等）");
+    eq(JSON.stringify(reopened8.db.listBlocks(pdoc.id)), beforeClose, "块顺序持久化：拆/移动后重开逐字节相等");
+    eq(reopened8.db.assembleDocument(pdoc.id)!.text, beforeText, "全文持久化：重开后全文逐字节相等");
+    eq(reopened8.db.listBlocks(pdoc.id).map((b) => b.position), [0, 1, 2, 3], "重开后 position 连续");
+    // 删文档级联删块
+    eq(reopened8.db.deleteDocument(pdoc.id), true, "deleteDocument 返回 true");
+    eq(reopened8.db.listBlocks(pdoc.id).length, 0, "删文档级联：blocks 随文档删除（ON DELETE CASCADE）");
+    eq(reopened8.db.getDocument(pdoc.id), null, "删文档后读回为 null");
+    reopened8.raw.close();
+    ddb.close();
+    db = null;
+  }
+
+  // 26. HTTP 冒烟 /api/health
   section("HTTP 冒烟 /api/health");
   let httpOk = false;
   let httpNote = "api 服务未运行（pnpm dev:api 后再跑 pnpm test 可覆盖此节）";

@@ -321,7 +321,7 @@ export function assembleRangeSchedules(
 }
 
 /** 数据库 schema 版本号，每轮迁移必须 +1（宪法：禁止手改库文件） */
-export const SCHEMA_VERSION: number = 6;
+export const SCHEMA_VERSION: number = 7;
 
 
 /** 迁移脚本类型：user_version 从 from 升到 to */
@@ -1694,4 +1694,325 @@ export function normalizeCsvImportPayload(raw: unknown): CsvImportPayload {
     return { headers, rows };
   }
   throw new ValidationError('导入体必须是 { csv: "..." } 或 { headers: [...], rows: [...] }');
+}
+
+// ---- r8：文档块编辑器（块类型引擎 / 拆合 / 顺序 / 全文装配，全部集中 shared，api 层零类型分支） ----
+
+/** 块类型（r8 任务单：paragraph / heading1-3 / bullet / numbered / todo / quote / code / divider 共 10 种） */
+export type BlockType =
+  | "paragraph"
+  | "heading1"
+  | "heading2"
+  | "heading3"
+  | "bullet"
+  | "numbered"
+  | "todo"
+  | "quote"
+  | "code"
+  | "divider";
+
+export const BLOCK_TYPES: readonly BlockType[] = [
+  "paragraph",
+  "heading1",
+  "heading2",
+  "heading3",
+  "bullet",
+  "numbered",
+  "todo",
+  "quote",
+  "code",
+  "divider",
+];
+
+/** 块类型中文标签（类型切换下拉 / 打印预览 / API 错误消息共用同一口径） */
+export const BLOCK_TYPE_LABELS: Record<BlockType, string> = {
+  paragraph: "正文",
+  heading1: "一级标题",
+  heading2: "二级标题",
+  heading3: "三级标题",
+  bullet: "无序列表",
+  numbered: "有序列表",
+  todo: "待办",
+  quote: "引用",
+  code: "代码块",
+  divider: "分割线",
+};
+
+/** 结构块：不承载文本，不参与类型互转 / 拆 / 合（状态机口径集中在此，禁止散落 if-else） */
+const STRUCTURAL_BLOCK_TYPES: readonly BlockType[] = ["divider"];
+
+export function isBlockType(value: unknown): value is BlockType {
+  return typeof value === "string" && (BLOCK_TYPES as readonly string[]).includes(value);
+}
+
+export function assertValidBlockType(type: unknown): asserts type is BlockType {
+  if (!isBlockType(type)) {
+    throw new ValidationError(`非法块类型：${String(type)}`);
+  }
+}
+
+/** 文档标题 / 块文本上限（防超长输入撑爆界面与库） */
+export const MAX_DOCUMENT_TITLE = 200;
+export const MAX_BLOCK_TEXT = 20000;
+
+/** 归一后的块内容：text 恒在；checked 仅 todo 有；language 仅 code 有；divider 恒空 */
+export interface BlockContent {
+  text: string;
+  checked?: boolean;
+  language?: string;
+}
+
+function normalizeTodoChecked(raw: unknown): boolean {
+  return raw === true || raw === "true" || raw === 1 || raw === "1";
+}
+
+function normalizeCodeLanguage(raw: unknown): string {
+  if (raw === undefined || raw === null || raw === "") return "";
+  if (typeof raw !== "string") throw new ValidationError(`代码语言必须是字符串：${String(raw)}`);
+  return raw.trim();
+}
+
+/**
+ * 块内容归一（r8 唯一口径，api / db / UI 共用）：
+ * ① 内容可为字符串（简写为 text）、对象、null / undefined；数字 / 数组一律拒绝；
+ * ② text 必须是字符串且不超过 MAX_BLOCK_TEXT；
+ * ③ divider 是结构块：恒归一为 { text: "" }，丢弃一切输入文本与专属字段；
+ * ④ todo 保留 checked（"true"/1/true → true，其余 false）；code 保留 language（去空白）；
+ *    其余类型丢弃 checked / language，保证类型转换后不残留别的类型的专属字段。
+ */
+export function normalizeBlockContent(type: unknown, content: unknown): BlockContent {
+  assertValidBlockType(type);
+  let raw: unknown = content;
+  if (raw === undefined || raw === null) raw = {};
+  if (typeof raw === "string") raw = { text: raw };
+  if (!isPlainObject(raw)) {
+    throw new ValidationError("块内容必须是字符串或对象");
+  }
+  const textRaw = raw["text"];
+  let text = "";
+  if (textRaw !== undefined && textRaw !== null) {
+    if (typeof textRaw !== "string") {
+      throw new ValidationError(`块文本必须是字符串：${String(textRaw)}`);
+    }
+    text = textRaw;
+  }
+  if (text.length > MAX_BLOCK_TEXT) {
+    throw new ValidationError(`块文本过长：最多 ${MAX_BLOCK_TEXT} 字（当前 ${text.length} 字）`);
+  }
+  if (type === "divider") return { text: "" };
+  if (type === "todo") return { text, checked: normalizeTodoChecked(raw["checked"]) };
+  if (type === "code") return { text, language: normalizeCodeLanguage(raw["language"]) };
+  return { text };
+}
+
+/**
+ * 块类型转换矩阵（r8 状态机集中定义，api 层零类型分支）：
+ * - 同类型恒允许（幂等）；
+ * - 结构块 divider 只在自身内允许（转入/转出都会静默吞掉或凭空造出文本，直接拒绝）；
+ * - 其余 9 种文本型块之间互相允许，专属字段由 normalizeBlockContent 按目标类型补齐/丢弃。
+ */
+export function canConvertBlockType(from: unknown, to: unknown): boolean {
+  assertValidBlockType(from);
+  assertValidBlockType(to);
+  if (from === to) return true;
+  return !STRUCTURAL_BLOCK_TYPES.includes(from) && !STRUCTURAL_BLOCK_TYPES.includes(to);
+}
+
+/** 类型转换 + 内容归一（非法转换直接抛错；api 只做 400 映射） */
+export function convertBlockContent(from: unknown, to: unknown, content: unknown): BlockContent {
+  if (!canConvertBlockType(from, to)) {
+    throw new ValidationError(
+      `不允许的块类型转换：${BLOCK_TYPE_LABELS[from as BlockType]} → ${BLOCK_TYPE_LABELS[to as BlockType]}`,
+    );
+  }
+  return normalizeBlockContent(to, content);
+}
+
+/** 文档领域对象（documents 表） */
+export interface Document {
+  id: number;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 文档块领域对象（blocks 表；parent_id 可空） */
+export interface DocumentBlock {
+  id: number;
+  documentId: number;
+  type: BlockType;
+  position: number;
+  content: BlockContent;
+  parentId: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 默认首块（r4 教训「用户第一次用」）：建文档即自动在场，消灭零块死路 */
+export const DEFAULT_DOCUMENT_FIRST_BLOCK: { type: BlockType; content: BlockContent } = {
+  type: "paragraph",
+  content: { text: "" },
+};
+
+export function assertValidDocumentTitle(title: unknown): asserts title is string {
+  if (typeof title !== "string" || title.trim() === "") {
+    throw new ValidationError("文档标题不能为空");
+  }
+  if (title.length > MAX_DOCUMENT_TITLE) {
+    throw new ValidationError(`文档标题过长：最多 ${MAX_DOCUMENT_TITLE} 字（当前 ${title.length} 字）`);
+  }
+}
+
+/** 位置守卫：position 必须是 0..count 的整数（count = 当前块数，count 表示追加到末尾） */
+export function assertValidBlockPosition(position: unknown, count: number): asserts position is number {
+  const n = typeof position === "number" ? position : Number(position);
+  if (!Number.isInteger(n) || n < 0 || n > count) {
+    throw new ValidationError(`非法块位置：${String(position)}（允许 0..${count}）`);
+  }
+}
+
+/** 拆块文本：caret 必须是 0..text.length 的整数（越界 / 负数 / 小数一律拒绝） */
+export function splitBlockText(text: string, caret: number): { before: string; after: string } {
+  if (typeof text !== "string") throw new ValidationError("拆块文本必须是字符串");
+  if (!Number.isInteger(caret) || caret < 0 || caret > text.length) {
+    throw new ValidationError(`非法拆块位置：${String(caret)}（文本长 ${text.length}）`);
+  }
+  return { before: text.slice(0, caret), after: text.slice(caret) };
+}
+
+/** 拆块后新块的类型：标题类回落 paragraph，列表类延续自身，code 延续 code */
+const BLOCK_SPLIT_NEXT_TYPE: Record<BlockType, BlockType> = {
+  paragraph: "paragraph",
+  heading1: "paragraph",
+  heading2: "paragraph",
+  heading3: "paragraph",
+  bullet: "bullet",
+  numbered: "numbered",
+  todo: "todo",
+  quote: "quote",
+  code: "code",
+  divider: "paragraph",
+};
+
+export interface BlockSplitPlan {
+  before: BlockContent;
+  after: BlockContent;
+  afterType: BlockType;
+}
+
+/**
+ * 回车拆块计划（r8 唯一口径）：
+ * ① divider 是结构块，不可拆（直接抛错，UI 的回车在分割线上转为「追加一个正文块」）；
+ * ② 前半段留原块并保留其 checked / language；后半段落到新块；
+ * ③ todo 新块重置为未勾选；code 新块沿用原 language；标题拆出的新块回落 paragraph。
+ */
+export function planBlockSplit(type: unknown, content: unknown, caret: number): BlockSplitPlan {
+  assertValidBlockType(type);
+  if (type === "divider") throw new ValidationError("分割线不可拆块");
+  const normalized = normalizeBlockContent(type, content);
+  const { before, after } = splitBlockText(normalized.text, caret);
+  const afterType = BLOCK_SPLIT_NEXT_TYPE[type];
+  return {
+    before: normalizeBlockContent(type, { ...normalized, text: before }),
+    after: normalizeBlockContent(afterType, { ...normalized, text: after, checked: false }),
+    afterType,
+  };
+}
+
+/**
+ * 退格合块计划（r8 唯一口径）：把后一块文本接到前一块尾部，结果沿用**前一块**的类型，
+ * 并保留前一块的 checked / language；结构块作为前一块时不参与合块（无文本可承接）。
+ */
+export function mergeBlockContent(
+  firstType: unknown,
+  firstContent: unknown,
+  secondType: unknown,
+  secondContent: unknown,
+): BlockContent {
+  assertValidBlockType(firstType);
+  assertValidBlockType(secondType);
+  if (STRUCTURAL_BLOCK_TYPES.includes(firstType)) {
+    throw new ValidationError("分割线不参与合块（它是结构块）");
+  }
+  const first = normalizeBlockContent(firstType, firstContent);
+  const second = normalizeBlockContent(secondType, secondContent);
+  const text = first.text + second.text;
+  if (text.length > MAX_BLOCK_TEXT) {
+    throw new ValidationError(`合块后文本过长：最多 ${MAX_BLOCK_TEXT} 字`);
+  }
+  return normalizeBlockContent(firstType, { ...first, text });
+}
+
+/**
+ * 批量重排（r8「批移动重排复用 shared 排序思路」）：
+ * order 必须是本文档全部块 id 的一个排列（长度相同 / 无重复 / 无越权 id），
+ * 返回 0..n-1 连续 position 映射，db 在单事务里一次落库。
+ */
+export function planBlockReorder(
+  blocks: readonly { id: number; position: number }[],
+  order: unknown,
+): ReorderedPosition[] {
+  if (!Array.isArray(order)) throw new ValidationError("重排顺序必须是数组");
+  const ids = new Set(blocks.map((b) => b.id));
+  if (order.length !== blocks.length) {
+    throw new ValidationError(`重排顺序长度不符：${order.length} ≠ ${blocks.length}`);
+  }
+  const seen = new Set<number>();
+  for (const raw of order) {
+    const id = Number(raw);
+    if (!Number.isInteger(id) || id <= 0) throw new ValidationError(`非法块 id：${String(raw)}`);
+    if (seen.has(id)) throw new ValidationError(`重排顺序含重复块 id：${id}`);
+    if (!ids.has(id)) throw new ValidationError(`重排顺序含越权块 id：${id}`);
+    seen.add(id);
+  }
+  return (order as unknown[]).map((raw, i) => ({ id: Number(raw), position: i }));
+}
+
+/** 全文装配输入（宽松形状：type/content 由 shared 引擎再次校验归一） */
+export interface AssemblableBlock {
+  id: number;
+  position: number;
+  type: unknown;
+  content: unknown;
+}
+
+/** 单块渲染为一行；numbered 的序号按连续有序块计数（遇到其它类型归零重数） */
+function renderBlockLine(type: BlockType, content: BlockContent, numberedOrdinal: number): string {
+  const text = content.text;
+  switch (type) {
+    case "heading1": return text === "" ? "" : `# ${text}`;
+    case "heading2": return text === "" ? "" : `## ${text}`;
+    case "heading3": return text === "" ? "" : `### ${text}`;
+    case "bullet": return text === "" ? "" : `- ${text}`;
+    case "numbered": return text === "" ? "" : `${numberedOrdinal}. ${text}`;
+    case "todo": return text === "" ? "" : `- [${content.checked ? "x" : " "}] ${text}`;
+    case "quote": return text === "" ? "" : `> ${text}`;
+    case "code": return text;
+    case "divider": return "---";
+    case "paragraph": return text;
+  }
+}
+
+/**
+ * 文档全文读（r8 唯一口径，按 position 拼装）：
+ * ① 先按 (position, id) 排序（与 db ORDER BY position, id 一致），同 position 用 id 兜底；
+ * ② 每块按类型渲染成一行（标题 #、列表 -、有序 1.、待办 - [x]、引用 >、分割线 ---）；
+ * ③ 空文本块不占行（新文档默认空首块 ⇒ 全文为空串，不产生无意义空行）。
+ */
+export function assembleDocumentText(blocks: readonly AssemblableBlock[]): string {
+  const sorted = [...blocks].sort((a, b) =>
+    a.position === b.position ? a.id - b.id : a.position - b.position,
+  );
+  const lines: string[] = [];
+  let numberedOrdinal = 0;
+  for (const block of sorted) {
+    const type = block.type;
+    assertValidBlockType(type);
+    const content = normalizeBlockContent(type, block.content);
+    if (type === "numbered") numberedOrdinal += 1;
+    else numberedOrdinal = 0;
+    const line = renderBlockLine(type, content, numberedOrdinal);
+    if (line !== "") lines.push(line);
+  }
+  return lines.join("\n");
 }

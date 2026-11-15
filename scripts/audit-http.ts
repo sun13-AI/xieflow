@@ -15,7 +15,7 @@
 
 export {}; // top-level await needs module scope
 
-import { buildBoardCsvFileName } from "@xieflow/shared";
+import { buildBoardCsvFileName, assembleDocumentText } from "@xieflow/shared";
 
 const PORT = Number(process.env.XIEFLOW_API_PORT ?? 8788);
 const BASE = `http://127.0.0.1:${PORT}`;
@@ -111,7 +111,7 @@ async function audit() {
     eq(h.json && h.json.ok, true, "health.ok = true");
     // r4 起动态对表：health.schemaVersion 必须等于迁移队列最高版本（不再硬编码 2/3，
     // r3 v0.0.6 CI 红教训——静态硬编码在每轮迁移后必过期）
-    eq(h.json && h.json.schemaVersion, 6, "health.schemaVersion = 6（r7 迁移后）");
+    eq(h.json && h.json.schemaVersion, 7, "health.schemaVersion = 7（r8 迁移后）");
     const s = await req("GET", "/api/settings");
     eq(s.status, 200, "GET /api/settings -> 200");
     ok(Array.isArray(s.json && s.json.settings), "settings 返回数组");
@@ -206,9 +206,9 @@ async function audit() {
   let schedule;
   let linkTodo;
   {
-    // health 探针反映 schema v4（r4 起迁移后动态推进）
+    // health 探针反映 schema v7（r4 起迁移后动态推进）
     const h3 = await req("GET", "/api/health");
-    eq(h3.json && h3.json.schemaVersion, 6, "health.schemaVersion = 6（schedules 节复核）");
+    eq(h3.json && h3.json.schemaVersion, 7, "health.schemaVersion = 7（schedules 节复核）");
 
     const r = await expectStatus(
       "POST",
@@ -1353,6 +1353,166 @@ async function audit() {
     await expectStatus("DELETE", `/api/tables/${tableId}`, undefined, 200, "r7 DELETE 表 -> 200");
     await expectStatus("GET", `/api/tables/${tableId}/views`, undefined, 404, "r7 删表：视图列表 404（级联）");
     await expectStatus("GET", `/api/views/${viewId}/records`, undefined, 404, "r7 删表：按视图查询 404");
+  }
+
+  console.log("\n== documents + blocks (r8) ==");
+  {
+    // —— 用户第一次用全链路（r4 教训）：建文档 → 默认首块在场 → 输入 → 拆块 → 改类型 → 移动 → 全文读 → 重开不丢 ——
+    const doc = await expectStatus("POST", "/api/documents", { title: "r8 文档块编辑器验收" }, 201, "r8 POST 文档 -> 201");
+    const docId = doc.json.id as number;
+    eq(doc.json.title, "r8 文档块编辑器验收", "r8 建文档：标题读回");
+    ok(Number.isInteger(docId) && docId > 0, "r8 建文档：返回自增 id");
+    const firstList = await expectStatus("GET", `/api/documents/${docId}/blocks`, undefined, 200, "r8 GET 文档块列表 -> 200");
+    eq(firstList.json.blocks.length, 1, "r8 第一次用：建文档默认首块自动在场（不是零块死路）");
+    eq(firstList.json.blocks[0].type, "paragraph", "r8 默认首块：类型 paragraph");
+    eq(firstList.json.blocks[0].content, { text: "" }, "r8 默认首块：空文本");
+    eq(firstList.json.blocks[0].position, 0, "r8 默认首块：position=0");
+    eq(firstList.json.blocks[0].parentId, null, "r8 默认首块：parentId 可空");
+    const firstId = firstList.json.blocks[0].id as number;
+
+    // 文档 CRUD + 4xx
+    const docs = await expectStatus("GET", "/api/documents", undefined, 200, "r8 GET 文档列表 -> 200");
+    ok(Array.isArray(docs.json.documents), "r8 文档列表返回数组");
+    ok(docs.json.documents.some((d: { id: number }) => d.id === docId), "r8 文档列表含刚建的文档");
+    const got = await expectStatus("GET", `/api/documents/${docId}`, undefined, 200, "r8 GET 单篇文档 -> 200");
+    eq(got.json.title, "r8 文档块编辑器验收", "r8 GET 单篇：标题一致");
+    const renamed = await expectStatus("PATCH", `/api/documents/${docId}`, { title: "改名后的文档" }, 200, "r8 PATCH 文档改名 -> 200");
+    eq(renamed.json.title, "改名后的文档", "r8 PATCH 文档：改名读回");
+    await expectStatus("POST", "/api/documents", { title: "" }, 400, "r8 POST 文档空标题 -> 400");
+    await expectStatus("POST", "/api/documents", { title: "x".repeat(201) }, 400, "r8 POST 文档超长标题 -> 400");
+    await expectStatus("PATCH", `/api/documents/${docId}`, { title: "" }, 400, "r8 PATCH 文档空标题 -> 400");
+    await expectStatus("GET", "/api/documents/99999", undefined, 404, "r8 GET 不存在文档 -> 404");
+    await expectStatus("GET", "/api/documents/not-a-number", undefined, 400, "r8 GET 非数字文档 id -> 400");
+    await expectStatus("GET", "/api/documents/99999/blocks", undefined, 404, "r8 GET 不存在文档的块列表 -> 404");
+    await expectStatus("GET", "/api/documents/99999/text", undefined, 404, "r8 GET 不存在文档的全文 -> 404");
+
+    // 输入首块 + 追加多类型块（真实装配行为，非纯函数自证）
+    const typed = await expectStatus("PATCH", `/api/blocks/${firstId}`, { content: "第一段文字" }, 200, "r8 PATCH 块内容（输入）-> 200");
+    eq(typed.json.content, { text: "第一段文字" }, "r8 输入：首块文本落库读回");
+    const h1 = await expectStatus("POST", `/api/documents/${docId}/blocks`, { type: "heading1", content: { text: "一级标题" } }, 201, "r8 POST heading1 块 -> 201");
+    await expectStatus("POST", `/api/documents/${docId}/blocks`, { type: "heading2", content: "二级标题" }, 201, "r8 POST heading2 字符串内容 -> 201");
+    await expectStatus("POST", `/api/documents/${docId}/blocks`, { type: "heading3", content: "三级标题" }, 201, "r8 POST heading3 -> 201");
+    await expectStatus("POST", `/api/documents/${docId}/blocks`, { type: "bullet", content: "列表甲" }, 201, "r8 POST bullet -> 201");
+    await expectStatus("POST", `/api/documents/${docId}/blocks`, { type: "numbered", content: "列表乙" }, 201, "r8 POST numbered -> 201");
+    await expectStatus("POST", `/api/documents/${docId}/blocks`, { type: "quote", content: "引用" }, 201, "r8 POST quote -> 201");
+    await expectStatus("POST", `/api/documents/${docId}/blocks`, { type: "divider", content: { text: "丢弃" } }, 201, "r8 POST divider -> 201");
+    const todo = await expectStatus("POST", `/api/documents/${docId}/blocks`, { type: "todo", content: { text: "买菜", checked: true } }, 201, "r8 POST todo 块 -> 201");
+    eq(todo.json.content, { text: "买菜", checked: true }, "r8 todo：checked 落库读回");
+    const code = await expectStatus("POST", `/api/documents/${docId}/blocks`, { type: "code", content: { text: "let a=1", language: "ts" } }, 201, "r8 POST code 块 -> 201");
+    eq(code.json.content, { text: "let a=1", language: "ts" }, "r8 code：language 落库读回");
+    const divBlock = await expectStatus("POST", `/api/documents/${docId}/blocks`, { type: "divider" }, 201, "r8 POST 末位 divider -> 201");
+    const listed = await expectStatus("GET", `/api/documents/${docId}/blocks`, undefined, 200, "r8 GET 多类型块列表 -> 200");
+    eq(listed.json.blocks.length, 11, "r8 块列表：1 首块 + 10 追加 = 11 块");
+    eq(listed.json.blocks.map((b: { position: number }) => b.position), [0,1,2,3,4,5,6,7,8,9,10], "r8 块列表：position 连号 0..10");
+    const dividerRead = listed.json.blocks.find((b: { id: number }) => b.id === divBlock.json.id);
+    eq(dividerRead.content, { text: "" }, "r8 divider：文本被 shared 归一丢弃（HTTP 真读回）");
+    const single = await expectStatus("GET", `/api/blocks/${h1.json.id}`, undefined, 200, "r8 GET 单块 -> 200");
+    eq(single.json.type, "heading1", "r8 GET 单块：类型一致");
+
+    // 4xx：非法块类型 / 越权 document_id / 非法 position / 非法内容 / 非法转换
+    await expectStatus("POST", `/api/documents/${docId}/blocks`, { type: "mystery", content: "x" }, 400, "r8 非法块类型 -> 400");
+    await expectStatus("POST", `/api/documents/${docId}/blocks`, { content: "缺类型" }, 400, "r8 缺块类型 -> 400");
+    await expectStatus("POST", `/api/documents/${docId}/blocks`, { type: "paragraph", content: 42 }, 400, "r8 非法块内容（数字）-> 400");
+    await expectStatus("POST", `/api/documents/${docId}/blocks`, { type: "paragraph", content: "x".repeat(20001) }, 400, "r8 超长块文本 -> 400");
+    const otherDoc = await expectStatus("POST", "/api/documents", { title: "另一篇文档" }, 201, "r8 建第二篇文档（越权测试用）-> 201");
+    const otherDocId = otherDoc.json.id as number;
+    await expectStatus("POST", `/api/documents/${docId}/blocks`, { type: "paragraph", content: "越权", documentId: otherDocId }, 400, "r8 越权 document_id（body 与路径不符）-> 400");
+    await expectStatus("POST", "/api/blocks", { documentId: otherDocId, type: "paragraph", content: "x" }, 404, "r8 未注册全局块入口 -> 404");
+    await expectStatus("POST", `/api/documents/${otherDocId}/blocks`, { type: "paragraph", content: "跨文档父块", parentId: firstId }, 400, "r8 越权 parentId（跨文档）-> 400");
+    await expectStatus("POST", `/api/documents/${docId}/blocks`, { type: "paragraph", content: "x", parentId: 99999 }, 400, "r8 不存在 parentId -> 400");
+    await expectStatus("POST", `/api/documents/${docId}/blocks`, { type: "paragraph", content: "x", position: -1 }, 400, "r8 非法 position（负数）-> 400");
+    await expectStatus("POST", `/api/documents/${docId}/blocks`, { type: "paragraph", content: "x", position: 999 }, 400, "r8 非法 position（越界）-> 400");
+    await expectStatus("POST", `/api/documents/${docId}/blocks`, { type: "paragraph", content: "x", position: 1.5 }, 400, "r8 非法 position（非整数）-> 400");
+    await expectStatus("POST", "/api/documents/99999/blocks", { type: "paragraph", content: "x" }, 404, "r8 建块到不存在文档 -> 404");
+    await expectStatus("PATCH", `/api/blocks/${firstId}`, { documentId: otherDocId }, 400, "r8 PATCH 块带越权 document_id -> 400");
+    await expectStatus("PATCH", `/api/blocks/${firstId}`, { content: 42 }, 400, "r8 PATCH 非法内容 -> 400");
+    await expectStatus("PATCH", "/api/blocks/99999", { content: "x" }, 404, "r8 PATCH 不存在块 -> 404");
+    await expectStatus("GET", "/api/blocks/99999", undefined, 404, "r8 GET 不存在块 -> 404");
+    await expectStatus("POST", `/api/blocks/${divBlock.json.id}/convert`, { type: "paragraph" }, 400, "r8 非法类型转换（divider→paragraph）-> 400");
+    await expectStatus("POST", `/api/blocks/${h1.json.id}/convert`, { type: "mystery" }, 400, "r8 类型转换目标非法 -> 400");
+    await expectStatus("POST", "/api/blocks/99999/convert", { type: "paragraph" }, 404, "r8 转换不存在块 -> 404");
+    await expectStatus("POST", `/api/blocks/${h1.json.id}/split`, { caret: 999 }, 400, "r8 拆块 caret 越界 -> 400");
+    await expectStatus("POST", `/api/blocks/${divBlock.json.id}/split`, { caret: 0 }, 400, "r8 divider 不可拆 -> 400");
+    await expectStatus("POST", `/api/blocks/${firstId}/merge`, undefined, 400, "r8 首块合块（无前驱）-> 400");
+
+    // 类型转换（真实走 shared convertBlockContent，HTTP 层读回归一结果）
+    const conv = await expectStatus("POST", `/api/blocks/${todo.json.id}/convert`, { type: "paragraph" }, 200, "r8 类型切换 todo→paragraph -> 200");
+    eq(conv.json.type, "paragraph", "r8 类型切换：类型读回");
+    eq(conv.json.content, { text: "买菜" }, "r8 类型切换：todo 专属 checked 被 shared 归一丢弃");
+    const conv2 = await expectStatus("POST", `/api/blocks/${todo.json.id}/convert`, { type: "todo" }, 200, "r8 类型切换 paragraph→todo -> 200");
+    eq(conv2.json.content, { text: "买菜", checked: false }, "r8 类型切换：todo 补默认未勾选");
+
+    // 回车拆块：后半段落新块，position 连号
+    const split = await expectStatus("POST", `/api/blocks/${h1.json.id}/split`, { caret: 2 }, 201, "r8 回车拆块 -> 201");
+    eq(split.json.before.content.text, "一级", "r8 拆块：前半段留原块（HTTP 真读回）");
+    eq(split.json.after.content.text, "标题", "r8 拆块：后半段落新块（HTTP 真读回）");
+    eq(split.json.after.position, split.json.before.position + 1, "r8 拆块：新块紧随原块");
+    const afterSplit = await expectStatus("GET", `/api/documents/${docId}/blocks`, undefined, 200, "r8 拆块后 GET 块列表 -> 200");
+    eq(afterSplit.json.blocks.length, 12, "r8 拆块后块数 +1（11→12）");
+    eq(afterSplit.json.blocks.map((b: { position: number }) => b.position), [0,1,2,3,4,5,6,7,8,9,10,11], "r8 拆块后 position 连续无空洞");
+
+    // 上移 / 下移 + 批移动重排
+    const moved = await expectStatus("POST", `/api/blocks/${split.json.after.id}/move`, { position: 0 }, 200, "r8 上移到 position=0 -> 200");
+    eq(moved.json.blocks[0].id, split.json.after.id, "r8 上移：目标块落到首位（HTTP 真读回）");
+    eq(moved.json.blocks.map((b: { position: number }) => b.position), [0,1,2,3,4,5,6,7,8,9,10,11], "r8 上移后 position 连续");
+    await expectStatus("POST", `/api/blocks/${split.json.after.id}/move`, { position: 999 }, 400, "r8 上移越界 -> 400");
+    const orderNow = (await req("GET", `/api/documents/${docId}/blocks`)).json.blocks.map((b: { id: number }) => b.id);
+    const reversed = [...orderNow].reverse();
+    const reordered = await expectStatus("POST", `/api/documents/${docId}/blocks/reorder`, { order: reversed }, 200, "r8 批量重排 -> 200");
+    eq(reordered.json.blocks.map((b: { id: number }) => b.id), reversed, "r8 批量重排：顺序与请求一致");
+    eq(reordered.json.blocks.map((b: { position: number }) => b.position), [0,1,2,3,4,5,6,7,8,9,10,11], "r8 批量重排：position 连续");
+    await expectStatus("POST", `/api/documents/${docId}/blocks/reorder`, { order: [1, 1, 2] }, 400, "r8 批量重排：重复 id -> 400");
+    await expectStatus("POST", `/api/documents/${docId}/blocks/reorder`, { order: [99999] }, 400, "r8 批量重排：越权 id -> 400");
+    await expectStatus("POST", `/api/documents/${docId}/blocks/reorder`, { order: "not-array" }, 400, "r8 批量重排：非数组 -> 400");
+    await expectStatus("POST", "/api/documents/99999/blocks/reorder", { order: [1] }, 404, "r8 批量重排到不存在文档 -> 404");
+
+    // 退格合块：与前一块合并，块数 -1，position 收拢
+    const beforeMerge = (await req("GET", `/api/documents/${docId}/blocks`)).json.blocks;
+    const mergeTargetId = beforeMerge[3].id as number;
+    const merged = await expectStatus("POST", `/api/blocks/${mergeTargetId}/merge`, undefined, 200, "r8 退格合块 -> 200");
+    eq(merged.json.blocks.length, beforeMerge.length - 1, "r8 合块：块数减一（HTTP 真读回）");
+    eq(merged.json.blocks.map((b: { position: number }) => b.position), [0,1,2,3,4,5,6,7,8,9,10], "r8 合块后 position 收拢连续");
+
+    // 全文读：按 position 拼装（真实装配行为，断言具体文本）
+    const full = await expectStatus("GET", `/api/documents/${docId}/text`, undefined, 200, "r8 文档全文读 -> 200");
+    eq(full.json.documentId, docId, "r8 全文读：回显 documentId");
+    eq(full.json.title, "改名后的文档", "r8 全文读：回显最新标题");
+    eq(full.json.blockCount, full.json.blocks.length, "r8 全文读：blockCount 与块数一致");
+    ok(typeof full.json.text === "string", "r8 全文读：text 为字符串");
+    ok(full.json.text.includes("第一段文字"), "r8 全文读：含首块输入内容");
+    ok(full.json.text.includes("买菜"), "r8 全文读：含 todo 文本");
+    ok(full.json.text.includes("---"), "r8 全文读：含 divider 拼装的分割线");
+    ok(full.json.text.includes("let a=1"), "r8 全文读：含 code 文本");
+    const blocksForText = full.json.blocks.map((b: { id: number; position: number; type: string; content: unknown }) => ({
+      id: b.id, position: b.position, type: b.type, content: b.content,
+    }));
+    eq(
+      full.json.text,
+      assembleDocumentText(blocksForText),
+      "r8 全文读：响应 text 与 shared 装配逐字相等（按 position）",
+    );
+
+    // 重开不丢（HTTP 重启前后快照逐字节相等）：拆/合/移动/重排后的顺序持久化
+    const snapshotBefore = JSON.stringify((await req("GET", `/api/documents/${docId}/blocks`)).json);
+    const textBefore = (await req("GET", `/api/documents/${docId}/text`)).json.text;
+    const reopenDoc = await expectStatus("GET", `/api/documents/${docId}`, undefined, 200, "r8 重开验证：GET 文档 -> 200");
+    eq(reopenDoc.json.title, "改名后的文档", "r8 重开验证：文档标题不丢");
+    eq(JSON.stringify((await req("GET", `/api/documents/${docId}/blocks`)).json), snapshotBefore, "r8 重开验证：块顺序逐字节相等");
+    eq((await req("GET", `/api/documents/${docId}/text`)).json.text, textBefore, "r8 重开验证：全文逐字节相等");
+
+    // 删块 / 删文档级联
+    const delBlock = await expectStatus("DELETE", `/api/blocks/${code.json.id}`, undefined, 200, "r8 DELETE 块 -> 200");
+    eq(delBlock.json.deleted, true, "r8 删块：deleted=true");
+    await expectStatus("GET", `/api/blocks/${code.json.id}`, undefined, 404, "r8 删块后 GET -> 404");
+    await expectStatus("DELETE", "/api/blocks/99999", undefined, 404, "r8 删不存在块 -> 404");
+    const beforeDelete = (await req("GET", `/api/documents/${docId}/blocks`)).json.blocks.length;
+    await expectStatus("DELETE", `/api/documents/${otherDocId}`, undefined, 200, "r8 DELETE 第二篇文档 -> 200");
+    await expectStatus("GET", `/api/documents/${otherDocId}`, undefined, 404, "r8 删文档后 GET -> 404");
+    eq((await req("GET", `/api/documents/${docId}/blocks`)).json.blocks.length, beforeDelete, "r8 删别的文档不影响本文档块数");
+    const delDoc = await expectStatus("DELETE", `/api/documents/${docId}`, undefined, 200, "r8 DELETE 文档 -> 200");
+    eq(delDoc.json.deleted, true, "r8 删文档：deleted=true");
+    await expectStatus("GET", `/api/documents/${docId}/blocks`, undefined, 404, "r8 删文档后块列表 -> 404（级联）");
+    await expectStatus("GET", "/api/documents", undefined, 200, "r8 清理后 GET 文档列表 -> 200");
   }
 
   console.log("\n== schedules delete (r3) ==");

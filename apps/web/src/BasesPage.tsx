@@ -1145,6 +1145,7 @@ export default function BasesPage() {
           preview={importPreview}
           error={importError}
           busy={importBusy}
+          tableName={table?.name ?? "当前表"}
           onText={setImportText}
           onPreview={() => void runImportPreview()}
           onConfirm={() => void confirmImport()}
@@ -1561,6 +1562,7 @@ function ImportDialog({
   preview,
   error,
   busy,
+  tableName,
   onText,
   onPreview,
   onConfirm,
@@ -1570,6 +1572,7 @@ function ImportDialog({
   preview: ImportPreview | null;
   error: string | null;
   busy: boolean;
+  tableName: string;
   onText: (value: string) => void;
   onPreview: () => void;
   onConfirm: () => void;
@@ -1582,6 +1585,8 @@ function ImportDialog({
         <p className="hint">
           第一行是表头（列名 = 字段名）。逐行按字段类型归一与校验；<strong>任一行不合法就一行都不落库</strong>
           （全成功或全不落，没有半截数据）。
+          <br />
+          行号口径：错误清单按<strong>数据行</strong>编号（表头不占号），即「第 N 条数据 = CSV 第 N+1 行」；预览表首列即数据行号。
         </p>
         <textarea
           className="bases-import-text"
@@ -1608,6 +1613,7 @@ function ImportDialog({
               <table className="bases-import-table">
                 <thead>
                   <tr>
+                    <th>数据行号</th>
                     {preview.headers.map((h) => (
                       <th key={h}>{h}</th>
                     ))}
@@ -1616,6 +1622,7 @@ function ImportDialog({
                 <tbody>
                   {preview.preview.map((row, idx) => (
                     <tr key={`preview-${idx}`}>
+                      <td>第 {idx + 1} 条</td>
                       {row.map((cell, cidx) => (
                         <td key={`cell-${idx}-${cidx}`}>{cell === "" ? "—" : cell}</td>
                       ))}
@@ -1628,13 +1635,22 @@ function ImportDialog({
               <ul className="bases-import-errors" data-state="bases-import-errors">
                 {preview.errors.map((e) => (
                   <li key={`err-${e.row}`}>
-                    第 {e.row} 行：{e.reason}
+                    第 {e.row} 条数据（CSV 第 {e.row + 1} 行）：{e.reason}
                   </li>
                 ))}
               </ul>
             )}
           </div>
         )}
+        {/* r7 UI 记账 U2-4 修复：把成功侧后果提前到决策点（追加 N 行 / 不可撤销） */}
+        <p className="hint bases-import-consequence" data-state="bases-import-consequence">
+          确认导入将向「{tableName}」追加
+          {preview ? ` ${preview.total} 行` : "本次 CSV 的数据行"}，
+          导入后<strong>不可撤销</strong>；
+          {preview && preview.errors.length > 0
+            ? `当前有 ${preview.errors.length} 行不合法，确认后服务端会整体拒绝（零半态）。`
+            : "任一行不合法则一行都不落库。"}
+        </p>
         <div className="modal-actions">
           <button type="button" className="btn btn-secondary" onClick={onClose}>
             取消

@@ -6,23 +6,23 @@
 #   powershell -File scripts\shot.ps1 shots -Round r5 # capture r5 board stats + CSV export states
 #   powershell -File scripts\shot.ps1 shots -Round r6 # capture r6 bases grid states
 #   powershell -File scripts\shot.ps1 shots -Round r7 # capture r7 views + CSV import states
+#   powershell -File scripts\shot.ps1 shots -Round r8 # capture r8 document block editor states
 #   powershell -File scripts\shot.ps1 down            # stop servers
 #   powershell -File scripts\shot.ps1 status          # show port status
 #   powershell -File scripts\shot.ps1 all             # up + shots + down
 #
 # SHELL BASELINE (rework#1 B, ui-reviewer U1-1 3-round lesson): any -Round r4+ run
-# of `shots` ALSO captures the five-tab shell active states (workbench / todos /
-# schedules / projects / board) into docs\ui\shell\. The shell is a render-layer
-# change whenever its tabs change; the inherited pages' active states must have
-# evidence in the SAME round, automatically. Rule: whenever you add or rename a
-# tab (shell change), the five active states are re-shot by this block - no
-# manual checklist needed. Keep the list in sync with App.tsx PageTab.
-# r6: a sixth tab (bases) was added -> the baseline now captures six active states.
+# of `shots` ALSO captures the tab shell active states into docs\ui\shell\. The shell
+# is a render-layer change whenever its tabs change; the inherited pages' active
+# states must have evidence in the SAME round, automatically. Keep the list in sync
+# with App.tsx PageTab.
+# r6: a sixth tab (bases) was added -> six active states.
+# r8: a SEVENTH tab (docs) was added -> the baseline now captures seven active states.
 param(
   [Parameter(Position = 0)]
   [ValidateSet("up", "shots", "down", "status", "all")]
   [string]$Action = "status",
-  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7")]
+  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8")]
   [string]$Round = "r1"
 )
 
@@ -107,9 +107,10 @@ function Find-Browser {
   return $browser
 }
 
-# SHELL BASELINE: five-tab shell active states (rework#1 B). Fired automatically on
+# SHELL BASELINE: seven-tab shell active states (rework#1 B). Fired automatically on
 # every r4+ shots run so a shell change can never leave inherited pages without
 # evidence again (r2/r3/r4 three-round U1-1 lesson). Landing dir: docs\ui\shell\.
+# r8: the SEVENTH tab (docs) was added -> all seven active states are re-shot.
 function Invoke-ShellBaseline {
   param([string]$BrowserPath)
   $shellDir = Join-Path $Root "docs\ui\shell"
@@ -121,7 +122,8 @@ function Invoke-ShellBaseline {
     @{ page = "schedules"; file = "schedules-tab-active" },
     @{ page = "projects";  file = "projects-tab-active" },
     @{ page = "board";     file = "board-tab-active" },
-    @{ page = "bases";     file = "bases-tab-active" }
+    @{ page = "bases";     file = "bases-tab-active" },
+    @{ page = "docs";      file = "docs-tab-active" }
   )
   foreach ($t in $tabs) {
     $url = "http://127.0.0.1:$WebPort/"
@@ -406,6 +408,82 @@ function Invoke-Shots {
     }
   }
 
+  # r8: seed THREE real documents (one with all 10 block types via REAL api),
+  # a short split-demo document, and one table for the r7 U2 import-dialog fix
+  # evidence. All Chinese is \uXXXX escapes so this script stays pure ASCII.
+  # Between shot 07 and 08 a REAL POST /api/blocks/:id/split happens, leaving a
+  # real before/after trace (r3 B lesson: seeds must be split around the capture).
+  $r8MainDocId = $null
+  $r8ListDocId = $null
+  $r8SplitDocId = $null
+  $r8SplitBlockId = $null
+  $r8TableId = $null
+  if ($Round -eq "r8") {
+    try {
+      $r8Doc1 = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/documents" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes(
+        '{"title":"r8 \u6587\u6863\u5757\u7f16\u8f91\u5668"}'))
+      $r8Doc2 = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/documents" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes(
+        '{"title":"\u9879\u76ee\u5468\u62a5"}'))
+      $r8Doc3 = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/documents" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes(
+        '{"title":"\u9700\u6c42\u8ba8\u8bba\u7eaa\u8981"}'))
+      # main doc: default first block -> heading1 with real text (two REAL api calls)
+      $r8First = (Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/documents/$($r8Doc1.id)/blocks" -Method Get).blocks[0]
+      Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/blocks/$($r8First.id)/convert" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes('{"type":"heading1"}')) | Out-Null
+      Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/blocks/$($r8First.id)" -Method Patch `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes(
+        '{"content":"\u534f\u6d41 M4 \u00b7 \u6587\u6863\u5757\u7f16\u8f91\u5668"}')) | Out-Null
+      # append the remaining 13 blocks covering all 10 types
+      $r8Bodies = @(
+        '{"type":"paragraph","content":"\u5757\u7ea7\u6587\u6863\uff1a\u4e00\u4e2a\u5757\u662f\u4e00\u79cd\u5185\u5bb9\uff0c\u56de\u8f66\u62c6\u3001\u9000\u683c\u5408\u3001\u4e0a\u4e0b\u79fb\u3001\u7c7b\u578b\u968f\u65f6\u5207\u6362\u3002"}',
+        '{"type":"heading2","content":"\u672c\u5468\u8fdb\u5c55"}',
+        '{"type":"bullet","content":"schema v6\u2192v7\uff1adocuments / blocks \u4e24\u8868\u843d\u5e93"}',
+        '{"type":"bullet","content":"\u5757\u7c7b\u578b\u5f15\u64ce\u5168\u90e8\u96c6\u4e2d\u5728 shared\uff0capi \u5c42\u96f6\u7c7b\u578b\u5206\u652f"}',
+        '{"type":"heading3","content":"\u9a8c\u6536\u8981\u70b9"}',
+        '{"type":"numbered","content":"\u5757\u987a\u5e8f\u62c6 / \u5408 / \u79fb\u52a8\u540e\u6301\u4e45\u5316\u4e14\u91cd\u5f00\u4e0d\u4e22"}',
+        '{"type":"numbered","content":"\u6253\u5370\u9884\u89c8\u8d70 window.print() + \u6253\u5370\u6837\u5f0f\u8868"}',
+        '{"type":"todo","content":{"text":"\u8865 6 \u5f20\u622a\u56fe\u77e9\u9635 + \u4e03 tab \u58f3\u57fa\u7ebf","checked":true}}',
+        '{"type":"todo","content":{"text":"waizhuan \u590d\u9a8c\u53cc VERDICT","checked":false}}',
+        '{"type":"quote","content":"\u65ad\u8a00\u53ea\u6da8\u4e0d\u7f29\uff0c\u5173\u952e\u884c\u4e3a\u505a\u53d8\u5f02\u7ea2\u76f8\u7559\u75d5\u3002"}',
+        '{"type":"code","content":{"text":"POST /api/blocks/:id/split { caret }\nPOST /api/blocks/:id/merge","language":"http"}}',
+        '{"type":"divider","content":""}',
+        '{"type":"paragraph","content":"\u6253\u5370\u65f6\u53ea\u8f93\u51fa\u6587\u6863\u6b63\u6587\uff0c\u5de5\u5177\u680f\u4e0e\u5757\u64cd\u4f5c\u6309\u94ae\u7531 @media print \u9690\u85cf\u3002"}'
+      )
+      foreach ($r8b in $r8Bodies) {
+        Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/documents/$($r8Doc1.id)/blocks" -Method Post `
+          -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes($r8b)) | Out-Null
+      }
+      # list shot: doc2 gets two short blocks so the sidebar + a light editor show
+      $r8L1 = (Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/documents/$($r8Doc2.id)/blocks" -Method Get).blocks[0]
+      Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/blocks/$($r8L1.id)" -Method Patch `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes(
+        '{"content":"\u672c\u5468\u5b8c\u6210\uff1a\u6587\u6863\u5757\u7f16\u8f91\u5668\u4e0a\u7ebf"}')) | Out-Null
+      Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/documents/$($r8Doc2.id)/blocks" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes(
+        '{"type":"todo","content":{"text":"\u4e0b\u5468\u6392\u671f\uff1a\u6587\u6863\u5bfc\u5165\u5bfc\u51fa","checked":false}}')) | Out-Null
+      # split demo document: one paragraph with a known caret position
+      $r8S1 = (Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/documents/$($r8Doc3.id)/blocks" -Method Get).blocks[0]
+      Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/blocks/$($r8S1.id)" -Method Patch `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes(
+        '{"content":"\u56de\u8f66\u62c6\u5757\u6f14\u793a"}')) | Out-Null
+      # one table (8 default fields) for the r7 U2 import-dialog fix evidence shot
+      $r8Table = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/tables" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes(
+        '{"name":"r8 U2 \u4fee\u590d\u9a8c\u8bc1\u8868"}'))
+      $r8MainDocId = $r8Doc1.id
+      $r8ListDocId = $r8Doc2.id
+      $r8SplitDocId = $r8Doc3.id
+      $r8SplitBlockId = $r8S1.id
+      $r8TableId = $r8Table.id
+      Write-Output "seeded r8 docs main=$r8MainDocId list=$r8ListDocId split=$r8SplitDocId (block=$r8SplitBlockId), u2 table=$r8TableId"
+    } catch {
+      Write-Output "warn: r8 seed failed ($($_.Exception.Message)) - live shots may show empty docs"
+    }
+  }
+
   if ($Round -eq "r6") {
     # r6: seed a multi-dim table with the seven field types and three records so
     # the grid view, the field panel and the filtered/sorted view all show REAL
@@ -462,7 +540,31 @@ function Invoke-Shots {
     }
   }
 
-  if ($Round -eq "r7") {
+  if ($Round -eq "r8") {
+    # r8: document block editor states (all real api data; only empty/loading/error
+    # and the type-switch / print overlays are pinned seams).
+    # 01 = document empty state (pinned first-use guidance);
+    # 02 = document list (3 REAL docs in the sidebar + a light editor);
+    # 03 = editor with all 10 REAL block types;
+    # 04 = block type switch dropdown open (canConvertBlockType disables divider);
+    # 05 = print preview sheet (window.print + @media print stylesheet);
+    # 06 = narrow 488x900; 07/08 = REAL split before/after (POST between captures);
+    # 09/10 = loading / error states; 11 = r7 U2 import-dialog fixes evidence.
+    $r8Base = "http://127.0.0.1:$WebPort/?page=docs"
+    $shots = @(
+      @{ name = "01-docs-empty";          url = "$r8Base&shot=docs-empty"; width = 1280; height = 800 },
+      @{ name = "02-docs-list";           url = "$r8Base&docId=$r8ListDocId"; width = 1280; height = 800 },
+      @{ name = "03-docs-editor";         url = "$r8Base&docId=$r8MainDocId"; width = 1280; height = 800 },
+      @{ name = "04-docs-type-switch";    url = "$r8Base&docId=$r8MainDocId&shot=docs-type-switch"; width = 1280; height = 800 },
+      @{ name = "05-docs-print-preview";  url = "$r8Base&docId=$r8MainDocId&shot=docs-print"; width = 1280; height = 900 },
+      @{ name = "06-docs-narrow";         url = "$r8Base&docId=$r8MainDocId&narrow=1"; width = 488; height = 900 },
+      @{ name = "07-docs-split-before";   url = "$r8Base&docId=$r8SplitDocId"; width = 1280; height = 800 },
+      @{ name = "08-docs-split-after";    url = "$r8Base&docId=$r8SplitDocId"; width = 1280; height = 800 },
+      @{ name = "09-docs-loading";        url = "$r8Base&shot=docs-loading"; width = 1280; height = 800 },
+      @{ name = "10-docs-error";          url = "$r8Base&shot=docs-error"; width = 1280; height = 800 },
+      @{ name = "11-import-u2-fixes";     url = "http://127.0.0.1:$WebPort/?page=bases&tableId=$r8TableId&shot=bases-import-errors"; width = 1280; height = 800 }
+    )
+  } elseif ($Round -eq "r7") {
     # r7: view switcher / view editor / hidden columns / CSV import states.
     # 01 = view switcher with 4 saved views (REAL api views, all-records active);
     # 02 = view editor panel (?editView=<id> opens the panel with REAL saved spec);
@@ -639,6 +741,23 @@ function Invoke-Shots {
     $kb = [math]::Round((Get-Item $out).Length / 1KB)
     Write-Output "shot ok: $($s.name).png ($kb KB)"
 
+    # r8 (r3 B lesson): between 07 (before) and 08 (after) a REAL split happens
+    # over POST /api/blocks/:id/split. 07 shows one paragraph; 08 shows two blocks
+    # with consecutive positions. Hashes of 07/08 must differ.
+    if ($Round -eq "r8" -and $s.name -eq "07-docs-split-before") {
+      if ($r8SplitBlockId) {
+        try {
+          $splitRes = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/blocks/$r8SplitBlockId/split" -Method Post `
+            -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes('{"caret":4}'))
+          Write-Output "r8 real split: before=$($splitRes.before.content.text) after=$($splitRes.after.content.text) blocks=$($splitRes.blocks.Count)"
+        } catch {
+          Write-Output "warn: split between 07/08 failed ($($_.Exception.Message)) - 08 may equal 07"
+        }
+      } else {
+        Write-Output "warn: no r8 split block id - 08 may equal 07"
+      }
+    }
+
     # r3 rework#1 (B): between 06 (before) and 10 (after) the MOVE really happens
     # over the link route: seeded todo dueDate today -> today+3, its auto schedule
     # follows. 06 therefore shows the today-only live grid; 10 shows the moved one.
@@ -730,7 +849,23 @@ function Invoke-Shots {
   # seed todo, so repeat runs stay deterministic.
   # r5: delete both seeded projects (by id - the script stays ASCII) and the two
   # seeded todos.
-  if ($Round -eq "r7") {
+  if ($Round -eq "r8") {
+    # r8: delete the seeded documents + table so repeat runs stay deterministic
+    # and the shell baseline still shows the first-use empty docs state.
+    try {
+      foreach ($did8 in @($r8MainDocId, $r8ListDocId, $r8SplitDocId)) {
+        if ($did8) {
+          Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/documents/$did8" -Method Delete | Out-Null
+        }
+      }
+      if ($r8TableId) {
+        Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/tables/$r8TableId" -Method Delete | Out-Null
+      }
+      Write-Output "cleaned seeded r8 documents and u2 table"
+    } catch {
+      Write-Output "warn: r8 cleanup failed ($($_.Exception.Message))"
+    }
+  } elseif ($Round -eq "r7") {
     # r7: delete the seeded table (views + records cascade) so repeat runs stay
     # deterministic and the shell baseline still shows the first-use empty state.
     try {

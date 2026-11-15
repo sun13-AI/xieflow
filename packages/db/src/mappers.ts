@@ -16,8 +16,11 @@ import type {
   ViewFilterCondition,
   ViewSortRule,
   FieldType,
+  Document,
+  DocumentBlock,
+  BlockType,
 } from "@xieflow/shared";
-import { isFieldType } from "@xieflow/shared";
+import { isFieldType, isBlockType, normalizeBlockContent } from "@xieflow/shared";
 import { REPEATS_ORDER } from "./repeat-order.js";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -194,6 +197,46 @@ export function mapRowToTableView(row: Row): TableView {
     sortSpec: parseJsonArray(row.sort_spec) as ViewSortRule[],
     visibleFields: parseJsonArray(row.visible_fields).map((v) => Number(v)),
     position: Number(row.position),
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+  };
+}
+
+/** 文档（r8） */
+export function mapRowToDocument(row: Row): Document {
+  return {
+    id: Number(row.id),
+    title: String(row.title),
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+  };
+}
+
+/** 块内容 JSON 解析：坏 JSON 视为空内容，再走 shared 引擎按类型归一/校验（唯一口径） */
+function parseBlockContent(raw: unknown, type: BlockType): ReturnType<typeof normalizeBlockContent> {
+  let parsed: unknown = {};
+  if (typeof raw === "string" && raw !== "") {
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      parsed = {};
+    }
+  }
+  return normalizeBlockContent(type, parsed);
+}
+
+export function mapRowToDocumentBlock(row: Row): DocumentBlock {
+  const type = String(row.type) as BlockType;
+  if (!isBlockType(type)) {
+    throw new Error(`非法块类型值：${row.type}`);
+  }
+  return {
+    id: Number(row.id),
+    documentId: Number(row.document_id),
+    type,
+    position: Number(row.position),
+    content: parseBlockContent(row.content, type),
+    parentId: row.parent_id === null ? null : Number(row.parent_id),
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
   };
