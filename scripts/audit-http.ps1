@@ -34,9 +34,10 @@ if ($onWindows) {
     -ArgumentList "/c", "pnpm exec tsx apps/api/src/server.ts < NUL > `"$ApiLog`" 2>&1" `
     -WorkingDirectory $Root -WindowStyle Hidden -PassThru
 } else {
+  # NB: -WindowStyle is Windows-only; unix pwsh 7 rejects it (v0.0.4 CI lesson)
   $proc = Start-Process -FilePath "pnpm" `
     -ArgumentList "exec", "tsx", "apps/api/src/server.ts" `
-    -WorkingDirectory $Root -WindowStyle Hidden -PassThru `
+    -WorkingDirectory $Root -PassThru `
     -RedirectStandardOutput $ApiLog -RedirectStandardError "$ApiLog.err"
 }
 
