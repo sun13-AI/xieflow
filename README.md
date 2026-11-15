@@ -14,7 +14,7 @@ powershell -File scripts\start.ps1 stop    # 收服务
 # 开发模式：
 pnpm dev:api         # api 服务 http://127.0.0.1:8787
 pnpm dev:web         # web 界面 http://127.0.0.1:5173
-pnpm run test:all    # typecheck + e2e（155 断言）+ HTTP 审计（113 断言）
+pnpm run test:all    # typecheck + e2e（167 断言）+ HTTP 审计（138 断言）
 ```
 
 ### 打包（对齐 IKanBot 的 pack/dist 语义）
@@ -112,7 +112,14 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 → M3 多维表格 
 
 每张图的断言对照详见 [docs/ui/r1/README.md](docs/ui/r1/README.md)。
 
-## 核心概念（r3 已落地的部分）
+### 断言规模（每轮更新，下降 = 回归 = 冻结发版）
+
+- e2e **167** 项（服务离线口径 166：迁移一致性 4 · settings 10 · todo CRUD/状态机 25 · 迁移幂等与持久化 2 · 循环实例化（computeRepeatInstances）14 · 迁移升级+双向联动 18 · schedules CRUD 26 · 装配断言（assembleRangeSchedules）12 · HTTP 冒烟 1 · 返工新增循环装配等；api 在线补跑 HTTP 冒烟后为 167）
+- HTTP audit **138** 项（health/settings/todos/schedules CRUD 与 4xx 分支、双向联动 22、循环实例 over HTTP 23、schedules 删除 5 等）
+- typecheck 4 包全绿（strict + noUncheckedIndexedAccess）
+- CI：ubuntu / windows / macos 三平台 verify 门禁 + tag 触发 Release
+
+### 核心概念（r3 已落地的部分）
 
 - **迁移纪律**：schema 变更只走 `packages/db/src/schema.ts` 的 `MIGRATIONS` 队列（v1 settings → v2 todos → v3 schedules），`user_version` 管理，重开幂等、v2 旧库原地升级只补跑 v3
 - **状态机集中**：待办状态流转（open/done/archived）定义在 `packages/shared`，非法流转服务层与路由层双层拒绝
