@@ -1,26 +1,42 @@
-// 协流 XieFlow — r4 看板页：三列看板 + 卡片 + 跨列移动按钮 + 关联待办状态徽标
+// 协流 XieFlow — r5 看板页：三列看板 + 卡片 + 跨列移动按钮 + 关联待办状态徽标
+// + 看板统计卡（各列计数 / 完成率条）+ CSV 台账导出按钮
 // 数据契约来自 @xieflow/shared；移动走 PATCH /api/cards/:id/move（重排规则集中
 // shared reorderPositions，服务层保证两侧列 position 连续，UI 只消费结果）。
 // r4 返工#1：D「打开看板」不再固定第一个项目——?projectId= 深链 + 项目切换下拉
 // （GET /api/projects 已有，数据层零改动）；A2 无列时「＋ 新建卡片」给出语义提示，
 // 不再静默 return；U3-1 页头文案与按钮渲染口径对齐（「→ 目标列」，无「←」）。
-// 截图钉态：?page=board&shot=board-* 让 headless 确定性捕获（真实状态都存在）。
-import { useCallback, useEffect, useMemo, useState } from "react";
+// r5：统计口径唯一入口 = shared computeBoardStats（api GET /api/projects/:id/stats
+// 下发，钉态用同一纯函数本地算）；导出 = GET /api/projects/:id/export.csv
+// （UTF-8 BOM，Excel 直开），落盘必须按字节（BOM 会被文本解码剥掉）。
+// 截图钉态：?page=board&shot=board-* 让 headless 确定性捕获（真实状态都存在）；
+// ?export=1 触发一次真实导出（用于拍「导出按钮态」的真实反馈）。
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   DEFAULT_BOARD_COLUMNS,
   MAX_BOARD_NAME,
+  TODO_STATUS_LABELS,
+  computeBoardStats,
+  countCsvRecords,
   type BoardCard,
   type BoardColumn,
+  type BoardStats,
   type Project,
   type Todo,
 } from "@xieflow/shared";
 import { SERVICE_DOWN_MESSAGE, fetchJsonOrThrow } from "./httpClient";
 
 const TODO_STATUS_BADGES: Record<Todo["status"], { label: string; cls: string }> = {
-  open: { label: "进行中", cls: "pill-open" },
-  done: { label: "已完成", cls: "pill-done" },
-  archived: { label: "已归档", cls: "pill-archived" },
+  open: { label: TODO_STATUS_LABELS.open, cls: "pill-open" },
+  done: { label: TODO_STATUS_LABELS.done, cls: "pill-done" },
+  archived: { label: TODO_STATUS_LABELS.archived, cls: "pill-archived" },
 };
+
+/** 导出反馈态（done 时带真实字节数与行数） */
+type ExportState =
+  | { phase: "idle" }
+  | { phase: "exporting" }
+  | { phase: "done"; bytes: number; rows: number }
+  | { phase: "error"; message: string };
 
 interface BoardLoadState {
   phase: "loading" | "error" | "ready";
@@ -30,6 +46,7 @@ interface BoardLoadState {
   columns?: BoardColumn[];
   cards?: BoardCard[];
   todos?: Todo[];
+  stats?: BoardStats;
 }
 
 interface BoardFetch {
@@ -38,6 +55,7 @@ interface BoardFetch {
   columns: BoardColumn[];
   cards: BoardCard[];
   todos: Todo[];
+  stats: BoardStats;
 }
 
 /** URL ?projectId= 深链目标（存在且在项目列表内才生效，否则回落第一个项目） */
@@ -58,7 +76,14 @@ async function fetchBoard(projectIdParam: string | null): Promise<BoardFetch> {
   const todoData = (await fetchJsonOrThrow(todoRes)) as { todos: Todo[] };
   const project = pickProject(projData.projects, projectIdParam);
   if (project === null) {
-    return { project: null, projects: projData.projects, columns: [], cards: [], todos: todoData.todos };
+    return {
+      project: null,
+      projects: projData.projects,
+      columns: [],
+      cards: [],
+      todos: todoData.todos,
+      stats: computeBoardStats(0, [], [], todoData.todos),
+    };
   }
   const colRes = await fetch(`/api/projects/${project.id}/columns`);
   const colData = (await fetchJsonOrThrow(colRes)) as { columns: BoardColumn[] };
@@ -69,7 +94,17 @@ async function fetchBoard(projectIdParam: string | null): Promise<BoardFetch> {
       return d.cards;
     }),
   );
-  return { project, projects: projData.projects, columns: colData.columns, cards: cardLists.flat(), todos: todoData.todos };
+  // 统计由 api 下发（口径唯一入口 shared computeBoardStats）；移动后 load() 重拉即刷新
+  const statsRes = await fetch(`/api/projects/${project.id}/stats`);
+  const stats = (await fetchJsonOrThrow(statsRes)) as BoardStats;
+  return {
+    project,
+    projects: projData.projects,
+    columns: colData.columns,
+    cards: cardLists.flat(),
+    todos: todoData.todos,
+    stats,
+  };
 }
 
 /** 钉态种子：与 audit-http 移动断言场景同构（三列、五卡、两徽标） */
@@ -95,7 +130,15 @@ function pinSeedBoard(now: Date): BoardFetch {
     { id: 1, name: "新家装修", description: "装修全流程跟踪", createdAt: iso, updatedAt: iso },
     { id: 2, name: "Q4 产品发布", description: null, createdAt: iso, updatedAt: iso },
   ];
-  return { project: projects[0]!, projects, columns, cards, todos };
+  return {
+    project: projects[0]!,
+    projects,
+    columns,
+    cards,
+    todos,
+    // 钉态统计用同一 shared 纯函数本地算（口径与 api 完全一致）
+    stats: computeBoardStats(projects[0]!.id, columns, cards, todos),
+  };
 }
 
 /** 移动后钉态种子：与 board-data 相同数据源，但卡「量房」已移到「进行中」列首位 */
@@ -108,7 +151,7 @@ function pinSeedBoardMoved(now: Date): BoardFetch {
         ? { ...c, position: 1 }
         : c,
   );
-  return { ...seed, cards };
+  return { ...seed, cards, stats: computeBoardStats(seed.project!.id, seed.columns, cards, seed.todos) };
 }
 
 export default function BoardPage() {
@@ -118,6 +161,7 @@ export default function BoardPage() {
   const [draft, setDraft] = useState<{ title: string; todoId: string }>({ title: "", todoId: "" });
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
+  const [exportState, setExportState] = useState<ExportState>({ phase: "idle" });
 
   const load = useCallback(async (): Promise<void> => {
     try {
@@ -131,19 +175,19 @@ export default function BoardPage() {
 
   useEffect(() => {
     if (shot === "board-empty") {
-      setState({ phase: "ready", project: null, projects: [], columns: [], cards: [], todos: [] });
+      setState({ phase: "ready", project: null, projects: [], columns: [], cards: [], todos: [], stats: computeBoardStats(0, [], [], []) });
       return;
     }
     if (shot === "board-no-columns") {
       // 防御形态钉态：项目在场但零列（真实路径已被默认三列消灭，防御分支仍可捕获）
       const seed = pinSeedBoard(new Date());
-      setState({ phase: "ready", project: seed.project, projects: seed.projects, columns: [], cards: [], todos: seed.todos });
+      setState({ phase: "ready", project: seed.project, projects: seed.projects, columns: [], cards: [], todos: seed.todos, stats: computeBoardStats(seed.project!.id, [], [], seed.todos) });
       return;
     }
     if (shot === "board-no-columns-modal") {
       // A2 防御钉态：零列时打开「＋ 新建卡片」弹窗（创建按钮提示「先建列」，提交即出语义错误）
       const seed = pinSeedBoard(new Date());
-      setState({ phase: "ready", project: seed.project, projects: seed.projects, columns: [], cards: [], todos: seed.todos });
+      setState({ phase: "ready", project: seed.project, projects: seed.projects, columns: [], cards: [], todos: seed.todos, stats: computeBoardStats(seed.project!.id, [], [], seed.todos) });
       setModalOpen(true);
       return;
     }
@@ -176,6 +220,11 @@ export default function BoardPage() {
   const columns = state.phase === "ready" ? (state.columns ?? []) : [];
   const cards = state.phase === "ready" ? (state.cards ?? []) : [];
   const todos = state.phase === "ready" ? (state.todos ?? []) : [];
+  // 统计：api 下发的口径（shared computeBoardStats）；兜底用同一纯函数本地算
+  const stats: BoardStats =
+    state.phase === "ready" && state.stats
+      ? state.stats
+      : computeBoardStats(project?.id ?? 0, columns, cards, todos);
   const todoById = useMemo(() => new Map(todos.map((t) => [t.id, t])), [todos]);
 
   /** 项目切换（D）：写 URL ?projectId= 并重拉看板（深链可分享/可回放） */
@@ -245,6 +294,49 @@ export default function BoardPage() {
     }
   };
 
+  /**
+   * 导出 CSV 台账（r5 任务单）：GET /api/projects/:id/export.csv → 浏览器落盘。
+   * 关键：必须按**字节**落盘（arrayBuffer → Blob）——fetch 的文本解码会把 UTF-8 BOM
+   * 剥掉，按文本落盘会让 Excel 直开乱码（audit 有字节层 BOM 断言）。
+   */
+  const exportCsv = async (projectId: number): Promise<void> => {
+    setExportState({ phase: "exporting" });
+    try {
+      const res = await fetch(`/api/projects/${projectId}/export.csv`);
+      if (!res.ok) {
+        setExportState({ phase: "error", message: `HTTP ${res.status}` });
+        return;
+      }
+      const buf = await res.arrayBuffer();
+      const text = new TextDecoder("utf-8").decode(buf);
+      const rows = countCsvRecords(text);
+      const blob = new Blob([buf], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `xieflow-board-project-${projectId}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setExportState({ phase: "done", bytes: buf.byteLength, rows });
+    } catch (err: unknown) {
+      setExportState({ phase: "error", message: err instanceof Error ? err.message : SERVICE_DOWN_MESSAGE });
+    }
+  };
+
+  // 截图 seam：?export=1 触发一次**真实**导出（反馈条里的行数/字节数是真值）
+  const exportParam = useMemo(() => new URLSearchParams(window.location.search).get("export"), []);
+  const autoExported = useRef(false);
+  useEffect(() => {
+    if (exportParam !== "1") return;
+    if (state.phase !== "ready") return;
+    const pid = state.project?.id;
+    if (pid === undefined || autoExported.current) return;
+    autoExported.current = true;
+    void exportCsv(pid);
+  }, [state, exportParam]);
+
   if (state.phase === "loading") {
     return (
       <section className="card state-loading" data-state="board-loading">
@@ -307,6 +399,16 @@ export default function BoardPage() {
         </span>
         <button
           type="button"
+          className="btn btn-secondary"
+          data-state="board-export-button"
+          disabled={exportState.phase === "exporting"}
+          title="导出本项目看板台账为 CSV（UTF-8 BOM，Excel 双击直开）"
+          onClick={() => void exportCsv(project.id)}
+        >
+          {exportState.phase === "exporting" ? "导出中…" : "导出 CSV"}
+        </button>
+        <button
+          type="button"
           className="btn btn-primary"
           onClick={() => {
             setDraft({ title: "", todoId: "" });
@@ -317,6 +419,60 @@ export default function BoardPage() {
           ＋ 新建卡片
         </button>
       </div>
+
+      {exportState.phase !== "idle" && (
+        <p
+          className={`export-banner${exportState.phase === "error" ? " export-error" : ""}`}
+          data-state={`board-export-${exportState.phase}`}
+          role="status"
+        >
+          {exportState.phase === "exporting" && "正在生成 CSV 台账…"}
+          {exportState.phase === "done" &&
+            `已导出 CSV：${exportState.rows} 行（含表头）· ${(exportState.bytes / 1024).toFixed(1)} KB · 文件名 xieflow-board-project-${project.id}.csv`}
+          {exportState.phase === "error" && `导出失败：${exportState.message}`}
+        </p>
+      )}
+
+      <section className="card board-stats" data-state="board-stats">
+        <div className="board-stats-head">
+          <h2>看板统计</h2>
+          <span className="hint">
+            完成率口径：关联待办状态为「已完成」的卡片 ÷ 本列卡片总数（零卡片列记 0%）
+          </span>
+        </div>
+        <div className="stats-row">
+          <div className="stat-card" data-stat="cards">
+            <span className="stat-label">卡片总数</span>
+            <span className="stat-value">{stats.totals.cardCount}</span>
+          </div>
+          <div className="stat-card" data-stat="done">
+            <span className="stat-label">已完成</span>
+            <span className="stat-value">{stats.totals.doneCount}</span>
+          </div>
+          <div className="stat-card" data-stat="rate">
+            <span className="stat-label">项目完成率</span>
+            <span className="stat-value">{stats.totals.completionRate}%</span>
+          </div>
+          <div className="stat-card" data-stat="todos">
+            <span className="stat-label">关联待办</span>
+            <span className="stat-value">{stats.totals.todoLinkedCount}</span>
+          </div>
+        </div>
+        <ul className="stat-column-list">
+          {stats.columns.map((c) => (
+            <li key={c.id} className="stat-column" data-column-id={c.id}>
+              <span className="stat-column-name">{c.name}</span>
+              <span className="stat-column-count">{c.cardCount} 张</span>
+              <span className="rate-bar" data-rate={c.completionRate}>
+                <span className="rate-fill" style={{ width: `${c.completionRate}%` }} />
+              </span>
+              <span className="stat-column-rate">
+                完成率 {c.completionRate}%（{c.doneCount}/{c.cardCount}）· 关联待办 {c.todoLinkedCount}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </section>
 
       {columns.length === 0 && (
         <section className="card state-error" data-state="board-no-columns" role="alert">

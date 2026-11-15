@@ -20,6 +20,8 @@ import {
   assertValidBoardName,
   computeTodoSummary,
   assembleRangeSchedules,
+  computeBoardStats,
+  buildBoardCsvContent,
   canTransitionTodo,
   type Schedule,
 } from "@xieflow/shared";
@@ -647,6 +649,56 @@ app.delete("/api/cards/:id", async (req, reply) => {
       return reply.code(404).send({ error: `卡片不存在：${id}` });
     }
     return { deleted: true };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+// ---- r5：看板统计与 CSV 台账导出（M2 收官） ----
+
+/**
+ * 看板统计（r5 任务单）：各列卡片数 / 完成率 / 待办关联数 + 项目合计。
+ * 口径唯一入口 = shared computeBoardStats 纯函数（api 只装配数据 + 404/400 映射）；
+ * 卡片移动后统计立即随之变化（口径与 r4 的 position 重排规则同源）。
+ */
+app.get("/api/projects/:id/stats", async (req, reply) => {
+  try {
+    const projectId = parseId((req.params as { id: string }).id);
+    const store = requireDb();
+    if (store.getProject(projectId) === null) {
+      return reply.code(404).send({ error: `项目不存在：${projectId}` });
+    }
+    return computeBoardStats(
+      projectId,
+      store.listBoardColumns(projectId),
+      store.listBoardCardsByProject(projectId),
+      store.listTodos(),
+    );
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+/**
+ * 看板台账导出（r5 任务单）：UTF-8 BOM + CRLF + RFC4180 转义，Excel 双击直开。
+ * 内容唯一入口 = shared buildBoardCsvContent（每列至少一行：空列出占位行）。
+ */
+app.get("/api/projects/:id/export.csv", async (req, reply) => {
+  try {
+    const projectId = parseId((req.params as { id: string }).id);
+    const store = requireDb();
+    if (store.getProject(projectId) === null) {
+      return reply.code(404).send({ error: `项目不存在：${projectId}` });
+    }
+    const csv = buildBoardCsvContent(
+      store.listBoardColumns(projectId),
+      store.listBoardCardsByProject(projectId),
+      store.listTodos(),
+    );
+    return reply
+      .header("content-type", "text/csv; charset=utf-8")
+      .header("content-disposition", `attachment; filename="xieflow-board-project-${projectId}.csv"`)
+      .send(csv);
   } catch (err) {
     return toErrorReply(err, reply);
   }

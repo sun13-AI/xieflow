@@ -3,6 +3,7 @@
 #   powershell -File scripts\shot.ps1 up              # start api + web dev servers
 #   powershell -File scripts\shot.ps1 shots           # capture current round states
 #   powershell -File scripts\shot.ps1 shots -Round r4 # capture r4 project/board states
+#   powershell -File scripts\shot.ps1 shots -Round r5 # capture r5 board stats + CSV export states
 #   powershell -File scripts\shot.ps1 down            # stop servers
 #   powershell -File scripts\shot.ps1 status          # show port status
 #   powershell -File scripts\shot.ps1 all             # up + shots + down
@@ -18,7 +19,7 @@ param(
   [Parameter(Position = 0)]
   [ValidateSet("up", "shots", "down", "status", "all")]
   [string]$Action = "status",
-  [ValidateSet("r1", "r2", "r3", "r4")]
+  [ValidateSet("r1", "r2", "r3", "r4", "r5")]
   [string]$Round = "r1"
 )
 
@@ -122,15 +123,27 @@ function Invoke-ShellBaseline {
     $url = "http://127.0.0.1:$WebPort/"
     if ($t.page -ne "") { $url = $url + "?page=" + $t.page }
     $out = Join-Path $shellDir ($t.file + ".png")
+    if (Test-Path $out) { Remove-Item $out -Force }
     $args = @(
       "--headless=new", "--disable-gpu", "--hide-scrollbars",
       "--force-device-scale-factor=1",
       "--screenshot=$out", "--window-size=1280,800",
       "--virtual-time-budget=6000", $url
     )
-    $proc = Start-Process -FilePath $BrowserPath -ArgumentList $args -Wait -PassThru -WindowStyle Hidden
-    if ($proc.ExitCode -ne 0) { Write-Output "warn: shell $($t.file) exit=$($proc.ExitCode)" }
-    if (Test-Path $out) {
+    # r5 fix: same hang-proof capture as the round matrix (wait for the png,
+    # then kill a lingering browser tree - never leave a headless browser behind)
+    $proc = Start-Process -FilePath $BrowserPath -ArgumentList $args -PassThru -WindowStyle Hidden
+    $deadline = (Get-Date).AddSeconds(45)
+    while ((-not (Test-Path $out)) -and ((Get-Date) -lt $deadline)) { Start-Sleep -Milliseconds 300 }
+    $captured = Test-Path $out
+    $exited = $proc.WaitForExit(5000)
+    if (-not $exited) {
+      & taskkill /PID $proc.Id /T /F 2>$null | Out-Null
+      Write-Output "note: shell $($t.file) browser lingered -> killed"
+    } elseif ($proc.ExitCode -ne 0) {
+      Write-Output "warn: shell $($t.file) exit=$($proc.ExitCode)"
+    }
+    if ($captured) {
       $kb = [math]::Round((Get-Item $out).Length / 1KB)
       Write-Output "shell baseline ok: $($t.file).png ($kb KB)"
     } else {
@@ -258,7 +271,88 @@ function Invoke-Shots {
     }
   }
 
-  if ($Round -eq "r4") {
+  # r5: seed a board with cards + linked todos so the stats card (completion
+  # rate bars) and the CSV export have REAL data. The seed JSON uses \u escapes
+  # so this script stays pure ASCII (PS 5.1 cannot read UTF-8 literals); the api
+  # decodes them into Chinese. One card title carries an ASCII comma + quotes
+  # and its description carries a newline -> the CSV escaping is visible in the
+  # exported ledger (r5 audit asserts the same escaping over HTTP).
+  $r5ProjectId = $null
+  $r5EmptyProjectId = $null
+  $r5TodoDoneId = $null
+  $r5TodoOpenId = $null
+  if ($Round -eq "r5") {
+    try {
+      $projBody5 = [System.Text.Encoding]::UTF8.GetBytes(
+        '{"name":"r5 \u7edf\u8ba1\u5bfc\u51fa\u9879\u76ee","description":"seeded for r5 stats and export shots"}'
+      )
+      $proj5 = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/projects" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body $projBody5
+      $cols5 = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/projects/$($proj5.id)/columns" -Method Get
+      $cTodo5 = $cols5.columns | Where-Object { $_.position -eq 0 } | Select-Object -First 1
+      $cDoing5 = $cols5.columns | Where-Object { $_.position -eq 1 } | Select-Object -First 1
+      $cDone5 = $cols5.columns | Where-Object { $_.position -eq 2 } | Select-Object -First 1
+      # two linked todos: one done (counts as completed), one open
+      $todoDone5 = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/todos" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes('{"title":"\u5df2\u5b8c\u6210\u5f85\u529e","quadrant":"q1"}'))
+      Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/todos/$($todoDone5.id)" -Method Patch `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes('{"status":"done"}')) | Out-Null
+      $todoOpen5 = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/todos" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes('{"title":"\u8fdb\u884c\u4e2d\u5f85\u529e","quadrant":"q2"}'))
+      # todo column: 3 cards (plain / comma+quote title with newline desc / done-linked)
+      Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/projects/$($proj5.id)/columns/$($cTodo5.id)/cards" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes('{"title":"\u91cf\u623f"}')) | Out-Null
+      Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/projects/$($proj5.id)/columns/$($cTodo5.id)/cards" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes(
+          ('{"title":"\u9009\u74f7\u7816 \"A\" \u578b, \u7279\u4ef7","description":"line1\nline2","todoId":' + $todoOpen5.id + '}')
+        )) | Out-Null
+      Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/projects/$($proj5.id)/columns/$($cTodo5.id)/cards" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes(
+          ('{"title":"\u9009\u74f7\u7816","todoId":' + $todoDone5.id + '}')
+        )) | Out-Null
+      # doing column: 1 card linked to the done todo -> completion rate 100%
+      Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/projects/$($proj5.id)/columns/$($cDoing5.id)/cards" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes(
+          ('{"title":"\u5199 r5 \u6750\u6599","todoId":' + $todoDone5.id + '}')
+        )) | Out-Null
+      # done column: 1 card without todo -> completion rate 0%
+      Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/projects/$($proj5.id)/columns/$($cDone5.id)/cards" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes('{"title":"\u5b9a\u9884\u7b97"}')) | Out-Null
+      # second project: default three columns, zero cards -> the "empty project" stats state
+      $emptyBody5 = [System.Text.Encoding]::UTF8.GetBytes('{"name":"r5 \u7a7a\u9879\u76ee"}')
+      $empty5 = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/projects" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body $emptyBody5
+      $r5ProjectId = $proj5.id
+      $r5EmptyProjectId = $empty5.id
+      $r5TodoDoneId = $todoDone5.id
+      $r5TodoOpenId = $todoOpen5.id
+      Write-Output "seeded r5 project id=$($proj5.id) (5 cards + 2 linked todos), empty project id=$($empty5.id)"
+    } catch {
+      Write-Output "warn: r5 seed failed ($($_.Exception.Message)) - live shots may show empty board"
+    }
+  }
+
+  if ($Round -eq "r5") {
+    # r5 board page: stats card + CSV export states.
+    # 01 = live board with cards (stats card carries real counts + rate bars);
+    # 02 = live EMPTY project (default three columns, zero cards -> all stats 0);
+    # 03 = export really triggered (?export=1) -> feedback banner with the real
+    #      row/byte count of the produced CSV;
+    # 04 = the exported CSV content (captured after the batch from the file that
+    #      was really downloaded to disk);
+    # 05 = narrow board (?narrow=1 seam, 488x900);
+    # 06 = new-card modal (pinned) with the r5 toolbar (export button in place);
+    # 07/08 = board loading / error states (pinned).
+    $shots = @(
+      @{ name = "01-board-stats-live"; url = "http://127.0.0.1:$WebPort/?page=board&projectId=$r5ProjectId"; width = 1280; height = 800 },
+      @{ name = "02-board-stats-empty"; url = "http://127.0.0.1:$WebPort/?page=board&projectId=$r5EmptyProjectId"; width = 1280; height = 800 },
+      @{ name = "03-board-export-done"; url = "http://127.0.0.1:$WebPort/?page=board&projectId=$r5ProjectId&export=1"; width = 1280; height = 800 },
+      @{ name = "05-board-stats-narrow"; url = "http://127.0.0.1:$WebPort/?page=board&projectId=$r5ProjectId&narrow=1"; width = 488; height = 900 },
+      @{ name = "06-board-modal"; url = "http://127.0.0.1:$WebPort/?page=board&shot=board-modal"; width = 1280; height = 800 },
+      @{ name = "07-board-loading"; url = "http://127.0.0.1:$WebPort/?page=board&shot=board-loading"; width = 1280; height = 800 },
+      @{ name = "08-board-error"; url = "http://127.0.0.1:$WebPort/?page=board&shot=board-error"; width = 1280; height = 800 }
+    )
+  } elseif ($Round -eq "r4") {
     # r4 projects/board pages: pinned states via ?page=projects|board&shot=*- seams.
     # 04 = live board BEFORE the move; 05 = AFTER (real PATCH between the two).
     # 06 = new-card modal; 07 = narrow board (488px, 1-col); 08 = projects tab live.
@@ -331,21 +425,32 @@ function Invoke-Shots {
 
   foreach ($s in $shots) {
     $out = Join-Path $UiDir ($s.name + ".png")
+    # delete any stale png first: a failed capture must never look like a success
+    if (Test-Path $out) { Remove-Item $out -Force }
     $args = @(
       "--headless=new", "--disable-gpu", "--hide-scrollbars",
       "--force-device-scale-factor=1",
       "--screenshot=$out", "--window-size=$($s.width),$($s.height)",
       "--virtual-time-budget=6000", $s.url
     )
-    # one-shot headless process: exits by itself after capture, nothing resident
-    $proc = Start-Process -FilePath $browser -ArgumentList $args -Wait -PassThru -WindowStyle Hidden
-    if ($proc.ExitCode -ne 0) { Write-Output "warn: $($s.name) exit=$($proc.ExitCode)" }
-    if (Test-Path $out) {
-      $kb = [math]::Round((Get-Item $out).Length / 1KB)
-      Write-Output "shot ok: $($s.name).png ($kb KB)"
-    } else {
-      throw "screenshot failed: $out"
+    # one-shot headless process: nothing resident stays behind (r1 lesson).
+    # r5 fix: a page that triggers a file download (CSV export) writes the png
+    # but keeps the browser alive forever -> capture by waiting for the png and
+    # then killing the browser tree if it lingers (no resident headless browser).
+    $proc = Start-Process -FilePath $browser -ArgumentList $args -PassThru -WindowStyle Hidden
+    $deadline = (Get-Date).AddSeconds(45)
+    while ((-not (Test-Path $out)) -and ((Get-Date) -lt $deadline)) { Start-Sleep -Milliseconds 300 }
+    $captured = Test-Path $out
+    $exited = $proc.WaitForExit(5000)
+    if (-not $exited) {
+      & taskkill /PID $proc.Id /T /F 2>$null | Out-Null
+      Write-Output "note: $($s.name) browser lingered after capture -> killed (headless cleanup)"
+    } elseif ($proc.ExitCode -ne 0) {
+      Write-Output "warn: $($s.name) exit=$($proc.ExitCode)"
     }
+    if (-not $captured) { throw "screenshot failed: $out" }
+    $kb = [math]::Round((Get-Item $out).Length / 1KB)
+    Write-Output "shot ok: $($s.name).png ($kb KB)"
 
     # r3 rework#1 (B): between 06 (before) and 10 (after) the MOVE really happens
     # over the link route: seeded todo dueDate today -> today+3, its auto schedule
@@ -385,13 +490,76 @@ function Invoke-Shots {
     }
   }
 
+  # r5: CSV export evidence. Download the real export over HTTP with RAW bytes
+  # (so the UTF-8 BOM survives), write it to disk as the landing evidence, then
+  # render exactly those bytes as plain text in the headless browser for
+  # 04-board-export-csv.png (a data: URL keeps the file bytes byte-identical).
+  if ($Round -eq "r5") {
+    if ($r5ProjectId) {
+      try {
+        $csvPath = Join-Path $UiDir "board-export.csv"
+        $wc = New-Object System.Net.WebClient
+        $wc.DownloadFile("http://127.0.0.1:$ApiPort/api/projects/$r5ProjectId/export.csv", $csvPath)
+        $csvBytes = [System.IO.File]::ReadAllBytes($csvPath)
+        $sha = (Get-FileHash -Path $csvPath -Algorithm SHA256).Hash
+        Write-Output "downloaded r5 CSV -> $csvPath ($($csvBytes.Length) bytes, sha256=$sha)"
+        $b64 = [System.Convert]::ToBase64String($csvBytes)
+        $dataUrl = "data:text/plain;charset=utf-8;base64,$b64"
+        $outCsv = Join-Path $UiDir "04-board-export-csv.png"
+        if (Test-Path $outCsv) { Remove-Item $outCsv -Force }
+        $csvArgs = @(
+          "--headless=new", "--disable-gpu", "--hide-scrollbars",
+          "--force-device-scale-factor=1",
+          "--screenshot=$outCsv", "--window-size=1280,520",
+          "--virtual-time-budget=6000", $dataUrl
+        )
+        $csvProc = Start-Process -FilePath $browser -ArgumentList $csvArgs -PassThru -WindowStyle Hidden
+        $csvDeadline = (Get-Date).AddSeconds(45)
+        while ((-not (Test-Path $outCsv)) -and ((Get-Date) -lt $csvDeadline)) { Start-Sleep -Milliseconds 300 }
+        $csvCaptured = Test-Path $outCsv
+        $csvExited = $csvProc.WaitForExit(5000)
+        if (-not $csvExited) {
+          & taskkill /PID $csvProc.Id /T /F 2>$null | Out-Null
+          Write-Output "note: csv content browser lingered -> killed"
+        }
+        if ($csvCaptured) {
+          Write-Output "shot ok: 04-board-export-csv.png ($([math]::Round((Get-Item $outCsv).Length / 1KB)) KB)"
+        } else {
+          throw "csv content screenshot failed: $outCsv"
+        }
+      } catch {
+        Write-Output "warn: r5 CSV evidence failed ($($_.Exception.Message))"
+      }
+    } else {
+      Write-Output "warn: no r5 project id - skip CSV evidence"
+    }
+  }
+
   # r2 rework#1: delete the seeded live todo so repeat runs stay deterministic
   # (list grows by exactly 1 per run otherwise).
   # r3: same for the seeded live todo; deleting the todo also cascades its auto
   # schedule away (link cleanup proved on every run).
   # r4: delete the whole seeded project (columns + cards cascade) and the badge
   # seed todo, so repeat runs stay deterministic.
-  if ($Round -eq "r4") {
+  # r5: delete both seeded projects (by id - the script stays ASCII) and the two
+  # seeded todos.
+  if ($Round -eq "r5") {
+    try {
+      foreach ($pid5 in @($r5ProjectId, $r5EmptyProjectId)) {
+        if ($pid5) {
+          Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/projects/$pid5" -Method Delete | Out-Null
+        }
+      }
+      foreach ($tid5 in @($r5TodoDoneId, $r5TodoOpenId)) {
+        if ($tid5) {
+          Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/todos/$tid5" -Method Delete | Out-Null
+        }
+      }
+      Write-Output "cleaned seeded r5 project(s) and todo(s)"
+    } catch {
+      Write-Output "warn: r5 cleanup failed ($($_.Exception.Message))"
+    }
+  } elseif ($Round -eq "r4") {
     try {
       $projs = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/projects" -Method Get
       $seededProjects = $projs.projects | Where-Object { $_.name -eq "r4 live shot project" -or $_.name -eq "r4 switch target project" }

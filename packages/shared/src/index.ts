@@ -323,6 +323,7 @@ export function assembleRangeSchedules(
 /** 数据库 schema 版本号，每轮迁移必须 +1（宪法：禁止手改库文件） */
 export const SCHEMA_VERSION: number = 4;
 
+
 /** 迁移脚本类型：user_version 从 from 升到 to */
 export interface Migration {
   version: number;
@@ -426,4 +427,243 @@ export function reorderPositions(
   if (!moved) throw new ValidationError(`重排目标卡片不在列表内：${String(cardId)}`);
   sorted.splice(to, 0, moved);
   return sorted.map((c, i) => ({ id: c.id, position: i }));
+}
+
+// ---- r5：看板统计与 CSV 台账导出（口径集中 shared 纯函数，禁止散落 if-else） ----
+
+/** 待办状态中文标签（CSV 台账与 UI 徽标同一口径） */
+export const TODO_STATUS_LABELS: Record<TodoStatus, string> = {
+  open: "进行中",
+  done: "已完成",
+  archived: "已归档",
+};
+
+/**
+ * 完成率口径（r5 任务单唯一口径，统计与导出共用）：
+ * ① 一张卡片算「已完成」当且仅当它关联的待办状态为 done（open/archived 均不算）；
+ * ② 列完成率 = 该列已完成卡片数 ÷ 该列卡片总数；项目完成率 = 项目内已完成卡片数 ÷ 项目内卡片总数；
+ * ③ 分母为 0 时完成率记 0（不除零、不出 NaN）；结果为整数百分比 0..100（四舍五入）。
+ */
+export function completionRatePercent(done: number, total: number): number {
+  if (!Number.isFinite(done) || !Number.isFinite(total) || total <= 0) return 0;
+  return Math.round((done / total) * 100);
+}
+
+/** 单列统计 */
+export interface BoardColumnStats {
+  id: number;
+  name: string;
+  position: number;
+  /** 本列卡片总数 */
+  cardCount: number;
+  /** 本列已完成卡片数（关联待办状态为 done） */
+  doneCount: number;
+  /** 本列关联了待办的卡片数 */
+  todoLinkedCount: number;
+  /** 完成率（整数百分比 0..100；本列零卡时为 0） */
+  completionRate: number;
+}
+
+/** 项目看板统计（各列 + 合计） */
+export interface BoardStats {
+  projectId: number;
+  columns: BoardColumnStats[];
+  totals: {
+    columnCount: number;
+    cardCount: number;
+    doneCount: number;
+    todoLinkedCount: number;
+    completionRate: number;
+  };
+}
+
+/** 列按 position 升序（同 position 再按 id），卡按 position 升序（同 position 再按 id） */
+function sortColumns(columns: readonly BoardColumn[]): BoardColumn[] {
+  return [...columns].sort((a, b) => a.position - b.position || a.id - b.id);
+}
+
+function sortCards(cards: readonly BoardCard[]): BoardCard[] {
+  return [...cards].sort((a, b) => a.position - b.position || a.id - b.id);
+}
+
+function groupCardsByColumn(cards: readonly BoardCard[]): Map<number, BoardCard[]> {
+  const map = new Map<number, BoardCard[]>();
+  for (const card of cards) {
+    const list = map.get(card.columnId) ?? [];
+    list.push(card);
+    map.set(card.columnId, list);
+  }
+  for (const list of map.values()) list.sort((a, b) => a.position - b.position || a.id - b.id);
+  return map;
+}
+
+/**
+ * 看板统计唯一入口（r5 任务单：口径集中 shared 纯函数）。
+ * api GET /api/projects/:id/stats 与 UI 消费同一结果；卡片移动后统计立即随之变化。
+ * 防御：columnId 不属于任何列的卡片不计入统计；todoId 指向不存在的待办时不算已完成。
+ */
+export function computeBoardStats(
+  projectId: number,
+  columns: readonly BoardColumn[],
+  cards: readonly BoardCard[],
+  todos: readonly Todo[],
+): BoardStats {
+  const doneTodoIds = new Set(todos.filter((t) => t.status === "done").map((t) => t.id));
+  const byColumn = groupCardsByColumn(cards);
+  const colStats: BoardColumnStats[] = sortColumns(columns).map((col) => {
+    const list = byColumn.get(col.id) ?? [];
+    let doneCount = 0;
+    let todoLinkedCount = 0;
+    for (const card of list) {
+      if (card.todoId === null) continue;
+      todoLinkedCount += 1;
+      if (doneTodoIds.has(card.todoId)) doneCount += 1;
+    }
+    return {
+      id: col.id,
+      name: col.name,
+      position: col.position,
+      cardCount: list.length,
+      doneCount,
+      todoLinkedCount,
+      completionRate: completionRatePercent(doneCount, list.length),
+    };
+  });
+  const cardCount = colStats.reduce((sum, c) => sum + c.cardCount, 0);
+  const doneCount = colStats.reduce((sum, c) => sum + c.doneCount, 0);
+  const todoLinkedCount = colStats.reduce((sum, c) => sum + c.todoLinkedCount, 0);
+  return {
+    projectId,
+    columns: colStats,
+    totals: {
+      columnCount: colStats.length,
+      cardCount,
+      doneCount,
+      todoLinkedCount,
+      completionRate: completionRatePercent(doneCount, cardCount),
+    },
+  };
+}
+
+// ---- CSV 台账导出（r5：Excel 直开——UTF-8 BOM + RFC4180 转义） ----
+
+/** UTF-8 BOM（字节 EF BB BF）：Excel 双击直开不乱码 */
+export const CSV_UTF8_BOM = "\uFEFF";
+
+/** CSV 记录分隔符（RFC 4180 规定 CRLF） */
+export const CSV_ROW_SEPARATOR = "\r\n";
+
+/** 看板台账表头（中文列名） */
+export const BOARD_CSV_HEADERS: readonly string[] = [
+  "列名",
+  "列位置",
+  "卡片标题",
+  "卡片描述",
+  "卡片位置",
+  "关联待办标题",
+  "关联待办状态",
+  "关联待办象限",
+  "关联待办截止日期",
+];
+
+/**
+ * CSV 字段转义（RFC 4180）：含逗号/引号/换行的字段整体加双引号，内部双引号写成两个。
+ * 空字段输出空串（不加引号）。
+ */
+export function escapeCsvField(value: string): string {
+  if (value === "") return "";
+  if (/[",\r\n]/.test(value)) {
+    return `"${value.replace(/"/g, '""')}"`;
+  }
+  return value;
+}
+
+/**
+ * 看板台账行构建（r5 导出唯一入口）：
+ * ① 每列至少一行——空列出一行占位（卡片字段留空，卡片标题为空即占位行）；
+ * ② 有卡片的列按卡 position 升序逐行输出；
+ * ③ 关联待办字段（标题/状态标签/象限标签/截止日期）缺失时留空。
+ */
+export function buildBoardCsvRows(
+  columns: readonly BoardColumn[],
+  cards: readonly BoardCard[],
+  todos: readonly Todo[],
+): string[][] {
+  const todoById = new Map(todos.map((t) => [t.id, t]));
+  const byColumn = groupCardsByColumn(cards);
+  const rows: string[][] = [];
+  for (const col of sortColumns(columns)) {
+    const list = byColumn.get(col.id) ?? [];
+    if (list.length === 0) {
+      rows.push([col.name, String(col.position), "", "", "", "", "", "", ""]);
+      continue;
+    }
+    for (const card of sortCards(list)) {
+      const todo = card.todoId !== null ? todoById.get(card.todoId) : undefined;
+      rows.push([
+        col.name,
+        String(col.position),
+        card.title,
+        card.description ?? "",
+        String(card.position),
+        todo ? todo.title : "",
+        todo ? TODO_STATUS_LABELS[todo.status] : "",
+        todo ? QUADRANT_LABELS[todo.quadrant] : "",
+        todo?.dueDate ?? "",
+      ]);
+    }
+  }
+  return rows;
+}
+
+/**
+ * 看板台账 CSV 全文（含 UTF-8 BOM，行尾 CRLF，末行不带多余换行）。
+ * api GET /api/projects/:id/export.csv 直接下发此串——Excel 双击直开。
+ */
+export function buildBoardCsvContent(
+  columns: readonly BoardColumn[],
+  cards: readonly BoardCard[],
+  todos: readonly Todo[],
+): string {
+  const rows: string[][] = [[...BOARD_CSV_HEADERS], ...buildBoardCsvRows(columns, cards, todos)];
+  const body = rows.map((row) => row.map(escapeCsvField).join(",")).join(CSV_ROW_SEPARATOR);
+  return CSV_UTF8_BOM + body;
+}
+
+/**
+ * CSV 记录数（RFC 4180 解析）：引号内的换行不算记录分隔，
+ * 因此含换行的字段不会虚增行数；BOM 不计。
+ */
+export function countCsvRecords(csvText: string): number {
+  const text = csvText.startsWith(CSV_UTF8_BOM) ? csvText.slice(CSV_UTF8_BOM.length) : csvText;
+  let records = 0;
+  let inQuotes = false;
+  let pending = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]!;
+    if (inQuotes) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') {
+          i++;
+          continue;
+        }
+        inQuotes = false;
+      }
+      continue;
+    }
+    if (ch === '"') {
+      inQuotes = true;
+      pending = true;
+      continue;
+    }
+    if (ch === "\n") {
+      records += 1;
+      pending = false;
+      continue;
+    }
+    if (ch === "\r") continue;
+    pending = true;
+  }
+  if (pending) records += 1;
+  return records;
 }

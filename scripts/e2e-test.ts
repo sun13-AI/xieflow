@@ -37,10 +37,20 @@ import {
   assertValidScheduleRange,
   assertValidScheduleRepeat,
   assertValidBoardName,
+  computeBoardStats,
+  completionRatePercent,
+  buildBoardCsvContent,
+  buildBoardCsvRows,
+  escapeCsvField,
+  countCsvRecords,
+  CSV_UTF8_BOM,
+  BOARD_CSV_HEADERS,
   type Schedule,
   type ScheduleWithInstanceFlag,
   type ScheduleRepeat,
   type BoardCard,
+  type BoardColumn,
+  type Todo,
 } from "@xieflow/shared";
 import type { TodoStatus } from "@xieflow/shared";
 
@@ -891,6 +901,261 @@ try {
     eq(v4Open.db.listProjects().length, 1, "项目列表只剩第二个项目");
     v4Open.raw.close();
     db = null;
+  }
+
+  // 14. 看板统计口径（r5：集中 shared 纯函数 computeBoardStats）
+  section("看板统计口径（computeBoardStats）");
+  {
+    const iso = "2026-11-15T08:00:00.000Z";
+    const mkCol = (id: number, name: string, position: number): BoardColumn => ({
+      id,
+      projectId: 7,
+      name,
+      position,
+      createdAt: iso,
+      updatedAt: iso,
+    });
+    const mkCard = (id: number, columnId: number, title: string, position: number, todoId: number | null = null): BoardCard => ({
+      id,
+      projectId: 7,
+      columnId,
+      title,
+      description: null,
+      position,
+      todoId,
+      createdAt: iso,
+      updatedAt: iso,
+    });
+    const mkTodo = (id: number, status: TodoStatus, dueDate: string | null = null): Todo => ({
+      id,
+      title: `待办${id}`,
+      quadrant: "q2",
+      status,
+      dueDate,
+      createdAt: iso,
+      updatedAt: iso,
+    });
+
+    // 空项目（零列零卡）：不除零、不出 NaN
+    const empty = computeBoardStats(7, [], [], []);
+    eq(empty.projectId, 7, "统计：projectId 回显");
+    eq(empty.columns.length, 0, "统计：空项目零列");
+    eq(
+      empty.totals,
+      { columnCount: 0, cardCount: 0, doneCount: 0, todoLinkedCount: 0, completionRate: 0 },
+      "统计：空项目合计全 0（完成率不除零）",
+    );
+    ok(Number.isFinite(empty.totals.completionRate), "统计：空项目完成率是有限数（无 NaN）");
+    eq(completionRatePercent(0, 0), 0, "完成率口径：分母 0 → 0");
+    eq(completionRatePercent(1, 3), 33, "完成率口径：1/3 → 33%（整数百分比四舍五入）");
+    eq(completionRatePercent(2, 3), 67, "完成率口径：2/3 → 67%");
+    eq(completionRatePercent(3, 3), 100, "完成率口径：3/3 → 100%");
+    eq(completionRatePercent(0, 5), 0, "完成率口径：0 完成 → 0%");
+
+    // 单列单卡未关联待办
+    const cols = [mkCol(1, "待办", 0), mkCol(2, "进行中", 1), mkCol(3, "已完成", 2)];
+    const oneCard = computeBoardStats(7, cols, [mkCard(11, 1, "量房", 0)], []);
+    eq(oneCard.columns[0]!.cardCount, 1, "统计：单列单卡 cardCount=1");
+    eq(oneCard.columns[0]!.doneCount, 0, "统计：未关联待办的卡不算已完成");
+    eq(oneCard.columns[0]!.todoLinkedCount, 0, "统计：未关联待办的卡不计入关联待办数");
+    eq(oneCard.columns[0]!.completionRate, 0, "统计：未关联待办的卡完成率 0%");
+    eq(oneCard.totals.cardCount, 1, "统计：合计卡片数=1");
+    eq(oneCard.totals.completionRate, 0, "统计：项目完成率 0%");
+
+    // 完成口径：只有 status=done 的关联待办算完成
+    const todos = [mkTodo(21, "done"), mkTodo(22, "open"), mkTodo(23, "archived")];
+    const linked = computeBoardStats(
+      7,
+      cols,
+      [
+        mkCard(11, 1, "卡-完成", 0, 21),
+        mkCard(12, 1, "卡-进行中", 1, 22),
+        mkCard(13, 1, "卡-已归档", 2, 23),
+        mkCard(14, 1, "卡-无待办", 3),
+      ],
+      todos,
+    );
+    eq(linked.columns[0]!.cardCount, 4, "统计：列内 4 张卡");
+    eq(linked.columns[0]!.doneCount, 1, "统计：只有 status=done 的关联待办算完成（open/archived 不算）");
+    eq(linked.columns[0]!.todoLinkedCount, 3, "统计：关联待办数=3（4 张卡里 3 张挂了待办）");
+    eq(linked.columns[0]!.completionRate, 25, "统计：列完成率 1/4 → 25%");
+    eq(linked.totals.cardCount, 4, "统计：合计卡片数=4");
+    eq(linked.totals.doneCount, 1, "统计：合计完成数=1");
+    eq(linked.totals.todoLinkedCount, 3, "统计：合计关联待办数=3");
+    eq(linked.totals.completionRate, 25, "统计：项目完成率 1/4 → 25%");
+    eq(linked.totals.columnCount, 3, "统计：合计列数=3");
+
+    // 防御：todoId 指向不存在的待办 → 不算完成（但关联数照记）
+    const dangling = computeBoardStats(7, cols, [mkCard(15, 1, "卡-幽灵待办", 0, 999)], todos);
+    eq(dangling.columns[0]!.doneCount, 0, "统计：关联不存在的待办不算完成（防御）");
+    eq(dangling.columns[0]!.todoLinkedCount, 1, "统计：关联不存在的待办仍计入关联待办数");
+    eq(dangling.columns[0]!.completionRate, 0, "统计：幽灵待办的卡完成率 0%");
+
+    // 防御：卡片不属于任何列 → 不计入合计
+    const orphan = computeBoardStats(7, cols, [mkCard(16, 999, "卡-孤儿列", 0)], todos);
+    eq(orphan.totals.cardCount, 0, "统计：不属于任何列的卡片不计入合计（防御）");
+
+    // 多列分布 + 零卡列
+    const multi = computeBoardStats(
+      7,
+      cols,
+      [
+        mkCard(21, 1, "A", 0, 21),
+        mkCard(22, 1, "B", 1),
+        mkCard(23, 2, "C", 0, 21),
+        mkCard(24, 3, "D", 0, 21),
+      ],
+      todos,
+    );
+    eq(
+      multi.columns.map((c) => [c.name, c.cardCount, c.doneCount, c.completionRate]),
+      [
+        ["待办", 2, 1, 50],
+        ["进行中", 1, 1, 100],
+        ["已完成", 1, 1, 100],
+      ],
+      "统计：各列卡片数/完成数/完成率（零卡列不出现——本例三列都有卡）",
+    );
+    eq(multi.totals.cardCount, 4, "统计：多列合计卡片数=4");
+    eq(multi.totals.doneCount, 3, "统计：多列合计完成数=3");
+    eq(multi.totals.completionRate, 75, "统计：多列项目完成率 3/4 → 75%");
+
+    // 零卡列：完成率 0（不除零）
+    const zeroCol = computeBoardStats(7, cols, [], todos);
+    eq(zeroCol.columns.map((c) => c.completionRate), [0, 0, 0], "统计：三列全空时各列完成率均为 0");
+    eq(zeroCol.totals.completionRate, 0, "统计：零卡项目完成率 0%（不除零）");
+
+    // 列顺序：输入乱序 → 输出按 position 升序
+    const shuffled = computeBoardStats(
+      7,
+      [mkCol(3, "已完成", 2), mkCol(1, "待办", 0), mkCol(2, "进行中", 1)],
+      [],
+      todos,
+    );
+    eq(
+      shuffled.columns.map((c) => c.name),
+      ["待办", "进行中", "已完成"],
+      "统计：列按 position 升序输出（输入乱序也收敛）",
+    );
+  }
+
+  // 15. 看板 CSV 台账（r5：UTF-8 BOM + RFC4180 转义 + 中文表头）
+  section("看板 CSV 台账（buildBoardCsvContent）");
+  {
+    const iso = "2026-11-15T08:00:00.000Z";
+    const mkCol = (id: number, name: string, position: number): BoardColumn => ({
+      id,
+      projectId: 7,
+      name,
+      position,
+      createdAt: iso,
+      updatedAt: iso,
+    });
+    const mkCard = (
+      id: number,
+      columnId: number,
+      title: string,
+      position: number,
+      todoId: number | null = null,
+      description: string | null = null,
+    ): BoardCard => ({
+      id,
+      projectId: 7,
+      columnId,
+      title,
+      description,
+      position,
+      todoId,
+      createdAt: iso,
+      updatedAt: iso,
+    });
+    const mkTodo = (id: number, status: TodoStatus, dueDate: string | null = null): Todo => ({
+      id,
+      title: `待办${id}`,
+      quadrant: "q1",
+      status,
+      dueDate,
+      createdAt: iso,
+      updatedAt: iso,
+    });
+
+    const cols = [mkCol(1, "待办", 0), mkCol(2, "进行中", 1), mkCol(3, "已完成", 2)];
+    const todos = [mkTodo(31, "done", "2026-11-20"), mkTodo(32, "open", null)];
+
+    // BOM 头（Excel 直开不乱码）
+    const csv = buildBoardCsvContent(cols, [mkCard(41, 1, "量房", 0, 31)], todos);
+    ok(csv.startsWith(CSV_UTF8_BOM), "CSV：以 UTF-8 BOM 开头（Excel 直开不乱码）");
+    eq(csv.charCodeAt(0), 0xfeff, "CSV：首字符码点 U+FEFF（落盘字节 EF BB BF）");
+
+    // 中文表头（9 列）
+    const lines = csv.slice(CSV_UTF8_BOM.length).split("\r\n");
+    eq(lines[0], BOARD_CSV_HEADERS.join(","), "CSV：表头为中文列名且顺序固定");
+    eq(BOARD_CSV_HEADERS.length, 9, "CSV：表头共 9 列（列/卡片/关联待办全量台账）");
+
+    // 行数 = 列数 + 卡片数（空列占位行）
+    eq(lines.length, 4, "CSV：三列 + 一张卡 = 4 行（空列各占 1 行占位）");
+    eq(countCsvRecords(csv), 4, "CSV：记录数与行数一致（引号内换行不虚增）");
+
+    // 空列占位行：卡片字段留空
+    const placeholder = lines[3]!.split(",");
+    eq(placeholder[0], "已完成", "CSV：空列占位行带列名");
+    eq(placeholder[1], "2", "CSV：空列占位行带列位置");
+    eq(placeholder[2], "", "CSV：空列占位行的卡片标题为空");
+
+    // 卡片行：列信息 + 卡片信息 + 关联待办信息
+    const cardRow = lines[1]!.split(",");
+    eq(cardRow[0], "待办", "CSV：卡片行首列=列名");
+    eq(cardRow[1], "0", "CSV：卡片行第二列=列位置");
+    eq(cardRow[2], "量房", "CSV：卡片行第三列=卡片标题");
+    eq(cardRow[3], "", "CSV：卡片描述为 null 时输出空串");
+    eq(cardRow[4], "0", "CSV：卡片行第五列=卡片位置");
+    eq(cardRow[5], "待办31", "CSV：关联待办标题");
+    eq(cardRow[6], "已完成", "CSV：关联待办状态用中文标签");
+    eq(cardRow[7], "紧急且重要", "CSV：关联待办象限用中文标签");
+    eq(cardRow[8], "2026-11-20", "CSV：关联待办截止日期");
+
+    // 未关联待办的卡：待办字段全空
+    const noTodoCsv = buildBoardCsvContent(cols, [mkCard(42, 2, "无待办卡", 0)], todos);
+    const noTodoRow = noTodoCsv.slice(CSV_UTF8_BOM.length).split("\r\n")[2]!.split(",");
+    eq(noTodoRow.slice(5), ["", "", "", ""], "CSV：未关联待办的卡，待办四列全空");
+
+    // 转义：逗号 / 引号 / 换行
+    eq(escapeCsvField("普通字段"), "普通字段", "转义：无特殊字符原样输出");
+    eq(escapeCsvField(""), "", "转义：空字段输出空串");
+    eq(escapeCsvField("含,逗号"), '"含,逗号"', "转义：含逗号整体加双引号");
+    eq(escapeCsvField('含"引号'), '"含""引号"', "转义：内部双引号写成两个并整体加引号");
+    eq(escapeCsvField("含\n换行"), '"含\n换行"', "转义：含换行整体加双引号");
+    const tricky = buildBoardCsvContent(
+      cols,
+      [mkCard(43, 1, '卡"A", 含逗号', 0, null, "第一行\n第二行")],
+      todos,
+    );
+    const trickyRows = buildBoardCsvRows(cols, [mkCard(43, 1, '卡"A", 含逗号', 0, null, "第一行\n第二行")], todos);
+    eq(trickyRows[0]![2], '卡"A", 含逗号', "CSV：原值保留（转义只发生在序列化层）");
+    eq(countCsvRecords(tricky), 4, "CSV：含逗号/引号/换行的字段不虚增记录数");
+    ok(tricky.includes('"卡""A"", 含逗号"'), "CSV：逗号与引号同时出现时正确转义");
+    ok(tricky.includes('"第一行\n第二行"'), "CSV：含换行的字段被引号包裹");
+    eq(tricky.split("\r\n").length, 4, "CSV：字段内裸 \\n 不破坏 \\r\\n 记录分隔（按 \\r\\n 切分仍是 4 段）");
+    // 字段内含 CRLF：物理行数会多，但记录数不变（RFC4180 解析正确）
+    const crlfCsv = buildBoardCsvContent(cols, [mkCard(44, 1, "卡", 0, null, "第一行\r\n第二行")], todos);
+    eq(countCsvRecords(crlfCsv), 4, "CSV：字段内 CRLF 不虚增记录数（记录数仍 4）");
+    eq(crlfCsv.split("\r\n").length, 5, "CSV：字段内 CRLF 会多出物理行（记录数与物理行数的区别）");
+
+    // 排序：列 position 升序 + 卡 position 升序
+    const ordered = buildBoardCsvContent(
+      [mkCol(3, "已完成", 2), mkCol(1, "待办", 0)],
+      [mkCard(52, 1, "第二张", 1), mkCard(51, 1, "第一张", 0)],
+      todos,
+    );
+    const orderedRows = ordered.slice(CSV_UTF8_BOM.length).split("\r\n");
+    eq(orderedRows[1]!.split(",")[2], "第一张", "CSV：同列内卡片按 position 升序");
+    eq(orderedRows[2]!.split(",")[2], "第二张", "CSV：同列内第二张卡在下一行");
+    eq(orderedRows[3]!.split(",")[0], "已完成", "CSV：列按 position 升序输出");
+
+    // 空项目导出：只有表头
+    const emptyCsv = buildBoardCsvContent([], [], []);
+    eq(emptyCsv, CSV_UTF8_BOM + BOARD_CSV_HEADERS.join(","), "CSV：零列项目导出仅含表头");
+    eq(countCsvRecords(emptyCsv), 1, "CSV：零列项目导出记录数=1（表头）");
   }
 
   // 13. HTTP 冒烟 /api/health

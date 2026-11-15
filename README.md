@@ -14,7 +14,7 @@ powershell -File scripts\start.ps1 stop    # 收服务
 # 开发模式：
 pnpm dev:api         # api 服务 http://127.0.0.1:8787
 pnpm dev:web         # web 界面 http://127.0.0.1:5173
-pnpm run test:all    # typecheck + e2e（217 断言）+ HTTP 审计（233 断言）
+pnpm run test:all    # typecheck + e2e（288 断言）+ HTTP 审计（313 断言）
 ```
 
 ### 打包（对齐 IKanBot 的 pack/dist 语义）
@@ -54,7 +54,7 @@ apps/
 scripts/
   e2e-test.ts        直连服务层断言
   audit-http.ts      HTTP 路由层审计（含 4xx 分支）
-  shot.ps1           截图矩阵脚本（headless Edge，字节级可复现；r4 起含壳基线自动拍摄）
+  shot.ps1           截图矩阵脚本（headless Edge，字节级可复现；r4 起含壳基线自动拍摄，r5 起防挂死捕获）
   shot-rework.ps1    r4 返工 #1 全路径证据拍摄（17/18/19）
   start.ps1          一键启动/停止
   pack.js            pack（免安装目录）/ dist（setup zip）
@@ -76,9 +76,23 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 → M3 多维表格 
 
 ## 界面与测试对照
 
-按 AGENTS.md 立项规则：**界面更新必须带截图证据（每次，无例外）**，截图与实现同一提交。逐图索引（r1/r2/r3/r4 矩阵全量、逐张对照断言）：
+按 AGENTS.md 立项规则：**界面更新必须带截图证据（每次，无例外）**，截图与实现同一提交。逐图索引（r1/r2/r3/r4/r5 矩阵全量、逐张对照断言）：
 
-### r4 矩阵：[docs/ui/r4/](docs/ui/r4/README.md) —— 项目页 + 看板页（M2 第 1 片，返工 #1 后共 19 张，04/05 为 seed 分步拍的真实移动前后对照，17/18/19 为返工全路径证据）：
+### r5 矩阵：[docs/ui/r5/](docs/ui/r5/README.md) —— 看板统计卡 + CSV 台账导出（M2 第 收官，共 8 张 + 1 份落盘 CSV）：
+
+| 截图 | 形态 | 对应断言 |
+|---|---|---|
+| [01-board-stats-live.png](docs/ui/r5/01-board-stats-live.png) | **真实链路·统计卡有数据**（5 卡 / 2 完成 / 3 关联待办 / 项目完成率 40%；三列完成率条 33%·100%·0%；工具栏「导出 CSV」在场） | audit「统计：待办列完成率 1/3 -> 33%」「统计：项目完成率 2/4 -> 50%」 |
+| [02-board-stats-empty.png](docs/ui/r5/02-board-stats-empty.png) | **真实链路·空项目统计**（默认三列、零卡；四块统计全 0、完成率 0%、三条空进度条） | audit「统计：空项目合计卡片数 0」「统计：空项目完成率 0（不除零）」 |
+| [03-board-export-done.png](docs/ui/r5/03-board-export-done.png) | **导出按钮态**（`?export=1` 真实触发导出：反馈条「已导出 CSV：6 行（含表头）· 0.4 KB · 文件名 xieflow-board-project-23.csv」——行数/字节为真值） | audit「CSV：表头 + 5 行台账」；e2e「CSV：记录数与行数一致（引号内换行不虚增）」 |
+| [04-board-export-csv.png](docs/ui/r5/04-board-export-csv.png) | **CSV 落盘内容佐证**（`board-export.csv` 原始字节的纯文本渲染：中文表头 9 列 + 5 行台账；逗号/引号/换行转义可见） | audit「CSV：含逗号与引号的标题被正确转义并加引号」「CSV：含换行的描述被引号包裹」 |
+| [05-board-stats-narrow.png](docs/ui/r5/05-board-stats-narrow.png) | 窄屏 488×900（统计卡纵排 + 三行式列统计 + 进度条满宽 + 按钮纵排） | 无 UI 形态（CSS 断点，确定性钉态） |
+| [06-board-modal.png](docs/ui/r5/06-board-modal.png) | 新建卡片弹窗（钉态：标题 + 关联待办下拉 + 目标列提示；背后为新统计卡与导出按钮） | audit「POST 卡 C（关联真实待办）-> 201」及越权外键 400 分支 |
+| [07-board-loading.png](docs/ui/r5/07-board-loading.png) | 看板页加载态（钉态） | 无独立断言（fetch pending 态，证据为 GET 200 链路 + 本图） |
+| [08-board-error.png](docs/ui/r5/08-board-error.png) | 看板页错误态（钉态，语义化文案） | 无独立断言（httpClient.ts 语义化映射） |
+| [board-export.csv](docs/ui/r5/board-export.csv) | **落盘证据文件**（435 字节，sha256 `2BFF858D…`，首字节 `EF BB BF`）——按原始字节下载落盘（文本解码会剥掉 BOM） | audit「CSV：首字节 EF / BB / BF」三条字节级断言 |
+
+### r4 矩阵：[docs/ui/r4/](docs/ui/r4/README.md) —— 项目页 + 看板页（M2 第 1 片，返工 #1 后共 19 张，04/05 为 seed 分步拍的真实移动前后对照，17/18/19 为返工全路径证据；**r5 起看板页新增统计卡与导出按钮，看板形态以 r5 目录为准**）：
 
 | 截图 | 形态 | 对应断言 |
 |---|---|---|
@@ -141,10 +155,11 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 → M3 多维表格 
 
 ### 断言规模（每轮更新，下降 = 回归 = 冻结发版）
 
-- e2e **217** 项（服务离线口径 217，api 在线时 HTTP 冒烟节 +1）：迁移一致性 7 · settings 9 · todo CRUD 15 · 输入校验 13 · 状态机 10 · 汇总计数 7 · raw schema 4 · 迁移幂等 3 · 日程契约与守卫 28 · 循环实例化 14 · 区间查询装配 12 · v2→v3 迁移+双向联动 18 · schedules CRUD 26 · 看板排序规则（reorderPositions）12 · 看板名称守卫 6 · **v3→v4 迁移+看板数据层 32（r4 返工 #1 A1 后：默认三列断言 7 条并入）**
-- HTTP audit **233** 项（服务就绪 1 · health/settings 5 · todo 新建 12 · 列表详情 7 · 状态流转 9 · summary 11 · 删除 6 · 未知路由 1 · schedules CRUD 36 · 双向联动 22 · 循环实例 over HTTP 23 · **projects CRUD 23（r4 返工 #1 A1 后 +3：默认三列 ×2 + 第二项目默认列）· board columns CRUD 20 · cards CRUD + 跨列移动 47（显式建列改消费默认列，断言总数 -3，分支全保留）** · schedules 删除 5）
+- e2e **288** 项（服务离线口径 288，api 在线时 HTTP 冒烟节 +1 = 289）：迁移一致性 7 · settings 9 · todo CRUD 15 · 输入校验 13 · 状态机 10 · 汇总计数 7 · raw schema 4 · 迁移幂等 3 · 日程契约与守卫 28 · 循环实例化 14 · 区间查询装配 12 · v2→v3 迁移+双向联动 18 · schedules CRUD 26 · 看板排序规则（reorderPositions）12 · 看板名称守卫 6 · v3→v4 迁移+看板数据层 33 · **看板统计口径（computeBoardStats）35（r5 新增）· 看板 CSV 台账（buildBoardCsvContent）36（r5 新增）**
+- HTTP audit **313** 项（服务就绪 1 · health/settings 5 · todo 新建 12 · 列表详情 7 · 状态流转 9 · summary 11 · 删除 6 · 未知路由 1 · schedules CRUD 36 · 双向联动 22 · 循环实例 over HTTP 23 · projects CRUD 25 · board columns CRUD 20 · cards CRUD + 跨列移动 50 · **board stats + CSV export 80（r5 新增）** · schedules 删除 5）
 - typecheck 4 包全绿（strict + noUncheckedIndexedAccess）
 - CI：ubuntu / windows / macos 三平台 verify 门禁 + tag 触发 Release
+- r5 规模变化：e2e 217 → 288（+71）· audit 233 → 313（+80）；**无一条断言被删**（只涨不缩，宪法第四条）
 
 ### 核心概念（r4 已落地的部分）
 
@@ -157,6 +172,11 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 → M3 多维表格 
 - **项目默认三列**（r4 返工 #1）：`createProject` 自动按 shared `DEFAULT_BOARD_COLUMNS` 模板建「待办 / 进行中 / 已完成」三列（position 0/1/2）——新建项目即到「看板有列」状态，无建列死路；模板口径 api/UI/文档同源
 - **看板项目切换**（r4 返工 #1）：看板页头部下拉 + `?projectId=` 深链，「打开看板」不再固定第一个项目（数据层零改动）
 - **看板徽标复用 r3 联动模式**：卡片 `todo_id` 可空关联待办，UI 按 todoId 查状态渲染「进行中/已完成/已归档」徽标
+- **看板统计唯一入口**（r5）：统计口径只写在 shared `computeBoardStats` 纯函数——「卡片算已完成 ⟺ 关联待办状态为 done」，
+  列完成率 = 该列完成卡片 ÷ 该列卡片总数，项目完成率 = 项目完成卡片 ÷ 项目卡片总数，**分母 0 记 0%（不除零）**；
+  api `GET /api/projects/:id/stats` 与 UI 统计卡消费同一口径，卡片移动后统计即时变化
+- **CSV 台账导出唯一入口**（r5）：`GET /api/projects/:id/export.csv` = UTF-8 BOM（`EF BB BF`）+ CRLF + RFC4180 转义 + 中文表头 9 列，
+  每列至少一行（空列占位）；**落盘必须按字节**（fetch 文本解码会剥掉 BOM，Excel 直开会乱码）
 - **探针真读库**：`/api/health` 每次真写读一次 settings，不只是进程活着
 
 ## 明确不做（当前阶段）

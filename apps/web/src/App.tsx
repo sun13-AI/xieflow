@@ -169,7 +169,7 @@ export default function App() {
             看板
           </button>
         </nav>
-        <span className="badge">r4 · 项目与看板</span>
+        <span className="badge">r5 · 看板统计与导出</span>
       </header>
 
       {tab === "todos" ? (

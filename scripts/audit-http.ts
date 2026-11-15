@@ -65,6 +65,25 @@ async function expectStatus(
   return r;
 }
 
+/** r5: raw text fetch (CSV body is not JSON) */
+async function reqText(path: string): Promise<{ status: number; text: string; headers: Headers }> {
+  const res = await fetch(`${BASE}${path}`, { signal: AbortSignal.timeout(5000) });
+  const text = await res.text();
+  return { status: res.status, text, headers: res.headers };
+}
+
+/** r5: raw bytes fetch (BOM byte-level check: EF BB BF) */
+async function reqBytes(path: string): Promise<{ status: number; bytes: Uint8Array; headers: Headers }> {
+  const res = await fetch(`${BASE}${path}`, { signal: AbortSignal.timeout(5000) });
+  const buf = new Uint8Array(await res.arrayBuffer());
+  return { status: res.status, bytes: buf, headers: res.headers };
+}
+
+/** r5: strip the UTF-8 BOM if the decoded text still carries it (fetch decoder usually strips it) */
+function stripBom(text: string): string {
+  return text.startsWith("\uFEFF") ? text.slice(1) : text;
+}
+
 async function audit() {
   // wait for server readiness
   const deadline = Date.now() + 15000;
@@ -675,6 +694,141 @@ async function audit() {
     ok(d.json && d.json.deleted === true, "delete 卡返回 deleted=true");
     await expectStatus("GET", `/api/cards/${cardC.id}`, undefined, 404, "DELETE 后 GET 卡 -> 404");
     await expectStatus("DELETE", `/api/cards/${cardC.id}`, undefined, 404, "DELETE 重复同一卡 id -> 404");
+  }
+
+  console.log("\n== board stats + CSV export (r5) ==");
+  {
+    // 统计与导出共用一个专用项目（计数确定，不受前面小节残留数据影响）
+    const proj = await expectStatus("POST", "/api/projects", { name: "r5 统计导出项目" }, 201, "POST r5 项目 -> 201");
+    const projectId = proj.json.id as number;
+    const cols = await req("GET", `/api/projects/${projectId}/columns`);
+    const colTodo = cols.json.columns.find((x: { position: number }) => x.position === 0);
+    const colDoing = cols.json.columns.find((x: { position: number }) => x.position === 1);
+    const colDone = cols.json.columns.find((x: { position: number }) => x.position === 2);
+    eq(cols.json.columns.length, 3, "r5 项目自带默认三列（统计/导出的列底座）");
+
+    const doneTodo = await expectStatus("POST", "/api/todos", { title: "已完成待办", quadrant: "q1" }, 201, "POST 已完成待办 -> 201");
+    await expectStatus("PATCH", `/api/todos/${doneTodo.json.id}`, { status: "done" }, 200, "PATCH 待办 -> done");
+    const openTodo = await expectStatus("POST", "/api/todos", { title: "进行中待办", quadrant: "q2", dueDate: "2026-11-30" }, 201, "POST 进行中待办 -> 201");
+
+    const cardA = await expectStatus("POST", `/api/projects/${projectId}/columns/${colTodo.id}/cards`, { title: "统计卡A", todoId: doneTodo.json.id }, 201, "POST 统计卡A（关联 done 待办）-> 201");
+    const cardB = await expectStatus("POST", `/api/projects/${projectId}/columns/${colTodo.id}/cards`, { title: "统计卡B" }, 201, "POST 统计卡B（无待办）-> 201");
+    await expectStatus(
+      "POST",
+      `/api/projects/${projectId}/columns/${colTodo.id}/cards`,
+      { title: '统计卡"C", 含逗号', description: "第一行\n第二行", todoId: openTodo.json.id },
+      201,
+      "POST 统计卡C（含逗号/引号/换行描述）-> 201",
+    );
+    await expectStatus("POST", `/api/projects/${projectId}/columns/${colDoing.id}/cards`, { title: "统计卡D", todoId: doneTodo.json.id }, 201, "POST 统计卡D（进行中列）-> 201");
+
+    // —— 统计端点 ——
+    const st = await expectStatus("GET", `/api/projects/${projectId}/stats`, undefined, 200, "GET 看板统计 -> 200");
+    eq(st.json && st.json.projectId, projectId, "统计：projectId 回显");
+    eq(st.json.columns.length, 3, "统计：三列各一段");
+    eq(st.json.columns[0].name, "待办", "统计：第 0 列是待办");
+    eq(st.json.columns[0].cardCount, 3, "统计：待办列 3 张卡");
+    eq(st.json.columns[0].doneCount, 1, "统计：待办列 1 张完成（只有 done 待办算完成）");
+    eq(st.json.columns[0].todoLinkedCount, 2, "统计：待办列 2 张关联待办");
+    eq(st.json.columns[0].completionRate, 33, "统计：待办列完成率 1/3 -> 33%");
+    eq(st.json.columns[1].cardCount, 1, "统计：进行中列 1 张卡");
+    eq(st.json.columns[1].completionRate, 100, "统计：进行中列完成率 1/1 -> 100%");
+    eq(st.json.columns[2].cardCount, 0, "统计：已完成列 0 张卡");
+    eq(st.json.columns[2].completionRate, 0, "统计：零卡列完成率 0（不除零）");
+    eq(st.json.totals.columnCount, 3, "统计：合计列数 3");
+    eq(st.json.totals.cardCount, 4, "统计：合计卡片数 4");
+    eq(st.json.totals.doneCount, 2, "统计：合计完成数 2");
+    eq(st.json.totals.todoLinkedCount, 3, "统计：合计关联待办数 3");
+    eq(st.json.totals.completionRate, 50, "统计：项目完成率 2/4 -> 50%");
+
+    // —— 统计与卡片移动联动：移动后统计即时变化 ——
+    await expectStatus("PATCH", `/api/cards/${cardB.json.id}/move`, { columnId: colDoing.id, position: 0 }, 200, "PATCH 统计卡B 移到进行中 -> 200");
+    const stAfter = await req("GET", `/api/projects/${projectId}/stats`);
+    eq(stAfter.json.columns[0].cardCount, 2, "统计联动：移动后待办列卡片数 3 -> 2");
+    eq(stAfter.json.columns[0].completionRate, 50, "统计联动：移动后待办列完成率 33% -> 50%（1/2）");
+    eq(stAfter.json.columns[1].cardCount, 2, "统计联动：移动后进行中列卡片数 1 -> 2");
+    eq(stAfter.json.columns[1].completionRate, 50, "统计联动：移动后进行中列完成率 100% -> 50%（1/2）");
+    eq(stAfter.json.totals.cardCount, 4, "统计联动：移动不改变项目合计卡片数（4）");
+    eq(stAfter.json.totals.completionRate, 50, "统计联动：移动后项目完成率仍 50%（完成数未变）");
+
+    // —— 统计 4xx ——
+    await expectStatus("GET", "/api/projects/99999/stats", undefined, 404, "GET 不存在项目的统计 -> 404");
+    await expectStatus("GET", "/api/projects/not-a-number/stats", undefined, 400, "GET 非数字项目 id 的统计 -> 400");
+    await expectStatus("GET", "/api/projects/0/stats", undefined, 400, "GET 项目 id=0 的统计 -> 400");
+
+    // —— CSV 导出 ——
+    const csvRes = await reqText(`/api/projects/${projectId}/export.csv`);
+    eq(csvRes.status, 200, "GET 看板 CSV 导出 -> 200");
+    ok((csvRes.headers.get("content-type") ?? "").includes("text/csv"), "CSV：content-type 含 text/csv");
+    ok((csvRes.headers.get("content-type") ?? "").includes("charset=utf-8"), "CSV：content-type 带 charset=utf-8");
+    ok((csvRes.headers.get("content-disposition") ?? "").includes("attachment"), "CSV：content-disposition 为 attachment（浏览器直接下载）");
+    const raw = await reqBytes(`/api/projects/${projectId}/export.csv`);
+    eq(raw.bytes[0], 0xef, "CSV：首字节 EF（UTF-8 BOM 第 1 字节）");
+    eq(raw.bytes[1], 0xbb, "CSV：次字节 BB（UTF-8 BOM 第 2 字节）");
+    eq(raw.bytes[2], 0xbf, "CSV：第三字节 BF（UTF-8 BOM 第 3 字节）");
+    const body = stripBom(csvRes.text);
+    ok(!csvRes.text.startsWith("\uFEFF"), "CSV：文本解码会剥掉 BOM（故 UI 必须按字节落盘；字节层 BOM 见上三条断言）");
+    const rows = body.split("\r\n");
+    eq(
+      rows[0],
+      "列名,列位置,卡片标题,卡片描述,卡片位置,关联待办标题,关联待办状态,关联待办象限,关联待办截止日期",
+      "CSV：表头是中文列名（9 列，Excel 直开可对齐）",
+    );
+    eq(rows.length, 6, "CSV：表头 + 5 行台账（3 列 4 卡：待办 2 + 进行中 2 + 已完成占位 1）");
+    const row1 = rows[1]!.split(",");
+    eq(row1[0], "待办", "CSV：第 1 行属待办列");
+    eq(row1[2], "统计卡A", "CSV：卡片标题列对齐");
+    eq(row1[5], "已完成待办", "CSV：关联待办标题列对齐");
+    eq(row1[6], "已完成", "CSV：关联待办状态为中文标签");
+    eq(row1[7], "紧急且重要", "CSV：关联待办象限为中文标签");
+    eq(row1[8], "", "CSV：已完成待办无截止日 -> 空");
+    ok(body.includes('"统计卡""C"", 含逗号"'), "CSV：含逗号与引号的标题被正确转义并加引号");
+    ok(body.includes('"第一行\n第二行"'), "CSV：含换行的描述被引号包裹");
+    const quoteRow = rows.find((r) => r.includes("统计卡"));
+    ok(quoteRow !== undefined, "CSV：特殊字符卡片行存在");
+    eq(body.split("\r\n").length, rows.length, "CSV：裸 \\n 不额外切分记录（CRLF 才是记录分隔）");
+    const lastRow = rows[rows.length - 1]!.split(",");
+    eq(lastRow[0], "已完成", "CSV：末行是空列占位行");
+    eq(lastRow[2], "", "CSV：空列占位行的卡片标题为空");
+
+    // —— CSV 4xx 与空项目 ——
+    await expectStatus("GET", "/api/projects/99999/export.csv", undefined, 404, "GET 不存在项目的 CSV -> 404");
+    await expectStatus("GET", "/api/projects/not-a-number/export.csv", undefined, 400, "GET 非数字项目 id 的 CSV -> 400");
+    const emptyProj = await expectStatus("POST", "/api/projects", { name: "r5 空项目" }, 201, "POST r5 空项目 -> 201");
+    const emptyCsv = await reqText(`/api/projects/${emptyProj.json.id}/export.csv`);
+    eq(emptyCsv.status, 200, "GET 空项目 CSV -> 200");
+    const emptyCsvBytes = await reqBytes(`/api/projects/${emptyProj.json.id}/export.csv`);
+    eq(emptyCsvBytes.bytes[0], 0xef, "CSV：空项目导出首字节 EF（BOM 第 1 字节）");
+    eq(emptyCsvBytes.bytes[1], 0xbb, "CSV：空项目导出次字节 BB（BOM 第 2 字节）");
+    eq(emptyCsvBytes.bytes[2], 0xbf, "CSV：空项目导出第三字节 BF（BOM 第 3 字节）");
+    const emptyBody = stripBom(emptyCsv.text);
+    const emptyRows = emptyBody.split("\r\n");
+    eq(emptyRows.length, 4, "CSV：空项目导出 = 表头 + 3 行空列占位（默认三列每列一行）");
+    eq(
+      emptyRows.slice(1).map((r) => r.split(",")[0]),
+      ["待办", "进行中", "已完成"],
+      "CSV：空项目导出的三行分别是三个默认列",
+    );
+    ok(
+      emptyRows.slice(1).every((r) => r.split(",").slice(2).every((f) => f === "")),
+      "CSV：空列占位行的卡片/待办字段全空",
+    );
+    const emptyStats = await expectStatus("GET", `/api/projects/${emptyProj.json.id}/stats`, undefined, 200, "GET 空项目统计 -> 200");
+    eq(emptyStats.json.totals.cardCount, 0, "统计：空项目合计卡片数 0");
+    eq(emptyStats.json.totals.completionRate, 0, "统计：空项目完成率 0（不除零）");
+    eq(emptyStats.json.columns.length, 3, "统计：空项目仍有三列（默认三列在场）");
+    eq(emptyStats.json.columns[0].completionRate, 0, "统计：空项目各列完成率 0");
+    // 真正零列的项目（把默认三列删掉）：CSV 只剩表头，统计列数为 0
+    const emptyCols = await req("GET", `/api/projects/${emptyProj.json.id}/columns`);
+    for (const c of emptyCols.json.columns) {
+      await expectStatus("DELETE", `/api/board-columns/${c.id}`, undefined, 200, "DELETE 空项目的默认列 -> 200");
+    }
+    const zeroColCsv = await reqText(`/api/projects/${emptyProj.json.id}/export.csv`);
+    eq(stripBom(zeroColCsv.text), "列名,列位置,卡片标题,卡片描述,卡片位置,关联待办标题,关联待办状态,关联待办象限,关联待办截止日期", "CSV：零列项目导出仅含表头（无数据行）");
+    const zeroColStats = await req("GET", `/api/projects/${emptyProj.json.id}/stats`);
+    eq(zeroColStats.json.columns.length, 0, "统计：零列项目统计列数为 0");
+    eq(zeroColStats.json.totals.columnCount, 0, "统计：零列项目合计列数 0");
+    eq(zeroColStats.json.totals.completionRate, 0, "统计：零列项目完成率 0（不除零）");
   }
 
   console.log("\n== schedules delete (r3) ==");
