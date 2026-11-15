@@ -2,6 +2,15 @@
 
 > 宪法见设计包 AGENTS.md；轮次规则见 RUNBOOK.md（均在 D:\work\好东西\xieflow-design\）。
 
+### 2026-11-15 · r3 复验、返工与发版全记录（M1 收官）
+- 初验双打回：waizhuan **P1 循环实例 HTTP 层完全不生效**（去重条件恒假——e2e 14 条全测纯函数、HTTP 零覆盖，伪交付被实跑戳穿）+ ui-reviewer **U1 假图**（06/10 SHA256 字节级相同，改期证据失真）
+- **UI 审查官升级阻断岗**（r3 起）：连续两轮漏网 U1 命中 + 字节级比对新技术；org.md 三节改写，UI-VERDICT 与 VERDICT 并行裁决
+- 返工 #1（yanfa-r3b，8de574d）：A 装配集中 shared assembleRangeSchedules + HTTP 23 条循环断言；B 假图根因（seed 一次性建完）→ seed 拆两拍真实 PATCH；C~F 补 11-todos-tab / 窄屏重拍 / 文案 / line-clamp
+- 总监过程巡查制生效（owner 指令入岗）：巡查中纠偏 2 项（锚日窗外断言确认、假图根因先定位后拍）——研发回应质量高
+- 复审插曲（lead 两次违宪被抓）：①开源化删根 README「界面与测试对照」节（ui 阻断岗首裁打回，lead 亲修恢复）②速查行断言规模回退 167/138→155/113 且规模节未恢复（waizhuan 打回，lead 亲修）——**复验体系不因 lead 身份豁免，宪法治所有 agent**
+- 发版：v0.0.6 CI 红（HTTP smoke 硬编码 schemaVersion:2，r3 已迁 v3 过期）→ **v0.0.7 三平台全绿 + Release 资产核对通过（xieflow-v0.0.7.tar.gz）**
+- 教训：本机动态断言 vs CI 静态断言的差异面；e2e 测纯函数 ≠ HTTP 层生效——用户视角实跑是唯一真相源
+
 ### 2026-11-15 · 开源（owner 指令）
 - 全历史密钥扫描通过（gho_/ghp_/github_pat_ 仅命中报告内的扫描模式描述文本，无真 token）
 - MIT LICENSE + README 开源化（方法论/贡献者入口/目录结构/路线图）+ RUNBOOK 入库（仓库自包含）
@@ -19,7 +28,8 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 |----|------|------|------|----------|---------|
 | r1 | M0 仓库骨架 | ✅已发版（本地 tag；push 待配 remote） | v0.0.1 | e2e 42 | 通过 |
 | r2 | M1 第 1 片：待办 CRUD UI + 四象限 | ✅已发版（初验双打回→返工#1→双 VERDICT 通过） | v0.0.5 | e2e 69 · audit 52 | 通过（waizhuan）+ UI 通过（观察员） |
-| r3 | M1 第 2 片：日程与待办双向联动 | ✅已发版（初验双打回→返工#1→复审：waizhuan P2 修复确认 + ui-reviewer 阻断岗放行） | v0.0.6 | e2e 167 · audit 138 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r3 | M1 第 2 片：日程与待办双向联动 | ✅已发版（初验双打回→返工#1→复审：ui 放行→waizhuan P2 修复确认 + CI 两跳 v0.0.6/v0.0.7 全绿） | v0.0.7 | e2e 167 · audit 138 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r4 | M2 第 1 片：项目 + 看板数据层 | 🔨研发中 | — | — | — |
 
 附加交付（r2 内 lead 直做，已入库 8e4fb9b）：
 - 一键启动：start.cmd 双击 / scripts\start.ps1 start|stop|status（三轮全链路验证；期间排掉「僵尸 api 抢 8787」环境坑，非脚本缺陷）
