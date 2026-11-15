@@ -25,7 +25,7 @@ owner（人类，最终决策权）
 └── 项目总监 director（lead 担任，项目内最高决策岗）
     ├── 研发视角 yanfa（实现岗）        ← 基准流程
     ├── 使用者视角 waizhuan（复验岗）   ← 基准流程
-    └── UI 审查官 ui-reviewer（界面质量岗）← 扩展岗，r2 起并行观察、不阻断
+    └── UI 审查官 ui-reviewer（界面质量岗）← 阻断岗（r3 升级，UI-VERDICT 与 VERDICT 并行裁决）
 ```
 
 | 岗位 | 正式名 | 提示词 | 履历 | 汇报对象 | 核心交付 | 当前状态 |
@@ -33,24 +33,27 @@ owner（人类，最终决策权）
 | 项目总监 | director | workflows/director-prompt.md | docs/staff/director.md | owner | 任务单、发版、裁决、履历维护 | 基准 |
 | 研发视角 | yanfa | workflows/yanfa-prompt.md | docs/staff/yanfa.md | 项目总监 | 代码 + 断言 + 截图 + 研发报告 | 基准 |
 | 使用者视角 | waizhuan | workflows/waizhuan-prompt.md | docs/staff/waizhuan.md | 项目总监 | 实跑记录 + VERDICT | 基准 |
-| UI 审查官 | ui-reviewer | workflows/ui-reviewer-prompt.md | docs/staff/ui-reviewer.md | 项目总监 | 逐张验图记录 + UI-VERDICT | 扩展（观察中） |
+| UI 审查官 | ui-reviewer | workflows/ui-reviewer-prompt.md | docs/staff/ui-reviewer.md | 项目总监 | 逐张验图记录 + UI-VERDICT | **阻断岗（r3 升级）** |
 
-## 三、扩展岗的升级门槛（先试，不急着要）
+## 三、UI 审查官升级记录（r3 · 2026-11-15 lead 终裁）
 
-UI 审查官在 r2 以**并行观察员**身份运行：出 UI-VERDICT 报告，但**不阻断发版**（发版裁决仍以使用者视角的 VERDICT 为准）。
-升级为阻断岗需满足：① 连续 2 轮观察中至少抓到 1 个使用者视角漏掉的真问题（U1 级）；② 不产生误报噪音；③ 每轮额外耗时 < 10 分钟。
-达标则从 r3 起进入「双 VERDICT 并行裁决」（见下）。
+观察期两轮均命中升级门槛，正式转为阻断岗：
+
+- ①连续 2 轮抓到使用者视角漏网的 U1 ✅：r2 tab 激活零证据；r3 以 **SHA256 字节级截图比对**发现 06/10 两图完全相同（改期证据失真）——waizhuan r3 报告确认未覆盖此两项
+- ②无误报噪音 ✅（U1 均属实且可复现）
+- ③每轮耗时 12 分钟，略超 10 分钟线——lead 特批（抓到假图的增量价值远超成本）
+
+**现行裁决规则（r3 返工起生效）**：发版 = VERDICT（waizhuan）+ UI-VERDICT（ui-reviewer）**双通过**；任一打回即返工，返工项合并清单。
 
 ```
 项目总监：写任务单 → 拉起研发视角
     ↓
 研发视角：TDD 实现 + 截图矩阵 + 研发报告
     ↓
-使用者视角（实跑用户路径）  ┐ 并行（r2 起）
-UI 审查官（逐张验图，观察中）┘
+使用者视角（实跑用户路径）  ┐ 并行
+UI 审查官（逐张验图+字节比对）┘ 阻断岗
     ↓
-r2：使用者视角 VERDICT 通过 → 发版（UI 意见记账）
-r3+（达标后）：两份 VERDICT 都通过 → 发版
+双 VERDICT 通过 → 发版；任一打回 → 合并返工清单 → 返工
 ```
 
 ## 四、职责边界（防串供与职责重叠）

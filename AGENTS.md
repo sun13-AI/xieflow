@@ -81,4 +81,5 @@ lead 审批记录进 `docs/plan.md` 的「危险区台账」一节。
 - PowerShell 脚本只准 ASCII（PS 5.1 编码坑）
 - **自测全程 headless/隐藏窗口**（owner 指令）：不得弹出任何可见窗口（浏览器、控制台、资源管理器）；用 HTTP 断言 + headless 截图代替「打开看看」
 - git 推送走系统代理：`git -c http.proxy=http://127.0.0.1:7897 push`（github.com 直连间歇被重置）
+- **代理不可用时的推送通道**：`node scripts/push-via-api.mjs [--tag vX.Y.Z]`（走 api.github.com，逐提交 tree 一致性校验，marker 文件记录已推进度）。注意：API 创建的提交 sha 与本地不同（作者元数据 = token 用户），本地/远端 sha 分叉是常态，内容以 tree sha 对齐为准；常规 git push 恢复可用前，推送一律走本脚本
 - 凭据：`scripts/credential-github.ps1` 从 Windows 凭据管理器读 gh CLI token 喂给 git，token 不落盘不入库
