@@ -10,7 +10,7 @@ param(
   [Parameter(Position = 0)]
   [ValidateSet("up", "shots", "down", "status", "all")]
   [string]$Action = "status",
-  [ValidateSet("r1", "r2", "r3")]
+  [ValidateSet("r1", "r2", "r3", "r4")]
   [string]$Round = "r1"
 )
 
@@ -164,7 +164,58 @@ function Invoke-Shots {
     }
   }
 
-  if ($Round -eq "r3") {
+  # r4: live board shots follow the r3 lesson (06 == 10 byte-identical): seed a
+  # project + 3 columns + cards FIRST, capture 04 (before state), then do a REAL
+  # cross-column move via PATCH /api/cards/:id/move, then capture 05 (after state).
+  # The move leaves a real before/after trace; hashes must differ. All ASCII.
+  $r4CardToMoveId = $null
+  $r4TargetColumnId = $null
+  if ($Round -eq "r4") {
+    try {
+      $projBody4 = [System.Text.Encoding]::UTF8.GetBytes(
+        '{"name":"r4 live shot project","description":"seeded for live board shots"}'
+      )
+      $proj4 = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/projects" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body $projBody4
+      $colTodo4 = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/projects/$($proj4.id)/columns" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes('{"name":"To Do"}'))
+      $colDoing4 = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/projects/$($proj4.id)/columns" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes('{"name":"Doing"}'))
+      Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/projects/$($proj4.id)/columns" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes('{"name":"Done"}')) | Out-Null
+      $seedTodo4 = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/todos" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes('{"title":"r4 badge seed todo","quadrant":"q2"}'))
+      $c1 = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/projects/$($proj4.id)/columns/$($colTodo4.id)/cards" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes('{"title":"r4 card A measure"}'))
+      Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/projects/$($proj4.id)/columns/$($colTodo4.id)/cards" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes('{"title":"r4 card B plan"}')) | Out-Null
+      Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/projects/$($proj4.id)/columns/$($colTodo4.id)/cards" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes(('{"title":"r4 card C tiles","todoId":' + $seedTodo4.id + '}'))) | Out-Null
+      Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/projects/$($proj4.id)/columns/$($colDoing4.id)/cards" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes('{"title":"r4 card D budget"}')) | Out-Null
+      $r4CardToMoveId = $c1.id
+      $r4TargetColumnId = $colDoing4.id
+      Write-Output "seeded r4 project id=$($proj4.id) card-to-move=$($c1.id) target-column=$($colDoing4.id)"
+    } catch {
+      Write-Output "warn: r4 seed failed ($($_.Exception.Message)) - live shots may show empty board"
+    }
+  }
+
+  if ($Round -eq "r4") {
+    # r4 projects/board pages: pinned states via ?page=projects|board&shot=*- seams.
+    # 04 = live board BEFORE the move; 05 = AFTER (real PATCH between the two).
+    # 06 = new-card modal; 07 = narrow board (488px, 1-col); 08 = projects tab live.
+    $shots = @(
+      @{ name = "01-project-empty";     url = "http://127.0.0.1:$WebPort/?page=projects&shot=project-empty"; width = 1280; height = 800 },
+      @{ name = "02-project-list";      url = "http://127.0.0.1:$WebPort/?page=projects&shot=project-data";  width = 1280; height = 800 },
+      @{ name = "03-project-modal";     url = "http://127.0.0.1:$WebPort/?page=projects&shot=project-modal"; width = 1280; height = 800 },
+      @{ name = "04-board-live";        url = "http://127.0.0.1:$WebPort/?page=board"; width = 1280; height = 800 },
+      @{ name = "05-board-moved";       url = "http://127.0.0.1:$WebPort/?page=board"; width = 1280; height = 800 },
+      @{ name = "06-board-modal";       url = "http://127.0.0.1:$WebPort/?page=board&shot=board-modal"; width = 1280; height = 800 },
+      @{ name = "07-board-narrow";      url = "http://127.0.0.1:$WebPort/?page=board&shot=board-narrow&narrow=1"; width = 488; height = 900 },
+      @{ name = "08-projects-tab-live"; url = "http://127.0.0.1:$WebPort/?page=projects"; width = 1280; height = 800 }
+    )
+  } elseif ($Round -eq "r3") {
     # r3 schedules page: pinned states via ?page=schedules&shot=schedule-* seams
     # (App.tsx / SchedulesPage.tsx). 07 = workbench with the new today-schedules card.
     # rework#1: 11 = real todos tab active (no shot param -> real data path, U1-2).
@@ -242,13 +293,49 @@ function Invoke-Shots {
         Write-Output "warn: no seeded todo id - skip move, 10 may equal 06"
       }
     }
+
+    # r4 (r3 B lesson): between 04 (before) and 05 (after) a REAL cross-column move
+    # happens over PATCH /api/cards/:id/move: seeded card A -> Doing column (pos 0).
+    # 04 therefore shows A in the first column; 05 shows A in Doing with the source
+    # column re-packed. Hashes of 04/05 must differ (byte-level check upstream).
+    if ($Round -eq "r4" -and $s.name -eq "04-board-live") {
+      if ($r4CardToMoveId -and $r4TargetColumnId) {
+        try {
+          $movedCard = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/cards/$($r4CardToMoveId)/move" -Method Patch `
+            -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes(('{"columnId":' + $r4TargetColumnId + ',"position":0}')))
+          Write-Output "moved live card: id=$($movedCard.id) columnId=$($movedCard.columnId) position=$($movedCard.position)"
+        } catch {
+          Write-Output "warn: move between 04/05 failed ($($_.Exception.Message)) - 05 may equal 04"
+        }
+      } else {
+        Write-Output "warn: no seeded card/column id - skip move, 05 may equal 04"
+      }
+    }
   }
 
   # r2 rework#1: delete the seeded live todo so repeat runs stay deterministic
   # (list grows by exactly 1 per run otherwise).
   # r3: same for the seeded live todo; deleting the todo also cascades its auto
   # schedule away (link cleanup proved on every run).
-  if ($Round -eq "r2" -or $Round -eq "r3") {
+  # r4: delete the whole seeded project (columns + cards cascade) and the badge
+  # seed todo, so repeat runs stay deterministic.
+  if ($Round -eq "r4") {
+    try {
+      $projs = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/projects" -Method Get
+      $seededProjects = $projs.projects | Where-Object { $_.name -eq "r4 live shot project" }
+      foreach ($p in $seededProjects) {
+        Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/projects/$($p.id)" -Method Delete | Out-Null
+      }
+      $todoList = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/todos" -Method Get
+      $seededTodos = $todoList.todos | Where-Object { $_.title -eq "r4 badge seed todo" }
+      foreach ($t in $seededTodos) {
+        Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/todos/$($t.id)" -Method Delete | Out-Null
+      }
+      Write-Output "cleaned seeded r4 project(s) and badge todo(s)"
+    } catch {
+      Write-Output "warn: r4 cleanup failed ($($_.Exception.Message))"
+    }
+  } elseif ($Round -eq "r2" -or $Round -eq "r3") {
     try {
       $list = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/todos" -Method Get
       $seeded = $list.todos | Where-Object { $_.title -eq "r2 live shot seed todo" -or $_.title -eq "r3 live shot seed todo" -or $_.title -eq "r3 moved seed todo" -or $_.title -eq "r3 narrow seed todo" }

@@ -321,11 +321,106 @@ export function assembleRangeSchedules(
 }
 
 /** 数据库 schema 版本号，每轮迁移必须 +1（宪法：禁止手改库文件） */
-export const SCHEMA_VERSION: number = 3;
+export const SCHEMA_VERSION: number = 4;
 
 /** 迁移脚本类型：user_version 从 from 升到 to */
 export interface Migration {
   version: number;
   name: string;
   up: string[]; // 按序执行的 SQL
+}
+
+// ---- r4：项目与看板（数据契约、名称守卫、position 重排规则集中在此） ----
+
+/** 项目领域对象 */
+export interface Project {
+  id: number;
+  name: string;
+  description: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 看板列领域对象（属于一个项目，position 在项目内唯一） */
+export interface BoardColumn {
+  id: number;
+  projectId: number;
+  name: string;
+  position: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 看板卡片领域对象（属于一个项目与一列，可空关联待办；position 在列内唯一） */
+export interface BoardCard {
+  id: number;
+  projectId: number;
+  columnId: number;
+  title: string;
+  description: string | null;
+  position: number;
+  todoId: number | null; // 关联待办（可空外键；徽标载体，r3 联动模式复用）
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 项目/列/卡片名称统一上限（与待办/日程标题同一 MAX_TODO_TITLE=200 口径） */
+export const MAX_BOARD_NAME = 200;
+
+/**
+ * 看板名称守卫（项目名 / 列名 / 卡片标题共用同一规则，api 只做 400 映射）。
+ * 与 assertValidTodoTitle / assertValidScheduleTitle 同款：非空、≤200 字。
+ */
+export function assertValidBoardName(name: unknown): asserts name is string {
+  if (typeof name !== "string" || name.trim() === "") {
+    throw new ValidationError("看板名称不能为空");
+  }
+  if (name.length > MAX_BOARD_NAME) {
+    throw new ValidationError(`看板名称过长：最多 ${MAX_BOARD_NAME} 字（当前 ${name.length} 字）`);
+  }
+}
+
+/** 重排结果项：卡片 id + 重排后的 position */
+export interface ReorderedPosition {
+  id: number;
+  position: number;
+}
+
+/** 重排输入项：至少带 id；带 position 的乱序输入会先按 position 收敛 */
+export interface PositionedList {
+  id: number;
+  position?: number;
+}
+
+/**
+ * 看板 position 重排规则（r4 任务单：集中定义，禁止散落 if-else）。
+ * 把 cardId 从当前位置移到 to（0 起的目标下标），返回**全部受影响卡片**的
+ * 新 position（被跨过的卡整体让位）。api 的跨列移动路由用同一函数分别
+ * 计算源列与目标列的重排结果，UI 拖拽/按钮移动消费同一规则。
+ * 语义：
+ * ① 输入先按 position 升序收敛（缺 position 的项保持出现顺序）；
+ * ② cardId 必须在列表内，否则抛 ValidationError；
+ * ③ to 必须是 0..n-1 的整数，否则抛 ValidationError；
+ * ④ 原位移动返回单条恒等映射（api 层据此跳过兄弟卡更新）；
+ * ⑤ 输出 position 恰为 0..n-1 连续、无重复。
+ */
+export function reorderPositions(
+  cards: readonly PositionedList[],
+  cardId: number,
+  to: number,
+): ReorderedPosition[] {
+  if (!Number.isInteger(to) || to < 0 || to >= cards.length) {
+    throw new ValidationError(`重排目标位置非法：${String(to)}（共 ${cards.length} 张卡）`);
+  }
+  const sorted = cards
+    .map((c, i) => ({ id: c.id, order: c.position ?? i }))
+    .sort((a, b) => a.order - b.order);
+  const fromIdx = sorted.findIndex((c) => c.id === cardId);
+  if (fromIdx === -1) {
+    throw new ValidationError(`重排目标卡片不在列表内：${String(cardId)}`);
+  }
+  const [moved] = sorted.splice(fromIdx, 1);
+  if (!moved) throw new ValidationError(`重排目标卡片不在列表内：${String(cardId)}`);
+  sorted.splice(to, 0, moved);
+  return sorted.map((c, i) => ({ id: c.id, position: i }));
 }

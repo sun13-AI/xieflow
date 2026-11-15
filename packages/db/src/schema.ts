@@ -52,6 +52,42 @@ export const MIGRATIONS: Migration[] = [
       `CREATE INDEX IF NOT EXISTS idx_schedules_todo_id ON schedules (todo_id)`,
     ],
   },
+  {
+    version: 4,
+    name: "r4 · projects / board_columns / cards 表（项目与看板数据层）",
+    up: [
+      `CREATE TABLE IF NOT EXISTS projects (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        description TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+      `CREATE TABLE IF NOT EXISTS board_columns (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        position INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_board_columns_project ON board_columns (project_id)`,
+      `CREATE TABLE IF NOT EXISTS cards (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        column_id INTEGER NOT NULL REFERENCES board_columns(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        description TEXT,
+        position INTEGER NOT NULL,
+        todo_id INTEGER REFERENCES todos(id) ON DELETE SET NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_cards_column ON cards (column_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_cards_project ON cards (project_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_cards_todo_id ON cards (todo_id)`,
+    ],
+  },
 ];
 
 /** 当前 schema 版本（与 shared 的 SCHEMA_VERSION 保持一致，e2e 会断言二者相等） */

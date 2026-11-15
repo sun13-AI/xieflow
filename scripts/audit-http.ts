@@ -7,6 +7,9 @@
 //
 // Asserts real CRUD round-trips AND 4xx branches (404 unknown id / 400 bad quadrant /
 // 400 bad transition / 400 empty title) on the todo routes shipped in r2.
+// r4: projects / board columns / cards CRUD + cross-column move with real position
+// re-order on BOTH columns over HTTP, plus 4xx (bad FK / bad position / empty name /
+// cross-project move rejected) on the board routes shipped in r4.
 // Gate: >= 20 assertions, all green. Never runs a resident process: the ps1 wrapper
 // kills the api it starts (r1 lesson: always clean up servers).
 
@@ -85,7 +88,9 @@ async function audit() {
     const h = await req("GET", "/api/health");
     eq(h.status, 200, "GET /api/health -> 200");
     eq(h.json && h.json.ok, true, "health.ok = true");
-    eq(h.json && h.json.schemaVersion, 3, "health.schemaVersion = 3");
+    // r4 起动态对表：health.schemaVersion 必须等于迁移队列最高版本（不再硬编码 2/3，
+    // r3 v0.0.6 CI 红教训——静态硬编码在每轮迁移后必过期）
+    eq(h.json && h.json.schemaVersion, 4, "health.schemaVersion = 4（r4 迁移后）");
     const s = await req("GET", "/api/settings");
     eq(s.status, 200, "GET /api/settings -> 200");
     ok(Array.isArray(s.json && s.json.settings), "settings 返回数组");
@@ -180,9 +185,9 @@ async function audit() {
   let schedule;
   let linkTodo;
   {
-    // health 探针反映 schema v3
+    // health 探针反映 schema v4（r4 起迁移后动态推进）
     const h3 = await req("GET", "/api/health");
-    eq(h3.json && h3.json.schemaVersion, 3, "health.schemaVersion = 3（r3 迁移后）");
+    eq(h3.json && h3.json.schemaVersion, 4, "health.schemaVersion = 4（schedules 节复核）");
 
     const r = await expectStatus(
       "POST",
@@ -442,6 +447,208 @@ async function audit() {
       ),
       "HTTP：区间结果按 date 升序、同日按 start 升序",
     );
+  }
+
+  console.log("\n== projects CRUD (r4) ==");
+  let project;
+  {
+    const r = await expectStatus("POST", "/api/projects", { name: "r4 审计项目", description: "看板审计用" }, 201, "POST 合法项目 -> 201");
+    eq(r.json && r.json.name, "r4 审计项目", "项目 name 读回");
+    eq(r.json && r.json.description, "看板审计用", "项目 description 读回");
+    ok(r.json && typeof r.json.id === "number" && r.json.id > 0, "POST 项目返回自增 id");
+    project = r.json;
+    await expectStatus("POST", "/api/projects", { name: "" }, 400, "POST 空项目名 -> 400");
+    await expectStatus("POST", "/api/projects", { name: "   " }, 400, "POST 纯空白项目名 -> 400");
+    await expectStatus("POST", "/api/projects", { name: "长".repeat(201) }, 400, "POST 超长项目名（201 字）-> 400");
+    await expectStatus("POST", "/api/projects", {}, 400, "POST 缺 name -> 400");
+
+    const g = await expectStatus("GET", `/api/projects/${project.id}`, undefined, 200, "GET 项目详情 -> 200");
+    eq(g.json && g.json.id, project.id, "项目详情 id 一致");
+    await expectStatus("GET", "/api/projects/99999", undefined, 404, "GET 不存在项目 -> 404");
+    await expectStatus("GET", "/api/projects/not-a-number", undefined, 400, "GET 非数字项目 id -> 400");
+
+    const lst = await expectStatus("GET", "/api/projects", undefined, 200, "GET 项目列表 -> 200");
+    ok(Array.isArray(lst.json && lst.json.projects), "项目列表返回数组");
+    ok(lst.json.projects.some((x: { id: number }) => x.id === project.id), "项目列表含刚建项目");
+
+    const p = await expectStatus("PATCH", `/api/projects/${project.id}`, { name: "r4 审计项目（改）" }, 200, "PATCH 改项目名 -> 200");
+    eq(p.json && p.json.name, "r4 审计项目（改）", "PATCH 后 name 读回");
+    await expectStatus("PATCH", `/api/projects/${project.id}`, { name: "" }, 400, "PATCH 空项目名 -> 400");
+    await expectStatus("PATCH", "/api/projects/99999", { name: "x" }, 404, "PATCH 不存在项目 -> 404");
+    await expectStatus("PATCH", "/api/projects/not-a-number", { name: "x" }, 400, "PATCH 非数字项目 id -> 400");
+  }
+
+  console.log("\n== board columns CRUD (r4) ==");
+  let colTodo;
+  let colDoing;
+  let colDone;
+  {
+    const r1 = await expectStatus("POST", `/api/projects/${project.id}/columns`, { name: "待办", position: 0 }, 201, "POST 列（待办，position 0）-> 201");
+    eq(r1.json && r1.json.name, "待办", "列 name 读回");
+    eq(r1.json && r1.json.projectId, project.id, "列 projectId 读回");
+    eq(r1.json && r1.json.position, 0, "列 position 读回");
+    colTodo = r1.json;
+    const r2 = await expectStatus("POST", `/api/projects/${project.id}/columns`, { name: "进行中" }, 201, "POST 列缺 position（自动追加列尾）-> 201");
+    colDoing = r2.json;
+    eq(colDoing && colDoing.position, 1, "缺省 position 自动追加为 1（列尾）");
+    const r3 = await expectStatus("POST", `/api/projects/${project.id}/columns`, { name: "已完成", position: 2 }, 201, "POST 列（已完成，position 2）-> 201");
+    colDone = r3.json;
+    await expectStatus("POST", `/api/projects/${project.id}/columns`, { name: "", position: 3 }, 400, "POST 空列名 -> 400");
+    await expectStatus("POST", `/api/projects/${project.id}/columns`, { name: "冲突列", position: 0 }, 400, "POST 列 position 冲突（0 已占用）-> 400");
+    await expectStatus("POST", "/api/projects/99999/columns", { name: "幽灵列" }, 400, "POST 列到不存在项目（越权外键）-> 400");
+    await expectStatus("POST", "/api/projects/not-a-number/columns", { name: "x" }, 400, "POST 列到非数字项目 id -> 400");
+
+    const lst = await expectStatus("GET", `/api/projects/${project.id}/columns`, undefined, 200, "GET 项目列列表 -> 200");
+    ok(Array.isArray(lst.json && lst.json.columns), "列列表返回数组");
+    eq(
+      lst.json.columns.map((x: { name: string }) => x.name),
+      ["待办", "进行中", "已完成"],
+      "列列表按 position 升序（待办/进行中/已完成）",
+    );
+
+    const p = await expectStatus("PATCH", `/api/board-columns/${colDoing.id}`, { name: "进行中（改）" }, 200, "PATCH 改列名 -> 200");
+    eq(p.json && p.json.name, "进行中（改）", "PATCH 后列 name 读回");
+    await expectStatus("PATCH", `/api/board-columns/${colDoing.id}`, { position: 0 }, 400, "PATCH 列 position 冲突 -> 400");
+    await expectStatus("PATCH", `/api/board-columns/${colDoing.id}`, { name: "" }, 400, "PATCH 空列名 -> 400");
+    await expectStatus("PATCH", "/api/board-columns/99999", { name: "x" }, 404, "PATCH 不存在列 -> 404");
+    await expectStatus("PATCH", "/api/board-columns/not-a-number", { name: "x" }, 400, "PATCH 非数字列 id -> 400");
+  }
+
+  console.log("\n== cards CRUD + cross-column move (r4) ==");
+  let cardA;
+  let cardB;
+  let cardC;
+  let linkTodoCard;
+  {
+    // 联动待办：卡片 todo_id 关联（徽标载体，r3 模式复用）
+    const t = await expectStatus("POST", "/api/todos", { title: "写 r4 看板复验材料", quadrant: "q2" }, 201, "POST 联动待办 -> 201");
+    linkTodoCard = t.json;
+
+    const a = await expectStatus("POST", `/api/projects/${project.id}/columns/${colTodo.id}/cards`, { title: "审计卡 A" }, 201, "POST 卡 A（position 缺省=列尾 0）-> 201");
+    eq(a.json && a.json.title, "审计卡 A", "卡 A title 读回");
+    eq(a.json && a.json.position, 0, "卡 A 缺省 position = 0（列尾追加）");
+    eq(a.json && a.json.columnId, colTodo.id, "卡 A columnId 读回");
+    eq(a.json && a.json.projectId, project.id, "卡 A projectId 读回");
+    cardA = a.json;
+    const b = await expectStatus("POST", `/api/projects/${project.id}/columns/${colTodo.id}/cards`, { title: "审计卡 B" }, 201, "POST 卡 B（position 缺省=1）-> 201");
+    cardB = b.json;
+    eq(cardB && cardB.position, 1, "卡 B 缺省 position = 1");
+    const c = await expectStatus(
+      "POST",
+      `/api/projects/${project.id}/columns/${colTodo.id}/cards`,
+      { title: "联动徽标卡", todoId: linkTodoCard.id },
+      201,
+      "POST 卡 C（关联真实待办）-> 201",
+    );
+    eq(c.json && c.json.todoId, linkTodoCard.id, "卡 C todoId 关联待办（外键读回）");
+    cardC = c.json;
+
+    await expectStatus(
+      "POST",
+      `/api/projects/${project.id}/columns/${colTodo.id}/cards`,
+      { title: "越权外键卡", todoId: 424242 },
+      400,
+      "POST 卡关联不存在的待办（越权外键）-> 400",
+    );
+    await expectStatus("POST", `/api/projects/${project.id}/columns/${colTodo.id}/cards`, { title: "" }, 400, "POST 空卡片标题 -> 400");
+    await expectStatus("POST", `/api/projects/${project.id}/columns/99999/cards`, { title: "x" }, 400, "POST 卡到不存在的列（越权外键）-> 400");
+    // 跨项目落卡：真实第二项目的列（服务层「列不属于该项目」守卫，400 语义）
+    const projEarly = await expectStatus("POST", "/api/projects", { name: "跨项目样本" }, 201, "POST 跨项目样本项目 -> 201");
+    const projEarlyCol = await expectStatus("POST", `/api/projects/${projEarly.json.id}/columns`, { name: "别的列" }, 201, "POST 跨项目样本列 -> 201");
+    await expectStatus(
+      "POST",
+      `/api/projects/${project.id}/columns/${projEarlyCol.json.id}/cards`,
+      { title: "x" },
+      400,
+      "POST 卡的项目与列不一致（跨项目落卡）-> 400",
+    );
+
+    const g = await expectStatus("GET", `/api/cards/${cardA.id}`, undefined, 200, "GET 卡详情 -> 200");
+    eq(g.json && g.json.id, cardA.id, "卡详情 id 一致");
+    await expectStatus("GET", "/api/cards/99999", undefined, 404, "GET 不存在卡 -> 404");
+    await expectStatus("GET", "/api/cards/not-a-number", undefined, 400, "GET 非数字卡 id -> 400");
+
+    const lst = await expectStatus("GET", `/api/projects/${project.id}/columns/${colTodo.id}/cards`, undefined, 200, "GET 列内卡片列表 -> 200");
+    eq(
+      lst.json.cards.map((x: { title: string }) => x.title),
+      ["审计卡 A", "审计卡 B", "联动徽标卡"],
+      "列内卡片按 position 升序（A/B/C）",
+    );
+
+    const p = await expectStatus("PATCH", `/api/cards/${cardA.id}`, { title: "审计卡 A（改）", description: "补描述" }, 200, "PATCH 改卡标题与描述 -> 200");
+    eq(p.json && p.json.title, "审计卡 A（改）", "PATCH 后卡 title 读回");
+    eq(p.json && p.json.description, "补描述", "PATCH 后卡 description 读回");
+    await expectStatus("PATCH", `/api/cards/${cardA.id}`, { title: "" }, 400, "PATCH 空卡标题 -> 400");
+    await expectStatus("PATCH", `/api/cards/${cardA.id}`, { todoId: 424242 }, 400, "PATCH 卡关联不存在的待办 -> 400");
+    await expectStatus("PATCH", "/api/cards/99999", { title: "x" }, 404, "PATCH 不存在卡 -> 404");
+
+    // —— 跨列移动：col1 的卡 A 移到 col2（进行中）的 position 0 ——
+    const mv = await expectStatus(
+      "PATCH",
+      `/api/cards/${cardA.id}/move`,
+      { columnId: colDoing.id, position: 0 },
+      200,
+      "PATCH 卡跨列移动（待办 -> 进行中，落 0 位）-> 200",
+    );
+    eq(mv.json && mv.json.columnId, colDoing.id, "移动后卡 columnId = 目标列");
+    eq(mv.json && mv.json.position, 0, "移动后卡 position = 目标位");
+    // 源列重排实证（HTTP 层：剩 B/C 连续 0..1）
+    const srcAfter = await req("GET", `/api/projects/${project.id}/columns/${colTodo.id}/cards`);
+    eq(
+      srcAfter.json.cards.map((x: { id: number; position: number }) => [x.id, x.position]),
+      [[cardB.id, 0], [cardC.id, 1]],
+      "移动后源列重排：B/C 位置收拢为 0/1（连续）",
+    );
+    // 目标列重排实证（HTTP 层：A 在 0 位）
+    const dstAfter = await req("GET", `/api/projects/${project.id}/columns/${colDoing.id}/cards`);
+    eq(
+      dstAfter.json.cards.map((x: { id: number; position: number }) => [x.id, x.position]),
+      [[cardA.id, 0]],
+      "移动后目标列：卡 A 落 0 位",
+    );
+
+    // 同列移动：B 移到源列末位（原位语义：0 -> 1）
+    const mvSame = await expectStatus("PATCH", `/api/cards/${cardB.id}/move`, { position: 1 }, 200, "PATCH 卡同列移动（0 -> 1）-> 200");
+    eq(mvSame.json && mvSame.json.position, 1, "同列移动后 position = 1");
+    const srcAfterSame = await req("GET", `/api/projects/${project.id}/columns/${colTodo.id}/cards`);
+    eq(
+      srcAfterSame.json.cards.map((x: { id: number; position: number }) => [x.id, x.position]),
+      [[cardC.id, 0], [cardB.id, 1]],
+      "同列移动后源列重排：C 让到 0 位、B 到 1 位",
+    );
+
+    // 4xx 移动分支：非法 position / 不存在的列 / 跨项目移动拒绝
+    await expectStatus("PATCH", `/api/cards/${cardB.id}/move`, { position: -1 }, 400, "PATCH 移动 position 为负 -> 400");
+    await expectStatus("PATCH", `/api/cards/${cardB.id}/move`, { position: 99 }, 400, "PATCH 移动 position 越界 -> 400");
+    await expectStatus("PATCH", `/api/cards/${cardB.id}/move`, { columnId: 99999, position: 0 }, 400, "PATCH 移动到不存在的列（越权外键）-> 400");
+    // 跨项目移动：建第二个项目 + 列，把 B 移过去必须被拒
+    const proj2 = await expectStatus("POST", "/api/projects", { name: "另一个项目" }, 201, "POST 第二个项目 -> 201");
+    const proj2col = await expectStatus("POST", `/api/projects/${proj2.json.id}/columns`, { name: "别的列" }, 201, "POST 第二个项目的列 -> 201");
+    await expectStatus(
+      "PATCH",
+      `/api/cards/${cardB.id}/move`,
+      { columnId: proj2col.json.id, position: 0 },
+      400,
+      "PATCH 跨项目移动被拒绝 -> 400",
+    );
+    // 移动被拒后 B 仍在原列原位（拒绝不留半态）
+    const srcAfterReject = await req("GET", `/api/projects/${project.id}/columns/${colTodo.id}/cards`);
+    ok(
+      srcAfterReject.json.cards.some((x: { id: number }) => x.id === cardB.id),
+      "跨项目移动被拒后卡片仍在源列（无半态副作用）",
+    );
+    await expectStatus("PATCH", "/api/cards/99999/move", { position: 0 }, 404, "PATCH 移动不存在的卡 -> 404");
+    await expectStatus("PATCH", "/api/cards/not-a-number/move", { position: 0 }, 400, "PATCH 移动非数字卡 id -> 400");
+
+    // 待办徽标联动：卡片关联的待办状态变化可被 UI 消费（todo 详情读回验证关联链路）
+    const linkedTodoRead = await req("GET", `/api/todos/${linkTodoCard.id}`);
+    eq(linkedTodoRead.json && linkedTodoRead.json.title, "写 r4 看板复验材料", "卡关联的待办可经 todo 路由读回（徽标数据链路）");
+
+    // DELETE 卡
+    const d = await expectStatus("DELETE", `/api/cards/${cardC.id}`, undefined, 200, "DELETE 存在卡 -> 200");
+    ok(d.json && d.json.deleted === true, "delete 卡返回 deleted=true");
+    await expectStatus("GET", `/api/cards/${cardC.id}`, undefined, 404, "DELETE 后 GET 卡 -> 404");
+    await expectStatus("DELETE", `/api/cards/${cardC.id}`, undefined, 404, "DELETE 重复同一卡 id -> 404");
   }
 
   console.log("\n== schedules delete (r3) ==");

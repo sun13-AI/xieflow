@@ -4,11 +4,28 @@
 // r2：暴露 openDatabaseRaw（raw 底层句柄 + 应用过的迁移清单，供 e2e 真实触达 schema
 // 约束与迁移幂等），服务层输入校验收紧为 shared 守卫（先守卫、后落库）。
 // r3：schedules 表 CRUD + 与待办的双向联动（due_date ↔ schedule.date）。
+// r4：看板数据层——projects / board_columns / cards CRUD + 跨列移动
+// （position 重排规则集中 shared reorderPositions，本层只做守卫与落库）。
 import sqlite3Wasm from "node-sqlite3-wasm";
 import type { Database as WasmDatabase } from "node-sqlite3-wasm";
 import { MIGRATIONS, CURRENT_SCHEMA_VERSION, assertMigrationsConsistent } from "./schema.js";
-import { mapSettingsRow, mapRowToTodo, mapRowToSchedule } from "./mappers.js";
-import type { AppSetting, Todo, Schedule, ScheduleRepeat } from "@xieflow/shared";
+import {
+  mapSettingsRow,
+  mapRowToTodo,
+  mapRowToSchedule,
+  mapRowToProject,
+  mapRowToBoardColumn,
+  mapRowToBoardCard,
+} from "./mappers.js";
+import type {
+  AppSetting,
+  Todo,
+  Schedule,
+  ScheduleRepeat,
+  Project,
+  BoardColumn,
+  BoardCard,
+} from "@xieflow/shared";
 import {
   canTransitionTodo,
   assertValidQuadrant,
@@ -19,6 +36,8 @@ import {
   assertValidScheduleDate,
   assertValidScheduleRange,
   assertValidScheduleRepeat,
+  assertValidBoardName,
+  reorderPositions,
   LINK_SCHEDULE_DEFAULT_START,
   LINK_SCHEDULE_DEFAULT_END,
 } from "@xieflow/shared";
@@ -317,5 +336,301 @@ export class XieFlowDb {
 
   close(): void {
     this.db.close();
+  }
+
+  // ---- projects / board / cards（r4：项目与看板数据层） ----
+
+  createProject(name: string, description: string | null = null): Project {
+    // 先守卫、后落库（r2 收紧范式延续）：空名/超长名在 SQL 之前拦截
+    assertValidBoardName(name);
+    const now = new Date().toISOString();
+    const res = this.db.run(
+      "INSERT INTO projects (name, description, created_at, updated_at) VALUES (?, ?, ?, ?)",
+      [name, description, now, now],
+    );
+    const row = this.db.get("SELECT * FROM projects WHERE id = ?", [res.lastInsertRowid]);
+    if (!row) throw new Error("项目写入后读回失败");
+    return mapRowToProject(row);
+  }
+
+  getProject(id: number): Project | null {
+    const row = this.db.get("SELECT * FROM projects WHERE id = ?", [id]);
+    return row ? mapRowToProject(row) : null;
+  }
+
+  listProjects(): Project[] {
+    return this.db.all("SELECT * FROM projects ORDER BY id").map(mapRowToProject);
+  }
+
+  updateProject(
+    id: number,
+    patch: { name?: string; description?: string | null },
+  ): Project {
+    const current = this.getProject(id);
+    if (!current) throw new Error(`项目不存在：${id}`);
+    // 部分补丁语义：合成后的完整值整体过守卫（先守卫、后落库）
+    const name = patch.name ?? current.name;
+    const description =
+      patch.description !== undefined ? patch.description : current.description;
+    assertValidBoardName(name);
+    this.db.run("UPDATE projects SET name = ?, description = ?, updated_at = ? WHERE id = ?", [
+      name,
+      description,
+      new Date().toISOString(),
+      id,
+    ]);
+    return this.getProject(id)!;
+  }
+
+  /** 项目删除：列与卡片经 schema 级联（ON DELETE CASCADE）随行删除 */
+  deleteProject(id: number): boolean {
+    const res = this.db.run("DELETE FROM projects WHERE id = ?", [id]);
+    return res.changes > 0;
+  }
+
+  createBoardColumn(projectId: number, name: string, position?: number): BoardColumn {
+    assertValidBoardName(name);
+    if (this.getProject(projectId) === null) {
+      throw new Error(`项目不存在：${projectId}`);
+    }
+    // position 缺省 = 自动追加列尾（现有列数即下一个下标，与卡片同语义）
+    const pos =
+      position ??
+      Number(
+        (
+          this.db.get("SELECT COUNT(*) AS n FROM board_columns WHERE project_id = ?", [
+            projectId,
+          ]) as { n: unknown }
+        ).n,
+      );
+    if (!Number.isInteger(pos) || pos < 0) {
+      throw new Error(`非法列位置：${String(pos)}`);
+    }
+    // position 在项目内唯一：先查重再落库（唯一索引兜底，服务层错误消息稳定）
+    const dup = this.db.get(
+      "SELECT id FROM board_columns WHERE project_id = ? AND position = ?",
+      [projectId, pos],
+    );
+    if (dup) {
+      throw new Error(`列位置已被占用：${pos}`);
+    }
+    const now = new Date().toISOString();
+    const res = this.db.run(
+      "INSERT INTO board_columns (project_id, name, position, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+      [projectId, name, pos, now, now],
+    );
+    const row = this.db.get("SELECT * FROM board_columns WHERE id = ?", [res.lastInsertRowid]);
+    if (!row) throw new Error("看板列写入后读回失败");
+    return mapRowToBoardColumn(row);
+  }
+
+  getBoardColumn(id: number): BoardColumn | null {
+    const row = this.db.get("SELECT * FROM board_columns WHERE id = ?", [id]);
+    return row ? mapRowToBoardColumn(row) : null;
+  }
+
+  listBoardColumns(projectId: number): BoardColumn[] {
+    return this.db
+      .all("SELECT * FROM board_columns WHERE project_id = ? ORDER BY position", [projectId])
+      .map(mapRowToBoardColumn);
+  }
+
+  updateBoardColumn(id: number, patch: { name?: string; position?: number }): BoardColumn {
+    const current = this.getBoardColumn(id);
+    if (!current) throw new Error(`看板列不存在：${id}`);
+    const name = patch.name ?? current.name;
+    const position = patch.position ?? current.position;
+    assertValidBoardName(name);
+    if (!Number.isInteger(position) || position < 0) {
+      throw new Error(`非法列位置：${String(position)}`);
+    }
+    if (
+      position !== current.position &&
+      this.db.get("SELECT id FROM board_columns WHERE project_id = ? AND position = ? AND id != ?", [
+        current.projectId,
+        position,
+        id,
+      ])
+    ) {
+      throw new Error(`列位置已被占用：${position}`);
+    }
+    this.db.run("UPDATE board_columns SET name = ?, position = ?, updated_at = ? WHERE id = ?", [
+      name,
+      position,
+      new Date().toISOString(),
+      id,
+    ]);
+    return this.getBoardColumn(id)!;
+  }
+
+  /** 列删除：列内卡片经 schema 级联（ON DELETE CASCADE）随行删除 */
+  deleteBoardColumn(id: number): boolean {
+    const res = this.db.run("DELETE FROM board_columns WHERE id = ?", [id]);
+    return res.changes > 0;
+  }
+
+  createBoardCard(
+    projectId: number,
+    columnId: number,
+    title: string,
+    description: string | null = null,
+    position?: number,
+    todoId: number | null = null,
+  ): BoardCard {
+    assertValidBoardName(title);
+    if (this.getProject(projectId) === null) {
+      throw new Error(`项目不存在：${projectId}`);
+    }
+    const column = this.getBoardColumn(columnId);
+    if (column === null) {
+      throw new Error(`看板列不存在：${columnId}`);
+    }
+    // 卡片必须落在所属项目自己的列里（列 carries projectId；双源一致性守卫）
+    if (column.projectId !== projectId) {
+      throw new Error(`看板列 ${columnId} 不属于项目 ${projectId}`);
+    }
+    if (todoId !== null && this.getTodo(todoId) === null) {
+      throw new Error(`关联的待办不存在：${todoId}`);
+    }
+    // position 缺省 = 追加到列尾（列内现有张数即下一个下标）
+    const pos =
+      position ??
+      Number(
+        (
+          this.db.get("SELECT COUNT(*) AS n FROM cards WHERE column_id = ?", [
+            columnId,
+          ]) as { n: unknown }
+        ).n,
+      );
+    if (!Number.isInteger(pos) || pos < 0) {
+      throw new Error(`非法卡片位置：${String(pos)}`);
+    }
+    const now = new Date().toISOString();
+    const res = this.db.run(
+      "INSERT INTO cards (project_id, column_id, title, description, position, todo_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      [projectId, columnId, title, description, pos, todoId, now, now],
+    );
+    const row = this.db.get("SELECT * FROM cards WHERE id = ?", [res.lastInsertRowid]);
+    if (!row) throw new Error("卡片写入后读回失败");
+    return mapRowToBoardCard(row);
+  }
+
+  getBoardCard(id: number): BoardCard | null {
+    const row = this.db.get("SELECT * FROM cards WHERE id = ?", [id]);
+    return row ? mapRowToBoardCard(row) : null;
+  }
+
+  listBoardCards(columnId: number): BoardCard[] {
+    return this.db
+      .all("SELECT * FROM cards WHERE column_id = ? ORDER BY position", [columnId])
+      .map(mapRowToBoardCard);
+  }
+
+  listBoardCardsByProject(projectId: number): BoardCard[] {
+    return this.db
+      .all("SELECT * FROM cards WHERE project_id = ? ORDER BY column_id, position", [projectId])
+      .map(mapRowToBoardCard);
+  }
+
+  updateBoardCard(
+    id: number,
+    patch: { title?: string; description?: string | null; todoId?: number | null },
+  ): BoardCard {
+    const current = this.getBoardCard(id);
+    if (!current) throw new Error(`卡片不存在：${id}`);
+    // 部分补丁语义：合成后的完整值整体过守卫（先守卫、后落库）
+    const title = patch.title ?? current.title;
+    const description =
+      patch.description !== undefined ? patch.description : current.description;
+    const todoId = patch.todoId !== undefined ? patch.todoId : current.todoId;
+    assertValidBoardName(title);
+    if (todoId !== null && this.getTodo(todoId) === null) {
+      throw new Error(`关联的待办不存在：${todoId}`);
+    }
+    this.db.run(
+      "UPDATE cards SET title = ?, description = ?, todo_id = ?, updated_at = ? WHERE id = ?",
+      [title, description, todoId, new Date().toISOString(), id],
+    );
+    return this.getBoardCard(id)!;
+  }
+
+  deleteBoardCard(id: number): boolean {
+    const res = this.db.run("DELETE FROM cards WHERE id = ?", [id]);
+    return res.changes > 0;
+  }
+
+  /**
+   * 跨列移动卡片（r4 联动入口）：cardId 移到 toColumnId 的 to 位。
+   * 重排规则集中 shared reorderPositions——源列与目标列分别用同一纯函数算出
+   * 全部受影响卡片的新 position；同列移动只重排一列。
+   * 守卫：卡与目标列必须存在、目标列必须属于卡自己的项目（跨项目移动拒绝）。
+   */
+  moveBoardCard(cardId: number, toColumnId: number, to: number): BoardCard {
+    const card = this.getBoardCard(cardId);
+    if (!card) throw new Error(`卡片不存在：${cardId}`);
+    const targetColumn = this.getBoardColumn(toColumnId);
+    if (!targetColumn) throw new Error(`看板列不存在：${toColumnId}`);
+    if (targetColumn.projectId !== card.projectId) {
+      throw new Error(`跨项目移动被拒绝：卡片属于项目 ${card.projectId}，目标列属于项目 ${targetColumn.projectId}`);
+    }
+    const now = new Date().toISOString();
+    if (toColumnId === card.columnId) {
+      // 同列移动：一列内重排
+      const siblings = this.listBoardCards(toColumnId);
+      const plan = reorderPositions(siblings, cardId, to);
+      for (const p of plan) {
+        if (p.id === cardId) continue; // 移动卡本体随 plan 最后一并写
+        this.db.run("UPDATE cards SET position = ?, updated_at = ? WHERE id = ?", [
+          p.position,
+          now,
+          p.id,
+        ]);
+      }
+      this.db.run("UPDATE cards SET position = ?, updated_at = ? WHERE id = ?", [
+        to,
+        now,
+        cardId,
+      ]);
+    } else {
+      // 跨列移动：源列收拢重排 + 目标列插入重排
+      const sourceSiblings = this.listBoardCards(card.columnId);
+      const sourcePlan = reorderPositions(sourceSiblings, cardId, sourceSiblings.length - 1);
+      for (const p of sourcePlan) {
+        if (p.id === cardId) continue; // 移动卡本体随目标列写入
+        this.db.run("UPDATE cards SET position = ?, updated_at = ? WHERE id = ?", [
+          p.position,
+          now,
+          p.id,
+        ]);
+      }
+      const targetSiblings = this.listBoardCards(toColumnId);
+      const targetPlan = reorderPositions(
+        [...targetSiblings, { id: cardId, position: targetSiblings.length }],
+        cardId,
+        to,
+      );
+      for (const p of targetPlan) {
+        if (p.id === cardId) {
+          this.db.run(
+            "UPDATE cards SET column_id = ?, position = ?, updated_at = ? WHERE id = ?",
+            [toColumnId, p.position, now, cardId],
+          );
+        } else {
+          this.db.run("UPDATE cards SET position = ?, updated_at = ? WHERE id = ?", [
+            p.position,
+            now,
+            p.id,
+          ]);
+        }
+      }
+    }
+    return this.getBoardCard(cardId)!;
+  }
+
+  /** 同列移动便捷入口：moveBoardCard 的同列特例（body 只带 position 的路由走这里） */
+  moveBoardCardSameColumn(cardId: number, to: number): BoardCard {
+    const card = this.getBoardCard(cardId);
+    if (!card) throw new Error(`卡片不存在：${cardId}`);
+    return this.moveBoardCard(cardId, card.columnId, to);
   }
 }

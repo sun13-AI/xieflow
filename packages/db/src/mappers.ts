@@ -1,5 +1,15 @@
 // 协流 XieFlow — mappers.ts：行 → 领域对象（snake_case ↔ camelCase 唯一入口）
-import type { AppSetting, Todo, Quadrant, TodoStatus, Schedule, ScheduleRepeat } from "@xieflow/shared";
+import type {
+  AppSetting,
+  Todo,
+  Quadrant,
+  TodoStatus,
+  Schedule,
+  ScheduleRepeat,
+  Project,
+  BoardColumn,
+  BoardCard,
+} from "@xieflow/shared";
 import { REPEATS_ORDER } from "./repeat-order.js";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -49,6 +59,41 @@ export function mapRowToSchedule(row: Row): Schedule {
     end: String(row.end_time),
     todoId: row.todo_id === null ? null : Number(row.todo_id),
     repeat,
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+  };
+}
+
+export function mapRowToProject(row: Row): Project {
+  return {
+    id: Number(row.id),
+    name: String(row.name),
+    description: row.description === null ? null : String(row.description),
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+  };
+}
+
+export function mapRowToBoardColumn(row: Row): BoardColumn {
+  return {
+    id: Number(row.id),
+    projectId: Number(row.project_id),
+    name: String(row.name),
+    position: Number(row.position),
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+  };
+}
+
+export function mapRowToBoardCard(row: Row): BoardCard {
+  return {
+    id: Number(row.id),
+    projectId: Number(row.project_id),
+    columnId: Number(row.column_id),
+    title: String(row.title),
+    description: row.description === null ? null : String(row.description),
+    position: Number(row.position),
+    todoId: row.todo_id === null ? null : Number(row.todo_id),
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
   };

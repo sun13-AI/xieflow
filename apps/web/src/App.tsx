@@ -1,17 +1,20 @@
 // 协流 XieFlow — 外壳：页面切换（useState tab，无路由库）+ 首页工作台
 // r3 起：工作台（设置项 + schema 卡 + 今日日程卡）/ 待办页 / 日程页三个 tab。
+// r4 起：+ 项目页 / 看板页（M2 第 1 片）。
 // 截图状态真实存在：加载中 / 空数据 / 正常 / 错误 / 窄屏（?narrow=1 显式钉态）
 import { useEffect, useState } from "react";
 import type { AppSetting, Schedule, Todo } from "@xieflow/shared";
 import TodosPage from "./TodosPage";
 import SchedulesPage from "./SchedulesPage";
+import ProjectsPage from "./ProjectsPage";
+import BoardPage from "./BoardPage";
 
 type LoadState =
   | { phase: "loading" }
   | { phase: "error"; message: string }
   | { phase: "ready"; settings: AppSetting[]; schemaVersion: number; todaySchedules: Schedule[]; todos: Todo[] };
 
-type PageTab = "home" | "todos" | "schedules";
+type PageTab = "home" | "todos" | "schedules" | "projects" | "board";
 
 /** 健康检查 + 今日日程（工作台卡片数据源；日程查询失败不阻塞工作台） */
 async function fetchHealth(): Promise<{
@@ -63,10 +66,18 @@ function workbenchTodaySeed(now: Date): Schedule[] {
 }
 
 export default function App() {
-  // tab 与截图钉态都从 URL 读（?page=todos / ?page=schedules 让页面可直达/可截图）
+  // tab 与截图钉态都从 URL 读（?page=todos / ?page=schedules / ?page=projects / ?page=board 可直达/可截图）
   const [tab, setTab] = useState<PageTab>(() => {
     const page = new URLSearchParams(window.location.search).get("page");
-    return page === "todos" ? "todos" : page === "schedules" ? "schedules" : "home";
+    return page === "todos"
+      ? "todos"
+      : page === "schedules"
+        ? "schedules"
+        : page === "projects"
+          ? "projects"
+          : page === "board"
+            ? "board"
+            : "home";
   });
   const [state, setState] = useState<LoadState>(() => {
     // 截图脚本用 ?shot= 钉住特定状态（真实状态都存在，参数只为确定性捕获）
@@ -138,14 +149,32 @@ export default function App() {
           >
             日程
           </button>
+          <button
+            type="button"
+            className={`tab ${tab === "projects" ? "tab-active" : ""}`}
+            onClick={() => setTab("projects")}
+          >
+            项目
+          </button>
+          <button
+            type="button"
+            className={`tab ${tab === "board" ? "tab-active" : ""}`}
+            onClick={() => setTab("board")}
+          >
+            看板
+          </button>
         </nav>
-        <span className="badge">r3 · 日程与待办联动</span>
+        <span className="badge">r4 · 项目与看板</span>
       </header>
 
       {tab === "todos" ? (
         <TodosPage />
       ) : tab === "schedules" ? (
         <SchedulesPage />
+      ) : tab === "projects" ? (
+        <ProjectsPage onOpenBoard={() => setTab("board")} />
+      ) : tab === "board" ? (
+        <BoardPage />
       ) : (
         <>
           {state.phase === "loading" && (
@@ -208,7 +237,7 @@ export default function App() {
                   <dt>schema 版本</dt>
                   <dd>v{state.schemaVersion}</dd>
                   <dt>里程碑</dt>
-                  <dd>M1 待办+日程</dd>
+                  <dd>M2 项目+看板（进行中）</dd>
                 </dl>
               </section>
             </>

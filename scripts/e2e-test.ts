@@ -3,6 +3,8 @@
 // r1 复验 P4 指出的两条自洽占位断言在本轮替换为真实行为断言（raw SQL 触达 NOT NULL /
 // CHECK 约束；迁移幂等改用 PRAGMA user_version 真实读回）。
 // 路由层（HTTP 侧）断言在 scripts/audit-http.ts，独立成套计数。
+// r4：看板数据层——reorderPositions 排序规则（shared 纯函数）+ schema v3→v4 迁移
+// （projects / board_columns / cards）+ 服务层看板 CRUD 与跨列移动闭环。
 // 运行：pnpm test
 import { mkdirSync } from "node:fs";
 import {
@@ -27,14 +29,17 @@ import {
   addMonths,
   computeRepeatInstances,
   assembleRangeSchedules,
+  reorderPositions,
   assertValidScheduleTitle,
   assertValidScheduleDate,
   assertValidScheduleTime,
   assertValidScheduleRange,
   assertValidScheduleRepeat,
+  assertValidBoardName,
   type Schedule,
   type ScheduleWithInstanceFlag,
   type ScheduleRepeat,
+  type BoardCard,
 } from "@xieflow/shared";
 import type { TodoStatus } from "@xieflow/shared";
 
@@ -125,6 +130,7 @@ try {
         { version: 2, name: "b", up: [] },
         { version: 3, name: "c", up: [] },
         { version: 4, name: "d", up: [] },
+        { version: 5, name: "e", up: [] },
       ]),
     "队列超出 SCHEMA_VERSION：一致性校验抛错",
   );
@@ -507,21 +513,24 @@ try {
     v2Open.raw.exec("PRAGMA user_version = 2");
     v2Open.raw.close();
     const v3Open = openDatabaseRaw({ path: v3Path });
+    v3Open.raw.exec("PRAGMA user_version = 2");
+    v3Open.raw.close();
+    const v3Migrated = openDatabaseRaw({ path: v3Path });
     eq(
-      v3Open.appliedMigrations,
-      [3],
-      "v2 旧库重开只补跑 v3 迁移（幂等断言的变体：真实 PRAGMA 升级路径）",
+      v3Migrated.appliedMigrations,
+      [3, 4],
+      "v2 旧库重开补跑 v3+v4 迁移（真实 PRAGMA 升级路径，r4 起队列追加 v4）",
     );
-    const tables = v3Open.raw
+    const tables = v3Migrated.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
       .map((r) => String((r as unknown as { name: unknown }).name));
     ok(tables.includes("schedules"), "v3 迁移后 schedules 表存在（sqlite_master 真实读回）");
     eq(
-      (v3Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
+      (v3Migrated.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = 3",
+      "升级后 user_version = 迁移队列最高版本（r4 起动态对表，不再钉死 3）",
     );
-    const rawDb: SqliteDatabase = v3Open.raw;
+    const rawDb: SqliteDatabase = v3Migrated.raw;
     throws(
       () =>
         rawDb.run(
@@ -539,41 +548,41 @@ try {
       "schedules.repeat CHECK 拒绝 hourly（raw 直达 CHECK）",
     );
     // 联动：待办设 dueDate → 自动生成关联日程；日程改期 → 回写待办 dueDate
-    const linkedTodo = v3Open.db.createTodo("联动样本", "q2", null);
-    eq(v3Open.db.listSchedules().length, 0, "无截止日待办不生成日程");
-    v3Open.db.updateTodoDueDate(linkedTodo.id, "2026-11-20");
-    const autoSchedules = v3Open.db.listSchedules();
+    const linkedTodo = v3Migrated.db.createTodo("联动样本", "q2", null);
+    eq(v3Migrated.db.listSchedules().length, 0, "无截止日待办不生成日程");
+    v3Migrated.db.updateTodoDueDate(linkedTodo.id, "2026-11-20");
+    const autoSchedules = v3Migrated.db.listSchedules();
     eq(autoSchedules.length, 1, "待办设 due_date 自动生成关联日程（1 条）");
     const auto = autoSchedules[0]!;
     eq(auto.date, "2026-11-20", "生成日程的 date = 待办 due_date");
     eq(auto.todoId, linkedTodo.id, "生成日程的 todo_id 关联待办");
     eq(auto.start, "09:00", "生成日程默认开始 09:00");
     eq(auto.end, "10:00", "生成日程默认结束 10:00");
-    const tReadback = v3Open.db.getTodo(linkedTodo.id)!;
+    const tReadback = v3Migrated.db.getTodo(linkedTodo.id)!;
     eq(tReadback.dueDate, "2026-11-20", "待办 due_date 已写入");
     // 日程改期 → 回写待办
-    v3Open.db.updateScheduleDate(auto.id, "2026-11-23");
-    const tReadback2 = v3Open.db.getTodo(linkedTodo.id)!;
+    v3Migrated.db.updateScheduleDate(auto.id, "2026-11-23");
+    const tReadback2 = v3Migrated.db.getTodo(linkedTodo.id)!;
     eq(tReadback2.dueDate, "2026-11-23", "日程改期回写待办 due_date（联动闭环）");
     eq(
-      v3Open.db.getSchedule(auto.id)!.date,
+      v3Migrated.db.getSchedule(auto.id)!.date,
       "2026-11-23",
       "日程本体 date 已更新",
     );
     // 解除关联：待办 dueDate 清空 → 关联日程删除
-    v3Open.db.updateTodoDueDate(linkedTodo.id, null);
-    eq(v3Open.db.listSchedules().length, 0, "待办清空 due_date 自动删除关联日程");
+    v3Migrated.db.updateTodoDueDate(linkedTodo.id, null);
+    eq(v3Migrated.db.listSchedules().length, 0, "待办清空 due_date 自动删除关联日程");
     // 待办删除 → 关联日程级联删除
-    const td = v3Open.db.createTodo("级联样本", "q1", "2026-12-01");
-    eq(v3Open.db.listSchedules().length, 1, "待办再设 due_date 再生成日程");
-    v3Open.db.deleteTodo(td.id);
-    eq(v3Open.db.listSchedules().length, 0, "待办删除级联删除关联日程");
+    const td = v3Migrated.db.createTodo("级联样本", "q1", "2026-12-01");
+    eq(v3Migrated.db.listSchedules().length, 1, "待办再设 due_date 再生成日程");
+    v3Migrated.db.deleteTodo(td.id);
+    eq(v3Migrated.db.listSchedules().length, 0, "待办删除级联删除关联日程");
     // updateTodoDueDate 对不存在待办抛错
     throws(
-      () => v3Open.db.updateTodoDueDate(424242, "2026-11-20"),
+      () => v3Migrated.db.updateTodoDueDate(424242, "2026-11-20"),
       "updateTodoDueDate 不存在的待办抛错",
     );
-    v3Open.raw.close();
+    v3Migrated.raw.close();
     db = null;
   }
 
@@ -621,6 +630,236 @@ try {
     eq(del, true, "deleteSchedule 删除成功");
     eq(db.deleteSchedule(sc2.id), false, "deleteSchedule 重复删除返回 false");
     eq(db.listSchedules().length, 2, "删除后剩 2 条");
+  }
+
+  // 12b. 看板排序规则（r4：position 重排集中 shared，api 移动路由的唯一入口）
+  section("看板排序规则（reorderPositions）");
+  {
+    // 合法重排：n 张卡（id 唯一、按位排列），取任意一张移到任意 to
+    const mkCards = (ids: number[]): Array<{ id: number }> => ids.map((id) => ({ id }));
+    const ids10 = mkCards([11, 12, 13, 14, 15]);
+    // 首位移到末尾
+    eq(
+      reorderPositions(ids10, 11, 4),
+      [
+        { id: 12, position: 0 },
+        { id: 13, position: 1 },
+        { id: 14, position: 2 },
+        { id: 15, position: 3 },
+        { id: 11, position: 4 },
+      ],
+      "重排：首位移到末尾，其余逐张前移、position 连续 0..n-1",
+    );
+    // 末位移到首位
+    eq(
+      reorderPositions(ids10, 15, 0),
+      [
+        { id: 15, position: 0 },
+        { id: 11, position: 1 },
+        { id: 12, position: 2 },
+        { id: 13, position: 3 },
+        { id: 14, position: 4 },
+      ],
+      "重排：末位移到首位，其余逐张后移",
+    );
+    // 中间位移动
+    eq(
+      reorderPositions(ids10, 13, 0),
+      [
+        { id: 13, position: 0 },
+        { id: 11, position: 1 },
+        { id: 12, position: 2 },
+        { id: 14, position: 3 },
+        { id: 15, position: 4 },
+      ],
+      "重排：中位移到首位，被跨过的卡整体让位",
+    );
+    // 原位移动：整列恒等映射（id 顺序不变、position 连续；api 层据此跳过兄弟卡写入）
+    eq(
+      reorderPositions(ids10, 12, 1),
+      [
+        { id: 11, position: 0 },
+        { id: 12, position: 1 },
+        { id: 13, position: 2 },
+        { id: 14, position: 3 },
+        { id: 15, position: 4 },
+      ],
+      "重排：原位移动返回整列恒等映射（无卡让位）",
+    );
+    // 单卡列
+    eq(reorderPositions(mkCards([99]), 99, 0), [{ id: 99, position: 0 }], "重排：单卡列原位恒等");
+    // 非法 to：负数 / 越界
+    throws(() => reorderPositions(ids10, 11, -1), "重排：to 为负抛错");
+    throws(() => reorderPositions(ids10, 11, 5), "重排：to 越界（= n）抛错");
+    throws(() => reorderPositions(ids10, 11, 1.5), "重排：to 非整数抛错");
+    // 非法 cardId：不在列表内
+    throws(() => reorderPositions(ids10, 424242, 0), "重排：cardId 不在列表内抛错");
+    // 乱序输入先按 position 收敛（防御语义）：输入乱序但带 position 时按 position 排
+    eq(
+      reorderPositions(
+        [
+          { id: 21, position: 2 },
+          { id: 22, position: 0 },
+          { id: 23, position: 1 },
+        ],
+        21,
+        0,
+      ),
+      [
+        { id: 21, position: 0 },
+        { id: 22, position: 1 },
+        { id: 23, position: 2 },
+      ],
+      "重排：乱序输入按 position 排序后再移动（21 从第 3 位提到首位）",
+    );
+    // 输出整体校验：position 恰为 0..n-1 的连续排列
+    const outIds = reorderPositions(ids10, 14, 1).map((x) => x.id);
+    ok(outIds.length === new Set(outIds).size, "重排：输出 id 无重复");
+    ok(
+      reorderPositions(ids10, 14, 1).every((x, i) => x.position === i),
+      "重排：输出 position 恰为 0..n-1 连续",
+    );
+  }
+
+  // 12c. 看板名称守卫（shared，api 400 映射的同一来源）
+  section("看板名称守卫（assertValidBoardName）");
+  {
+    noThrow(() => assertValidBoardName("装修项目"), "看板合法名称通过");
+    throws(() => assertValidBoardName(""), "看板空名称抛错");
+    throws(() => assertValidBoardName("   "), "看板纯空白名称抛错");
+    throws(() => assertValidBoardName("长".repeat(201)), "看板超长名称（201 字）抛错");
+    noThrow(() => assertValidBoardName("标".repeat(200)), "看板恰好 200 字名称合法（边界）");
+    throws(() => assertValidBoardName(123 as unknown as string), "看板名称非字符串抛错");
+  }
+
+  // 13. schema v3→v4 迁移升级（v3 旧库 → v4 带看板三表）+ 看板数据层闭环（服务层）
+  section("schema v3→v4 迁移升级与看板数据层（服务层）");
+  {
+    mkdirSync("scripts/.tmp-e2e", { recursive: true });
+    const v4Path = `scripts/.tmp-e2e/upgrade-r4-${Date.now()}.db`;
+    // 造一个真 v3 旧库：v4 迁移执行前手动把 user_version 钉回 3（模拟 r3 版本的原地升级）
+    const v3Open2 = openDatabaseRaw({ path: v4Path });
+    v3Open2.raw.exec("PRAGMA user_version = 3");
+    v3Open2.raw.close();
+    const v4Open = openDatabaseRaw({ path: v4Path });
+    eq(
+      v4Open.appliedMigrations,
+      [4],
+      "v3 旧库重开只补跑 v4 迁移（真实 PRAGMA 升级路径）",
+    );
+    const tables = v4Open.raw
+      .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+      .map((r) => String((r as unknown as { name: unknown }).name));
+    ok(tables.includes("projects"), "v4 迁移后 projects 表存在（sqlite_master 真实读回）");
+    ok(tables.includes("board_columns"), "v4 迁移后 board_columns 表存在（sqlite_master 真实读回）");
+    ok(tables.includes("cards"), "v4 迁移后 cards 表存在（sqlite_master 真实读回）");
+    eq(
+      (v4Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
+      CURRENT_SCHEMA_VERSION,
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（4）",
+    );
+    const rawDb: SqliteDatabase = v4Open.raw;
+    throws(
+      () =>
+        rawDb.run(
+          "INSERT INTO projects (name, description, created_at, updated_at) " +
+            "VALUES (NULL, NULL, '2026-01-01', '2026-01-01')",
+        ),
+      "projects.name NOT NULL 拒绝 NULL（raw 直达 schema）",
+    );
+    throws(
+      () =>
+        rawDb.run(
+          "INSERT INTO board_columns (project_id, name, position, created_at, updated_at) " +
+            "VALUES (424242, 'x', 0, '2026-01-01', '2026-01-01')",
+        ),
+      "board_columns.project_id 外键拒绝不存在的项目（raw 直达 FK）",
+    );
+    throws(
+      () =>
+        rawDb.run(
+          "INSERT INTO cards (project_id, column_id, title, position, created_at, updated_at) " +
+            "VALUES (1, 424242, 'x', 0, '2026-01-01', '2026-01-01')",
+        ),
+      "cards.column_id 外键拒绝不存在的列（raw 直达 FK）",
+    );
+    throws(
+      () =>
+        rawDb.run(
+          "INSERT INTO cards (project_id, column_id, title, position, todo_id, created_at, updated_at) " +
+            "VALUES (1, 1, 'x', 0, 424242, '2026-01-01', '2026-01-01')",
+        ),
+      "cards.todo_id 外键拒绝不存在的待办（raw 直达 FK）",
+    );
+
+    // 看板数据层闭环：建项目 → 建列 → 建卡 → 跨列移动 → 两侧 position 重排 → 删除级联
+    const proj = v4Open.db.createProject("装修项目", "新家装修全流程");
+    ok(proj.id > 0, "createProject 返回自增 id");
+    eq(proj.name, "装修项目", "项目 name 读回");
+    eq(proj.description, "新家装修全流程", "项目 description 读回");
+    const col1 = v4Open.db.createBoardColumn(proj.id, "待办", 0);
+    const col2 = v4Open.db.createBoardColumn(proj.id, "进行中", 1);
+    eq(col1.projectId, proj.id, "列 projectId 读回");
+    eq(col2.position, 1, "列 position 读回");
+    // 列 position 冲突：同项目内唯一 → 落库前守卫
+    throws(
+      () => v4Open.db.createBoardColumn(proj.id, "重复位置列", 1),
+      "createBoardColumn position 冲突抛错（服务层守卫）",
+    );
+    const todoForCard = v4Open.db.createTodo("选瓷砖", "q2", null);
+    const card1 = v4Open.db.createBoardCard(proj.id, col1.id, "量房", null, 0);
+    const card2 = v4Open.db.createBoardCard(proj.id, col1.id, "出平面图", null, 1);
+    const card3 = v4Open.db.createBoardCard(proj.id, col2.id, "选瓷砖", null, 0, todoForCard.id);
+    eq(card3.todoId, todoForCard.id, "卡片 todoId 关联真实待办（外键读回）");
+    throws(
+      () => v4Open.db.createBoardCard(proj.id, col1.id, "越权外键卡", null, 0, 424242),
+      "createBoardCard 关联不存在的待办抛错",
+    );
+    throws(
+      () => v4Open.db.createBoardCard(proj.id, 424242, "缺列上下文卡", null, 0),
+      "createBoardCard 列不存在抛错（columnId 越权）",
+    );
+    // 跨列移动：col1 的 card2 移到 col2 末尾 → col1 重排（0..0）、col2 重排（0..2）
+    const moved = v4Open.db.moveBoardCard(card2.id, col2.id, 1);
+    eq(moved.columnId, col2.id, "移动后卡片 columnId = 目标列");
+    eq(moved.position, 1, "移动后卡片 position = 目标位");
+    const col1After = v4Open.db.listBoardCards(col1.id);
+    const col2After = v4Open.db.listBoardCards(col2.id);
+    eq(
+      col1After.map((c) => [c.id, c.position]),
+      [[card1.id, 0]],
+      "移动后源列重排：剩 1 张卡 position=0（连续）",
+    );
+    eq(
+      col2After.map((c) => [c.id, c.position]),
+      [
+        [card3.id, 0],
+        [card2.id, 1],
+      ],
+      "移动后目标列重排：原卡让位、新卡落位（position 连续 0..1）",
+    );
+    // 跨项目移动拒绝（真实守卫，不是 SQL FK 拦截）
+    const proj2 = v4Open.db.createProject("第二个项目", null);
+    const proj2col = v4Open.db.createBoardColumn(proj2.id, "别的列", 0);
+    throws(
+      () => v4Open.db.moveBoardCard(card1.id, proj2col.id, 0),
+      "moveBoardCard 跨项目移动抛错（服务层守卫）",
+    );
+    // 待办删除 → 卡片 todo_id 置空（SET NULL 级联语义，卡片本体保留）
+    v4Open.db.deleteTodo(todoForCard.id);
+    eq(v4Open.db.getBoardCard(card3.id)!.todoId, null, "待办删除后卡片 todoId 置空（SET NULL）");
+    eq(v4Open.db.getBoardCard(card3.id) !== null, true, "待办删除后卡片本体保留");
+    // 列删除 → 列内卡片级联删除
+    v4Open.db.deleteBoardColumn(col2.id);
+    eq(v4Open.db.getBoardCard(card2.id), null, "列删除级联删除列内卡片");
+    eq(v4Open.db.getBoardCard(card3.id), null, "列删除级联删除（另一张卡）");
+    // 项目删除 → 列级联删除
+    v4Open.db.deleteProject(proj.id);
+    eq(v4Open.db.listBoardColumns(proj.id).length, 0, "项目删除级联删除列");
+    // 列表读回
+    eq(v4Open.db.listProjects().length, 1, "项目列表只剩第二个项目");
+    v4Open.raw.close();
+    db = null;
   }
 
   // 13. HTTP 冒烟 /api/health
