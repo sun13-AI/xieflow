@@ -2,6 +2,16 @@
 
 > 宪法见设计包 AGENTS.md；轮次规则见 RUNBOOK.md（均在 D:\work\好东西\xieflow-design\）。
 
+### 2026-11-15 · r8 研发（yanfa · M4 起步轮）
+- 交付：schema v6→v7（`documents` 表 id/title/created_at/updated_at + `blocks` 表 id/document_id/type/position/content JSON/parent_id 可空 + type CHECK + 2 索引 + ON DELETE CASCADE）+ shared 块类型引擎（10 种：paragraph / heading1-3 / bullet / numbered / todo / quote / code / divider；`normalizeBlockContent` / `canConvertBlockType` / `convertBlockContent` / `planBlockSplit` / `mergeBlockContent` / `planBlockReorder` / `assembleDocumentText`，**api 层零类型分支**）+ api（documents CRUD、blocks CRUD、全文读、拆 / 合 / 移动 / 批重排 / 类型转换，4xx：非法块类型 / 越权 document_id / 非法 position / 非法转换 / 重复或越权重排 id）+ db（拆合移动单事务、position 连号收拢、持久化重开不丢）+ web（「文档」tab：文档列表 + 编辑器多类型渲染 + 回车拆块 / 退格合块 / 上移下移 / 类型切换下拉 + 打印预览 `window.print()` + `@media print` 样式表）
+- 「用户第一次用」全链路（r4 教训）headless CDP 真点：**建文档 → 默认首块自动在场（非死路）→ 输入 → 回车拆块 → 类型切换 → 上移 → 保存 → reload 重开不丢**，并 `GET /api/documents/:id/text` 回查 `blockCount=2` / 全文逐字相等；验后 DELETE 清理（0 篇）。另有 HTTP 层全链路断言与 e2e 关库重开 `JSON.stringify` 逐字节相等断言锁定拆 / 合 / 移动 / 重排后的块顺序。
+- 断言规模：e2e 587 → **716**（+129：块类型引擎 64 + v6→v7 迁移与文档数据层 65）· audit-http 522 → **639**（+117：documents + blocks 一节）· typecheck 4 包全绿；`pnpm run test:all` **exit 0**。CI HTTP smoke 正则同步为 `(2|3|4|5|6|7)`（v0.0.6 教训）。随迁移只更新 6 条既有断言期望值 + 8 条标签文字，条数不变，**无一条断言被删**。
+- **变异红相留痕（两组）**：① 临时把 shared `splitBlockText` 改坏（忽略 caret）→ e2e **8 条失败**、audit **2 条失败**（含「r8 拆块：前半段留原块 got 一级标题 want 一级」）；② 临时去掉 `assembleDocumentText` 的 position 排序 → e2e **1 条失败**（「乱序输入按 position 排序」）。两次均逐字节还原（`packages/shared/src/index.ts` SHA256 `1A16B5C7…C71981` 前后完全相同、`git diff` 空）后全绿——证明拆块与全文装配断言不是自洽占位。
+- 截图矩阵：docs/ui/r8/ 共 **11 张**（任务单 6 态全覆盖 + 真实拆块前后 + 加载 / 错误 + r7 U2 修复证据），07/08 两拍间真发 `POST /api/blocks/:id/split`；逐张 `read_image` 目验 + 全库 **88 张 PNG / 86 互异哈希**（仅 r4 已披露 2 组同态，r8 零新增）；**壳基线由 6 张扩为 7 张**（新增「文档」tab 激活态 `docs-tab-active.png`），旧六张同批重拍与 r7 哈希全异。
+- 顺带修 r7 UI 记账低成本项：**U2-1** 错误行号口径（预览表加「数据行号」列、清单改「第 N 条数据（CSV 第 N+1 行）」、头部写明口径）· **U2-4** 确认按钮后果提示（「将向当前表追加 N 行 / 不可撤销」前置到决策点）。其余 U2（禁用错误态确认按钮、截断提示、当前视图指示）留 M4 视图轮。
+- 已知遗留：① 块编辑器为单人版，`parent_id` 已落库与校验但 UI 未做嵌套缩进 / 层级渲染（M9 协同 CRDT 时再展开）② 块文本编辑为 textarea 单行/多行输入，未做富文本 inline 样式 ③ 打印预览为浏览器 `window.print()`，未走 printToPDF 服务端出 PDF ④ 类型切换矩阵当前规则为「结构块 divider 隔离」，后续可扩为更细的转换白名单 ⑤ 本机无 pwsh 7，shot.ps1 新增段全 ASCII + PS5.1 Parser 0 错误，unix 分支未实测（与 r5/r6/r7 同款未验项）⑥ 三平台 CI 未实跑（属 lead 发版环节）。
+- 危险区：未 push / 未打 tag / 未发版 / 未改 CI release 配置；只走 user_version 迁移，未手改库文件；只删本轮自建文档与表。
+
 ### 2026-11-15 · r7 研发（yanfa · M3 收官轮）
 - 交付：schema v5→v6 迁移（`views` 表：id/table_id/name/filter_spec JSON/sort_spec JSON/visible_fields JSON/position + 索引 + ON DELETE CASCADE）+ shared 视图口径（`normalizeViewSpec` 形状/字段存在性/取值类型/去重归一、`describeViewSpec` 摘要、`assertValidSortDirection`）+ `queryRecords` 扩为**多字段 AND 筛选 / 多级排序 / 字段投影**（单条件旧入口保持兼容，api 层零口径分支）+ CSV 导入口径（`parseCsvText` RFC4180、`mapCsvHeadersToFields`、`planCsvImport` 逐行走 `normalizeRecordData` 且错误行带行号+原因聚合、`shouldCommitImport` 零半态判定、`normalizeCsvImportPayload`）+ api（views CRUD、`GET /api/views/:id/records` 按视图查询、`POST /api/tables/:id/import.csv/preview` 预览、`POST /api/tables/:id/import.csv` 单事务原子导入、`?filters=` 多条件 AND、非法方向 400）+ db（`createView`/`getView`/`listViews`/`updateView`/`deleteView`/`importRecords` BEGIN IMMEDIATE…COMMIT/ROLLBACK）+ web（视图切换栏 / 视图编辑面板：筛选·排序·隐藏列 / CSV 导入对话框：前 5 行预览+错误行清单+确认导入）
 - **r6 遗留三项全修**：① 多字段 AND 筛选（集中 shared `queryRecords`，HTTP `?filters=` 与视图 spec 同一路径）② **U2-1** 编辑态整表列宽跳变 → `table-layout: fixed` + 编辑框 `box-sizing: border-box`（08 图与 01 列位对照）③ **U2-2** 筛选提交无反馈 → 「应用筛选 / 清除」按钮 + 真实命中数成功条（09 图）；无效方向下拉 → 未选排序字段时禁用+提示，非法方向 deep link 由 shared 守卫/api 400 拦下
@@ -84,7 +94,7 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r5 | M2 第 2 片：看板统计与 Excel/CSV 导出（M2 收官） | ✅已发版（首轮双通过；Excel COM 真开验证） | v0.0.9 | e2e 288 · audit 313 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r6 | M3 第 1 片：多维表格字段引擎 + 网格视图 | ✅已发版（首轮双通过；187 条真实 HTTP 断言 + 67 张哈希亲算） | v0.0.10 | e2e 449 · audit 403 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r7 | M3 第 2 片：视图持久化与 CSV 导入（M3 收官） | ✅已发版（首轮双通过；零半态变异红相独立复现） | v0.0.11 | e2e 587 · audit 522 | 通过（waizhuan）+ UI 通过（阻断岗） |
-| r8 | M4 第 1 片：文档块编辑器（单人版） | 🔨研发中 | — | — | — |
+| r8 | M4 第 1 片：文档块编辑器（单人版） | 🔨研发中（首轮双通过待 waizhuan / ui 复验） | — | e2e 716 · audit 639 | — |
 
 附加交付（r2 内 lead 直做，已入库 8e4fb9b）：
 - 一键启动：start.cmd 双击 / scripts\start.ps1 start|stop|status（三轮全链路验证；期间排掉「僵尸 api 抢 8787」环境坑，非脚本缺陷）

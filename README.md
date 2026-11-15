@@ -14,7 +14,7 @@ powershell -File scripts\start.ps1 stop    # 收服务
 # 开发模式：
 pnpm dev:api         # api 服务 http://127.0.0.1:8787
 pnpm dev:web         # web 界面 http://127.0.0.1:5173
-pnpm run test:all    # typecheck + e2e（587 断言）+ HTTP 审计（522 断言）
+pnpm run test:all    # typecheck + e2e（716 断言）+ HTTP 审计（639 断言）
 ```
 
 ### 打包（对齐 IKanBot 的 pack/dist 语义）
@@ -64,19 +64,35 @@ docs/
   plan.md            轮次看板与任务单（每轮更新）
   feedback/          研发报告 / 复验报告（VERDICT）/ UI 审查报告
   staff/             agent 员工档案与逐轮履历
-  ui/                截图矩阵（逐张对照断言；shell/ 为六 tab 壳基线）
+  ui/                截图矩阵（逐张对照断言；shell/ 为七 tab 壳基线）
 .github/workflows/   CI：三平台 verify + tag 触发 Release
 ```
 
 ## 路线图
 
-M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表格（进行中）→ M4 文档 → M5 AI 工作台 → M6 知识库 RAG → M7 导图+白板 → M8 组织管理 → M9 网络版 → M10 多端与单机版
+M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表格 ✅ → M4 文档（进行中）→ M5 AI 工作台 → M6 知识库 RAG → M7 导图+白板 → M8 组织管理 → M9 网络版 → M10 多端与单机版
 
 进度看板：[docs/plan.md](docs/plan.md)
 
 ## 界面与测试对照
 
-按 AGENTS.md 立项规则：**界面更新必须带截图证据（每次，无例外）**，截图与实现同一提交。逐图索引（r1/r2/r3/r4/r5/r6/r7 矩阵全量、逐张对照断言）：
+按 AGENTS.md 立项规则：**界面更新必须带截图证据（每次，无例外）**，截图与实现同一提交。逐图索引（r1/r2/r3/r4/r5/r6/r7/r8 矩阵全量、逐张对照断言）：
+
+### r8 矩阵：[docs/ui/r8/](docs/ui/r8/README.md) —— 文档块编辑器（M4 起步，共 11 张）：
+
+| 截图 | 形态 | 对应断言 |
+|---|---|---|
+| [01-docs-empty.png](docs/ui/r8/01-docs-empty.png) | 文档空态（七 tab 壳「文档」激活 + 空态引导 + 截图钉态注记；真实空库同形态） | e2e「建文档默认首块自动在场」；audit「r8 第一次用：建文档默认首块自动在场」 |
+| [02-docs-list.png](docs/ui/r8/02-docs-list.png) | **真实链路·文档列表**（3 篇真文档 + 选中文档的 2 块轻量编辑器 + 保存 / 加块 / 删文档） | audit「r8 GET 文档列表 -> 200」「r8 文档列表含刚建的文档」 |
+| [03-docs-editor.png](docs/ui/r8/03-docs-editor.png) | **真实链路·编辑器多类型块**（14 块覆盖 10 种类型：一/二/三级标题 / 正文 / 无序 / 有序 / 待办勾选 / 引用 / 代码块 / 分割线；每块带类型下拉与 ↑↓×） | e2e「块类型共 10 种」「归一：todo 勾选值字符串 true→布尔」；audit「r8 块列表：position 连号」 |
+| [04-docs-type-switch.png](docs/ui/r8/04-docs-type-switch.png) | **真实链路·块类型切换下拉**（10 项全展开，「当前」高亮，分割线标「不可转」禁用 = shared `canConvertBlockType`） | e2e「转换：divider→paragraph 禁止」「转换：同类型恒允许」；audit「r8 非法类型转换（divider→paragraph）-> 400」 |
+| [05-docs-print-preview.png](docs/ui/r8/05-docs-print-preview.png) | **真实链路·打印预览**（A4 纸面按 position 拼装全文 + `window.print()` 按钮 + `@media print` 打印样式表隐藏工具栏） | e2e「全文装配：无序/有序编号/todo/引用/分割线同一口径」；audit「r8 文档全文读 -> 200」 |
+| [06-docs-narrow.png](docs/ui/r8/06-docs-narrow.png) | 窄屏 488×900（`?narrow=1` 钉态；七药丸一排不折行、列表与编辑器纵排、块操作换行） | 无独立断言（CSS 断点，确定性钉态） |
+| [07-docs-split-before.png](docs/ui/r8/07-docs-split-before.png) | **真实链路·拆块前**（1 块「回车拆块演示」） | audit「r8 回车拆块 -> 201」；e2e「splitBlock 后半段落新块」 |
+| [08-docs-split-after.png](docs/ui/r8/08-docs-split-after.png) | **真实链路·拆块后**（两拍间真发 `POST /api/blocks/:id/split { caret:4 }` → 2 块「回车拆块」「演示」，position 连号；与 07 哈希互异） | audit「r8 拆块：前半段留原块」「后半段落新块」「r8 拆块后 position 连续无空洞」 |
+| [09-docs-loading.png](docs/ui/r8/09-docs-loading.png) | 文档页加载态（钉态） | 无独立断言（fetch pending 态，证据为 GET 200 链路 + 本图） |
+| [10-docs-error.png](docs/ui/r8/10-docs-error.png) | 文档页错误态（钉态，语义化文案） | 无独立断言（httpClient.ts 语义化映射） |
+| [11-import-u2-fixes.png](docs/ui/r8/11-import-u2-fixes.png) | **r7 U2 修复证据·CSV 导入对话框**（数据行号列 + 「第 N 条数据（CSV 第 N+1 行）」口径 + 「追加 N 行 / 不可撤销」后果提示） | audit「r7 错误预览：错误行号」「r7 确认导入（全合法）-> 201」 |
 
 ### r7 矩阵：[docs/ui/r7/](docs/ui/r7/README.md) —— 视图持久化与 CSV 导入（M3 收官，共 9 张）：
 
@@ -143,7 +159,7 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 | [18-board-switched-project.png](docs/ui/r4/18-board-switched-project.png) | **返工 #1·D 证据**：项目切换深链 → 第二项目看板（下拉选中态） | audit「GET /api/projects -> 200」多项目读回 UI 形态 |
 | [19-board-card-moved-ui.png](docs/ui/r4/19-board-card-moved-ui.png) | **返工 #1·A4 全路径②**：建卡 → 真实移动 → 两侧列重排 | audit「PATCH 卡跨列移动 -> 200」+ 两侧重排 UI 形态 |
 
-### 壳基线：[docs/ui/shell/](docs/ui/shell/README.md) —— 六 tab 激活态（r4 返工 #1 B 固化，shot.ps1 自动拍摄；r6 新增「表格」tab → 基线扩为六张；r7 未新增 tab 但徽章 / schema v6 变更，自动重拍六张与 r6 基线哈希全异）：工作台 / 待办 / 日程 / 项目 / 看板 / 表格各 1 张（r2/r3 U1-1 三轮连漏的流程性终结）。
+### 壳基线：[docs/ui/shell/](docs/ui/shell/README.md) —— **七 tab** 激活态（r4 返工 #1 B 固化，shot.ps1 自动拍摄；r6 新增「表格」tab → 六张；**r8 新增「文档」tab → 基线扩为七张**，补 `docs-tab-active.png` 并同批重拍旧六张，与 r7 基线哈希全异）：工作台 / 待办 / 日程 / 项目 / 看板 / 表格 / 文档各 1 张（r2/r3/r4 U1-1 三轮连漏的流程性终结）。
 
 ### r3 矩阵：[docs/ui/r3/](docs/ui/r3/README.md) —— 日程页月视图 + 联动徽标 + 工作台今日日程（共 11 张，返工 #1 修正 06/10 + 补 11）：
 
@@ -182,16 +198,17 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 
 ### 断言规模（每轮更新，下降 = 回归 = 冻结发版）
 
-- e2e **587** 项（服务离线口径 587，api 在线时 HTTP 冒烟节 +1 = 588）：迁移一致性 7 · settings 9 · todo CRUD 15 · 输入校验 13 · 状态机 10 · 汇总计数 7 · raw schema 4 · 迁移幂等 3 · 日程契约与守卫 28 · 循环实例化 14 · 区间查询装配 12 · v2→v3 迁移+双向联动 18 · schedules CRUD 26 · 看板排序规则（reorderPositions）12 · 看板名称守卫 6 · v3→v4 迁移+看板数据层 33 · 看板统计口径（computeBoardStats）35 · 看板 CSV 台账（buildBoardCsvContent）36 · 字段类型引擎（validateFieldValue / coerceFieldValue / compareValues）86 · 记录数据归一与查询装配（normalizeRecordData / queryRecords）25 · 看板导出文件名（buildBoardCsvFileName · U2-2）6 · v4→v5 迁移+多维表格数据层 44 · **视图 spec 归一（normalizeViewSpec）31（r7 新增）· 按视图查询口径（多字段 AND / 多级排序 / 投影）21（r7 新增）· CSV 导入口径（parseCsvText / planCsvImport / 零半态）43（r7 新增）· v5→v6 迁移+视图数据层（持久化 / 原子导入）43（r7 新增）**
-- HTTP audit **522** 项（服务就绪 1 · health/settings 5 · todo 新建 12 · 列表详情 7 · 状态流转 9 · summary 11 · 删除 6 · 未知路由 1 · schedules CRUD 36 · 双向联动 22 · 循环实例 over HTTP 23 · projects CRUD 25 · board columns CRUD 20 · cards CRUD + 跨列移动 50 · board stats + CSV export 84 · tables / fields / records（r6）86 · **views + CSV import（r7）119（r7 新增）** · schedules 删除 5）
+- e2e **716** 项（服务离线口径 716，api 在线时 HTTP 冒烟节 +1 = 717）：迁移一致性 7 · settings 9 · todo CRUD 15 · 输入校验 13 · 状态机 10 · 汇总计数 7 · raw schema 4 · 迁移幂等 3 · 日程契约与守卫 28 · 循环实例化 14 · 区间查询装配 12 · v2→v3 迁移+双向联动 18 · schedules CRUD 26 · 看板排序规则（reorderPositions）12 · 看板名称守卫 6 · v3→v4 迁移+看板数据层 33 · 看板统计口径（computeBoardStats）35 · 看板 CSV 台账（buildBoardCsvContent）36 · 字段类型引擎（validateFieldValue / coerceFieldValue / compareValues）86 · 记录数据归一与查询装配（normalizeRecordData / queryRecords）25 · 看板导出文件名（buildBoardCsvFileName · U2-2）6 · v4→v5 迁移+多维表格数据层 44 · 视图 spec 归一（normalizeViewSpec）31（r7 新增）· 按视图查询口径（多字段 AND / 多级排序 / 投影）21（r7 新增）· CSV 导入口径（parseCsvText / planCsvImport / 零半态）43（r7 新增）· v5→v6 迁移+视图数据层（持久化 / 原子导入）43（r7 新增）· **块类型引擎（normalizeBlockContent / canConvertBlockType / 拆合装配）64（r8 新增）· v6→v7 迁移+文档数据层（持久化 / 拆合移动 / 全文装配）65（r8 新增）**
+- HTTP audit **639** 项（服务就绪 1 · health/settings 5 · todo 新建 12 · 列表详情 7 · 状态流转 9 · summary 11 · 删除 6 · 未知路由 1 · schedules CRUD 36 · 双向联动 22 · 循环实例 over HTTP 23 · projects CRUD 25 · board columns CRUD 20 · cards CRUD + 跨列移动 50 · board stats + CSV export 84 · tables / fields / records（r6）86 · views + CSV import（r7）119 · **documents + blocks（r8）117（r8 新增）** · schedules 删除 5）
 - typecheck 4 包全绿（strict + noUncheckedIndexedAccess）
-- CI：ubuntu / windows / macos 三平台 verify 门禁 + tag 触发 Release；CI 的 HTTP smoke 静态正则随 schema 版本号同步放宽为 `(2|3|4|5|6)`（v0.0.6 教训）
+- CI：ubuntu / windows / macos 三平台 verify 门禁 + tag 触发 Release；CI 的 HTTP smoke 静态正则随 schema 版本号同步放宽为 `(2|3|4|5|6|7)`（v0.0.6 教训）
 - r6 规模变化：e2e 288 → 449（+161）· audit 313 → 403（+90）；**无一条断言被删**（只涨不缩，宪法第四条）
 - r7 规模变化：e2e 449 → 587（+138）· audit 403 → 522（+119）；**无一条断言被删**（只涨不缩，宪法第四条）。随版本增长只更新了 **6 条既有断言的期望值**（迁移队列最高版本 5→6：`[3,4,5]`→`[3,4,5,6]`、`[4,5]`→`[4,5,6]`、`[5]`→`[5,6]`、构造越界队列 1..6→1..7，以及 audit 两处 `health.schemaVersion` 5→6），另有 2 条 e2e 断言的**标签文字**（4/5 → 6）同步，条数不变。
+- r8 规模变化：e2e 587 → **716（+129）**· audit 522 → **639（+117）**；**无一条断言被删**（只涨不缩，宪法第四条）。随 v6→v7 迁移只更新了 **6 条既有断言的期望值**（`[3,4,5,6]`→`[3,4,5,6,7]`、`[4,5,6]`→`[4,5,6,7]`、`[5,6]`→`[5,6,7]`、`[6]`→`[6,7]`、构造越界队列 1..7→1..8）与 audit 两处 `health.schemaVersion` 6→7；另有 8 条 e2e 断言的**标签文字**（4 条「v2/v3/v4/v5 旧库补跑 v6」→ 补 v7、3 条「CURRENT_SCHEMA_VERSION（6）」→（7）、1 条「重启后 user_version 仍为 6」→ 7）同步，条数不变。
 
 ### 核心概念（逐轮累积，r1~r7 已落地的部分）
 
-- **迁移纪律**：schema 变更只走 `packages/db/src/schema.ts` 的 `MIGRATIONS` 队列（v1 settings → v2 todos → v3 schedules → v4 projects/board_columns/cards → v5 tables/fields/records → **v6 views**），`user_version` 管理，重开幂等、旧库原地升级只补跑缺失版本
+- **迁移纪律**：schema 变更只走 `packages/db/src/schema.ts` 的 `MIGRATIONS` 队列（v1 settings → v2 todos → v3 schedules → v4 projects/board_columns/cards → v5 tables/fields/records → v6 views → **v7 documents/blocks**），`user_version` 管理，重开幂等、旧库原地升级只补跑缺失版本
 - **状态机集中**：待办状态流转（open/done/archived）定义在 `packages/shared`，非法流转服务层与路由层双层拒绝
 - **汇总计数唯一入口**：今/明/周 + 四象限计数只写在 `computeTodoSummary`（shared 纯函数），api 下发、UI 消费同一口径
 - **循环实例化唯一入口**：daily/weekly/monthly 展开规则只写在 `computeRepeatInstances`（shared 纯函数，含月末收敛与实例封顶）；区间查询装配只写在 `assembleRangeSchedules`
@@ -230,6 +247,19 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
   非法行带行号 + 中文原因聚合）→ `shouldCommitImport`（**零半态**判定）→ db `importRecords` 单事务落库。
   `POST /api/tables/:id/import.csv/preview` 只预览不落库，`POST /api/tables/:id/import.csv` 全合法才 201、
   任一行非法则 422 且**一行都不落库**（部分失败零半态有 HTTP 层快照逐字节相等断言锁定）
+- **块类型引擎唯一入口**（r8）：10 种块类型（paragraph / heading1-3 / bullet / numbered / todo / quote / code / divider）的
+  **内容归一**（`normalizeBlockContent`：字符串或对象入参、divider 强制空文本、todo 保留 checked、code 保留 language、其余类型丢弃专属字段）、
+  **转换矩阵**（`canConvertBlockType`：同类型恒等、结构块 divider 禁止与文本型互转、其余 9 种互转 + `convertBlockContent` 按目标类型重新归一）、
+  **拆合**（`planBlockSplit` / `mergeBlockContent`：回车拆块前半段留原块、todo 新块重置未勾选、标题续 paragraph、退格合块沿用前块类型）、
+  **全文装配**（`assembleDocumentText`：按 (position, id) 排序，标题 # / 列表 - / 有序 1. / 待办 - [x] / 引用 > / 分割线 ---）
+  与 **位置重排**（`planBlockReorder` 复用 r4 `reorderPositions` 口径）——全部只写在 `packages/shared`，**api 层零块类型分支**
+- **文档数据层**（r8）：schema v7 新增 `documents` / `blocks` 两表（blocks.content 存 JSON、parent_id 可空、ON DELETE CASCADE）；
+  **建文档自动带一个空 paragraph 首块**（r4 教训「用户第一次用」，消灭零块死路）；拆 / 合 / 移动 / 批重排均在单事务内落库且 position 连号收拢；
+  `GET /api/documents/:id/text` 按 position 拼装全文（HTTP 层有逐字相等断言锁定）；4xx 覆盖非法块类型 / 越权 document_id / 非法 position / 非法转换
+- **打印链路**（r8）：文档页「打印预览」按钮 = 纸面预览（`BlockView` 按类型渲染）+ `window.print()` + `@media print` 样式表
+  （打印时隐藏 topbar / tabs / 工具条 / 列表 / 块操作，只输出 `.docs-print-sheet`）
+- **r7 U2 低成本修复**（r8 顺手）：CSV 导入对话框补「数据行号」列 + 错误清单改「第 N 条数据（CSV 第 N+1 行）」口径（U2-1）；
+  确认按钮旁前置「将向当前表追加 N 行 / 不可撤销」后果提示（U2-4）
 - **探针真读库**：`/api/health` 每次真写读一次 settings，不只是进程活着
 
 ## 明确不做（当前阶段）
