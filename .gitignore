@@ -13,3 +13,4 @@ scripts/.tmp-e2e/
 scripts/.tmp-audit/
 *.tsbuildinfo
 .DS_Store
+release/

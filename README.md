@@ -8,12 +8,27 @@
 
 ```bash
 pnpm install
+# 一键启动（推荐）：双击 start.cmd，或：
+powershell -File scripts\start.ps1 start   # 起 api:8787 + web:5173，自动开浏览器
+powershell -File scripts\start.ps1 stop    # 收服务
+# 开发模式：
 pnpm dev:api         # api 服务 http://127.0.0.1:8787
 pnpm dev:web         # web 界面 http://127.0.0.1:5173
 pnpm run test:all    # typecheck + e2e（66 断言）+ HTTP 审计（51 断言）
 pwsh scripts/shot.ps1 all            # 起服务 → r1 截图 5 态 → 收服务
-pwsh scripts/shot.ps1 all -Round r2  # 同上，拍 r2 待办页 5 钉态
+pwsh scripts/shot.ps1 all -Round r2  # 同上，拍 r2 待办页钉态
 ```
+
+### 打包（对齐 IKanBot 的 pack/dist 语义）
+
+```bash
+pnpm run pack        # 免安装目录 release/xieflow-portable/（进目录双击 start.cmd 即用）
+pnpm run dist        # 上述 + 安装包 release/xieflow-setup-<版本>.zip（解压即用）
+```
+
+- 免安装目录：内置 web 静态产物 + api 源码 + 运行时依赖，单端口 8080（web+api 同源），数据落在目录内 `data/`
+- 安装包 = 免安装目录的 zip；安装语义 = 解压到任意位置 → 双击 `start.cmd`（要求 Node.js ≥ 20）
+- 已实测：portable 目录启动 → api 200 / web 200；setup zip 12.2MB
 
 数据在 `data/xieflow.db`（SQLite 单文件，node-sqlite3-wasm 纯 WASM 免原生编译）。
 

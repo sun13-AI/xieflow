@@ -12,6 +12,11 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | 轮 | 任务 | 状态 | 版本 | 断言规模 | VERDICT |
 |----|------|------|------|----------|---------|
 | r1 | M0 仓库骨架 | ✅已发版（本地 tag；push 待配 remote） | v0.0.1 | e2e 42 | 通过 |
+| r2 | M1 第 1 片：待办 CRUD UI + 四象限 | 🔨研发完成（9f90120），复验中 | — | e2e 66 · audit 51 | 待 waizhuan + ui-reviewer |
+
+附加交付（r2 内 lead 直做，已入库 8e4fb9b）：
+- 一键启动：start.cmd 双击 / scripts\start.ps1 start|stop|status（三轮全链路验证；期间排掉「僵尸 api 抢 8787」环境坑，非脚本缺陷）
+- 打包命令：pnpm run pack（免安装目录）/ pnpm run dist（setup zip）——对齐 IKanBot pack/dist 语义；portable 目录实测 boot：api 200 + web 200 @8080；绕开 Node 24.14 cpSync 目录复制崩溃（0xC0000409），Windows 走 robocopy
 
 状态枚举：⏳待启动 / 🔨研发中 / 🔁返工k / ⏸熔断 / ✅已发版。
 
