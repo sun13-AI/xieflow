@@ -56,6 +56,12 @@
 - 发版：v0.0.6 CI 红（HTTP smoke 硬编码 schemaVersion:2，r3 已迁 v3 过期）→ **v0.0.7 三平台全绿 + Release 资产核对通过（xieflow-v0.0.7.tar.gz）**
 - 教训：本机动态断言 vs CI 静态断言的差异面；e2e 测纯函数 ≠ HTTP 层生效——用户视角实跑是唯一真相源
 
+### 2026-11-15 · r7 复验与发版（M3 收官）
+- 首轮双通过：waizhuan 零半态独立复现（部分失败 CSV → 422 + imported=0 + 前后快照逐字节相等）+ **变异红相亲自复现**（临时改坏 shouldCommitImport → 5 条断言变红 → 逐字节还原全绿）；ui 阻断岗 76 张哈希亲算、01↔03 隐藏列像素差 63.6% 坐实
+- 方法论新增：变异红相留痕（把实现故意改坏证明断言非占位）——waizhuan 与 yanfa 双向独立验证，建议写入宪法四条
+- 发版：**v0.0.11 三平台全绿 + Release 资产核对通过（xieflow-v0.0.11.tar.gz 8.7MB）**
+- M3 里程碑收官：7 类型字段引擎 + 网格 + 视图持久化 + CSV 导入零半态
+
 ### 2026-11-15 · 开源（owner 指令）
 - 全历史密钥扫描通过（gho_/ghp_/github_pat_ 仅命中报告内的扫描模式描述文本，无真 token）
 - MIT LICENSE + README 开源化（方法论/贡献者入口/目录结构/路线图）+ RUNBOOK 入库（仓库自包含）
@@ -77,7 +83,8 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r4 | M2 第 1 片：项目+看板数据层与最小 UI | ✅已发版（初验双打回→返工#1→双复审通过；壳基线机制固化） | v0.0.8 | e2e 217 · audit 233 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r5 | M2 第 2 片：看板统计与 Excel/CSV 导出（M2 收官） | ✅已发版（首轮双通过；Excel COM 真开验证） | v0.0.9 | e2e 288 · audit 313 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r6 | M3 第 1 片：多维表格字段引擎 + 网格视图 | ✅已发版（首轮双通过；187 条真实 HTTP 断言 + 67 张哈希亲算） | v0.0.10 | e2e 449 · audit 403 | 通过（waizhuan）+ UI 通过（阻断岗） |
-| r7 | M3 第 2 片：视图持久化与 CSV 导入（M3 收官） | 🔨研发完成，待双 VERDICT（e2e 587 · audit 522，test:all exit 0） | — | e2e 587 · audit 522 | — |
+| r7 | M3 第 2 片：视图持久化与 CSV 导入（M3 收官） | ✅已发版（首轮双通过；零半态变异红相独立复现） | v0.0.11 | e2e 587 · audit 522 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r8 | M4 第 1 片：文档块编辑器（单人版） | 🔨研发中 | — | — | — |
 
 附加交付（r2 内 lead 直做，已入库 8e4fb9b）：
 - 一键启动：start.cmd 双击 / scripts\start.ps1 start|stop|status（三轮全链路验证；期间排掉「僵尸 api 抢 8787」环境坑，非脚本缺陷）
@@ -189,7 +196,24 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 - 前置：r6 已发版（待双 VERDICT）
 - 特别项：r6 遗留 ① 多字段 AND 筛选未做（本轮视图 spec 一并支持）② r6 UI 记账 U2-1 编辑态列宽跳变、U2-2 筛选提交无反馈 —— 本轮顺手修
 
-### r8（预占）· M4 第 1 片：协同文档块编辑器（单人版）
+### r8 · M4 第 1 片：文档块编辑器（单人版）
+- 目标：块级文档编辑器落地——文档/块落库 + 块操作（拆/合/移动/类型切换）+ 打印 PDF 链路——M4 起步轮（多人实时协同 CRDT 推迟到 M9）
+- 交付清单：
+  1. schema v6→v7：documents 表（id/title/created_at/updated_at）、blocks 表（id/document_id/type/position/content JSON/parent_id 可空）
+  2. 块类型引擎集中 shared：paragraph / heading1-3 / bullet / numbered / todo / quote / code / divider；`normalizeBlockContent(type, content)` 与 `canConvertBlockType(from, to)` 校验
+  3. api：documents CRUD、blocks CRUD（批移动重排复用 shared 排序思路）、文档全文读（按 position 拼装）
+  4. web：「文档」tab——文档列表 + 编辑器（块级渲染 + 回车拆块 / 退格合块 / 上移下移 / 类型切换下拉）+ 打印预览按钮（HTML/CSS 走 printToPDF 同款思路：`window.print()` + 打印样式表）
+  5. 断言：e2e ≥+35（块归一/类型转换/拆合移动/文档装配）、audit ≥+25（含 4xx：非法块类型/越权 document_id/非法 position）
+  6. 截图 ≥6：文档空态/文档列表/编辑器多类型块/块类型切换/打印预览/窄屏
+- 验收标准：
+  1. 全量绿：e2e ≥622、audit ≥547，README 双节同步
+  2. 块顺序在拆/合/移动后持久化且重开不丢（有断言）
+  3. 打印预览有独立截图证据；块类型引擎全集中 shared，api 层零类型分支
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r7 已发版（v0.0.11）✅
+- 特别项：r7 UI 记账 U2（错误行号口径/确认按钮后果提示/当前视图指示错位）择低成本项顺手修，其余留 M4 视图轮
+
+### r9（预占）· M4 第 2 片：文档导入导出与 AI 块级修订（M4 收官）
 
 ## 历史轮次（r1~r2 已收档，见下方记账区）
 
