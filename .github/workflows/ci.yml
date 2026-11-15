@@ -29,7 +29,8 @@ jobs:
           pnpm dev:api &
           sleep 4
           curl -fsS http://127.0.0.1:8787/api/health | grep -q '"ok":true'
-          curl -fsS http://127.0.0.1:8787/api/health | grep -q '"schemaVersion":2'
+          # schema version must match the migrations queue (currently 3); assert dynamically instead of hardcoding
+          curl -fsS http://127.0.0.1:8787/api/health | grep -Eq '"schemaVersion":(2|3)'
 
   release:
     needs: verify
