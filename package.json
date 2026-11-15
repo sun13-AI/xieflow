@@ -15,6 +15,8 @@
     "test": "tsx scripts/e2e-test.ts",
     "typecheck": "pnpm -r typecheck && tsc -p tsconfig.scripts.json --noEmit",
     "test:all": "pnpm typecheck && pnpm test && node scripts/run-ps1.js scripts/audit-http.ps1",
+    "pack": "node scripts/pack.js",
+    "dist": "node scripts/pack.js dist",
     "shot:up": "pwsh scripts/shot.ps1 up",
     "shot:down": "pwsh scripts/shot.ps1 down",
     "shot:status": "pwsh scripts/shot.ps1 status"
