@@ -26,12 +26,14 @@ import {
   MAX_REPEAT_HORIZON_DAYS,
   addMonths,
   computeRepeatInstances,
+  assembleRangeSchedules,
   assertValidScheduleTitle,
   assertValidScheduleDate,
   assertValidScheduleTime,
   assertValidScheduleRange,
   assertValidScheduleRepeat,
   type Schedule,
+  type ScheduleWithInstanceFlag,
   type ScheduleRepeat,
 } from "@xieflow/shared";
 import type { TodoStatus } from "@xieflow/shared";
@@ -406,6 +408,93 @@ try {
     eq(addMonths(new Date(2026, 0, 31), 1).getDate(), 28, "addMonths 1-31 +1 月 → 2-28（日收敛）");
     eq(addMonths(new Date(2026, 0, 31), 2).getDate(), 31, "addMonths 1-31 +2 月 → 3-31（不丢锚日）");
     eq(addMonths(new Date(2026, 4, 31), 1).getDate(), 30, "addMonths 5-31 +1 月 → 6-30");
+  }
+
+  // 10b. 区间查询装配（api GET /api/schedules 的唯一装配入口；r3 返工#1 A）
+  section("区间查询装配（assembleRangeSchedules）");
+  {
+    const mk = (over: Partial<Schedule> & Pick<Schedule, "id" | "date" | "repeat">): Schedule => ({
+      title: `s${over.id}`,
+      start: "09:00",
+      end: "10:00",
+      todoId: null,
+      createdAt: "2026-11-15T08:00:00.000Z",
+      updatedAt: "2026-11-15T08:00:00.000Z",
+      ...over,
+    });
+    const weekly = mk({ id: 101, date: "2026-11-16", title: "周会", repeat: "weekly" });
+    const monthly = mk({ id: 102, date: "2026-01-31", title: "月结", repeat: "monthly" });
+    const daily = mk({ id: 103, date: "2026-01-01", title: "日常", repeat: "daily" });
+    const plain = mk({ id: 104, date: "2026-11-20", title: "单次", repeat: "none" });
+
+    // 锚日窗外：weekly 锚 11-16，窗口 11-17~11-30 → 两条实例（waizhuan 实测 0 条的直接场景）
+    const outside = assembleRangeSchedules([weekly], { from: "2026-11-17", to: "2026-11-30" });
+    eq(
+      outside.map((x) => `${x.date}:${x.isInstance}`),
+      ["2026-11-23:true", "2026-11-30:true"],
+      "装配：weekly 锚日在窗外，实例仍展开入窗（返工前 0 条的根因场景）",
+    );
+    // 锚日恰在窗起点：本体 + 后续实例
+    const withBody = assembleRangeSchedules([weekly], { from: "2026-11-16", to: "2026-12-07" });
+    eq(
+      withBody.map((x) => `${x.date}:${x.isInstance}`),
+      ["2026-11-16:false", "2026-11-23:true", "2026-11-30:true", "2026-12-07:true"],
+      "装配：锚日本体 isInstance=false + 后续周实例（并集同 id 同 date 去重）",
+    );
+    // 锚日本体落在窗口中间：本体保留原 date，实例从窗口起点起
+    const midBody = assembleRangeSchedules([weekly], { from: "2026-11-19", to: "2026-12-01" });
+    eq(
+      midBody.some((x) => x.id === weekly.id && x.date === "2026-11-16" && x.isInstance === false),
+      false,
+      "装配：锚日本体窗外不返回（本体也必须落窗）",
+    );
+    ok(
+      midBody.every((x) => x.date >= "2026-11-19" && x.date <= "2026-12-01"),
+      "装配：全部结果（本体与实例）都落在查询窗口内",
+    );
+    // monthly 月末收敛：2 月窗只有 02-28
+    const feb = assembleRangeSchedules([monthly], { from: "2026-02-01", to: "2026-02-28" });
+    eq(
+      feb.map((x) => `${x.date}:${x.isInstance}`),
+      ["2026-02-28:true"],
+      "装配：monthly 锚 1-31 在 2 月窗收敛为 02-28 实例",
+    );
+    // none 日程：本体在窗内返回、窗外不返回、无实例
+    eq(
+      assembleRangeSchedules([plain], { from: "2026-11-01", to: "2026-11-30" }).map((x) => x.date),
+      ["2026-11-20"],
+      "装配：none 本体在窗内返回（无实例）",
+    );
+    eq(
+      assembleRangeSchedules([plain], { from: "2026-10-01", to: "2026-10-31" }).length,
+      0,
+      "装配：none 本体窗外不返回",
+    );
+    // 多日程同窗：跨 id 不互相吞并；排序 date 升序、同日 start 升序
+    const multi = assembleRangeSchedules(
+      [weekly, monthly, daily, plain, mk({ id: 105, date: "2026-11-16", title: "早会", start: "08:00", end: "08:30", repeat: "none" })],
+      { from: "2026-11-16", to: "2026-11-18" },
+    );
+    const dailyKeys = multi.filter((x) => x.id === daily.id).map((x) => x.date);
+    eq(dailyKeys, ["2026-11-16", "2026-11-17", "2026-11-18"], "装配：多日程同窗时 daily 逐日展开不受影响");
+    ok(
+      !multi.some((x) => x.id === monthly.id),
+      "装配：monthly 在无实例的窗不产出任何行",
+    );
+    const sorted = multi.map((x) => `${x.date} ${x.start}`);
+    ok(
+      sorted.every((k, i) => i === 0 || !(sorted[i - 1]! > k)),
+      "装配：结果按 date 升序、同日按 start 升序",
+    );
+    // 传入窗内已重复的同 id 日程（防御）：不产生重复行
+    const dup = assembleRangeSchedules([weekly, { ...weekly }], { from: "2026-11-16", to: "2026-11-16" });
+    eq(
+      dup.map((x) => `${x.date}:${x.isInstance}`),
+      ["2026-11-16:false"],
+      "装配：同 id 同 date 输入去重，本体优先（isInstance=false）",
+    );
+    const types: Array<ScheduleWithInstanceFlag["isInstance"]> = [true, false];
+    eq(types.length, 2, "装配：isInstance 是布尔双值契约（类型层锁定）");
   }
 
   // 11. schema v2→v3 迁移升级（v2 旧库 → v3 带 schedules 表）+ 双向联动（服务层）

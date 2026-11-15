@@ -232,6 +232,7 @@ async function audit() {
       range.json.schedules.some((s: { id: number }) => s.id === schedule.id),
       "区间查询含刚建的 2026-11-17 日程",
     );
+    // 净窗（本轮无日程的区间）：非循环日程不会污染窗外区间
     const empty = await expectStatus("GET", "/api/schedules?from=2025-01-01&to=2025-01-31", undefined, 200, "GET 空区间 -> 200");
     eq(empty.json && empty.json.schedules.length, 0, "窗外区间返回空数组");
     await expectStatus("GET", "/api/schedules?from=2026-13-01&to=2026-12-31", undefined, 400, "GET 区间非法 from（13 月）-> 400");
@@ -246,6 +247,16 @@ async function audit() {
     );
     eq(p.json && p.json.title, "季度评审会（改）", "PATCH 后 title 读回");
     eq(p.json && p.json.repeat, "monthly", "PATCH 后 repeat 读回");
+    // 本日程此刻已是 monthly（锚 11-17）：改期前的 11-17~12-31 窗 = 锚日本体 + 12-17 实例。
+    // （前面各节的带 dueDate 待办会在「今天/明天/八天后」生成各自的 none 日程，按 id 过滤隔离。）
+    const preRep = await req("GET", "/api/schedules?from=2026-11-17&to=2026-12-31");
+    const preRepOwn = preRep.json.schedules.filter((x: { id: number }) => x.id === schedule.id);
+    eq(
+      preRepOwn.map((x: { date: string }) => x.date),
+      ["2026-11-17", "2026-12-17"],
+      "monthly 本体锚日入窗：11-17~12-31 = 锚日本体 + 12-17 实例（按锚日逐月推进）",
+    );
+    eq(preRepOwn[0] && preRepOwn[0].isInstance, false, "monthly 本体在锚日窗为 isInstance=false");
     await expectStatus("PATCH", `/api/schedules/${schedule.id}`, { start: "16:00", end: "15:00" }, 400, "PATCH 倒挂时间 -> 400");
     await expectStatus("PATCH", `/api/schedules/${schedule.id}`, { date: "2026-02-30" }, 400, "PATCH 非法日期 -> 400");
     await expectStatus("PATCH", "/api/schedules/99999", { title: "x" }, 404, "PATCH 不存在日程 -> 404");
@@ -302,6 +313,135 @@ async function audit() {
     await expectStatus("DELETE", `/api/todos/${t2.json.id}`, undefined, 200, "DELETE 级联样本待办 -> 200");
     const afterDel = await req("GET", "/api/schedules?from=2026-12-01&to=2026-12-01");
     eq(afterDel.json.schedules.length, 0, "待办删除后关联日程级联删除");
+  }
+
+  console.log("\n== schedules repeat instances over HTTP (r3 rework#1 A) ==");
+  {
+    // Scratch db also holds auto schedules from earlier todo sections (none repeat),
+    // so the full-window lookup is counted per-id: the monthly anchor must return
+    // its body PLUS one instance per month, capped at MAX_REPEAT_HORIZON_DAYS=100.
+    const pre = await req("GET", "/api/schedules?from=2020-01-01&to=2035-12-31");
+    const preOwn = pre.json.schedules.filter((x: { id: number }) => x.id === schedule.id);
+    eq(preOwn.length, 100, "循环实例组前置：全量窗（2020~2035）monthly 锚日恰封顶 100 条（本体 + 月实例，锚日窗外实例参与装配）");
+    eq(preOwn[0] && preOwn[0].date, "2026-11-17", "循环实例组前置：monthly 系列首条 = 锚日本体 2026-11-17");
+    ok(
+      preOwn.every((x: { isInstance: boolean }, i: number) => (i === 0 ? x.isInstance === false : x.isInstance === true)),
+      "循环实例组前置：封顶序列首条为本体、其余全为实例",
+    );
+
+    // weekly: anchor Monday 2026-11-16; window of exactly 4 anchor weeks
+    const wk = await expectStatus(
+      "POST",
+      "/api/schedules",
+      { title: "rep-weekly", date: "2026-11-16", start: "09:00", end: "09:30", repeat: "weekly" },
+      201,
+      "POST weekly 循环日程（锚 2026-11-16 周一）-> 201",
+    );
+    const weeklyId = wk.json.id;
+    const w1 = await req("GET", "/api/schedules?from=2026-11-16&to=2026-12-07");
+    eq(
+      w1.json.schedules.filter((x: { id: number }) => x.id === weeklyId).map((x: { date: string }) => x.date),
+      ["2026-11-16", "2026-11-23", "2026-11-30", "2026-12-07"],
+      "HTTP weekly：4 周窗返回锚日 + 3 条周实例（返工前仅 1 条本体）",
+    );
+    ok(
+      w1.json.schedules
+        .filter((x: { id: number }) => x.id === weeklyId)
+        .every((x: { date: string; isInstance: boolean }) => x.isInstance === (x.date !== "2026-11-16")),
+      "HTTP weekly：本体 isInstance=false、实例 true（锚日恰一条且优先本体）",
+    );
+    ok(
+      w1.json.schedules
+        .filter((x: { id: number }) => x.id === weeklyId)
+        .every((x: { title: string; start: string; repeat: string }) => x.title === "rep-weekly" && x.start === "09:00" && x.repeat === "weekly"),
+      "HTTP weekly：实例复制本体字段（title/start/repeat）",
+    );
+    const w1dates = w1.json.schedules.filter((x: { id: number }) => x.id === weeklyId).map((x: { date: string }) => x.date);
+    ok(new Set(w1dates).size === w1dates.length, "HTTP weekly：同 id 同 date 并集去重（本体与锚日实例不双计）");
+
+    // weekly with the anchor OUTSIDE the window: the direct waizhuan repro (was 0 rows)
+    const w2 = await req("GET", "/api/schedules?from=2026-11-17&to=2026-11-30");
+    eq(
+      w2.json.schedules.filter((x: { id: number }) => x.id === weeklyId).map((x: { date: string; isInstance: boolean }) => `${x.date}:${x.isInstance}`),
+      ["2026-11-23:true", "2026-11-30:true"],
+      "HTTP weekly 锚日在窗外：两条实例入窗且全为实例（返工前 0 条）",
+    );
+
+    // monthly end-of-month convergence over HTTP: anchor 1-31, February window
+    const mt = await expectStatus(
+      "POST",
+      "/api/schedules",
+      { title: "rep-monthly", date: "2026-01-31", start: "10:00", end: "11:00", repeat: "monthly" },
+      201,
+      "POST monthly 循环日程（锚 2026-01-31）-> 201",
+    );
+    const monthlyId = mt.json.id;
+    const m1 = await req("GET", "/api/schedules?from=2026-02-01&to=2026-02-28");
+    eq(
+      m1.json.schedules.filter((x: { id: number }) => x.id === monthlyId).map((x: { date: string }) => x.date),
+      ["2026-02-28"],
+      "HTTP monthly 月末收敛：2 月窗返回 2026-02-28 实例（锚日 1-31 在窗外，返工前 0 条）",
+    );
+    const m2 = await req("GET", "/api/schedules?from=2026-03-01&to=2026-03-31");
+    eq(
+      m2.json.schedules.filter((x: { id: number }) => x.id === monthlyId).map((x: { date: string }) => x.date),
+      ["2026-03-31"],
+      "HTTP monthly 不丢锚日：3 月窗返回 2026-03-31（收敛后回弹到 31 日）",
+    );
+    const m3 = await req("GET", "/api/schedules?from=2026-01-31&to=2026-03-31");
+    eq(
+      m3.json.schedules.filter((x: { id: number }) => x.id === monthlyId).map((x: { date: string }) => x.date),
+      ["2026-01-31", "2026-02-28", "2026-03-31"],
+      "HTTP monthly 跨月窗：本体 + 两条实例（1-31→2-28→3-31 收敛序列）",
+    );
+    ok(
+      m3.json.schedules
+        .filter((x: { id: number }) => x.id === monthlyId)
+        .every((x: { date: string; isInstance: boolean }) => (x.date === "2026-01-31") === !x.isInstance),
+      "HTTP monthly：仅锚日一条 isInstance=false，其余为实例",
+    );
+
+    // daily: far anchor forces fast-forward; huge window forces the cap
+    const dy = await expectStatus(
+      "POST",
+      "/api/schedules",
+      { title: "rep-daily", date: "2026-01-01", start: "08:00", end: "08:15", repeat: "daily" },
+      201,
+      "POST daily 循环日程（锚 2026-01-01）-> 201",
+    );
+    ok(dy.json && dy.json.id > 0, "POST daily 返回自增 id");
+    const d1 = await req("GET", "/api/schedules?from=2026-11-16&to=2026-11-18");
+    eq(
+      d1.json.schedules.filter((x: { title: string }) => x.title === "rep-daily").map((x: { date: string }) => x.date),
+      ["2026-11-16", "2026-11-17", "2026-11-18"],
+      "HTTP daily：锚日远离窗口时快进展开（2026-11-16~18 每日一条，返工前 0 条）",
+    );
+    const d2 = await req("GET", "/api/schedules?from=2020-01-01&to=2035-12-31");
+    const dCap = d2.json.schedules.filter((x: { title: string }) => x.title === "rep-daily");
+    eq(dCap.length, 100, "HTTP daily：超长窗（2020~2035）实例数恰封顶 100");
+    const dKeys = new Set(dCap.map((x: { id: number; date: string }) => `${x.id}@${x.date}`));
+    eq(dKeys.size, dCap.length, "HTTP daily：封顶截断内 id@date 无重复（并集去重语义）");
+
+    // several repeat schedules sharing one window: union without cross-contamination
+    const all3 = await req("GET", "/api/schedules?from=2026-11-16&to=2026-11-18");
+    ok(
+      all3.json.schedules.some((x: { title: string; date: string }) => x.title === "rep-daily" && x.date === "2026-11-16"),
+      "HTTP 多循环同窗：daily 本体日 11-16 在场",
+    );
+    ok(
+      all3.json.schedules.some((x: { title: string; date: string; isInstance: boolean }) => x.title === "rep-weekly" && x.date === "2026-11-16" && x.isInstance === false),
+      "HTTP 多循环同窗：weekly 本体 11-16 在场（isInstance=false）",
+    );
+    ok(
+      all3.json.schedules.some((x: { title: string }) => x.title === "rep-monthly") === false,
+      "HTTP 多循环同窗：monthly 在该窗无实例不混入",
+    );
+    ok(
+      all3.json.schedules.every((x: { date: string; start: string }, i: number, arr: Array<{ date: string; start: string }>) =>
+        i === 0 || !(arr[i - 1]!.date > x.date || (arr[i - 1]!.date === x.date && arr[i - 1]!.start > x.start)),
+      ),
+      "HTTP：区间结果按 date 升序、同日按 start 升序",
+    );
   }
 
   console.log("\n== schedules delete (r3) ==");

@@ -521,9 +521,13 @@ body {
 
 .cal-chip-title {
   color: var(--ink);
-  white-space: nowrap;
+  /* r3 返工#1 F（waizhuan P5）：月格里标题只留省略号会把全文裁没。
+     允许两行折行后再截断（-webkit-line-clamp），短标题完整可读、长标题仍不出格。 */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
   min-width: 0;
 }
 

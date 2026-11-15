@@ -63,6 +63,23 @@ function pinSeed(now: Date): MonthFetch {
   return { schedules, todos };
 }
 
+/** 窄屏钉态种子（r3 返工#1 D）：488px 视口首屏拍的是本月第一周段落，
+ *  日程必须落进 11-02~11-08 一带才能进画面；日程带 todoId 以便展示徽标。 */
+function pinSeedNarrow(now: Date): MonthFetch {
+  const pad = (n: number): string => String(n).padStart(2, "0");
+  const firstWeek = (day: number): string => `${now.getFullYear()}-${pad(now.getMonth() + 1)}-0${day}`;
+  const iso = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-03T09:00:00.000Z`;
+  const todos: Todo[] = [
+    { id: 41, title: "窄屏联动徽标样本", quadrant: "q2", status: "open", dueDate: firstWeek(4), createdAt: iso, updatedAt: iso },
+  ];
+  const schedules: Schedule[] = [
+    { id: 51, title: "周一晨会", date: firstWeek(2), start: "09:00", end: "09:30", todoId: null, repeat: "none", createdAt: iso, updatedAt: iso },
+    { id: 52, title: "窄屏联动徽标样本", date: firstWeek(4), start: "10:00", end: "11:00", todoId: 41, repeat: "none", createdAt: iso, updatedAt: iso },
+    { id: 53, title: "周五复盘", date: firstWeek(6), start: "14:00", end: "15:00", todoId: null, repeat: "weekly", createdAt: iso, updatedAt: iso },
+  ];
+  return { schedules, todos };
+}
+
 /** 徽标种子：只保留关联日程（联动徽标形态专用） */
 function pinSeedLinked(now: Date): MonthFetch {
   const full = pinSeed(now);
@@ -149,9 +166,13 @@ export default function SchedulesPage() {
       setState({ phase: "ready", schedules: [], todos: [] });
       return;
     }
-    if (shot === "schedule-data" || shot === "schedule-badge" || shot === "schedule-narrow") {
+    if (shot === "schedule-data" || shot === "schedule-badge") {
       const data = shot === "schedule-badge" ? pinSeedLinked(new Date()) : pinSeed(new Date());
       setState({ phase: "ready", ...data });
+      return;
+    }
+    if (shot === "schedule-narrow") {
+      setState({ phase: "ready", ...pinSeedNarrow(new Date()) });
       return;
     }
     void load();

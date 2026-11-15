@@ -122,8 +122,15 @@ function Invoke-Shots {
   # 06-schedule-live (r3) shows the REAL calendar consuming real api data: seed one
   # todo, then set its dueDate to today via the link route -> its auto schedule
   # appears on the real month grid (link path proved end-to-end). Cleaned after shots.
-  # 10-schedule-moved shows the LINK SYNC RESULT: a second seeded todo gets a dueDate
-  # of today+3 -> its auto schedule lands on that cell (todo -> schedule direction).
+  #
+  # r3 rework#1 (B) root cause of 06 == 10 byte-identical: BOTH seeds (incl. the
+  # due-date move) ran BEFORE any screenshot, so 06 and 10 captured the same db
+  # state at the same URL. Now the seeds are split around the actual captures:
+  #   06 first (only the today seed on the grid) -> PATCH due-date -> 10 after.
+  # A third seed runs before 06 so the moved schedule lands INSIDE the pinned
+  # narrow-shot window (rework#1 D). All seeds are cleaned after the batch.
+  $r3TodayTodoId = $null
+  $r3MovedTodoId = $null
   if ($Round -eq "r3") {
     $seedBody3 = [System.Text.Encoding]::UTF8.GetBytes(
       '{"title":"r3 live shot seed todo","quadrant":"q2","dueDate":null}'
@@ -131,23 +138,27 @@ function Invoke-Shots {
     try {
       $seeded = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/todos" -Method Post `
         -ContentType "application/json; charset=utf-8" -Body $seedBody3
-      $seededTodoId = $seeded.id
+      $r3TodayTodoId = $seeded.id
       $todayIso = (Get-Date).ToString("yyyy-MM-dd")
       $dueBody = [System.Text.Encoding]::UTF8.GetBytes(('{"dueDate":"' + $todayIso + '"}'))
-      Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/todos/$seededTodoId/due-date" -Method Patch `
+      Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/todos/$r3TodayTodoId/due-date" -Method Patch `
         -ContentType "application/json; charset=utf-8" -Body $dueBody | Out-Null
-      Write-Output "seeded 1 live todo with dueDate for 06-schedule-live"
-      # second seed: due-date = today+3, the auto schedule must appear there (10)
-      $movedBody = [System.Text.Encoding]::UTF8.GetBytes(
-        '{"title":"r3 moved seed todo","quadrant":"q1","dueDate":null}'
+      Write-Output "seeded 1 live todo with dueDate=$todayIso for 06-schedule-live"
+      # narrow-window seed (rework#1 D): due today+1 so the pinned 488px narrow
+      # viewport (which shows the week of today) contains a linked schedule block
+      # with its status badge.
+      $narrowBody = [System.Text.Encoding]::UTF8.GetBytes(
+        '{"title":"r3 narrow seed todo","quadrant":"q3","dueDate":null}'
       )
-      $moved = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/todos" -Method Post `
-        -ContentType "application/json; charset=utf-8" -Body $movedBody
-      $plus3 = (Get-Date).AddDays(3).ToString("yyyy-MM-dd")
-      $dueBody3 = [System.Text.Encoding]::UTF8.GetBytes(('{"dueDate":"' + $plus3 + '"}'))
-      $movedAfter = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/todos/$($moved.id)/due-date" -Method Patch `
-        -ContentType "application/json; charset=utf-8" -Body $dueBody3
-      Write-Output "seeded moved todo: dueDate=$($movedAfter.dueDate) (auto schedule expected on $plus3)"
+      $narrowTodo = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/todos" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body $narrowBody
+      $plus1 = (Get-Date).AddDays(1).ToString("yyyy-MM-dd")
+      $narrowDue = [System.Text.Encoding]::UTF8.GetBytes(('{"dueDate":"' + $plus1 + '"}'))
+      Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/todos/$($narrowTodo.id)/due-date" -Method Patch `
+        -ContentType "application/json; charset=utf-8" -Body $narrowDue | Out-Null
+      Write-Output "seeded narrow todo: dueDate=$plus1 (auto schedule expected on $plus1)"
+      # NO move-yet: the today+3 seed (10-schedule-moved) is created between the
+      # 06 and 10 captures so the move action leaves a real before/after trace.
     } catch {
       Write-Output "warn: seed todo failed ($($_.Exception.Message)) - live shot may show empty data"
     }
@@ -156,17 +167,19 @@ function Invoke-Shots {
   if ($Round -eq "r3") {
     # r3 schedules page: pinned states via ?page=schedules&shot=schedule-* seams
     # (App.tsx / SchedulesPage.tsx). 07 = workbench with the new today-schedules card.
+    # rework#1: 11 = real todos tab active (no shot param -> real data path, U1-2).
     $shots = @(
       @{ name = "01-schedule-empty";   url = "http://127.0.0.1:$WebPort/?page=schedules&shot=schedule-empty"; width = 1280; height = 800 },
       @{ name = "02-schedule-month";   url = "http://127.0.0.1:$WebPort/?page=schedules&shot=schedule-data";  width = 1280; height = 800 },
       @{ name = "03-schedule-modal";   url = "http://127.0.0.1:$WebPort/?page=schedules&shot=schedule-modal"; width = 1280; height = 800 },
       @{ name = "04-schedule-badge";   url = "http://127.0.0.1:$WebPort/?page=schedules&shot=schedule-badge"; width = 1280; height = 800 },
-      @{ name = "05-schedule-narrow";  url = "http://127.0.0.1:$WebPort/?page=schedules&shot=schedule-data&narrow=1"; width = 488; height = 900 },
+      @{ name = "05-schedule-narrow";  url = "http://127.0.0.1:$WebPort/?page=schedules&shot=schedule-narrow&narrow=1"; width = 488; height = 900 },
       @{ name = "06-schedule-live";    url = "http://127.0.0.1:$WebPort/?page=schedules"; width = 1280; height = 800 },
       @{ name = "07-workbench-today";  url = "http://127.0.0.1:$WebPort/?shot=workbench"; width = 1280; height = 800 },
       @{ name = "08-schedule-loading"; url = "http://127.0.0.1:$WebPort/?page=schedules&shot=schedule-loading"; width = 1280; height = 800 },
       @{ name = "09-schedule-error";   url = "http://127.0.0.1:$WebPort/?page=schedules&shot=schedule-error"; width = 1280; height = 800 },
-      @{ name = "10-schedule-moved";   url = "http://127.0.0.1:$WebPort/?page=schedules"; width = 1280; height = 800 }
+      @{ name = "10-schedule-moved";   url = "http://127.0.0.1:$WebPort/?page=schedules"; width = 1280; height = 800 },
+      @{ name = "11-todos-tab";        url = "http://127.0.0.1:$WebPort/?page=todos"; width = 1280; height = 800 }
     )
   } elseif ($Round -eq "r2") {
     # r2 todo page: pinned states via ?page=todos&shot=todo-* seams (App.tsx / TodosPage.tsx)
@@ -210,6 +223,25 @@ function Invoke-Shots {
     } else {
       throw "screenshot failed: $out"
     }
+
+    # r3 rework#1 (B): between 06 (before) and 10 (after) the MOVE really happens
+    # over the link route: seeded todo dueDate today -> today+3, its auto schedule
+    # follows. 06 therefore shows the today-only live grid; 10 shows the moved one.
+    if ($Round -eq "r3" -and $s.name -eq "06-schedule-live") {
+      if ($r3TodayTodoId) {
+        try {
+          $plus3 = (Get-Date).AddDays(3).ToString("yyyy-MM-dd")
+          $moveBody = [System.Text.Encoding]::UTF8.GetBytes(('{"dueDate":"' + $plus3 + '"}'))
+          $movedAfter = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/todos/$r3TodayTodoId/due-date" -Method Patch `
+            -ContentType "application/json; charset=utf-8" -Body $moveBody
+          Write-Output "moved live todo: dueDate $($movedAfter.dueDate) (auto schedule expected on $plus3)"
+        } catch {
+          Write-Output "warn: move between 06/10 failed ($($_.Exception.Message)) - 10 may equal 06"
+        }
+      } else {
+        Write-Output "warn: no seeded todo id - skip move, 10 may equal 06"
+      }
+    }
   }
 
   # r2 rework#1: delete the seeded live todo so repeat runs stay deterministic
@@ -219,7 +251,7 @@ function Invoke-Shots {
   if ($Round -eq "r2" -or $Round -eq "r3") {
     try {
       $list = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/todos" -Method Get
-      $seeded = $list.todos | Where-Object { $_.title -eq "r2 live shot seed todo" -or $_.title -eq "r3 live shot seed todo" -or $_.title -eq "r3 moved seed todo" }
+      $seeded = $list.todos | Where-Object { $_.title -eq "r2 live shot seed todo" -or $_.title -eq "r3 live shot seed todo" -or $_.title -eq "r3 moved seed todo" -or $_.title -eq "r3 narrow seed todo" }
       foreach ($t in $seeded) {
         Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/todos/$($t.id)" -Method Delete | Out-Null
       }

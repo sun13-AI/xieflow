@@ -16,7 +16,7 @@ import {
   assertValidDueDate,
   assertValidScheduleDate,
   computeTodoSummary,
-  computeRepeatInstances,
+  assembleRangeSchedules,
   canTransitionTodo,
   type Schedule,
 } from "@xieflow/shared";
@@ -220,21 +220,8 @@ app.get("/api/schedules", async (req, reply) => {
       throw new ValidationError(`查询区间非法：from 晚于 to（${from} → ${to}）`);
     }
     const store = requireDb();
-    const bodies = store.listSchedulesByDateRange(from, to);
-    const seen = new Set<number>();
-    const schedules: Array<Schedule & { isInstance: boolean }> = [];
-    for (const s of bodies) {
-      if (!seen.has(s.id)) {
-        seen.add(s.id);
-        schedules.push({ ...s, isInstance: false });
-      }
-      for (const inst of computeRepeatInstances(s, { from, to })) {
-        if (!seen.has(inst.id + inst.date.length * 0) && !schedules.some((x) => x.id === inst.id && x.date === inst.date)) {
-          schedules.push({ ...inst, isInstance: inst.date !== s.date });
-        }
-      }
-    }
-    schedules.sort((a, b) => (a.date === b.date ? (a.start < b.start ? -1 : 1) : a.date < b.date ? -1 : 1));
+    // 装配规则集中在 shared（r3 返工#1 A）：本体落窗 + repeat 实例展开（含锚日在窗外的日程）+ 并集去重
+    const schedules = assembleRangeSchedules(store.listSchedules(), { from, to });
     return { schedules };
   } catch (err) {
     return toErrorReply(err, reply);

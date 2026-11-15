@@ -283,6 +283,43 @@ export function computeRepeatInstances(
   return instances;
 }
 
+/** 区间查询装配结果：本体与实例共用 Schedule 契约，isInstance 区分来源 */
+export interface ScheduleWithInstanceFlag extends Schedule {
+  isInstance: boolean;
+}
+
+/**
+ * 区间查询装配规则（r3 返工#1 A：api GET /api/schedules 的唯一装配入口）。
+ * 输入全量日程 + 查询窗口：
+ * ① date 落窗内的日程作为本体返回（isInstance:false）；
+ * ② repeat 日程不论锚日是否在窗内，其在窗口内的循环实例都参与并集——
+ *   本体 date 落窗外的循环日程也必须展开（不能只展开 date 落窗内的行）；
+ * ③ 同 id 同 date 只留一条，本体优先（isInstance:false）；
+ * ④ 结果按 date 升序、同日按 start 升序。
+ */
+export function assembleRangeSchedules(
+  schedules: readonly Schedule[],
+  window: RepeatWindow,
+): ScheduleWithInstanceFlag[] {
+  const out = new Map<string, ScheduleWithInstanceFlag>();
+  for (const s of schedules) {
+    const bodyKey = `${s.id}@${s.date}`;
+    if (window.from <= s.date && s.date <= window.to && !out.has(bodyKey)) {
+      out.set(bodyKey, { ...s, isInstance: false });
+    }
+    if (s.repeat === "none") continue;
+    for (const inst of computeRepeatInstances(s, window)) {
+      const key = `${inst.id}@${inst.date}`;
+      if (!out.has(key)) {
+        out.set(key, { ...inst, isInstance: inst.date !== s.date });
+      }
+    }
+  }
+  return [...out.values()].sort((a, b) =>
+    a.date === b.date ? (a.start < b.start ? -1 : 1) : a.date < b.date ? -1 : 1,
+  );
+}
+
 /** 数据库 schema 版本号，每轮迁移必须 +1（宪法：禁止手改库文件） */
 export const SCHEMA_VERSION: number = 3;
 
