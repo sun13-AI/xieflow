@@ -223,7 +223,24 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 - 前置：r7 已发版（v0.0.11）✅
 - 特别项：r7 UI 记账 U2（错误行号口径/确认按钮后果提示/当前视图指示错位）择低成本项顺手修，其余留 M4 视图轮
 
-### r9（预占）· M4 第 2 片：文档导入导出与 AI 块级修订（M4 收官）
+### r9 · M4 第 2 片：文档导入导出与 AI 块级修订（M4 收官）
+- 目标：Markdown 导入导出 + AI 块级修订（**mock 模型，零 token 成本**）——M4 收官轮，为 M5 AI 工作台铺工具调用框架
+- 交付清单：
+  1. 转换引擎集中 shared：`markdownToBlocks(md)` / `blocksToMarkdown(blocks)`（10 种块类型双向，未知语法降级为 paragraph 不丢内容）
+  2. api：`POST /api/documents/:id/import.md`（Markdown 文本→块批量落库，单事务零半态——复用 r7 思路）、`GET /api/documents/:id/export.md`、**`POST /api/documents/:id/blocks/:blockId/revise`**（AI 修订：入参 instruction + 块内容，走 mock provider 返回修订建议；采纳才替换块内容——**接口 provider 无关，为 M5 接真实模型留位**）
+  3. web：文档编辑器加「导入 Markdown」按钮（预览+确认）、「导出 .md」按钮、块级「AI 修订」面板（建议 diff 对照 + 采纳/放弃）
+  4. mock 模型：packages/agent/mock-provider.ts（固定脚本化回复，零 token）；**评测集** packages/agent/evals/ 录制回放样式先立骨架（宪法四条：M5 起锁工具调用行为）
+  5. 断言：e2e ≥+40（Markdown 双向往返/未知语法降级/导入零半态/修订采纳与放弃语义）、audit ≥+30（含 4xx：非法 Markdown/块不存在/空 instruction）
+  6. 截图 ≥7：导入预览/导入成功后/导出落盘佐证/AI 修订建议 diff/采纳后/放弃后/窄屏
+- 验收标准：
+  1. 全量绿：e2e ≥756、audit ≥669，README 双节同步
+  2. Markdown 往返：blocks → md → blocks 内容不丢（有断言）
+  3. AI 修订「未采纳不改库」有断言锁定；mock provider 可切换为真实模型的接口留位
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r8 已发版（待双 VERDICT 终审）
+- 特别项：r8 UI 记账 U2（06 窄屏长文本 1px 裁切渣、编辑态列表块缺 marker、纸面有序列表都显示「1.」）本轮必修前两条
+
+### r10（预占）· M5 第 1 片：AI 工作台对话与工具调用框架
 
 ## 历史轮次（r1~r2 已收档，见下方记账区）
 
