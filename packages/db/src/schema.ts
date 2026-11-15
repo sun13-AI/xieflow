@@ -121,6 +121,24 @@ export const MIGRATIONS: Migration[] = [
       `CREATE INDEX IF NOT EXISTS idx_records_table ON records (table_id)`,
     ],
   },
+  {
+    version: 6,
+    name: "r7 · views 表（视图持久化：筛选 / 排序 / 字段可见性）",
+    up: [
+      `CREATE TABLE IF NOT EXISTS views (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        table_id INTEGER NOT NULL REFERENCES tables(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        filter_spec TEXT NOT NULL DEFAULT '[]',
+        sort_spec TEXT NOT NULL DEFAULT '[]',
+        visible_fields TEXT NOT NULL DEFAULT '[]',
+        position INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_views_table ON views (table_id)`,
+    ],
+  },
 ];
 
 /** 当前 schema 版本（与 shared 的 SCHEMA_VERSION 保持一致，e2e 会断言二者相等） */

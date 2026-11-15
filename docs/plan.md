@@ -2,6 +2,16 @@
 
 > 宪法见设计包 AGENTS.md；轮次规则见 RUNBOOK.md（均在 D:\work\好东西\xieflow-design\）。
 
+### 2026-11-15 · r7 研发（yanfa · M3 收官轮）
+- 交付：schema v5→v6 迁移（`views` 表：id/table_id/name/filter_spec JSON/sort_spec JSON/visible_fields JSON/position + 索引 + ON DELETE CASCADE）+ shared 视图口径（`normalizeViewSpec` 形状/字段存在性/取值类型/去重归一、`describeViewSpec` 摘要、`assertValidSortDirection`）+ `queryRecords` 扩为**多字段 AND 筛选 / 多级排序 / 字段投影**（单条件旧入口保持兼容，api 层零口径分支）+ CSV 导入口径（`parseCsvText` RFC4180、`mapCsvHeadersToFields`、`planCsvImport` 逐行走 `normalizeRecordData` 且错误行带行号+原因聚合、`shouldCommitImport` 零半态判定、`normalizeCsvImportPayload`）+ api（views CRUD、`GET /api/views/:id/records` 按视图查询、`POST /api/tables/:id/import.csv/preview` 预览、`POST /api/tables/:id/import.csv` 单事务原子导入、`?filters=` 多条件 AND、非法方向 400）+ db（`createView`/`getView`/`listViews`/`updateView`/`deleteView`/`importRecords` BEGIN IMMEDIATE…COMMIT/ROLLBACK）+ web（视图切换栏 / 视图编辑面板：筛选·排序·隐藏列 / CSV 导入对话框：前 5 行预览+错误行清单+确认导入）
+- **r6 遗留三项全修**：① 多字段 AND 筛选（集中 shared `queryRecords`，HTTP `?filters=` 与视图 spec 同一路径）② **U2-1** 编辑态整表列宽跳变 → `table-layout: fixed` + 编辑框 `box-sizing: border-box`（08 图与 01 列位对照）③ **U2-2** 筛选提交无反馈 → 「应用筛选 / 清除」按钮 + 真实命中数成功条（09 图）；无效方向下拉 → 未选排序字段时禁用+提示，非法方向 deep link 由 shared 守卫/api 400 拦下
+- 验收重点「**导入部分失败零半态**」：预览端点只解析不落库；提交端点任一行非法 → 422 + 错误行清单且一行不写，全部合法 → 整个批次一个 SQLite 事务落库；audit 4 条断言锁定（imported=0 / 错误行号 / 部分失败前后记录快照 `JSON.stringify` **逐字节相等** / 合法行 A·B 均未半路落库），e2e 另有服务层「先合法后非法 → 表内仍 0 行」断言
+- 「用户第一次用」全链路（r4 教训）：headless CDP 真点走通 **建表（8 默认字段）→ 视图编辑面板建视图（筛选/排序/隐藏列）→ 切换视图（全部记录 ↔ 我的视图，6 列投影）→ 编辑视图（改名+去筛选）→ 导入 CSV 对话框（预览→确认）→ 成功条 + HTTP 回查 2 行落库**，随后删表清理（库内 0 表）；HTTP 层另有 audit「建表→建视图→按视图查→编辑视图→导入」全链路断言
+- 断言规模：e2e 449 → **587**（+138：视图 spec 归一 31 + 按视图查询口径 21 + CSV 导入口径 43 + v5→v6 迁移与视图数据层 43）· audit-http 403 → **522**（+119：views + CSV import 一节）· typecheck 4 包全绿；`pnpm run test:all` **exit 0**（离线 587 / 在线 588 · 522）。CI 的 HTTP smoke 静态正则同步为 `(2|3|4|5|6)`（v0.0.6 教训）
+- **红相留痕**：临时把 shared `shouldCommitImport` 改成「忽略错误行」→ e2e 1 条失败、audit 4 条失败（含 `部分失败 -> 422 got 201`、`imported=0 got 2`），恢复后全绿——证明零半态断言不是自洽占位
+- 截图矩阵：docs/ui/r7/ 共 **9 张**（任务单 6 态全覆盖 + 窄屏 + U2-1 固定列宽 + U2-2 筛选反馈），8 张走真实 api 链路、1 张钉态编辑器；逐张 `read_image` 目验 + SHA256 两两互异（全库 76 张 PNG / 74 互异，仅 r4 已披露 2 组同态，r7 零新增）；壳基线 6 张自动重拍（本轮未新增 tab，但徽章改 r7 / 工作台 schema v6，哈希与 r6 全异）
+- 已知遗留：① 视图筛选仍为「等值 / 包含」语义，区间（金额 > 1000）与 OR 组合未做 ② CSV 导入按表头列名或字段 id 映射，未做交互式列映射面板 ③ 视图 position 不强制唯一（只影响排序，同 position 按 id 兜底）④ 本机无 pwsh 7，r7 新增 ps1 段全 ASCII + PS5.1 Parser 0 错误，unix 分支未实测（与 r5/r6 同款未验项）
+
 ### 2026-11-15 · r6 复验与发版（M3 起步）
 - 首轮双通过：waizhuan **187 条真实 HTTP 断言**（7 种字段类型各走建表→加字段→加记录→筛选→排序→读回，number 按值排 [2,9,10,100] 非字典序、select 按候选项序、null 双向恒末）+ 13 个 4xx 分支 + 重启前后快照逐字节相等（9 表/81 字段/37 记录）；ui 阻断岗全库 67 张 PNG 哈希亲算、六药丸新壳机制仍生效、04↔01 像素差 5.4% 坐实筛选排序真实
 - 关键工程：7 类型引擎三函数全集中 shared，api 层零类型分支（lead 巡查 grep 确认）；建表自带 8 默认字段，消灭 r4 式零字段死路
@@ -67,7 +77,7 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r4 | M2 第 1 片：项目+看板数据层与最小 UI | ✅已发版（初验双打回→返工#1→双复审通过；壳基线机制固化） | v0.0.8 | e2e 217 · audit 233 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r5 | M2 第 2 片：看板统计与 Excel/CSV 导出（M2 收官） | ✅已发版（首轮双通过；Excel COM 真开验证） | v0.0.9 | e2e 288 · audit 313 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r6 | M3 第 1 片：多维表格字段引擎 + 网格视图 | ✅已发版（首轮双通过；187 条真实 HTTP 断言 + 67 张哈希亲算） | v0.0.10 | e2e 449 · audit 403 | 通过（waizhuan）+ UI 通过（阻断岗） |
-| r7 | M3 第 2 片：视图持久化与 CSV 导入（M3 收官） | 🔨研发中 | — | — | — |
+| r7 | M3 第 2 片：视图持久化与 CSV 导入（M3 收官） | 🔨研发完成，待双 VERDICT（e2e 587 · audit 522，test:all exit 0） | — | e2e 587 · audit 522 | — |
 
 附加交付（r2 内 lead 直做，已入库 8e4fb9b）：
 - 一键启动：start.cmd 双击 / scripts\start.ps1 start|stop|status（三轮全链路验证；期间排掉「僵尸 api 抢 8787」环境坑，非脚本缺陷）

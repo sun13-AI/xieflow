@@ -19,6 +19,7 @@ import {
   mapRowToBaseTable,
   mapRowToTableField,
   mapRowToTableRecord,
+  mapRowToTableView,
 } from "./mappers.js";
 import type {
   AppSetting,
@@ -31,6 +32,8 @@ import type {
   BaseTable,
   TableField,
   TableRecord,
+  TableView,
+  ViewSpecInput,
   FieldType,
 } from "@xieflow/shared";
 import {
@@ -48,7 +51,9 @@ import {
   assertValidFieldName,
   assertValidFieldType,
   assertValidFieldOptions,
+  assertValidViewName,
   normalizeRecordData,
+  normalizeViewSpec,
   reorderPositions,
   DEFAULT_BOARD_COLUMNS,
   DEFAULT_TABLE_FIELDS,
@@ -893,5 +898,172 @@ export class XieFlowDb {
   deleteRecord(id: number): boolean {
     const res = this.db.run("DELETE FROM records WHERE id = ?", [id]);
     return res.changes > 0;
+  }
+
+  // ---- 视图（r7：筛选 / 排序 / 字段可见性持久化） ----
+
+  /**
+   * 建视图：spec 归一口径集中 shared `normalizeViewSpec`
+   * （字段不存在 / 取值类型不符 / 字段重复一律拒绝——不落坏 spec）。
+   * position 缺省 = 追加到本表视图列尾；视图名在表内唯一（错误消息稳定）。
+   */
+  createView(
+    tableId: number,
+    name: string,
+    spec: ViewSpecInput,
+    position?: number,
+  ): TableView {
+    assertValidViewName(name);
+    if (this.getTable(tableId) === null) {
+      throw new Error(`表格不存在：${tableId}`);
+    }
+    const fields = this.listFields(tableId);
+    const normalized = normalizeViewSpec(fields, spec);
+    const dupName = this.db.get("SELECT id FROM views WHERE table_id = ? AND name = ?", [
+      tableId,
+      name,
+    ]);
+    if (dupName) {
+      throw new Error(`视图名称已存在：${name}`);
+    }
+    const pos =
+      position ??
+      Number(
+        (
+          this.db.get("SELECT COUNT(*) AS n FROM views WHERE table_id = ?", [tableId]) as {
+            n: unknown;
+          }
+        ).n,
+      );
+    if (!Number.isInteger(pos) || pos < 0) {
+      throw new Error(`非法视图位置：${String(pos)}`);
+    }
+    const now = new Date().toISOString();
+    const res = this.db.run(
+      "INSERT INTO views (table_id, name, filter_spec, sort_spec, visible_fields, position, created_at, updated_at) " +
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      [
+        tableId,
+        name,
+        JSON.stringify(normalized.filterSpec),
+        JSON.stringify(normalized.sortSpec),
+        JSON.stringify(normalized.visibleFields),
+        pos,
+        now,
+        now,
+      ],
+    );
+    const row = this.db.get("SELECT * FROM views WHERE id = ?", [res.lastInsertRowid]);
+    if (!row) throw new Error("视图写入后读回失败");
+    return mapRowToTableView(row);
+  }
+
+  getView(id: number): TableView | null {
+    const row = this.db.get("SELECT * FROM views WHERE id = ?", [id]);
+    return row ? mapRowToTableView(row) : null;
+  }
+
+  listViews(tableId: number): TableView[] {
+    return this.db
+      .all("SELECT * FROM views WHERE table_id = ? ORDER BY position, id", [tableId])
+      .map(mapRowToTableView);
+  }
+
+  /** 改视图：部分补丁语义（未给的 spec 段沿用旧值，整体重新归一后落库） */
+  updateView(
+    id: number,
+    patch: {
+      name?: string;
+      filterSpec?: unknown;
+      sortSpec?: unknown;
+      visibleFields?: unknown;
+      position?: number;
+    },
+  ): TableView {
+    const current = this.getView(id);
+    if (!current) throw new Error(`视图不存在：${id}`);
+    const name = patch.name ?? current.name;
+    assertValidViewName(name);
+    if (
+      name !== current.name &&
+      this.db.get("SELECT id FROM views WHERE table_id = ? AND name = ? AND id != ?", [
+        current.tableId,
+        name,
+        id,
+      ])
+    ) {
+      throw new Error(`视图名称已存在：${name}`);
+    }
+    const fields = this.listFields(current.tableId);
+    const normalized = normalizeViewSpec(fields, {
+      filterSpec: patch.filterSpec !== undefined ? patch.filterSpec : current.filterSpec,
+      sortSpec: patch.sortSpec !== undefined ? patch.sortSpec : current.sortSpec,
+      visibleFields:
+        patch.visibleFields !== undefined ? patch.visibleFields : current.visibleFields,
+    });
+    const position = patch.position ?? current.position;
+    if (!Number.isInteger(position) || position < 0) {
+      throw new Error(`非法视图位置：${String(position)}`);
+    }
+    this.db.run(
+      "UPDATE views SET name = ?, filter_spec = ?, sort_spec = ?, visible_fields = ?, position = ?, updated_at = ? " +
+        "WHERE id = ?",
+      [
+        name,
+        JSON.stringify(normalized.filterSpec),
+        JSON.stringify(normalized.sortSpec),
+        JSON.stringify(normalized.visibleFields),
+        position,
+        new Date().toISOString(),
+        id,
+      ],
+    );
+    return this.getView(id)!;
+  }
+
+  /** 删视图（表被删时视图经 schema 级联随行删除） */
+  deleteView(id: number): boolean {
+    const res = this.db.run("DELETE FROM views WHERE id = ?", [id]);
+    return res.changes > 0;
+  }
+
+  /**
+   * CSV 导入落库（零半态的服务层保证）：
+   * ① 全部行先整体归一 + 校验——**任一行不合法则一行都不写**（校验在事务外先做完）；
+   * ② 写入包在一个 SQLite 事务里：中途任何异常 → ROLLBACK，绝不留下半截数据；
+   * ③ 返回写入后的记录（读回真实 id 与归一后的值）。
+   */
+  importRecords(tableId: number, rows: readonly Record<string, unknown>[]): TableRecord[] {
+    if (this.getTable(tableId) === null) {
+      throw new Error(`表格不存在：${tableId}`);
+    }
+    const fields = this.listFields(tableId);
+    const normalized = rows.map((row) => normalizeRecordData(fields, row));
+    const now = new Date().toISOString();
+    const start = Number(
+      (
+        this.db.get("SELECT COUNT(*) AS n FROM records WHERE table_id = ?", [tableId]) as {
+          n: unknown;
+        }
+      ).n,
+    );
+    const created: TableRecord[] = [];
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      for (let i = 0; i < normalized.length; i += 1) {
+        const res = this.db.run(
+          "INSERT INTO records (table_id, data, position, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+          [tableId, JSON.stringify(normalized[i]), start + i, now, now],
+        );
+        const row = this.db.get("SELECT * FROM records WHERE id = ?", [res.lastInsertRowid]);
+        if (!row) throw new Error("记录写入后读回失败");
+        created.push(mapRowToTableRecord(row));
+      }
+      this.db.exec("COMMIT");
+    } catch (err: unknown) {
+      this.db.exec("ROLLBACK");
+      throw err;
+    }
+    return created;
   }
 }

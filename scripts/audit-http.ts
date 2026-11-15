@@ -111,7 +111,7 @@ async function audit() {
     eq(h.json && h.json.ok, true, "health.ok = true");
     // r4 起动态对表：health.schemaVersion 必须等于迁移队列最高版本（不再硬编码 2/3，
     // r3 v0.0.6 CI 红教训——静态硬编码在每轮迁移后必过期）
-    eq(h.json && h.json.schemaVersion, 5, "health.schemaVersion = 5（r6 迁移后）");
+    eq(h.json && h.json.schemaVersion, 6, "health.schemaVersion = 6（r7 迁移后）");
     const s = await req("GET", "/api/settings");
     eq(s.status, 200, "GET /api/settings -> 200");
     ok(Array.isArray(s.json && s.json.settings), "settings 返回数组");
@@ -208,7 +208,7 @@ async function audit() {
   {
     // health 探针反映 schema v4（r4 起迁移后动态推进）
     const h3 = await req("GET", "/api/health");
-    eq(h3.json && h3.json.schemaVersion, 5, "health.schemaVersion = 5（schedules 节复核）");
+    eq(h3.json && h3.json.schemaVersion, 6, "health.schemaVersion = 6（schedules 节复核）");
 
     const r = await expectStatus(
       "POST",
@@ -1096,6 +1096,263 @@ async function audit() {
     await expectStatus("GET", `/api/tables/${tableId}`, undefined, 404, "DELETE 表后 GET 表 -> 404");
     await expectStatus("GET", `/api/records/${rec1.json.id}`, undefined, 404, "删表：记录级联删除（记录路由读回 404）");
     await expectStatus("GET", `/api/tables/${tableId}/fields`, undefined, 404, "删表：字段级联删除（字段列表 404）");
+  }
+
+  console.log("\n== views + CSV import (r7) ==");
+  {
+    // —— 用户第一次用全链路（r4 教训）：建表 → 建视图 → 切换视图 → 编辑视图 → 导入 CSV ——
+    const tbl = await expectStatus("POST", "/api/tables", { name: "r7 视图与导入验收表" }, 201, "r7 POST 表 -> 201");
+    const tableId = tbl.json.id as number;
+    const fieldsRes = await expectStatus("GET", `/api/tables/${tableId}/fields`, undefined, 200, "r7 GET 字段列表 -> 200");
+    eq(fieldsRes.json.fields.length, 8, "r7 字段：新表自带 8 个默认字段");
+    const byName = new Map<string, number>(
+      fieldsRes.json.fields.map((x: { name: string; id: number }) => [x.name, x.id]),
+    );
+    const nameId = byName.get("名称")!;
+    const amountId = byName.get("金额")!;
+    const statusId = byName.get("状态")!;
+    const tagId = byName.get("标签")!;
+
+    const row = (name: string, status: string, amount: number, tags: string[]): unknown => ({
+      data: {
+        [String(nameId)]: name,
+        [String(statusId)]: status,
+        [String(amountId)]: amount,
+        [String(tagId)]: tags,
+      },
+    });
+    await expectStatus("POST", `/api/tables/${tableId}/records`, row("量房", "已完成", 1200, ["重要"]), 201, "r7 种子行 1（已完成 / 1200 / 重要）-> 201");
+    await expectStatus("POST", `/api/tables/${tableId}/records`, row("选瓷砖", "进行中", 300, ["重要", "紧急"]), 201, "r7 种子行 2（进行中 / 300 / 重要+紧急）-> 201");
+    await expectStatus("POST", `/api/tables/${tableId}/records`, row("定预算", "已完成", 9000, []), 201, "r7 种子行 3（已完成 / 9000）-> 201");
+    await expectStatus("POST", `/api/tables/${tableId}/records`, row("量房复测", "已完成", 1500, ["紧急"]), 201, "r7 种子行 4（已完成 / 1500 / 紧急）-> 201");
+    const seeded = await expectStatus("GET", `/api/tables/${tableId}/records`, undefined, 200, "r7 GET 种子记录 -> 200");
+    eq(seeded.json.total, 4, "r7 种子：表内共 4 行");
+
+    // —— 多字段 AND 筛选（r6 遗留：集中在 shared queryRecords，HTTP 层真读回）——
+    const andQ = encodeURIComponent(JSON.stringify([
+      { fieldId: statusId, value: "已完成" },
+      { fieldId: amountId, value: "1200" },
+    ]));
+    const andRes = await expectStatus("GET", `/api/tables/${tableId}/records?filters=${andQ}`, undefined, 200, "r7 GET 记录（多字段 AND 筛选）-> 200");
+    eq(andRes.json.total, 1, "r7 AND：状态=已完成 且 金额=1200 → 1 行（手算）");
+    eq(andRes.json.records[0].data[String(nameId)], "量房", "r7 AND：命中的是「量房」");
+    const andTag = encodeURIComponent(JSON.stringify([
+      { fieldId: statusId, value: "已完成" },
+      { fieldId: tagId, value: "紧急" },
+    ]));
+    const andTagRes = await expectStatus("GET", `/api/tables/${tableId}/records?filters=${andTag}`, undefined, 200, "r7 GET 记录（AND + 多选包含）-> 200");
+    eq(andTagRes.json.total, 1, "r7 AND：状态=已完成 且 标签含紧急 → 1 行（手算）");
+    eq(andTagRes.json.records[0].data[String(nameId)], "量房复测", "r7 AND：命中的是「量房复测」");
+    await expectStatus("GET", `/api/tables/${tableId}/records?filters=not-json`, undefined, 400, "r7 filters 非 JSON -> 400");
+    await expectStatus("GET", `/api/tables/${tableId}/records?filters=${encodeURIComponent('{"a":1}')}`, undefined, 400, "r7 filters 非数组 -> 400");
+    await expectStatus(
+      "GET",
+      `/api/tables/${tableId}/records?filters=${encodeURIComponent(JSON.stringify([{ fieldId: 99999, value: "x" }]))}`,
+      undefined,
+      400,
+      "r7 filters 未知字段 -> 400",
+    );
+    await expectStatus(
+      "GET",
+      `/api/tables/${tableId}/records?filters=${encodeURIComponent(JSON.stringify([{ fieldId: amountId, value: "abc" }]))}`,
+      undefined,
+      400,
+      "r7 filters 取值类型不符 -> 400",
+    );
+    await expectStatus("GET", `/api/tables/${tableId}/records?sortFieldId=${amountId}&sortDirection=sideways`, undefined, 400, "r7 非法排序方向 -> 400（方向下拉校验）");
+    const strictAsc = await expectStatus("GET", `/api/tables/${tableId}/records?sortFieldId=${amountId}&sortDirection=asc`, undefined, 200, "r7 合法排序方向 asc -> 200");
+    eq(strictAsc.json.records.map((x: { data: Record<string, unknown> }) => x.data[String(amountId)]), [300, 1200, 1500, 9000], "r7 排序：数字升序 300 / 1200 / 1500 / 9000");
+
+    // —— 视图 CRUD + 按视图查询（复用 shared queryRecords）——
+    const viewBody = {
+      name: "已完成且金额 1200",
+      filterSpec: [
+        { fieldId: statusId, value: "已完成" },
+        { fieldId: amountId, value: "1200" },
+      ],
+      sortSpec: [{ fieldId: amountId, direction: "desc" }],
+      visibleFields: [nameId, amountId, statusId],
+    };
+    const createdView = await expectStatus("POST", `/api/tables/${tableId}/views`, viewBody, 201, "r7 POST 视图 -> 201");
+    const viewId = createdView.json.id as number;
+    eq(createdView.json.name, "已完成且金额 1200", "r7 视图：name 读回");
+    eq(createdView.json.tableId, tableId, "r7 视图：tableId 读回");
+    eq(createdView.json.filterSpec[1].value, 1200, "r7 视图：数字筛选值归一后落库（\"1200\" -> 1200）");
+    eq(createdView.json.sortSpec, [{ fieldId: amountId, direction: "desc" }], "r7 视图：sort_spec 读回");
+    eq(createdView.json.visibleFields, [nameId, amountId, statusId], "r7 视图：visible_fields 读回");
+    const viewsList = await expectStatus("GET", `/api/tables/${tableId}/views`, undefined, 200, "r7 GET 视图列表 -> 200");
+    eq(viewsList.json.views.length, 1, "r7 视图列表：1 个视图");
+    const viewDetail = await expectStatus("GET", `/api/views/${viewId}`, undefined, 200, "r7 GET 视图详情 -> 200");
+    eq(viewDetail.json.filterSpec, createdView.json.filterSpec, "r7 视图详情：spec 与创建结果一致（JSON 往返）");
+    const byView = await expectStatus("GET", `/api/views/${viewId}/records`, undefined, 200, "r7 按视图查询记录 -> 200");
+    eq(byView.json.viewId, viewId, "r7 按视图查询：回显 viewId");
+    eq(byView.json.total, 1, "r7 按视图查询：AND 口径命中 1 行（与手算一致）");
+    eq(byView.json.records[0].data[String(nameId)], "量房", "r7 按视图查询：命中「量房」");
+    ok(
+      Object.keys(byView.json.records[0].data).sort().every((k: string) => [String(nameId), String(amountId), String(statusId)].includes(k)),
+      "r7 按视图查询：投影只保留 3 个可见字段（隐藏列不出现在 data）",
+    );
+    eq(Object.keys(byView.json.records[0].data).length, 3, "r7 按视图查询：投影后 data 恰 3 个键");
+
+    // 编辑视图（切换视图口径）：改筛选 + 恢复全部列可见
+    const patchedView = await expectStatus(
+      "PATCH",
+      `/api/views/${viewId}`,
+      { name: "全部已完成", filterSpec: [{ fieldId: statusId, value: "已完成" }], sortSpec: [{ fieldId: amountId, direction: "asc" }], visibleFields: [] },
+      200,
+      "r7 PATCH 编辑视图 -> 200",
+    );
+    eq(patchedView.json.name, "全部已完成", "r7 编辑视图：改名读回");
+    eq(patchedView.json.visibleFields, [], "r7 编辑视图：visible_fields 清空 = 全部列可见");
+    const byPatched = await expectStatus("GET", `/api/views/${viewId}/records`, undefined, 200, "r7 切换 / 编辑视图后再查 -> 200");
+    eq(byPatched.json.total, 3, "r7 编辑后：全部已完成 = 3 行（手算）");
+    eq(
+      byPatched.json.records.map((x: { data: Record<string, unknown> }) => x.data[String(amountId)]),
+      [1200, 1500, 9000],
+      "r7 编辑后：金额升序 1200 / 1500 / 9000（手算）",
+    );
+    ok(
+      Object.keys(byPatched.json.records[0].data).length >= 4,
+      "r7 编辑后：取消隐藏列，data 恢复完整字段",
+    );
+
+    // —— 视图 4xx ——
+    await expectStatus("POST", `/api/tables/${tableId}/views`, { name: "" }, 400, "r7 POST 视图空名 -> 400");
+    await expectStatus("POST", `/api/tables/${tableId}/views`, {}, 400, "r7 POST 视图缺 name -> 400");
+    await expectStatus("POST", `/api/tables/${tableId}/views`, { name: "x".repeat(101) }, 400, "r7 POST 视图超长名 -> 400");
+    await expectStatus("POST", `/api/tables/${tableId}/views`, { name: "坏筛选", filterSpec: "x" }, 400, "r7 POST 视图 filterSpec 非数组 -> 400");
+    await expectStatus("POST", `/api/tables/${tableId}/views`, { name: "坏筛选", filterSpec: [{ fieldId: 99999, value: "x" }] }, 400, "r7 POST 视图筛选字段不存在 -> 400");
+    await expectStatus("POST", `/api/tables/${tableId}/views`, { name: "坏筛选", filterSpec: [{ fieldId: amountId, value: "abc" }] }, 400, "r7 POST 视图筛选值类型不符 -> 400");
+    await expectStatus("POST", `/api/tables/${tableId}/views`, { name: "坏筛选", filterSpec: [{ fieldId: statusId, value: "搁置" }] }, 400, "r7 POST 视图筛选值不在候选项 -> 400");
+    await expectStatus(
+      "POST",
+      `/api/tables/${tableId}/views`,
+      { name: "坏筛选", filterSpec: [{ fieldId: amountId, value: 1 }, { fieldId: amountId, value: 2 }] },
+      400,
+      "r7 POST 视图筛选字段重复 -> 400",
+    );
+    await expectStatus("POST", `/api/tables/${tableId}/views`, { name: "坏排序", sortSpec: "x" }, 400, "r7 POST 视图 sortSpec 非数组 -> 400");
+    await expectStatus("POST", `/api/tables/${tableId}/views`, { name: "坏排序", sortSpec: [{ fieldId: 99999 }] }, 400, "r7 POST 视图排序字段不存在 -> 400");
+    await expectStatus("POST", `/api/tables/${tableId}/views`, { name: "坏排序", sortSpec: [{ fieldId: amountId, direction: "sideways" }] }, 400, "r7 POST 视图非法方向 -> 400");
+    await expectStatus("POST", `/api/tables/${tableId}/views`, { name: "坏可见", visibleFields: "x" }, 400, "r7 POST 视图 visibleFields 非数组 -> 400");
+    await expectStatus("POST", `/api/tables/${tableId}/views`, { name: "坏可见", visibleFields: [99999] }, 400, "r7 POST 视图可见字段不存在 -> 400");
+    await expectStatus("POST", `/api/tables/${tableId}/views`, { name: "全部已完成" }, 400, "r7 POST 视图名重复 -> 400");
+    await expectStatus("POST", "/api/tables/99999/views", { name: "孤儿视图" }, 404, "r7 POST 视图到不存在的表 -> 404");
+    await expectStatus("GET", "/api/tables/99999/views", undefined, 404, "r7 GET 不存在表的视图列表 -> 404");
+    await expectStatus("GET", "/api/views/99999", undefined, 404, "r7 GET 不存在的视图 -> 404");
+    await expectStatus("GET", "/api/views/not-a-number", undefined, 400, "r7 GET 非数字视图 id -> 400");
+    await expectStatus("PATCH", "/api/views/99999", { name: "x" }, 404, "r7 PATCH 不存在的视图 -> 404");
+    await expectStatus("DELETE", "/api/views/99999", undefined, 404, "r7 DELETE 不存在的视图 -> 404");
+    await expectStatus("GET", "/api/views/99999/records", undefined, 404, "r7 按不存在的视图查询 -> 404");
+
+    // —— CSV 导入预览（不落库）——
+    const header = "名称,状态,金额,标签";
+    const okCsv = [
+      header,
+      "量房复核,已完成,1200,重要",
+      "贴砖,进行中,300,\"重要,紧急\"",
+      "水电改造,未开始,9000,紧急",
+    ].join("\n");
+    const preview = await expectStatus("POST", `/api/tables/${tableId}/import.csv/preview`, { csv: okCsv }, 200, "r7 导入预览（合法 CSV）-> 200");
+    eq(preview.json.total, 3, "r7 预览：3 行数据");
+    eq(preview.json.preview.length, 3, "r7 预览：前 3 行原始文本");
+    eq(preview.json.errors, [], "r7 预览：合法 CSV 零错误行");
+    eq(preview.json.importable, true, "r7 预览：importable=true");
+    eq(preview.json.headers, ["名称", "状态", "金额", "标签"], "r7 预览：表头按字段表映射");
+    const beforePreview = await req("GET", `/api/tables/${tableId}/records`);
+    eq(beforePreview.json.total, 4, "r7 预览不落库：记录数仍是 4");
+
+    const badCsv = [
+      header,
+      "量房复核,已完成,1200,重要",
+      "贴砖,进行中,不是数字,重要",
+      "水电改造,搁置,9000,紧急",
+      "报价,进行中,1500",
+    ].join("\n");
+    const badPreview = await expectStatus("POST", `/api/tables/${tableId}/import.csv/preview`, { csv: badCsv }, 200, "r7 导入预览（含非法行）-> 200");
+    eq(badPreview.json.total, 4, "r7 错误预览：4 行数据全部计入 total");
+    eq(badPreview.json.errors.length, 3, "r7 错误预览：3 行非法");
+    eq(badPreview.json.errors.map((e: { row: number }) => e.row), [2, 3, 4], "r7 错误预览：错误行号 2 / 3 / 4（1 起）");
+    ok(badPreview.json.errors.every((e: { reason: string }) => e.reason.length > 0), "r7 错误预览：每行都带中文原因");
+    eq(badPreview.json.importable, false, "r7 错误预览：importable=false");
+
+    // —— 预览 4xx（非法 CSV）——
+    await expectStatus("POST", `/api/tables/${tableId}/import.csv/preview`, { csv: "" }, 400, "r7 预览空 CSV -> 400");
+    await expectStatus("POST", `/api/tables/${tableId}/import.csv/preview`, { csv: header }, 400, "r7 预览只有表头 -> 400");
+    await expectStatus("POST", `/api/tables/${tableId}/import.csv/preview`, { csv: "未知列,金额\nx,1" }, 400, "r7 预览未知列 -> 400");
+    await expectStatus("POST", `/api/tables/${tableId}/import.csv/preview`, { csv: "名称,名称\nx,y" }, 400, "r7 预览列重复 -> 400");
+    await expectStatus("POST", `/api/tables/${tableId}/import.csv/preview`, { foo: "bar" }, 400, "r7 预览非法请求体 -> 400");
+    await expectStatus("POST", "/api/tables/99999/import.csv/preview", { csv: okCsv }, 404, "r7 预览不存在的表 -> 404");
+
+    // —— 导入提交：全成功 ——
+    const imported = await expectStatus("POST", `/api/tables/${tableId}/import.csv`, { csv: okCsv }, 201, "r7 确认导入（全合法）-> 201");
+    eq(imported.json.imported, 3, "r7 导入：imported=3");
+    eq(imported.json.total, 3, "r7 导入：total=3");
+    eq(imported.json.records.length, 3, "r7 导入：返回 3 条写入记录");
+    eq(imported.json.records[0].data[String(amountId)], 1200, "r7 导入：数字归一（\"1200\" -> 1200）");
+    const afterImport = await expectStatus("GET", `/api/tables/${tableId}/records`, undefined, 200, "r7 导入后 GET 记录 -> 200");
+    eq(afterImport.json.total, 7, "r7 导入：表内 4 + 3 = 7 行");
+
+    // —— 导入部分失败零半态（本轮验收重点）——
+    const beforePartial = await req("GET", `/api/tables/${tableId}/records`);
+    const partialCsv = [
+      header,
+      "合法行 A,已完成,1111,重要",
+      "非法数字行,进行中,abc,重要",
+      "合法行 B,已完成,2222,紧急",
+      "非法单选项,搁置,3333,紧急",
+    ].join("\n");
+    const partial = await expectStatus("POST", `/api/tables/${tableId}/import.csv`, { csv: partialCsv }, 422, "r7 部分失败导入 -> 422（零半态）");
+    eq(partial.json.imported, 0, "r7 部分失败：imported=0（一行都没落库）");
+    eq(partial.json.total, 4, "r7 部分失败：total 回显 4 行数据");
+    eq(partial.json.errors.length, 2, "r7 部分失败：2 行非法（数字 / 单选）");
+    eq(partial.json.errors.map((e: { row: number }) => e.row), [2, 4], "r7 部分失败：错误行号 2 / 4");
+    ok(String(partial.json.error).includes("零半态"), "r7 部分失败：错误消息明确「零半态」");
+    const afterPartial = await req("GET", `/api/tables/${tableId}/records`);
+    eq(afterPartial.json.total, 7, "r7 零半态：部分失败后总行数仍是 7（合法行 A/B 也未落库）");
+    eq(
+      JSON.stringify(afterPartial.json),
+      JSON.stringify(beforePartial.json),
+      "r7 零半态：部分失败前后完整记录快照逐字节相等",
+    );
+    ok(
+      !afterPartial.json.records.some((x: { data: Record<string, unknown> }) => x.data[String(nameId)] === "合法行 A"),
+      "r7 零半态：错误 CSV 里的「合法行 A」没有半路落库",
+    );
+    ok(
+      !afterPartial.json.records.some((x: { data: Record<string, unknown> }) => x.data[String(nameId)] === "合法行 B"),
+      "r7 零半态：错误 CSV 里的「合法行 B」没有半路落库",
+    );
+
+    const invalidFirstCsv = [header, "坏行,进行中,abc,重要", "好行,已完成,5555,重要"].join("\n");
+    await expectStatus("POST", `/api/tables/${tableId}/import.csv`, { csv: invalidFirstCsv }, 422, "r7 首行即非法 -> 422");
+    eq((await req("GET", `/api/tables/${tableId}/records`)).json.total, 7, "r7 首行非法：后续合法行同样不落库");
+    const mismatchCsv = [header, "列数不对,已完成,123"].join("\n");
+    const mismatch = await expectStatus("POST", `/api/tables/${tableId}/import.csv`, { csv: mismatchCsv }, 422, "r7 列数不符 -> 422");
+    eq(mismatch.json.errors[0].row, 1, "r7 列数不符：错误行号 1");
+    ok(String(mismatch.json.errors[0].reason).includes("列数"), "r7 列数不符：原因含「列数」");
+    await expectStatus("POST", `/api/tables/${tableId}/import.csv`, { csv: "" }, 400, "r7 导入空 CSV -> 400");
+    await expectStatus("POST", `/api/tables/${tableId}/import.csv`, { csv: "未知列\nx" }, 400, "r7 导入未知列 -> 400");
+    await expectStatus("POST", "/api/tables/99999/import.csv", { csv: okCsv }, 404, "r7 导入不存在的表 -> 404");
+
+    // JSON 行数组形态（任务单允许的第二种入参）
+    const jsonRows = await expectStatus(
+      "POST",
+      `/api/tables/${tableId}/import.csv`,
+      { headers: ["名称", "金额"], rows: [["JSON 行 1", "10"], ["JSON 行 2", "20"]] },
+      201,
+      "r7 导入 { headers, rows } JSON 行数组 -> 201",
+    );
+    eq(jsonRows.json.imported, 2, "r7 JSON 行数组：imported=2");
+    eq((await req("GET", `/api/tables/${tableId}/records`)).json.total, 9, "r7 JSON 行数组：7 + 2 = 9 行");
+
+    // —— 删视图 / 删表级联 ——
+    const deletedView = await expectStatus("DELETE", `/api/views/${viewId}`, undefined, 200, "r7 DELETE 视图 -> 200");
+    eq(deletedView.json.deleted, true, "r7 删视图返回 deleted=true");
+    await expectStatus("GET", `/api/views/${viewId}`, undefined, 404, "r7 删视图后 GET -> 404");
+    await expectStatus("DELETE", `/api/tables/${tableId}`, undefined, 200, "r7 DELETE 表 -> 200");
+    await expectStatus("GET", `/api/tables/${tableId}/views`, undefined, 404, "r7 删表：视图列表 404（级联）");
+    await expectStatus("GET", `/api/views/${viewId}/records`, undefined, 404, "r7 删表：按视图查询 404");
   }
 
   console.log("\n== schedules delete (r3) ==");

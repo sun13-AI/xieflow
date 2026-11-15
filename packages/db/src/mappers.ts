@@ -12,6 +12,9 @@ import type {
   BaseTable,
   TableField,
   TableRecord,
+  TableView,
+  ViewFilterCondition,
+  ViewSortRule,
   FieldType,
 } from "@xieflow/shared";
 import { isFieldType } from "@xieflow/shared";
@@ -164,6 +167,32 @@ export function mapRowToTableRecord(row: Row): TableRecord {
     id: Number(row.id),
     tableId: Number(row.table_id),
     data: parseRecordData(row.data),
+    position: Number(row.position),
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+  };
+}
+
+/** 视图 spec 的 JSON 数组解析（坏 JSON 视为空数组，不让一行坏数据炸掉整表读取） */
+function parseJsonArray(raw: unknown): unknown[] {
+  if (typeof raw !== "string" || raw === "") return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed;
+  } catch {
+    /* 坏 JSON -> 空数组 */
+  }
+  return [];
+}
+
+export function mapRowToTableView(row: Row): TableView {
+  return {
+    id: Number(row.id),
+    tableId: Number(row.table_id),
+    name: String(row.name),
+    filterSpec: parseJsonArray(row.filter_spec) as ViewFilterCondition[],
+    sortSpec: parseJsonArray(row.sort_spec) as ViewSortRule[],
+    visibleFields: parseJsonArray(row.visible_fields).map((v) => Number(v)),
     position: Number(row.position),
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),

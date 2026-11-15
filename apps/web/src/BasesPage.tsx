@@ -1,23 +1,30 @@
 // 协流 XieFlow — r6 多维表格页：网格视图（表头 = 字段列，行 = 记录）
 // + 单元格按字段类型渲染与编辑 + 字段管理面板 + 筛选 / 排序 / 分页
+// r7 追加：视图切换栏 + 视图编辑面板（筛选 / 排序 / 隐藏列）+ CSV 导入对话框
+// （预览前 5 行 + 错误行清单 + 确认导入）。
 // 数据契约与全部类型口径来自 @xieflow/shared：字段类型的校验 / 归一 / 比较
 // 规则都住在 shared 的引擎里（api 与 UI 同源），本页只做展示与交互编排。
 // 截图钉态：?page=bases&shot=bases-* 让 headless 确定性捕获（真实状态都存在）；
-// 深链参数 ?tableId= / ?filterFieldId= / ?filterValue= / ?sortFieldId= /
-// ?sortDirection= / ?page= 可分享、可回放（筛选排序后的形态由真实 API 查询得出）。
-import { useCallback, useEffect, useMemo, useState } from "react";
+// 深链参数 ?tableId= / ?viewId= / ?filterFieldId= / ?filterValue= / ?sortFieldId= /
+// ?sortDirection= / ?pageNo= 可分享、可回放（筛选排序后的形态由真实 API 查询得出）。
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   FIELD_TYPE_LABELS,
   fieldTypeUsesOptions,
+  describeViewSpec,
   type BaseTable,
+  type CsvImportRowError,
   type FieldType,
   type TableField,
   type TableRecord,
+  type TableView,
 } from "@xieflow/shared";
 import { SERVICE_DOWN_MESSAGE, fetchJsonOrThrow } from "./httpClient";
 
 interface BasesQuery {
   tableId: string;
+  /** 当前视图（空 = 全部记录，不走视图口径） */
+  viewId: string;
   filterFieldId: string;
   filterValue: string;
   sortFieldId: string;
@@ -30,6 +37,8 @@ interface BasesData {
   tables: BaseTable[];
   table: BaseTable | null;
   fields: TableField[];
+  views: TableView[];
+  activeView: TableView | null;
   records: TableRecord[];
   total: number;
   page: number;
@@ -50,15 +59,27 @@ interface RecordQueryResult {
   totalPages: number;
 }
 
+/** 导入预览结果（api /api/tables/:id/import.csv/preview 的返回体） */
+interface ImportPreview {
+  headers: string[];
+  total: number;
+  preview: string[][];
+  errors: CsvImportRowError[];
+  importable: boolean;
+}
+
 /** 从 URL 读筛选 / 排序 / 分页参数（可分享的深链；分页参数用 pageNo 避开外壳的 page） */
 function readQuery(): BasesQuery {
   const p = new URLSearchParams(window.location.search);
+  const rawDirection = p.get("sortDirection") ?? "";
   return {
     tableId: p.get("tableId") ?? "",
+    viewId: p.get("viewId") ?? "",
     filterFieldId: p.get("filterFieldId") ?? "",
     filterValue: p.get("filterValue") ?? "",
     sortFieldId: p.get("sortFieldId") ?? "",
-    sortDirection: p.get("sortDirection") ?? "",
+    // 非法方向不带给 api（api 侧对非法方向直接 400）：深链里的脏参数不污染界面
+    sortDirection: rawDirection === "asc" || rawDirection === "desc" ? rawDirection : "",
     pageNo: p.get("pageNo") ?? "",
   };
 }
@@ -74,7 +95,7 @@ function pickTable(tables: BaseTable[], tableId: string): BaseTable | null {
   return tables[0]!;
 }
 
-/** 网格数据装配：表列表 → 选中表 → 字段 → 记录（筛选/排序/分页交给 api + shared） */
+/** 网格数据装配：表列表 → 选中表 → 字段 → 视图 → 记录（筛选/排序/分页交给 api + shared） */
 async function fetchBases(query: BasesQuery): Promise<BasesData> {
   const tablesRes = await fetch("/api/tables");
   const tablesData = (await fetchJsonOrThrow(tablesRes)) as { tables: BaseTable[] };
@@ -84,6 +105,8 @@ async function fetchBases(query: BasesQuery): Promise<BasesData> {
       tables: tablesData.tables,
       table: null,
       fields: [],
+      views: [],
+      activeView: null,
       records: [],
       total: 0,
       page: 1,
@@ -93,19 +116,31 @@ async function fetchBases(query: BasesQuery): Promise<BasesData> {
   }
   const fieldsRes = await fetch(`/api/tables/${table.id}/fields`);
   const fields = ((await fetchJsonOrThrow(fieldsRes)) as { fields: TableField[] }).fields;
+  const viewsRes = await fetch(`/api/tables/${table.id}/views`);
+  const views = ((await fetchJsonOrThrow(viewsRes)) as { views: TableView[] }).views;
+
+  const activeView = views.find((v) => String(v.id) === query.viewId) ?? null;
   const params = new URLSearchParams();
-  if (query.filterFieldId !== "") params.set("filterFieldId", query.filterFieldId);
-  if (query.filterValue !== "") params.set("filterValue", query.filterValue);
-  if (query.sortFieldId !== "") params.set("sortFieldId", query.sortFieldId);
-  if (query.sortDirection !== "") params.set("sortDirection", query.sortDirection);
   if (query.pageNo !== "") params.set("page", query.pageNo);
+  // 视图口径：筛选 / 排序 / 投影都由视图 spec 决定（api 复用 shared queryRecords）
+  if (!activeView) {
+    if (query.filterFieldId !== "") params.set("filterFieldId", query.filterFieldId);
+    if (query.filterValue !== "") params.set("filterValue", query.filterValue);
+    if (query.sortFieldId !== "") params.set("sortFieldId", query.sortFieldId);
+    if (query.sortDirection !== "") params.set("sortDirection", query.sortDirection);
+  }
   const qs = params.toString();
-  const recordsRes = await fetch(`/api/tables/${table.id}/records${qs === "" ? "" : `?${qs}`}`);
+  const recordsUrl = activeView
+    ? `/api/views/${activeView.id}/records${qs === "" ? "" : `?${qs}`}`
+    : `/api/tables/${table.id}/records${qs === "" ? "" : `?${qs}`}`;
+  const recordsRes = await fetch(recordsUrl);
   const result = (await fetchJsonOrThrow(recordsRes)) as RecordQueryResult;
   return {
     tables: tablesData.tables,
     table,
     fields,
+    views,
+    activeView,
     records: result.records,
     total: result.total,
     page: result.page,
@@ -195,6 +230,71 @@ function cellText(field: TableField, value: unknown): string {
   return String(value);
 }
 
+/** POST / PATCH JSON（导入接口需要自己看 422 的错误行清单，不能用 fetchJsonOrThrow 吞掉） */
+async function sendJson(
+  method: "POST" | "PATCH" | "DELETE",
+  url: string,
+  body?: unknown,
+): Promise<{ status: number; data: Record<string, unknown> | null }> {
+  const res = await fetch(url, {
+    method,
+    headers: body === undefined ? undefined : { "content-type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const data = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+  return { status: res.status, data };
+}
+
+/** 导入预览用的样例 CSV（列名 = 8 个默认字段名；带引号的多选列验证 CSV 解析） */
+const SAMPLE_CSV_OK = [
+  "名称,状态,负责人,金额,截止日期,标签,完成,链接",
+  "量房复核,已完成,小协,1200,2026-11-20,重要,true,https://example.com/a",
+  '贴砖,进行中,小流,300,2026-12-01,"重要,紧急",false,https://example.com/b',
+  "水电改造,未开始,小协,9000,2026-12-15,紧急,false,",
+  "设计报价,进行中,小流,1500,2026-11-28,,true,",
+  "采购主材,已完成,小协,2400,2026-12-20,\"重要,紧急\",true,https://example.com/e",
+].join("\n");
+
+/** 带两行非法数据的样例 CSV（金额不是数字 / 状态不在候选项内） */
+const SAMPLE_CSV_BAD = [
+  "名称,状态,负责人,金额,截止日期,标签,完成,链接",
+  "量房复核,已完成,小协,1200,2026-11-20,重要,true,https://example.com/a",
+  "贴砖,进行中,小流,不是数字,2026-12-01,重要,false,https://example.com/b",
+  "水电改造,搁置,小协,9000,2026-12-15,紧急,false,",
+].join("\n");
+
+/** 视图编辑器草稿（新建与编辑共用） */
+interface ViewDraft {
+  id: number | null;
+  name: string;
+  filters: { fieldId: string; value: string }[];
+  sorts: { fieldId: string; direction: "asc" | "desc" }[];
+  hidden: number[];
+}
+
+function emptyViewDraft(fields: TableField[]): ViewDraft {
+  return {
+    id: null,
+    name: "",
+    filters: fields.length > 0 ? [{ fieldId: String(fields[0]!.id), value: "" }] : [],
+    sorts: fields.length > 0 ? [{ fieldId: String(fields[0]!.id), direction: "asc" }] : [],
+    hidden: [],
+  };
+}
+
+function draftFromView(view: TableView, fields: TableField[]): ViewDraft {
+  return {
+    id: view.id,
+    name: view.name,
+    filters: view.filterSpec.map((c) => ({
+      fieldId: String(c.fieldId),
+      value: Array.isArray(c.value) ? c.value.join(", ") : String(c.value ?? ""),
+    })),
+    sorts: view.sortSpec.map((r) => ({ fieldId: String(r.fieldId), direction: r.direction })),
+    hidden: fields.filter((f) => !view.visibleFields.includes(f.id)).map((f) => f.id),
+  };
+}
+
 export default function BasesPage() {
   const [query, setQuery] = useState<BasesQuery>(() => readQuery());
   const [state, setState] = useState<BasesState>({ phase: "loading" });
@@ -204,16 +304,37 @@ export default function BasesPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [tableName, setTableName] = useState("");
   const [busy, setBusy] = useState(false);
+  // r7：视图 / 导入
+  const [viewDraft, setViewDraft] = useState<ViewDraft | null>(null);
+  const [viewError, setViewError] = useState<string | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importText, setImportText] = useState("");
+  const [importPreview, setImportPreview] = useState<ImportPreview | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importBusy, setImportBusy] = useState(false);
+  const [filterDraft, setFilterDraft] = useState(query.filterValue);
 
   const shot = useMemo(() => new URLSearchParams(window.location.search).get("shot"), []);
+  const editViewParam = useMemo(
+    () => new URLSearchParams(window.location.search).get("editView") ?? "",
+    [],
+  );
+  const importedParam = useMemo(
+    () => new URLSearchParams(window.location.search).get("imported") ?? "",
+    [],
+  );
+  const pinnedImportRef = useRef(false);
+  const feedbackRef = useRef(false);
 
   const load = useCallback(
-    async (next: BasesQuery): Promise<void> => {
+    async (next: BasesQuery): Promise<BasesData | null> => {
       try {
         const data = await fetchBases(next);
         setState({ phase: "ready", ...data });
+        return data;
       } catch (err: unknown) {
         setState({ phase: "error", message: err instanceof Error ? err.message : String(err) });
+        return null;
       }
     },
     [],
@@ -237,6 +358,8 @@ export default function BasesPage() {
         tables: [],
         table: null,
         fields: [],
+        views: [],
+        activeView: null,
         records: [],
         total: 0,
         page: 1,
@@ -260,6 +383,8 @@ export default function BasesPage() {
         tables: [table],
         table,
         fields,
+        views: [],
+        activeView: null,
         records: pinSeedRecords(fields),
         total: 3,
         page: 1,
@@ -271,23 +396,70 @@ export default function BasesPage() {
       if (shot === "bases-edit") setEditing({ recordId: 11, fieldId: fields[0]!.id });
       return;
     }
-    void load(query);
+    void (async () => {
+      const data = await load(query);
+      if (!data) return;
+      // 真实链路：导入成功反馈（导入行数由 shot 脚本按真实响应写进 URL）
+      if (importedParam !== "" && Number(importedParam) > 0) {
+        setNotice(`导入成功：${importedParam} 行已全部落库（零半态）。`);
+      }
+      // 视图编辑面板深链：?editView=<id> 打开该视图的编辑面板（真实数据）
+      if (editViewParam !== "") {
+        const hit = data.views.find((v) => String(v.id) === editViewParam);
+        if (hit) setViewDraft(draftFromView(hit, data.fields));
+      }
+      // 导入对话框钉态：?shot=bases-import-preview / bases-import-errors
+      // 预览走**真实 api**（不是假数据）：合法样例 → 前 5 行预览；
+      // 非法样例 → 真实错误行清单（行号 + 原因）。
+      if ((shot === "bases-import-preview" || shot === "bases-import-errors") && !pinnedImportRef.current) {
+        pinnedImportRef.current = true;
+        setImportOpen(true);
+        setImportText(shot === "bases-import-preview" ? SAMPLE_CSV_OK : SAMPLE_CSV_BAD);
+        try {
+          const res = await sendJson("POST", `/api/tables/${data.table!.id}/import.csv/preview`, {
+            csv: shot === "bases-import-preview" ? SAMPLE_CSV_OK : SAMPLE_CSV_BAD,
+          });
+          if (res.status === 200 && res.data) {
+            setImportPreview(res.data as unknown as ImportPreview);
+            setImportError(null);
+          } else {
+            setImportError(String(res.data?.error ?? `预览失败（HTTP ${res.status}）`));
+          }
+        } catch (err: unknown) {
+          setImportError(err instanceof Error ? err.message : SERVICE_DOWN_MESSAGE);
+        }
+      }
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shot]);
+  }, [shot, editViewParam, importedParam]);
 
   const data: BasesData | null = state.phase === "ready" ? state : null;
   const fields = data?.fields ?? [];
   const records = data?.records ?? [];
   const table = data?.table ?? null;
+  const views = data?.views ?? [];
+  const activeView = data?.activeView ?? null;
+
+  // 深链改写筛选值时同步输入框（避免界面与口径不一致）
+  useEffect(() => {
+    setFilterDraft(query.filterValue);
+  }, [query.filterValue]);
+
+  /** 视图口径下的可见列（visible_fields 为空 = 全部可见） */
+  const visibleColumns = useMemo(() => {
+    if (!activeView || activeView.visibleFields.length === 0) return fields;
+    return fields.filter((f) => activeView.visibleFields.includes(f.id));
+  }, [activeView, fields]);
 
   /** 改查询参数 → 写 URL（可分享）→ 重拉 */
   const applyQuery = useCallback(
-    async (patch: Partial<BasesQuery>): Promise<void> => {
+    async (patch: Partial<BasesQuery>): Promise<BasesData | null> => {
       const next = { ...query, ...patch };
       setQuery(next);
       const url = new URL(window.location.href);
       const keys: (keyof BasesQuery)[] = [
         "tableId",
+        "viewId",
         "filterFieldId",
         "filterValue",
         "sortFieldId",
@@ -300,9 +472,24 @@ export default function BasesPage() {
       }
       window.history.replaceState(null, "", url);
       setEditing(null);
-      await load(next);
+      return load(next);
     },
     [query, load],
+  );
+
+  /** 切换视图（视图口径：筛选 / 排序 / 投影全在视图里） */
+  const switchView = useCallback(
+    async (viewId: string): Promise<void> => {
+      await applyQuery({
+        viewId,
+        filterFieldId: "",
+        filterValue: "",
+        sortFieldId: "",
+        sortDirection: "",
+        pageNo: "",
+      });
+    },
+    [applyQuery],
   );
 
   /** 编辑单元格落库：PATCH /api/records/:id（整行 data 覆盖写） */
@@ -384,11 +571,167 @@ export default function BasesPage() {
       setCreateOpen(false);
       setTableName("");
       setNotice(`已建表「${created.name}」——自带 8 个默认字段（7 种类型齐备）。`);
-      await applyQuery({ ...query, tableId: String(created.id), filterFieldId: "", filterValue: "", sortFieldId: "", sortDirection: "", pageNo: "" });
+      await applyQuery({
+        tableId: String(created.id),
+        viewId: "",
+        filterFieldId: "",
+        filterValue: "",
+        sortFieldId: "",
+        sortDirection: "",
+        pageNo: "",
+      });
     } catch (err: unknown) {
       setNotice(`建表失败：${err instanceof Error ? err.message : SERVICE_DOWN_MESSAGE}`);
     } finally {
       setBusy(false);
+    }
+  };
+
+  /** 应用筛选（r7 U2-2：提交后给成功反馈，不再「静默失焦」） */
+  const applyFilter = async (): Promise<void> => {
+    const field = fields.find((f) => String(f.id) === query.filterFieldId);
+    const result = await applyQuery({
+      filterValue: filterDraft,
+      pageNo: "",
+    });
+    if (!result) return;
+    if (!field || query.filterFieldId === "") {
+      setNotice("已清除筛选——显示全部记录。");
+      return;
+    }
+    setNotice(
+      `已应用筛选：「${field.name}」= ${filterDraft === "" ? "（空）" : filterDraft} —— 命中 ${result.total} 行。`,
+    );
+  };
+
+  /** 清除筛选 */
+  const clearFilter = async (): Promise<void> => {
+    setFilterDraft("");
+    const result = await applyQuery({ filterFieldId: "", filterValue: "", pageNo: "" });
+    if (result) setNotice(`已清除筛选——显示全部 ${result.total} 行。`);
+  };
+
+  /**
+   * 截图钉态 · U2-2 证据：调用与「应用筛选」按钮**同一个处理函数**（真实 API 查询 +
+   * 真实命中数写进成功反馈条），不是伪造的一份静态文案。
+   */
+  useEffect(() => {
+    if (shot !== "bases-filter-feedback" || state.phase !== "ready" || feedbackRef.current) return;
+    feedbackRef.current = true;
+    void applyFilter();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shot, state.phase]);
+
+  /** 保存视图（新建 or 更新；spec 归一口径在 api / shared） */
+  const saveView = async (): Promise<void> => {
+    if (!table || !viewDraft) return;
+    setViewError(null);
+    const allIds = fields.map((f) => f.id);
+    const visibleFields = allIds.filter((id) => !viewDraft.hidden.includes(id));
+    const filterSpec = viewDraft.filters
+      .filter((f) => f.fieldId !== "" && f.value !== "")
+      .map((f) => ({ fieldId: Number(f.fieldId), value: f.value }));
+    const sortSpec = viewDraft.sorts
+      .filter((s) => s.fieldId !== "")
+      .map((s) => ({ fieldId: Number(s.fieldId), direction: s.direction }));
+    const body = {
+      name: viewDraft.name,
+      filterSpec,
+      sortSpec,
+      visibleFields,
+    };
+    setBusy(true);
+    try {
+      const res =
+        viewDraft.id === null
+          ? await sendJson("POST", `/api/tables/${table.id}/views`, body)
+          : await sendJson("PATCH", `/api/views/${viewDraft.id}`, body);
+      if (res.status !== 200 && res.status !== 201) {
+        setViewError(String(res.data?.error ?? `保存视图失败（HTTP ${res.status}）`));
+        return;
+      }
+      const saved = res.data as unknown as TableView;
+      setViewDraft(null);
+      setNotice(`已保存视图「${saved.name}」——切到它即可按保存的筛选 / 排序 / 隐藏列看数据。`);
+      await applyQuery({ viewId: String(saved.id) });
+    } catch (err: unknown) {
+      setViewError(err instanceof Error ? err.message : SERVICE_DOWN_MESSAGE);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** 删除视图 */
+  const deleteView = async (): Promise<void> => {
+    if (!viewDraft || viewDraft.id === null) return;
+    setViewError(null);
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/views/${viewDraft.id}`, { method: "DELETE" });
+      await fetchJsonOrThrow(res);
+      setViewDraft(null);
+      setNotice("已删除视图。");
+      await applyQuery({ viewId: "" });
+    } catch (err: unknown) {
+      setViewError(err instanceof Error ? err.message : SERVICE_DOWN_MESSAGE);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** CSV 导入预览（真实 api；不落库） */
+  const runImportPreview = async (): Promise<void> => {
+    if (!table) return;
+    setImportBusy(true);
+    setImportError(null);
+    try {
+      const res = await sendJson("POST", `/api/tables/${table.id}/import.csv/preview`, { csv: importText });
+      if (res.status !== 200 || !res.data) {
+        setImportPreview(null);
+        setImportError(String(res.data?.error ?? `预览失败（HTTP ${res.status}）`));
+        return;
+      }
+      setImportPreview(res.data as unknown as ImportPreview);
+    } catch (err: unknown) {
+      setImportError(err instanceof Error ? err.message : SERVICE_DOWN_MESSAGE);
+    } finally {
+      setImportBusy(false);
+    }
+  };
+
+  /** CSV 导入确认（原子：任一行非法 → 一行都不落库） */
+  const confirmImport = async (): Promise<void> => {
+    if (!table) return;
+    setImportBusy(true);
+    setImportError(null);
+    try {
+      const res = await sendJson("POST", `/api/tables/${table.id}/import.csv`, { csv: importText });
+      if (res.status === 201 && res.data) {
+        const imported = Number(res.data["imported"] ?? 0);
+        setImportOpen(false);
+        setImportPreview(null);
+        setImportText("");
+        setNotice(`导入成功：${imported} 行已全部落库（零半态）。`);
+        await load(query);
+        return;
+      }
+      if (res.status === 422 && res.data) {
+        const errors = (res.data["errors"] ?? []) as CsvImportRowError[];
+        setImportError(String(res.data["error"] ?? "导入失败"));
+        setImportPreview({
+          headers: importPreview?.headers ?? [],
+          total: Number(res.data["total"] ?? 0),
+          preview: importPreview?.preview ?? [],
+          errors,
+          importable: false,
+        });
+        return;
+      }
+      setImportError(String(res.data?.error ?? `导入失败（HTTP ${res.status}）`));
+    } catch (err: unknown) {
+      setImportError(err instanceof Error ? err.message : SERVICE_DOWN_MESSAGE);
+    } finally {
+      setImportBusy(false);
     }
   };
 
@@ -475,7 +818,7 @@ export default function BasesPage() {
             id="bases-table-switch"
             data-state="bases-table-switch"
             value={table.id}
-            onChange={(e) => void applyQuery({ ...query, tableId: e.target.value, pageNo: "" })}
+            onChange={(e) => void applyQuery({ tableId: e.target.value, viewId: "", pageNo: "" })}
           >
             {data!.tables.map((t) => (
               <option key={t.id} value={t.id}>
@@ -499,6 +842,19 @@ export default function BasesPage() {
         </button>
         <button
           type="button"
+          className="btn btn-secondary"
+          data-state="bases-import-button"
+          onClick={() => {
+            setImportOpen(true);
+            setImportPreview(null);
+            setImportError(null);
+            if (importText === "") setImportText(SAMPLE_CSV_OK);
+          }}
+        >
+          导入 CSV
+        </button>
+        <button
+          type="button"
           className="btn btn-primary"
           data-state="bases-add-row"
           disabled={busy}
@@ -514,93 +870,177 @@ export default function BasesPage() {
         </p>
       )}
 
-      <div className="bases-controls" data-state="bases-controls">
-        <span className="bases-control">
-          <label className="bases-switch-label" htmlFor="bases-filter-field">筛选：</label>
-          <select
-            id="bases-filter-field"
-            data-state="bases-filter-field"
-            value={query.filterFieldId}
-            onChange={(e) => void applyQuery({ ...query, filterFieldId: e.target.value, pageNo: "" })}
-          >
-            <option value="">（不筛选）</option>
-            {fields.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.name}
-              </option>
-            ))}
-          </select>
-        </span>
-        <span className="bases-control">
-          <input
-            type="text"
-            data-state="bases-filter-value"
-            value={query.filterValue}
-            placeholder={filterField ? `按「${filterField.name}」筛选的值` : "筛选值"}
-            disabled={filterField === null}
-            onChange={(e) => setQuery({ ...query, filterValue: e.target.value })}
-            onBlur={(e) => void applyQuery({ ...query, filterValue: e.target.value, pageNo: "" })}
-            onKeyDown={(e) => {
-              if (e.key === "Enter")
-                void applyQuery({ ...query, filterValue: e.currentTarget.value, pageNo: "" });
-            }}
-          />
-        </span>
-        <span className="bases-control">
-          <label className="bases-switch-label" htmlFor="bases-sort-field">排序：</label>
-          <select
-            id="bases-sort-field"
-            data-state="bases-sort-field"
-            value={query.sortFieldId}
-            onChange={(e) => void applyQuery({ ...query, sortFieldId: e.target.value, pageNo: "" })}
-          >
-            <option value="">（不排序）</option>
-            {fields.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.name}
-              </option>
-            ))}
-          </select>
-        </span>
-        <span className="bases-control">
-          <select
-            data-state="bases-sort-direction"
-            value={query.sortDirection === "" ? "asc" : query.sortDirection}
-            disabled={sortField === null}
-            onChange={(e) => void applyQuery({ ...query, sortDirection: e.target.value, pageNo: "" })}
-          >
-            <option value="asc">升序</option>
-            <option value="desc">降序</option>
-          </select>
-        </span>
-        <span className="hint bases-count" data-state="bases-count">
-          共 {data!.total} 行 · 第 {data!.page} / {Math.max(1, data!.totalPages)} 页
-        </span>
+      {/* r7：视图切换栏（全部记录 + 已保存视图 + 新建 / 编辑入口） */}
+      <div className="bases-views" data-state="bases-view-switcher">
+        <span className="bases-switch-label">视图：</span>
         <button
           type="button"
-          className="btn btn-ghost btn-small"
-          data-state="bases-prev-page"
-          disabled={data!.page <= 1}
-          onClick={() => void applyQuery({ ...query, pageNo: String(data!.page - 1) })}
+          className={`bases-view-chip ${activeView === null ? "bases-view-chip-active" : ""}`}
+          data-state="bases-view-all"
+          onClick={() => void switchView("")}
         >
-          上一页
+          全部记录
+        </button>
+        {views.map((v) => (
+          <button
+            key={v.id}
+            type="button"
+            className={`bases-view-chip ${activeView?.id === v.id ? "bases-view-chip-active" : ""}`}
+            data-state="bases-view-chip"
+            data-view-id={v.id}
+            onClick={() => void switchView(String(v.id))}
+          >
+            {v.name}
+          </button>
+        ))}
+        <button
+          type="button"
+          className="btn btn-secondary btn-small"
+          data-state="bases-new-view"
+          onClick={() => {
+            setViewError(null);
+            setViewDraft(emptyViewDraft(fields));
+          }}
+        >
+          ＋ 新建视图
         </button>
         <button
           type="button"
-          className="btn btn-ghost btn-small"
-          data-state="bases-next-page"
-          disabled={data!.page >= data!.totalPages}
-          onClick={() => void applyQuery({ ...query, pageNo: String(data!.page + 1) })}
+          className="btn btn-secondary btn-small"
+          data-state="bases-edit-view"
+          disabled={activeView === null}
+          onClick={() => {
+            if (!activeView) return;
+            setViewError(null);
+            setViewDraft(draftFromView(activeView, fields));
+          }}
         >
-          下一页
+          编辑视图
         </button>
       </div>
 
+      {activeView !== null && (
+        <p className="hint bases-view-summary" data-state="bases-view-summary">
+          当前视图「{activeView.name}」口径：{describeViewSpec(activeView, fields)}（命中 {data!.total} 行）
+        </p>
+      )}
+
+      {activeView === null && (
+        <div className="bases-controls" data-state="bases-controls">
+          <span className="bases-control">
+            <label className="bases-switch-label" htmlFor="bases-filter-field">筛选：</label>
+            <select
+              id="bases-filter-field"
+              data-state="bases-filter-field"
+              value={query.filterFieldId}
+              onChange={(e) => {
+                setFilterDraft("");
+                void applyQuery({ ...query, filterFieldId: e.target.value, filterValue: "", pageNo: "" });
+              }}
+            >
+              <option value="">（不筛选）</option>
+              {fields.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name}
+                </option>
+              ))}
+            </select>
+          </span>
+          <span className="bases-control">
+            <input
+              type="text"
+              data-state="bases-filter-value"
+              value={filterDraft}
+              placeholder={filterField ? `按「${filterField.name}」筛选的值` : "筛选值"}
+              disabled={filterField === null}
+              onChange={(e) => setFilterDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void applyFilter();
+              }}
+            />
+          </span>
+          <span className="bases-control">
+            <button
+              type="button"
+              className="btn btn-secondary btn-small"
+              data-state="bases-filter-apply"
+              disabled={filterField === null || busy}
+              onClick={() => void applyFilter()}
+            >
+              应用筛选
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost btn-small"
+              data-state="bases-filter-clear"
+              disabled={filterField === null && query.filterValue === ""}
+              onClick={() => void clearFilter()}
+            >
+              清除
+            </button>
+          </span>
+          <span className="bases-control">
+            <label className="bases-switch-label" htmlFor="bases-sort-field">排序：</label>
+            <select
+              id="bases-sort-field"
+              data-state="bases-sort-field"
+              value={query.sortFieldId}
+              onChange={(e) => void applyQuery({ ...query, sortFieldId: e.target.value, pageNo: "" })}
+            >
+              <option value="">（不排序）</option>
+              {fields.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name}
+                </option>
+              ))}
+            </select>
+          </span>
+          <span className="bases-control">
+            <select
+              data-state="bases-sort-direction"
+              title={sortField === null ? "先选排序字段，方向才生效" : "排序方向"}
+              value={query.sortDirection === "" ? "asc" : query.sortDirection}
+              disabled={sortField === null}
+              onChange={(e) => void applyQuery({ ...query, sortDirection: e.target.value, pageNo: "" })}
+            >
+              <option value="asc">升序</option>
+              <option value="desc">降序</option>
+            </select>
+            {sortField === null && <span className="hint">先选排序字段</span>}
+          </span>
+          <span className="hint bases-count" data-state="bases-count">
+            共 {data!.total} 行 · 第 {data!.page} / {Math.max(1, data!.totalPages)} 页
+          </span>
+          <button
+            type="button"
+            className="btn btn-ghost btn-small"
+            data-state="bases-prev-page"
+            disabled={data!.page <= 1}
+            onClick={() => void applyQuery({ ...query, pageNo: String(data!.page - 1) })}
+          >
+            上一页
+          </button>
+          <button
+            type="button"
+            className="btn btn-ghost btn-small"
+            data-state="bases-next-page"
+            disabled={data!.page >= data!.totalPages}
+            onClick={() => void applyQuery({ ...query, pageNo: String(data!.page + 1) })}
+          >
+            下一页
+          </button>
+        </div>
+      )}
+
       <div className="bases-grid-wrap">
-        <table className="bases-grid" data-state="bases-grid">
+        <table
+          className="bases-grid"
+          data-state="bases-grid"
+          style={{ minWidth: `${Math.max(760, visibleColumns.length * 132 + 72)}px` }}
+        >
           <thead>
             <tr>
-              {fields.map((f) => (
+              {visibleColumns.map((f) => (
                 <th key={f.id} data-field-id={f.id} data-field-type={f.type}>
                   <span className="bases-col-name">{f.name}</span>
                   <span className="bases-col-type">{FIELD_TYPE_LABELS[f.type]}</span>
@@ -612,16 +1052,18 @@ export default function BasesPage() {
           <tbody>
             {records.length === 0 ? (
               <tr data-state="bases-no-records">
-                <td className="bases-empty-row" colSpan={fields.length + 1}>
-                  {query.filterFieldId !== ""
-                    ? "当前筛选条件下没有记录——换个筛选值或选「（不筛选）」看全部。"
-                    : "这张表还没有行——点右上角「＋ 新增行」加第一行，点单元格即可按类型编辑。"}
+                <td className="bases-empty-row" colSpan={visibleColumns.length + 1}>
+                  {activeView !== null
+                    ? "当前视图条件下没有记录——回「全部记录」或改视图口径再看。"
+                    : query.filterFieldId !== ""
+                      ? "当前筛选条件下没有记录——换个筛选值或选「（不筛选）」看全部。"
+                      : "这张表还没有行——点右上角「＋ 新增行」加第一行，点单元格即可按类型编辑。"}
                 </td>
               </tr>
             ) : (
               records.map((r) => (
                 <tr key={r.id} data-record-id={r.id}>
-                  {fields.map((f) => {
+                  {visibleColumns.map((f) => {
                     const value = r.data[String(f.id)];
                     const isEditing =
                       editing !== null && editing.recordId === r.id && editing.fieldId === f.id;
@@ -669,6 +1111,7 @@ export default function BasesPage() {
 
       <p className="hint seam-note">
         字段类型口径：文本 / 数字 / 日期 / 单选 / 多选 / 复选框 / 链接——数值按值排序，日期按时间排序，单选按候选项顺序排序，空值恒排在最后。
+        视图口径：筛选条件之间是「且」；隐藏列只影响显示，不改数据。
       </p>
 
       {fieldsOpen && (
@@ -679,6 +1122,36 @@ export default function BasesPage() {
           onClose={() => setFieldsOpen(false)}
           onChanged={async () => {
             await load(query);
+          }}
+        />
+      )}
+
+      {viewDraft !== null && (
+        <ViewEditor
+          draft={viewDraft}
+          fields={fields}
+          busy={busy}
+          error={viewError}
+          onChange={setViewDraft}
+          onClose={() => setViewDraft(null)}
+          onSave={() => void saveView()}
+          onDelete={() => void deleteView()}
+        />
+      )}
+
+      {importOpen && (
+        <ImportDialog
+          text={importText}
+          preview={importPreview}
+          error={importError}
+          busy={importBusy}
+          onText={setImportText}
+          onPreview={() => void runImportPreview()}
+          onConfirm={() => void confirmImport()}
+          onClose={() => {
+            setImportOpen(false);
+            setImportPreview(null);
+            setImportError(null);
           }}
         />
       )}
@@ -844,6 +1317,349 @@ function CellEditor({
         />
       )}
     </span>
+  );
+}
+
+/** 视图编辑面板（r7）：筛选条件 / 排序规则 / 隐藏列 */
+function ViewEditor({
+  draft,
+  fields,
+  busy,
+  error,
+  onChange,
+  onClose,
+  onSave,
+  onDelete,
+}: {
+  draft: ViewDraft;
+  fields: TableField[];
+  busy: boolean;
+  error: string | null;
+  onChange: (draft: ViewDraft) => void;
+  onClose: () => void;
+  onSave: () => void;
+  onDelete: () => void;
+}) {
+  const fieldOf = (id: string): TableField | undefined => fields.find((f) => String(f.id) === id);
+  return (
+    <div className="modal-backdrop" data-state="bases-view-editor">
+      <div className="modal-card bases-view-card" role="dialog" aria-label="视图编辑">
+        <h2>{draft.id === null ? "新建视图" : "编辑视图"}</h2>
+        <p className="hint">
+          视图保存的是「筛选 / 排序 / 隐藏列」三样口径——切到视图即可按保存的口径看数据。
+        </p>
+        <label className="field">
+          <span className="field-label">视图名称（必填）</span>
+          <input
+            type="text"
+            data-state="bases-view-name"
+            value={draft.name}
+            onChange={(e) => onChange({ ...draft, name: e.target.value })}
+            placeholder="例：进行中的大额项目"
+          />
+        </label>
+
+        <div className="bases-view-block">
+          <div className="bases-view-block-head">
+            <span className="field-label">筛选条件（多个条件之间是「且」）</span>
+            <button
+              type="button"
+              className="btn btn-ghost btn-small"
+              data-state="bases-view-add-filter"
+              onClick={() =>
+                onChange({
+                  ...draft,
+                  filters: [...draft.filters, { fieldId: fields[0] ? String(fields[0].id) : "", value: "" }],
+                })
+              }
+            >
+              ＋ 添加条件
+            </button>
+          </div>
+          {draft.filters.length === 0 && <p className="hint">未设筛选条件（显示全部记录）。</p>}
+          {draft.filters.map((cond, idx) => {
+            const field = fieldOf(cond.fieldId);
+            return (
+              <div className="bases-view-row" key={`filter-${idx}`}>
+                <select
+                  data-state="bases-view-filter-field"
+                  value={cond.fieldId}
+                  onChange={(e) => {
+                    const next = [...draft.filters];
+                    next[idx] = { ...cond, fieldId: e.target.value };
+                    onChange({ ...draft, filters: next });
+                  }}
+                >
+                  {fields.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.name}
+                    </option>
+                  ))}
+                </select>
+                {field?.type === "select" ? (
+                  <select
+                    data-state="bases-view-filter-value"
+                    value={cond.value}
+                    onChange={(e) => {
+                      const next = [...draft.filters];
+                      next[idx] = { ...cond, value: e.target.value };
+                      onChange({ ...draft, filters: next });
+                    }}
+                  >
+                    <option value="">（空）</option>
+                    {field.options.map((o) => (
+                      <option key={o} value={o}>
+                        {o}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    data-state="bases-view-filter-value"
+                    value={cond.value}
+                    placeholder={`按「${field?.name ?? "字段"}」筛选的值`}
+                    onChange={(e) => {
+                      const next = [...draft.filters];
+                      next[idx] = { ...cond, value: e.target.value };
+                      onChange({ ...draft, filters: next });
+                    }}
+                  />
+                )}
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-small"
+                  onClick={() =>
+                    onChange({ ...draft, filters: draft.filters.filter((_, i) => i !== idx) })
+                  }
+                >
+                  移除
+                </button>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="bases-view-block">
+          <div className="bases-view-block-head">
+            <span className="field-label">排序规则（按顺序生效，空值恒排最后）</span>
+            <button
+              type="button"
+              className="btn btn-ghost btn-small"
+              data-state="bases-view-add-sort"
+              onClick={() =>
+                onChange({
+                  ...draft,
+                  sorts: [...draft.sorts, { fieldId: fields[0] ? String(fields[0].id) : "", direction: "asc" }],
+                })
+              }
+            >
+              ＋ 添加排序
+            </button>
+          </div>
+          {draft.sorts.length === 0 && <p className="hint">未设排序（按记录的原始顺序）。</p>}
+          {draft.sorts.map((rule, idx) => (
+            <div className="bases-view-row" key={`sort-${idx}`}>
+              <select
+                data-state="bases-view-sort-field"
+                value={rule.fieldId}
+                onChange={(e) => {
+                  const next = [...draft.sorts];
+                  next[idx] = { ...rule, fieldId: e.target.value };
+                  onChange({ ...draft, sorts: next });
+                }}
+              >
+                {fields.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.name}
+                  </option>
+                ))}
+              </select>
+              <select
+                data-state="bases-view-sort-direction"
+                value={rule.direction}
+                onChange={(e) => {
+                  const next = [...draft.sorts];
+                  next[idx] = { ...rule, direction: e.target.value as "asc" | "desc" };
+                  onChange({ ...draft, sorts: next });
+                }}
+              >
+                <option value="asc">升序</option>
+                <option value="desc">降序</option>
+              </select>
+              <button
+                type="button"
+                className="btn btn-ghost btn-small"
+                onClick={() => onChange({ ...draft, sorts: draft.sorts.filter((_, i) => i !== idx) })}
+              >
+                移除
+              </button>
+            </div>
+          ))}
+        </div>
+
+        <div className="bases-view-block">
+          <span className="field-label">显示哪些列（不勾 = 隐藏该列）</span>
+          <div className="bases-view-columns" data-state="bases-view-columns">
+            {fields.map((f) => {
+              const hidden = draft.hidden.includes(f.id);
+              return (
+                <label key={f.id} className="bases-view-column">
+                  <input
+                    type="checkbox"
+                    data-state="bases-view-column-toggle"
+                    checked={!hidden}
+                    onChange={(e) =>
+                      onChange({
+                        ...draft,
+                        hidden: e.target.checked
+                          ? draft.hidden.filter((id) => id !== f.id)
+                          : [...draft.hidden, f.id],
+                      })
+                    }
+                  />
+                  <span>{f.name}</span>
+                  <span className="bases-col-type">{FIELD_TYPE_LABELS[f.type]}</span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+
+        {error && (
+          <p className="error-message" role="alert" data-state="bases-view-error">
+            {error}
+          </p>
+        )}
+        <div className="modal-actions">
+          {draft.id !== null && (
+            <button type="button" className="btn btn-ghost" disabled={busy} onClick={onDelete}>
+              删除视图
+            </button>
+          )}
+          <button type="button" className="btn btn-secondary" onClick={onClose}>
+            取消
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            data-state="bases-view-save"
+            disabled={busy || draft.name.trim() === ""}
+            onClick={onSave}
+          >
+            保存视图
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** CSV 导入对话框（r7）：预览前 5 行 + 错误行清单 + 确认导入 */
+function ImportDialog({
+  text,
+  preview,
+  error,
+  busy,
+  onText,
+  onPreview,
+  onConfirm,
+  onClose,
+}: {
+  text: string;
+  preview: ImportPreview | null;
+  error: string | null;
+  busy: boolean;
+  onText: (value: string) => void;
+  onPreview: () => void;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="modal-backdrop" data-state="bases-import-dialog">
+      <div className="modal-card bases-import-card" role="dialog" aria-label="导入 CSV">
+        <h2>导入 CSV</h2>
+        <p className="hint">
+          第一行是表头（列名 = 字段名）。逐行按字段类型归一与校验；<strong>任一行不合法就一行都不落库</strong>
+          （全成功或全不落，没有半截数据）。
+        </p>
+        <textarea
+          className="bases-import-text"
+          data-state="bases-import-text"
+          rows={7}
+          value={text}
+          onChange={(e) => onText(e.target.value)}
+          placeholder="名称,状态,负责人,金额,截止日期,标签,完成,链接"
+        />
+        {error && (
+          <p className="error-message" role="alert" data-state="bases-import-error">
+            {error}
+          </p>
+        )}
+        {preview && (
+          <div className="bases-import-preview" data-state="bases-import-preview">
+            <p className="hint">
+              共 {preview.total} 行数据 · 预览前 {preview.preview.length} 行
+              {preview.errors.length > 0
+                ? ` · ${preview.errors.length} 行不合法`
+                : " · 全部行合法"}
+            </p>
+            <div className="bases-import-table-wrap">
+              <table className="bases-import-table">
+                <thead>
+                  <tr>
+                    {preview.headers.map((h) => (
+                      <th key={h}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {preview.preview.map((row, idx) => (
+                    <tr key={`preview-${idx}`}>
+                      {row.map((cell, cidx) => (
+                        <td key={`cell-${idx}-${cidx}`}>{cell === "" ? "—" : cell}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {preview.errors.length > 0 && (
+              <ul className="bases-import-errors" data-state="bases-import-errors">
+                {preview.errors.map((e) => (
+                  <li key={`err-${e.row}`}>
+                    第 {e.row} 行：{e.reason}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+        <div className="modal-actions">
+          <button type="button" className="btn btn-secondary" onClick={onClose}>
+            取消
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            data-state="bases-import-preview-button"
+            disabled={busy}
+            onClick={onPreview}
+          >
+            预览
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            data-state="bases-import-confirm"
+            disabled={busy}
+            onClick={onConfirm}
+          >
+            确认导入
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

@@ -66,6 +66,19 @@ import {
   sanitizeFileNamePart,
   buildBoardCsvFileName,
   MAX_PAGE_SIZE,
+  MAX_VIEW_NAME,
+  SORT_DIRECTIONS,
+  assertValidViewName,
+  assertValidSortDirection,
+  normalizeViewSpec,
+  describeViewSpec,
+  CSV_IMPORT_PREVIEW_ROWS,
+  CSV_IMPORT_MAX_ROWS,
+  parseCsvText,
+  mapCsvHeadersToFields,
+  planCsvImport,
+  shouldCommitImport,
+  normalizeCsvImportPayload,
   type Schedule,
   type ScheduleWithInstanceFlag,
   type ScheduleRepeat,
@@ -74,6 +87,10 @@ import {
   type Todo,
   type TableField,
   type TableRecord,
+  type TableView,
+  type ViewFilterCondition,
+  type ViewSortRule,
+  type CsvImportRowError,
 } from "@xieflow/shared";
 import type { TodoStatus } from "@xieflow/shared";
 
@@ -166,6 +183,7 @@ try {
         { version: 4, name: "d", up: [] },
         { version: 5, name: "e", up: [] },
         { version: 6, name: "f", up: [] },
+        { version: 7, name: "g", up: [] },
       ]),
     "队列超出 SCHEMA_VERSION：一致性校验抛错",
   );
@@ -553,8 +571,8 @@ try {
     const v3Migrated = openDatabaseRaw({ path: v3Path });
     eq(
       v3Migrated.appliedMigrations,
-      [3, 4, 5],
-      "v2 旧库重开补跑 v3+v4+v5 迁移（真实 PRAGMA 升级路径，r6 起队列追加 v5）",
+      [3, 4, 5, 6],
+      "v2 旧库重开补跑 v3+v4+v5+v6 迁移（真实 PRAGMA 升级路径，r7 起队列追加 v6）",
     );
     const tables = v3Migrated.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -779,8 +797,8 @@ try {
     const v4Open = openDatabaseRaw({ path: v4Path });
     eq(
       v4Open.appliedMigrations,
-      [4, 5],
-      "v3 旧库重开只补跑 v4+v5 迁移（真实 PRAGMA 升级路径）",
+      [4, 5, 6],
+      "v3 旧库重开只补跑 v4+v5+v6 迁移（真实 PRAGMA 升级路径）",
     );
     const tables = v4Open.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -791,7 +809,7 @@ try {
     eq(
       (v4Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（4）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（6）",
     );
     const rawDb: SqliteDatabase = v4Open.raw;
     throws(
@@ -1438,7 +1456,7 @@ try {
     v4Open2.raw.exec("PRAGMA user_version = 4");
     v4Open2.raw.close();
     const v5Open = openDatabaseRaw({ path: v5Path });
-    eq(v5Open.appliedMigrations, [5], "v4 旧库重开只补跑 v5 迁移（真实 PRAGMA 升级路径）");
+    eq(v5Open.appliedMigrations, [5, 6], "v4 旧库重开只补跑 v5+v6 迁移（真实 PRAGMA 升级路径）");
     const tableNames = v5Open.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
       .map((r) => String((r as unknown as { name: unknown }).name));
@@ -1448,7 +1466,7 @@ try {
     eq(
       (v5Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（5）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（6）",
     );
     const rawDb5: SqliteDatabase = v5Open.raw;
     throws(
@@ -1585,7 +1603,745 @@ try {
     db = null;
   }
 
-  // 13. HTTP 冒烟 /api/health
+  // 20. r7 视图 spec 归一（normalizeViewSpec：形状 / 字段存在性 / 取值类型 / 去重）
+  section("视图 spec 归一（normalizeViewSpec / 方向守卫）");
+  {
+    const mkField = (
+      id: number,
+      name: string,
+      type: TableField["type"],
+      options: string[] = [],
+    ): TableField => ({
+      id,
+      tableId: 1,
+      name,
+      type,
+      position: id - 1,
+      options,
+      createdAt: "2026-11-15T08:00:00.000Z",
+      updatedAt: "2026-11-15T08:00:00.000Z",
+    });
+    const fName = mkField(1, "名称", "text");
+    const fAmount = mkField(2, "金额", "number");
+    const fStatus = mkField(3, "状态", "select", ["未开始", "进行中", "已完成"]);
+    const fTag = mkField(4, "标签", "multi-select", ["重要", "紧急"]);
+    const fields = [fName, fAmount, fStatus, fTag];
+
+    eq(
+      normalizeViewSpec(fields, {}),
+      { filterSpec: [], sortSpec: [], visibleFields: [] },
+      "视图 spec：空入参归一无筛选 / 无排序 / 全部列可见",
+    );
+    eq(
+      normalizeViewSpec(fields, {
+        filterSpec: [{ fieldId: 2, value: "1000" }],
+      }).filterSpec,
+      [{ fieldId: 2, value: 1000 }],
+      "视图 spec：数字筛选值按引擎归一（\"1000\" → 1000）",
+    );
+    eq(
+      normalizeViewSpec(fields, { filterSpec: [{ fieldId: 3, value: "已完成" }] }).filterSpec,
+      [{ fieldId: 3, value: "已完成" }],
+      "视图 spec：单选筛选值保留（在候选项内）",
+    );
+    eq(
+      normalizeViewSpec(fields, { filterSpec: [{ fieldId: 4, value: "重要, 紧急" }] }).filterSpec,
+      [{ fieldId: 4, value: ["重要", "紧急"] }],
+      "视图 spec：多选筛选值逗号串归一无重数组",
+    );
+    eq(
+      normalizeViewSpec(fields, { sortSpec: [{ fieldId: 2 }] }).sortSpec,
+      [{ fieldId: 2, direction: "asc" }],
+      "视图 spec：排序方向缺省升序",
+    );
+    eq(
+      normalizeViewSpec(fields, { sortSpec: [{ fieldId: 2, direction: "desc" }] }).sortSpec,
+      [{ fieldId: 2, direction: "desc" }],
+      "视图 spec：排序方向降序保留",
+    );
+    eq(
+      normalizeViewSpec(fields, { visibleFields: [4, 2, 4] }).visibleFields,
+      [4, 2],
+      "视图 spec：可见字段去重且保序",
+    );
+    eq(
+      normalizeViewSpec(fields, {
+        filterSpec: [
+          { fieldId: 3, value: "已完成" },
+          { fieldId: 2, value: "1000" },
+        ],
+        sortSpec: [{ fieldId: 4, direction: "desc" }],
+        visibleFields: [1, 2, 3],
+      }),
+      {
+        filterSpec: [
+          { fieldId: 3, value: "已完成" },
+          { fieldId: 2, value: 1000 },
+        ],
+        sortSpec: [{ fieldId: 4, direction: "desc" }],
+        visibleFields: [1, 2, 3],
+      },
+      "视图 spec：筛选 / 排序 / 可见字段三段同时归一（多条件 AND 形状）",
+    );
+    ok(
+      describeViewSpec(
+        {
+          filterSpec: [
+            { fieldId: 3, value: "已完成" },
+            { fieldId: 2, value: 1000 },
+          ],
+          sortSpec: [{ fieldId: 2, direction: "desc" }],
+          visibleFields: [1, 2, 3],
+        },
+        fields,
+      ).includes("且"),
+      "视图摘要：多条件用「且」描述（AND 语义可读）",
+    );
+    ok(
+      describeViewSpec(
+        { filterSpec: [], sortSpec: [], visibleFields: [1, 2, 3] },
+        fields,
+      ).includes("隐藏列 标签"),
+      "视图摘要：隐藏列按字段表算出（visible_fields 语义）",
+    );
+    eq(SORT_DIRECTIONS.length, 2, "排序方向白名单只有升 / 降两项");
+    eq(MAX_VIEW_NAME, 100, "视图名称上限 100 字");
+    throws(() => normalizeViewSpec(fields, { filterSpec: "x" }), "视图 spec：筛选条件非数组抛错");
+    throws(
+      () => normalizeViewSpec(fields, { filterSpec: [42] }),
+      "视图 spec：筛选条件非对象抛错",
+    );
+    throws(
+      () => normalizeViewSpec(fields, { filterSpec: [{ fieldId: "abc", value: "x" }] }),
+      "视图 spec：筛选字段 id 非整数抛错",
+    );
+    throws(
+      () => normalizeViewSpec(fields, { filterSpec: [{ fieldId: 999, value: "x" }] }),
+      "视图 spec：筛选字段不存在抛错",
+    );
+    throws(
+      () =>
+        normalizeViewSpec(fields, {
+          filterSpec: [
+            { fieldId: 2, value: 1 },
+            { fieldId: 2, value: 2 },
+          ],
+        }),
+      "视图 spec：筛选字段重复抛错",
+    );
+    throws(
+      () => normalizeViewSpec(fields, { filterSpec: [{ fieldId: 2, value: "abc" }] }),
+      "视图 spec：筛选值类型不符抛错（数字列收到 abc）",
+    );
+    throws(
+      () => normalizeViewSpec(fields, { filterSpec: [{ fieldId: 3, value: "搁置" }] }),
+      "视图 spec：单选筛选值不在候选项抛错",
+    );
+    throws(
+      () => normalizeViewSpec(fields, { filterSpec: [{ fieldId: 2 }] }),
+      "视图 spec：筛选条件缺取值抛错",
+    );
+    throws(() => normalizeViewSpec(fields, { sortSpec: "x" }), "视图 spec：排序规则非数组抛错");
+    throws(
+      () => normalizeViewSpec(fields, { sortSpec: [{ fieldId: 999 }] }),
+      "视图 spec：排序字段不存在抛错",
+    );
+    throws(
+      () =>
+        normalizeViewSpec(fields, {
+          sortSpec: [
+            { fieldId: 2, direction: "asc" },
+            { fieldId: 2, direction: "desc" },
+          ],
+        }),
+      "视图 spec：排序字段重复抛错",
+    );
+    throws(
+      () => normalizeViewSpec(fields, { sortSpec: [{ fieldId: 2, direction: "sideways" }] }),
+      "视图 spec：非法排序方向抛错（方向下拉校验）",
+    );
+    throws(
+      () => normalizeViewSpec(fields, { visibleFields: "x" }),
+      "视图 spec：可见字段非数组抛错",
+    );
+    throws(
+      () => normalizeViewSpec(fields, { visibleFields: [999] }),
+      "视图 spec：可见字段不存在抛错",
+    );
+    throws(() => assertValidViewName(""), "视图名称：空名抛错");
+    throws(() => assertValidViewName("x".repeat(101)), "视图名称：超 100 字抛错");
+    noThrow(() => assertValidViewName("进行中的大额项目"), "视图名称：合法中文名通过");
+    throws(() => assertValidSortDirection("sideways"), "排序方向：非法值抛错");
+    noThrow(() => assertValidSortDirection("desc"), "排序方向：降序合法通过");
+  }
+
+  // 21. r7 按视图查询口径（多字段 AND + 多级排序 + 投影，复用 shared queryRecords）
+  section("按视图查询口径（多字段 AND / 多级排序 / 投影）");
+  {
+    const mkField = (
+      id: number,
+      name: string,
+      type: TableField["type"],
+      options: string[] = [],
+    ): TableField => ({
+      id,
+      tableId: 1,
+      name,
+      type,
+      position: id - 1,
+      options,
+      createdAt: "2026-11-15T08:00:00.000Z",
+      updatedAt: "2026-11-15T08:00:00.000Z",
+    });
+    const fields = [
+      mkField(1, "名称", "text"),
+      mkField(2, "金额", "number"),
+      mkField(3, "状态", "select", ["未开始", "进行中", "已完成"]),
+      mkField(4, "标签", "multi-select", ["重要", "紧急"]),
+    ];
+    const mkRecord = (
+      id: number,
+      data: Record<string, unknown>,
+      position = 0,
+    ): TableRecord => ({
+      id,
+      tableId: 1,
+      data,
+      position,
+      createdAt: "2026-11-15T08:00:00.000Z",
+      updatedAt: "2026-11-15T08:00:00.000Z",
+    });
+    const records = [
+      mkRecord(11, { "1": "量房", "2": 1200, "3": "已完成", "4": ["重要"] }, 0),
+      mkRecord(12, { "1": "选瓷砖", "2": 300, "3": "进行中", "4": ["重要", "紧急"] }, 1),
+      mkRecord(13, { "1": "定预算", "2": 9000, "3": "已完成", "4": [] }, 2),
+      mkRecord(14, { "1": "量房复测", "2": 1500, "3": "已完成", "4": ["紧急"] }, 3),
+      mkRecord(15, { "1": "待定", "2": null, "3": "已完成", "4": [] }, 4),
+    ];
+
+    eq(
+      queryRecords(records, fields, {
+        filters: [{ fieldId: 3, value: "已完成" }],
+      }).records.map((r) => r.id),
+      [11, 13, 14, 15],
+      "视图查询：单条件筛选（已完成 = 4 行）",
+    );
+    eq(
+      queryRecords(records, fields, {
+        filters: [
+          { fieldId: 3, value: "已完成" },
+          { fieldId: 2, value: "1200" },
+        ],
+      }).records.map((r) => r.id),
+      [11],
+      "视图查询：多字段 AND（状态=已完成 且 金额=1200）只命中 1 行",
+    );
+    eq(
+      queryRecords(records, fields, {
+        filters: [
+          { fieldId: 3, value: "已完成" },
+          { fieldId: 4, value: "紧急" },
+        ],
+      }).records.map((r) => r.id),
+      [14],
+      "视图查询：AND + 多选包含（状态=已完成 且 标签含紧急）命中 1 行",
+    );
+    eq(
+      queryRecords(records, fields, {
+        filters: [
+          { fieldId: 3, value: "已完成" },
+          { fieldId: 2, value: 1200 },
+          { fieldId: 4, value: "紧急" },
+        ],
+      }).records.length,
+      0,
+      "视图查询：三条件 AND 无交集返回 0 行",
+    );
+    eq(
+      queryRecords(records, fields, {
+        filters: [
+          { fieldId: 3, value: "已完成" },
+          { fieldId: 3, value: "进行中" },
+        ],
+      }).records.length,
+      0,
+      "视图查询：同字段矛盾条件按 AND 处理（0 行）",
+    );
+    eq(
+      queryRecords(records, fields, {
+        filters: [],
+        filterFieldId: 3,
+        filterValue: "已完成",
+      }).total,
+      4,
+      "视图查询：filters 空数组时回落到旧单条件入口（r6 兼容）",
+    );
+    throws(
+      () => queryRecords(records, fields, { filters: [{ fieldId: 999, value: "x" }] }),
+      "视图查询：多条件里未知字段抛错（api 映射 400）",
+    );
+    throws(
+      () => queryRecords(records, fields, { filters: [{ fieldId: 2, value: "abc" }] }),
+      "视图查询：多条件里取值类型不符抛错（api 映射 400）",
+    );
+    eq(
+      queryRecords(records, fields, {
+        sorts: [
+          { fieldId: 3, direction: "asc" },
+          { fieldId: 2, direction: "desc" },
+        ],
+      }).records.map((r) => r.id),
+      [12, 13, 14, 11, 15],
+      "视图查询：两级排序（状态升序 → 金额降序）且空值恒最后",
+    );
+    eq(
+      queryRecords(records, fields, {
+        sorts: [{ fieldId: 3, direction: "desc" }],
+      }).records.map((r) => r.id),
+      [11, 13, 14, 15, 12],
+      "视图查询：一级降序按候选项逆序（已完成在前）",
+    );
+    throws(
+      () => queryRecords(records, fields, { sorts: [{ fieldId: 999, direction: "asc" }] }),
+      "视图查询：多级排序里未知字段抛错",
+    );
+    const projected = queryRecords(records, fields, {
+      sorts: [{ fieldId: 2, direction: "asc" }],
+      visibleFields: [1, 2],
+    });
+    eq(
+      Object.keys(projected.records[0]!.data).sort(),
+      ["1", "2"],
+      "视图查询：投影只保留 visible_fields 两个字段键",
+    );
+    eq(
+      Object.keys(queryRecords(records, fields, { visibleFields: [] }).records[0]!.data).length,
+      4,
+      "视图查询：visible_fields 空数组 = 全部列可见（不投影）",
+    );
+    eq(projected.total, 5, "视图查询：投影不改变 total");
+    eq(
+      queryRecords(records, fields, { visibleFields: [1, 2], page: 1, pageSize: 2 }).records.length,
+      2,
+      "视图查询：投影与分页可叠加",
+    );
+
+    // —— 完整「视图 → 查询」链路：spec 先归一，再作为 queryRecords 的筛选/排序/投影参数 ——
+    const viewLike: TableView = {
+      id: 7,
+      tableId: 1,
+      name: "已完成且金额 1200",
+      filterSpec: [
+        { fieldId: 3, value: "已完成" },
+        { fieldId: 2, value: "1200" },
+      ],
+      sortSpec: [{ fieldId: 2, direction: "desc" }],
+      visibleFields: [1, 2, 3],
+      position: 0,
+      createdAt: "2026-11-15T08:00:00.000Z",
+      updatedAt: "2026-11-15T08:00:00.000Z",
+    };
+    const normalized = normalizeViewSpec(fields, viewLike);
+    const byView = queryRecords(records, fields, {
+      filters: normalized.filterSpec,
+      sorts: normalized.sortSpec,
+      visibleFields: normalized.visibleFields,
+    });
+    eq(
+      byView.records.map((r) => r.id),
+      [11],
+      "视图链路：归一后 spec 作为 queryRecords 参数（手算：已完成 且 金额=1200 → 1 行）",
+    );
+    eq(byView.records[0]!.data["2"], 1200, "视图链路：命中行的金额读回 1200");
+    ok(
+      byView.records.every((r) => !("4" in r.data)),
+      "视图链路：隐藏列（标签）不在返回的 data 里",
+    );
+    ok(
+      describeViewSpec(viewLike, fields).includes("且"),
+      "视图链路：摘要描述多条件 AND 口径",
+    );
+    // 单条件 + 排序 + 投影：手算 9000 / 1500 / 1200 / 空值恒末
+    const sortedView = queryRecords(records, fields, {
+      filters: [{ fieldId: 3, value: "已完成" }],
+      sorts: [{ fieldId: 2, direction: "desc" }],
+      visibleFields: [1, 2, 3],
+    });
+    eq(
+      sortedView.records.map((r) => r.id),
+      [13, 14, 11, 15],
+      "视图链路：筛选 + 金额降序 + 空值恒最后（手算 id 序列）",
+    );
+    eq(
+      sortedView.records.map((r) => r.data["2"]),
+      [9000, 1500, 1200, null],
+      "视图链路：排序值 9000 / 1500 / 1200 / null",
+    );
+  }
+
+  // 22. r7 CSV 导入口径（解析 / 表头映射 / 逐行归一 / 错误行聚合 / 零半态）
+  section("CSV 导入口径（parseCsvText / planCsvImport / 零半态）");
+  {
+    const mkField = (
+      id: number,
+      name: string,
+      type: TableField["type"],
+      options: string[] = [],
+    ): TableField => ({
+      id,
+      tableId: 1,
+      name,
+      type,
+      position: id - 1,
+      options,
+      createdAt: "2026-11-15T08:00:00.000Z",
+      updatedAt: "2026-11-15T08:00:00.000Z",
+    });
+    const fields = [
+      mkField(1, "名称", "text"),
+      mkField(2, "状态", "select", ["未开始", "进行中", "已完成"]),
+      mkField(3, "金额", "number"),
+      mkField(4, "截止日期", "date"),
+      mkField(5, "标签", "multi-select", ["重要", "紧急"]),
+      mkField(6, "完成", "checkbox"),
+      mkField(7, "链接", "url"),
+    ];
+    const headers = ["名称", "状态", "金额", "截止日期", "标签", "完成", "链接"];
+    const ids = headers.map((_, i) => String(i + 1));
+
+    eq(CSV_IMPORT_PREVIEW_ROWS, 5, "导入预览行数常量 = 前 5 行");
+    eq(CSV_IMPORT_MAX_ROWS, 1000, "导入单次行数上限常量 = 1000");
+    eq(
+      parseCsvText("a,b\nc,d"),
+      [["a", "b"], ["c", "d"]],
+      "CSV 解析：两行两列",
+    );
+    eq(
+      parseCsvText('a,"b,c"\nd,e'),
+      [["a", "b,c"], ["d", "e"]],
+      "CSV 解析：引号内的逗号不切列",
+    );
+    eq(
+      parseCsvText('a,"line1\nline2"\nd,e'),
+      [["a", "line1\nline2"], ["d", "e"]],
+      "CSV 解析：引号内的换行不切行",
+    );
+    eq(
+      parseCsvText('a,"say ""hi"""\n'),
+      [["a", 'say "hi"']],
+      "CSV 解析：双引号转义 + 末尾换行不产生幽灵行",
+    );
+    eq(
+      parseCsvText("a,b\r\nc,d\r\n"),
+      [["a", "b"], ["c", "d"]],
+      "CSV 解析：CRLF 行尾",
+    );
+    eq(
+      parseCsvText("\uFEFF名称,金额\r\n量房,1200"),
+      [["名称", "金额"], ["量房", "1200"]],
+      "CSV 解析：UTF-8 BOM 被剥掉",
+    );
+    eq(
+      mapCsvHeadersToFields(fields, headers).map((b) => b.fieldId),
+      [1, 2, 3, 4, 5, 6, 7],
+      "表头映射：按字段名映射到字段 id",
+    );
+    eq(
+      mapCsvHeadersToFields(fields, ids).map((b) => b.fieldId),
+      [1, 2, 3, 4, 5, 6, 7],
+      "表头映射：按字段 id 字符串映射",
+    );
+    throws(
+      () => mapCsvHeadersToFields(fields, ["不存在"]),
+      "表头映射：未知列抛错（整表级 400）",
+    );
+    throws(
+      () => mapCsvHeadersToFields(fields, ["名称", "名称"]),
+      "表头映射：列重复抛错",
+    );
+    throws(() => mapCsvHeadersToFields(fields, [""]), "表头映射：空列名抛错");
+
+    const cleanRows = [
+      ["量房", "已完成", "1200", "2026-11-20", "重要", "true", "https://example.com/a"],
+      ["选瓷砖", "进行中", "300", "2026-12-01", "重要,紧急", "false", "example.com"],
+      ["定预算", "未开始", "9000", "2026/12/15", "", "0", ""],
+    ];
+    const clean = planCsvImport(fields, headers, cleanRows);
+    eq(clean.total, 3, "导入计划：3 行数据");
+    eq(clean.errors, [], "导入计划：合法 CSV 零错误行");
+    eq(clean.rows.length, 3, "导入计划：3 行全部进入合法行");
+    eq(clean.preview.length, 3, "导入计划：预览给出 3 行");
+    eq(clean.rows[0]!["3"], 1200, "导入计划：数字列归一为数值（与单条写入同口径）");
+    eq(clean.rows[1]!["5"], ["重要", "紧急"], "导入计划：多选列逗号串归一数组");
+    eq(clean.rows[2]!["4"], "2026-12-15", "导入计划：日期列斜杠归一 YYYY-MM-DD");
+    eq(clean.rows[1]!["7"], "https://example.com", "导入计划：链接列裸域名补 https://");
+    eq(clean.rows[2]!["6"], false, "导入计划：复选框 \"0\" 归一 false");
+    ok(shouldCommitImport(clean), "零半态：合法 CSV 判定可提交");
+    eq(
+      normalizeCsvImportPayload({ csv: "名称,金额\n量房,1200" }),
+      { headers: ["名称", "金额"], rows: [["量房", "1200"]] },
+      "导入体归一：{ csv } 形态",
+    );
+    eq(
+      normalizeCsvImportPayload({ headers: ["名称"], rows: [["量房"]] }),
+      { headers: ["名称"], rows: [["量房"]] },
+      "导入体归一：{ headers, rows } JSON 行数组形态",
+    );
+    throws(
+      () => normalizeCsvImportPayload({ foo: "bar" }),
+      "导入体归一：非法体抛错（api 映射 400）",
+    );
+    throws(() => normalizeCsvImportPayload({ csv: "" }), "导入体归一：空 CSV 抛错");
+    throws(
+      () => planCsvImport(fields, ["名称"], []),
+      "导入计划：只有表头（零数据行）抛错（api 映射 400）",
+    );
+    throws(
+      () => normalizeCsvImportPayload({ headers: ["名称"], rows: [[1]] }),
+      "导入体归一：rows 里出现非字符串单元格抛错",
+    );
+
+    const previewRows = Array.from({ length: 7 }, (_, i) => [
+      `行${i + 1}`,
+      "已完成",
+      String(100 + i),
+      "2026-11-20",
+      "重要",
+      "false",
+      "",
+    ]);
+    eq(
+      planCsvImport(fields, headers, previewRows).preview.length,
+      5,
+      "导入计划：7 行时预览只取前 5 行",
+    );
+    eq(
+      planCsvImport(fields, headers, [["", "", "", "", "", "", ""], ...cleanRows]).total,
+      3,
+      "导入计划：全空行跳过且不占行号",
+    );
+
+    const mixedRows = [
+      ["量房", "已完成", "1200", "2026-11-20", "重要", "true", "https://example.com/a"],
+      ["贴砖", "进行中", "不是数字", "2026-12-01", "重要", "false", ""],
+      ["水电", "搁置", "9000", "2026-12-15", "紧急", "false", ""],
+      ["报价", "进行中", "1500"],
+      ["采购", "已完成", "2400", "2026-12-20", "重要", "true", ""],
+    ];
+    const mixed = planCsvImport(fields, headers, mixedRows);
+    eq(mixed.total, 5, "错误聚合：5 行数据全部计入 total");
+    eq(mixed.errors.length, 3, "错误聚合：3 行非法（数字 / 单选 / 列数）");
+    eq(
+      mixed.errors.map((e: CsvImportRowError) => e.row),
+      [2, 3, 4],
+      "错误聚合：错误行号精确为第 2 / 3 / 4 行（1 起，表头不算）",
+    );
+    ok(mixed.errors[0]!.reason.includes("金额"), "错误聚合：数字列错误原因含字段名");
+    ok(mixed.errors[1]!.reason.includes("状态"), "错误聚合：单选列错误原因含字段名");
+    ok(mixed.errors[2]!.reason.includes("列数"), "错误聚合：列数不符错误原因含列数");
+    eq(mixed.rows.length, 2, "错误聚合：只有 2 行合法");
+    ok(!shouldCommitImport(mixed), "零半态：有错误行时判定不提交（全不落库）");
+    throws(
+      () => planCsvImport(fields, ["未知列"], [["x"]]),
+      "导入计划：未知列抛错（整表级 400）",
+    );
+    throws(
+      () => planCsvImport(fields, headers, []),
+      "导入计划：零数据行抛错",
+    );
+    throws(
+      () =>
+        planCsvImport(
+          fields,
+          headers,
+          Array.from({ length: 1001 }, () => ["x", "已完成", "1", "2026-11-20", "", "false", ""]),
+        ),
+      "导入计划：超过 1000 行上限抛错",
+    );
+    eq(
+      planCsvImport(fields, headers, cleanRows).total,
+      cleanRows.length,
+      "导入计划：total 与数据行数一致（表头不计入）",
+    );
+  }
+
+  // 23. r7 schema v5→v6 迁移 + views 数据层（持久化 + 原子导入零半态）
+  section("schema v5→v6 迁移与视图数据层（持久化 / 原子导入）");
+  {
+    mkdirSync("scripts/.tmp-e2e", { recursive: true });
+    const v6Path = `scripts/.tmp-e2e/upgrade-r7-${Date.now()}.db`;
+    // 造一个真 v5 旧库：v6 迁移执行前把 user_version 钉回 5（模拟 r6 版本的原地升级）
+    const v5Open = openDatabaseRaw({ path: v6Path });
+    v5Open.raw.exec("PRAGMA user_version = 5");
+    v5Open.raw.close();
+    const v6Open = openDatabaseRaw({ path: v6Path });
+    eq(v6Open.appliedMigrations, [6], "v5 旧库重开只补跑 v6 迁移（真实 PRAGMA 升级路径）");
+    const tableNames = v6Open.raw
+      .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+      .map((r) => String((r as unknown as { name: unknown }).name));
+    ok(tableNames.includes("views"), "v6 迁移后 views 表存在（sqlite_master 真实读回）");
+    eq(
+      (v6Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
+      CURRENT_SCHEMA_VERSION,
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（6）",
+    );
+    const rawDb6: SqliteDatabase = v6Open.raw;
+    eq(
+      (rawDb6.all("PRAGMA table_info(views)") as unknown as { name: unknown }[]).map((c) =>
+        String(c.name),
+      ),
+      ["id", "table_id", "name", "filter_spec", "sort_spec", "visible_fields", "position", "created_at", "updated_at"],
+      "views 表 9 列齐全（id / table_id / name / 三个 spec / position / 时间戳）",
+    );
+    throws(
+      () =>
+        rawDb6.run(
+          "INSERT INTO views (table_id, name, filter_spec, sort_spec, visible_fields, position, created_at, updated_at) " +
+            "VALUES (424242, 'x', '[]', '[]', '[]', 0, '2026-01-01', '2026-01-01')",
+        ),
+      "views.table_id 外键拒绝不存在的表（raw 直达 FK）",
+    );
+    // —— 服务层：建表 → 建视图 → 读回 spec → 改视图 → 持久化 ——
+    const tbl = v6Open.db.createTable("视图验收表");
+    const flds = v6Open.db.listFields(tbl.id);
+    const fName = flds.find((f) => f.name === "名称")!;
+    const fAmount = flds.find((f) => f.name === "金额")!;
+    const fStatus = flds.find((f) => f.name === "状态")!;
+    const fTag = flds.find((f) => f.name === "标签")!;
+    throws(
+      () =>
+        rawDb6.run(
+          "INSERT INTO views (table_id, name, filter_spec, sort_spec, visible_fields, position, created_at, updated_at) " +
+            `VALUES (${tbl.id}, NULL, '[]', '[]', '[]', 0, '2026-01-01', '2026-01-01')`,
+        ),
+      "views.name NOT NULL 拒绝 NULL（raw 直达 schema，table_id 指向真实表）",
+    );
+    const view = v6Open.db.createView(tbl.id, "已完成的大额项", {
+      filterSpec: [
+        { fieldId: fStatus.id, value: "已完成" },
+        { fieldId: fAmount.id, value: "1000" },
+      ],
+      sortSpec: [{ fieldId: fAmount.id, direction: "desc" }],
+      visibleFields: [fName.id, fAmount.id, fStatus.id],
+    });
+    ok(view.id > 0, "createView 返回自增 id");
+    eq(view.name, "已完成的大额项", "createView name 读回");
+    eq(view.tableId, tbl.id, "createView 归属表读回");
+    eq(view.position, 0, "createView position 缺省 = 0");
+    eq(
+      view.filterSpec,
+      [
+        { fieldId: fStatus.id, value: "已完成" },
+        { fieldId: fAmount.id, value: 1000 },
+      ],
+      "createView filter_spec 持久化且数字取值归一",
+    );
+    eq(
+      view.sortSpec,
+      [{ fieldId: fAmount.id, direction: "desc" }],
+      "createView sort_spec 持久化",
+    );
+    eq(
+      view.visibleFields,
+      [fName.id, fAmount.id, fStatus.id],
+      "createView visible_fields 持久化",
+    );
+    eq(
+      v6Open.db.getView(view.id)!.filterSpec,
+      view.filterSpec,
+      "getView 读回与创建结果一致（JSON 往返无损）",
+    );
+    const second = v6Open.db.createView(tbl.id, "金额升序", {
+      sortSpec: [{ fieldId: fAmount.id, direction: "asc" }],
+    });
+    eq(second.position, 1, "createView 第二个视图 position 追加为 1");
+    eq(
+      v6Open.db.listViews(tbl.id).map((v) => v.name),
+      ["已完成的大额项", "金额升序"],
+      "listViews 按 position 排序",
+    );
+    const renamed = v6Open.db.updateView(view.id, { name: "已完成且金额≥1000" });
+    eq(renamed.name, "已完成且金额≥1000", "updateView 改名生效");
+    eq(renamed.filterSpec, view.filterSpec, "updateView 未给的 spec 段沿用旧值");
+    const respec = v6Open.db.updateView(view.id, {
+      filterSpec: [{ fieldId: fTag.id, value: "重要" }],
+      sortSpec: [],
+      visibleFields: [],
+    });
+    eq(respec.filterSpec, [{ fieldId: fTag.id, value: ["重要"] }], "updateView 重设筛选并按类型归一");
+    eq(respec.sortSpec, [], "updateView 可清空排序");
+    eq(respec.visibleFields, [], "updateView 可恢复全部列可见");
+    throws(
+      () => v6Open.db.createView(tbl.id, "坏视图", { filterSpec: [{ fieldId: 99999, value: "x" }] }),
+      "createView 未知筛选字段被 shared 守卫拒绝",
+    );
+    throws(
+      () => v6Open.db.createView(tbl.id, "坏方向", { sortSpec: [{ fieldId: fAmount.id, direction: "up" }] }),
+      "createView 非法方向被 shared 守卫拒绝",
+    );
+    throws(
+      () => v6Open.db.createView(tbl.id, "已完成且金额≥1000", {}),
+      "createView 视图名重复被拒绝",
+    );
+    throws(() => v6Open.db.createView(tbl.id, "", {}), "createView 空名被拒绝");
+    throws(() => v6Open.db.createView(99999, "孤儿视图", {}), "createView 表不存在被拒绝");
+
+    // —— 原子导入零半态（服务层）：先合法后非法 → 一行都不写 ——
+    const goodRow = { [String(fName.id)]: "量房", [String(fAmount.id)]: "1200" };
+    const badRow = { [String(fAmount.id)]: "abc" };
+    eq(v6Open.db.listRecords(tbl.id).length, 0, "导入前表内 0 行（前置条件）");
+    throws(
+      () => v6Open.db.importRecords(tbl.id, [goodRow, badRow]),
+      "原子导入：含非法行整批抛错（不落库）",
+    );
+    eq(
+      v6Open.db.listRecords(tbl.id).length,
+      0,
+      "原子导入零半态：部分失败后表内仍是 0 行（成功行也没写入）",
+    );
+    const imported = v6Open.db.importRecords(tbl.id, [
+      { [String(fName.id)]: "量房", [String(fAmount.id)]: "1200" },
+      { [String(fName.id)]: "选瓷砖", [String(fAmount.id)]: "300" },
+    ]);
+    eq(imported.length, 2, "原子导入：全合法时一次落 2 行");
+    eq(imported[0]!.data[String(fAmount.id)], 1200, "原子导入：写入值走 normalizeRecordData 归一");
+    eq(
+      imported.map((r) => r.position),
+      [0, 1],
+      "原子导入：position 连续追加",
+    );
+    eq(v6Open.db.listRecords(tbl.id).length, 2, "原子导入：读回 2 行");
+    eq(v6Open.db.importRecords(tbl.id, []).length, 0, "原子导入：空批次不写任何行");
+
+    // —— 持久化：关库重开，视图与记录都在 ——
+    const beforeViews = JSON.stringify(v6Open.db.listViews(tbl.id));
+    const beforeRecords = JSON.stringify(v6Open.db.listRecords(tbl.id));
+    v6Open.raw.close();
+    const reopened = openDatabaseRaw({ path: v6Path });
+    eq(reopened.appliedMigrations, [], "重启不重复迁移（幂等）");
+    eq(
+      (reopened.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
+      CURRENT_SCHEMA_VERSION,
+      "重启后 user_version 仍为 6",
+    );
+    eq(JSON.stringify(reopened.db.listViews(tbl.id)), beforeViews, "视图持久化：重启前后 spec 逐字节相等");
+    eq(
+      JSON.stringify(reopened.db.listRecords(tbl.id)),
+      beforeRecords,
+      "记录持久化：重启前后记录逐字节相等",
+    );
+    eq(reopened.db.listViews(tbl.id).length, 2, "视图持久化：重启后 2 个视图都在");
+
+    // —— 删表级联：views 随表一起删 ——
+    eq(reopened.db.deleteTable(tbl.id), true, "deleteTable 返回 true");
+    eq(reopened.db.listViews(tbl.id).length, 0, "删表级联：views 随表删除（ON DELETE CASCADE）");
+    eq(reopened.db.listRecords(tbl.id).length, 0, "删表级联：records 随表删除");
+    eq(reopened.db.getView(view.id), null, "删表级联：视图读回为 null");
+    reopened.raw.close();
+    db = null;
+  }
+
+  // 24. HTTP 冒烟 /api/health
   section("HTTP 冒烟 /api/health");
   let httpOk = false;
   let httpNote = "api 服务未运行（pnpm dev:api 后再跑 pnpm test 可覆盖此节）";

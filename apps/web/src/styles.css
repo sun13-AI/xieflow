@@ -1015,6 +1015,8 @@ body {
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
+  /* r7 U2-1 必修：固定列宽——编辑态不再把整表列位撑开跳变 */
+  table-layout: fixed;
 }
 
 .bases-grid th {
@@ -1024,6 +1026,8 @@ body {
   background: var(--bg);
   white-space: nowrap;
   vertical-align: bottom;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .bases-col-name {
@@ -1047,8 +1051,8 @@ body {
   padding: 6px 10px;
   border-bottom: 1px solid var(--border);
   vertical-align: middle;
-  max-width: 240px;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
   cursor: pointer;
 }
 
@@ -1103,10 +1107,19 @@ body {
   cursor: default;
 }
 
+/* r7 U2-1：编辑框宽度锁在单元格内，不再把列撑宽（配合 table-layout: fixed） */
+.bases-editor {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
 .bases-editor input,
 .bases-editor select {
   width: 100%;
-  min-width: 90px;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
   border: 1px solid var(--accent);
   border-radius: 6px;
   padding: 4px 6px;
@@ -1233,4 +1246,179 @@ body {
 /* 空态：引导文案下方的按钮左对齐（不用弹窗的右对齐） */
 .bases-empty-actions {
   justify-content: flex-start;
+}
+
+/* ---- r7：视图切换栏 / 视图编辑面板 / CSV 导入对话框 ---- */
+
+.bases-views {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+
+.bases-view-chip {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--ink-2);
+  padding: 4px 12px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.bases-view-chip:hover {
+  border-color: var(--accent);
+}
+
+.bases-view-chip-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 700;
+}
+
+.bases-view-summary {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: var(--card);
+}
+
+.bases-view-card {
+  max-width: 720px;
+}
+
+.bases-import-card {
+  max-width: 860px;
+}
+
+.bases-view-block {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+}
+
+.bases-view-block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.bases-view-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.bases-view-row select,
+.bases-view-row input[type="text"] {
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 5px 8px;
+  font-size: 13px;
+  font-family: inherit;
+  background: var(--card);
+}
+
+.bases-view-columns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.bases-view-column {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  font-size: 13px;
+}
+
+.bases-import-text {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+  font-size: 12px;
+  font-family: ui-monospace, Consolas, monospace;
+  resize: vertical;
+  margin-top: 6px;
+}
+
+.bases-import-preview {
+  margin-top: 10px;
+}
+
+.bases-import-table-wrap {
+  max-height: 200px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.bases-import-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.bases-import-table th,
+.bases-import-table td {
+  border-bottom: 1px solid var(--border);
+  padding: 4px 8px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.bases-import-table th {
+  background: var(--bg);
+  font-weight: 700;
+}
+
+.bases-import-errors {
+  margin: 8px 0 0;
+  padding: 8px 10px 8px 28px;
+  border: 1px solid #f3c2c2;
+  border-radius: 8px;
+  background: #fff6f6;
+  color: #a23b3b;
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+@media (max-width: 480px) {
+  .bases-views {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .bases-view-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.force-narrow .bases-views {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.force-narrow .bases-view-row {
+  grid-template-columns: 1fr;
 }

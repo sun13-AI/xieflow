@@ -22,6 +22,7 @@ import {
   assertValidFieldName,
   assertValidFieldType,
   assertValidFieldOptions,
+  assertValidSortDirection,
   computeTodoSummary,
   assembleRangeSchedules,
   computeBoardStats,
@@ -29,8 +30,12 @@ import {
   buildBoardCsvFileName,
   canTransitionTodo,
   queryRecords,
+  normalizeCsvImportPayload,
+  planCsvImport,
+  shouldCommitImport,
   type Schedule,
   type FieldType,
+  type ViewFilterCondition,
 } from "@xieflow/shared";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -924,6 +929,35 @@ function parseOptionalQueryId(raw: unknown, label: string): number | undefined {
   return n;
 }
 
+/**
+ * 多字段 AND 筛选的查询串解析（r7）：
+ * `filters=[{"fieldId":1,"value":"x"},{"fieldId":2,"value":10}]`
+ * 非法 JSON / 非数组 → 400；字段不存在 / 取值类型不符由 shared queryRecords 抛错 → 400。
+ */
+function parseFiltersQuery(raw: unknown): ViewFilterCondition[] | undefined {
+  if (raw === undefined || raw === null || raw === "") return undefined;
+  if (typeof raw !== "string") {
+    throw new ValidationError("filters 必须是 JSON 数组");
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new ValidationError("filters 必须是 JSON 数组");
+  }
+  if (!Array.isArray(parsed)) {
+    throw new ValidationError("filters 必须是 JSON 数组");
+  }
+  return parsed as ViewFilterCondition[];
+}
+
+/** 排序方向解析（非法方向直接 400，不再静默回落成升序） */
+function parseSortDirectionQuery(raw: unknown): "asc" | "desc" | undefined {
+  if (raw === undefined || raw === null || raw === "") return undefined;
+  assertValidSortDirection(raw);
+  return raw;
+}
+
 app.post("/api/tables/:id/records", async (req, reply) => {
   try {
     const tableId = parseId((req.params as { id: string }).id);
@@ -941,9 +975,10 @@ app.post("/api/tables/:id/records", async (req, reply) => {
 });
 
 /**
- * 记录查询（r6 任务单核心）：按字段筛选 + 按字段排序 + 分页。
- * 规则（筛选命中 / 排序比较 / 空值恒最后 / 分页口径）集中在 shared queryRecords，
- * 路由层只负责解析查询串与 400/404 映射——api 层没有任何字段类型分支。
+ * 记录查询（r6 任务单核心 + r7 扩展）：按字段筛选 + 按字段排序 + 分页。
+ * 规则（筛选命中 / 排序比较 / 空值恒最后 / 分页口径 / 多条件 AND / 投影）集中在 shared
+ * queryRecords，路由层只负责解析查询串与 400/404 映射——api 层没有任何字段类型分支。
+ * r7：`filters` 参数传多条件（AND 语义）；`sortDirection` 非法直接 400（不再静默回落）。
  */
 app.get("/api/tables/:id/records", async (req, reply) => {
   try {
@@ -955,13 +990,15 @@ app.get("/api/tables/:id/records", async (req, reply) => {
     }
     const fields = store.listFields(tableId);
     const filterFieldId = parseOptionalQueryId(query.filterFieldId, "filterFieldId");
+    const filters = parseFiltersQuery(query.filters);
     const sortFieldId = parseOptionalQueryId(query.sortFieldId, "sortFieldId");
     const page = parseOptionalQueryId(query.page, "page");
     const pageSize = parseOptionalQueryId(query.pageSize, "pageSize");
-    const sortDirection = query.sortDirection === "desc" ? "desc" : "asc";
+    const sortDirection = parseSortDirectionQuery(query.sortDirection);
     return queryRecords(store.listRecords(tableId), fields, {
       filterFieldId,
       filterValue: query.filterValue,
+      filters,
       sortFieldId,
       sortDirection,
       page,
@@ -1008,6 +1045,188 @@ app.delete("/api/records/:id", async (req, reply) => {
       return reply.code(404).send({ error: `记录不存在：${id}` });
     }
     return { deleted: true };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+// ---- r7：视图（views CRUD + 按视图查询记录）+ CSV 导入（逐行归一 / 零半态） ----
+// 视图 spec 的校验与归一口径全部在 shared `normalizeViewSpec`；
+// 按视图查询记录复用 shared `queryRecords`（视图 spec 只是筛选 / 排序 / 投影参数）；
+// 导入的逐行归一与错误行聚合在 shared `planCsvImport`，零半态判定在 `shouldCommitImport`。
+
+interface ViewBody {
+  name?: unknown;
+  filterSpec?: unknown;
+  sortSpec?: unknown;
+  visibleFields?: unknown;
+  position?: unknown;
+}
+
+app.post("/api/tables/:id/views", async (req, reply) => {
+  try {
+    const tableId = parseId((req.params as { id: string }).id);
+    const body = (req.body ?? {}) as ViewBody;
+    if (typeof body.name !== "string") {
+      throw new ValidationError("视图名称不能为空");
+    }
+    const store = requireDb();
+    if (store.getTable(tableId) === null) {
+      return reply.code(404).send({ error: `表格不存在：${tableId}` });
+    }
+    const position =
+      body.position === undefined || body.position === null ? undefined : Number(body.position);
+    const view = store.createView(tableId, body.name, {
+      filterSpec: body.filterSpec,
+      sortSpec: body.sortSpec,
+      visibleFields: body.visibleFields,
+    }, position);
+    return reply.code(201).send(view);
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.get("/api/tables/:id/views", async (req, reply) => {
+  try {
+    const tableId = parseId((req.params as { id: string }).id);
+    const store = requireDb();
+    if (store.getTable(tableId) === null) {
+      return reply.code(404).send({ error: `表格不存在：${tableId}` });
+    }
+    return { views: store.listViews(tableId) };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.get("/api/views/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const view = requireDb().getView(id);
+    if (!view) {
+      return reply.code(404).send({ error: `视图不存在：${id}` });
+    }
+    return view;
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.patch("/api/views/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const body = (req.body ?? {}) as ViewBody;
+    const store = requireDb();
+    if (store.getView(id) === null) {
+      return reply.code(404).send({ error: `视图不存在：${id}` });
+    }
+    const patch: Parameters<XieFlowDb["updateView"]>[1] = {};
+    if (body.name !== undefined) {
+      if (typeof body.name !== "string") throw new ValidationError("视图名称不能为空");
+      patch.name = body.name;
+    }
+    if (body.filterSpec !== undefined) patch.filterSpec = body.filterSpec;
+    if (body.sortSpec !== undefined) patch.sortSpec = body.sortSpec;
+    if (body.visibleFields !== undefined) patch.visibleFields = body.visibleFields;
+    if (body.position !== undefined) patch.position = Number(body.position);
+    return store.updateView(id, patch);
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.delete("/api/views/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const deleted = requireDb().deleteView(id);
+    if (!deleted) {
+      return reply.code(404).send({ error: `视图不存在：${id}` });
+    }
+    return { deleted: true };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+/**
+ * 按视图查询记录（r7 任务单核心）：视图 spec 只是筛选 / 排序 / 投影参数，
+ * 真正的查询装配仍是 shared `queryRecords`（与直接查表同一口径）。
+ */
+app.get("/api/views/:id/records", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const store = requireDb();
+    const view = store.getView(id);
+    if (!view) {
+      return reply.code(404).send({ error: `视图不存在：${id}` });
+    }
+    const query = (req.query ?? {}) as Record<string, unknown>;
+    const page = parseOptionalQueryId(query.page, "page");
+    const pageSize = parseOptionalQueryId(query.pageSize, "pageSize");
+    const result = queryRecords(store.listRecords(view.tableId), store.listFields(view.tableId), {
+      filters: view.filterSpec,
+      sorts: view.sortSpec,
+      visibleFields: view.visibleFields,
+      page,
+      pageSize,
+    });
+    return { ...result, viewId: view.id, viewName: view.name };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+/**
+ * CSV 导入预览（r7）：只解析不落库。
+ * 返回表头、数据行总数、前 5 行原始预览与**错误行清单（行号 + 原因）**。
+ * 整表级错误（CSV 为空 / 缺表头 / 未知列 / 列重复）→ 400。
+ */
+app.post("/api/tables/:id/import.csv/preview", async (req, reply) => {
+  try {
+    const tableId = parseId((req.params as { id: string }).id);
+    const store = requireDb();
+    if (store.getTable(tableId) === null) {
+      return reply.code(404).send({ error: `表格不存在：${tableId}` });
+    }
+    const payload = normalizeCsvImportPayload(req.body);
+    const plan = planCsvImport(store.listFields(tableId), payload.headers, payload.rows);
+    return {
+      headers: plan.headers,
+      total: plan.total,
+      preview: plan.preview,
+      errors: plan.errors,
+      importable: shouldCommitImport(plan),
+    };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+/**
+ * CSV 导入提交（r7，零半态）：
+ * 逐行走 shared `normalizeRecordData`；**任一行非法 → 一行都不落库**（422 + 错误行清单）；
+ * 全部合法 → 整个批次在一个事务里落库（201）。绝不出现「一半成功」的半态。
+ */
+app.post("/api/tables/:id/import.csv", async (req, reply) => {
+  try {
+    const tableId = parseId((req.params as { id: string }).id);
+    const store = requireDb();
+    if (store.getTable(tableId) === null) {
+      return reply.code(404).send({ error: `表格不存在：${tableId}` });
+    }
+    const payload = normalizeCsvImportPayload(req.body);
+    const plan = planCsvImport(store.listFields(tableId), payload.headers, payload.rows);
+    if (!shouldCommitImport(plan)) {
+      return reply.code(422).send({
+        error: `CSV 有 ${plan.errors.length} 行不合法，未导入任何行（零半态）`,
+        imported: 0,
+        total: plan.total,
+        errors: plan.errors,
+      });
+    }
+    const created = store.importRecords(tableId, plan.rows);
+    return reply.code(201).send({ imported: created.length, total: plan.total, records: created });
   } catch (err) {
     return toErrorReply(err, reply);
   }

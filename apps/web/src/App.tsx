@@ -95,7 +95,7 @@ export default function App() {
       return {
         phase: "ready",
         settings: [{ key: "company.name", value: "协流示例公司", updatedAt: now.toISOString() }],
-        schemaVersion: 5,
+        schemaVersion: 6,
         todaySchedules: workbenchTodaySeed(now),
         todos: [],
       };
@@ -180,7 +180,7 @@ export default function App() {
             表格
           </button>
         </nav>
-        <span className="badge">r6 · 多维表格字段引擎</span>
+        <span className="badge">r7 · 视图持久化与 CSV 导入</span>
       </header>
 
       {tab === "todos" ? (

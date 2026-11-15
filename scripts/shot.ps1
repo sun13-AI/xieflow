@@ -5,6 +5,7 @@
 #   powershell -File scripts\shot.ps1 shots -Round r4 # capture r4 project/board states
 #   powershell -File scripts\shot.ps1 shots -Round r5 # capture r5 board stats + CSV export states
 #   powershell -File scripts\shot.ps1 shots -Round r6 # capture r6 bases grid states
+#   powershell -File scripts\shot.ps1 shots -Round r7 # capture r7 views + CSV import states
 #   powershell -File scripts\shot.ps1 down            # stop servers
 #   powershell -File scripts\shot.ps1 status          # show port status
 #   powershell -File scripts\shot.ps1 all             # up + shots + down
@@ -21,7 +22,7 @@ param(
   [Parameter(Position = 0)]
   [ValidateSet("up", "shots", "down", "status", "all")]
   [string]$Action = "status",
-  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6")]
+  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7")]
   [string]$Round = "r1"
 )
 
@@ -335,6 +336,76 @@ function Invoke-Shots {
     }
   }
 
+  # r7: seed ONE real table with the 8 default fields, 3 real records, 4 SAVED
+  # views (multi-condition AND / hidden columns / sorted / imported-only) and a
+  # REAL CSV import over HTTP (the imported row count is read back from the api
+  # response and injected into the success shot's URL). All Chinese is written
+  # as \uXXXX escapes so this script stays pure ASCII (PS 5.1 UTF-8 trap).
+  # CSV headers use numeric field ids (mapCsvHeadersToFields supports them), so
+  # no Chinese column names are needed in the script either.
+  $r7TableId = $null
+  $r7ViewEditId = $null
+  $r7ViewHiddenId = $null
+  $r7ViewImportedId = $null
+  $r7ImportedCount = 0
+  if ($Round -eq "r7") {
+    try {
+      $tableBody7 = [System.Text.Encoding]::UTF8.GetBytes(
+        '{"name":"r7 \u89c6\u56fe\u4e0e\u5bfc\u5165","description":"seeded for r7 view and import shots"}'
+      )
+      $table7 = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/tables" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body $tableBody7
+      $f7 = (Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/tables/$($table7.id)/fields" -Method Get).fields | Sort-Object position
+      $fName7 = $f7[0].id
+      $fStatus7 = $f7[1].id
+      $fOwner7 = $f7[2].id
+      $fAmount7 = $f7[3].id
+      $fDue7 = $f7[4].id
+      $fTag7 = $f7[5].id
+      $fDone7 = $f7[6].id
+      $fLink7 = $f7[7].id
+      $row7A = '{"data":{"' + $fName7 + '":"\u91cf\u623f","' + $fStatus7 + '":"\u5df2\u5b8c\u6210","' + $fOwner7 + '":"\u5c0f\u534f","' + $fAmount7 + '":1200,"' + $fDue7 + '":"2026-11-20","' + $fTag7 + '":["\u91cd\u8981"],"' + $fDone7 + '":true,"' + $fLink7 + '":"https://example.com/measure"}}'
+      $row7B = '{"data":{"' + $fName7 + '":"\u9009\u74f7\u7816","' + $fStatus7 + '":"\u8fdb\u884c\u4e2d","' + $fOwner7 + '":"\u5c0f\u6d41","' + $fAmount7 + '":300,"' + $fDue7 + '":"2026-12-01","' + $fTag7 + '":["\u91cd\u8981","\u7d27\u6025"],"' + $fDone7 + '":false,"' + $fLink7 + '":"https://example.com/tiles"}}'
+      $row7C = '{"data":{"' + $fName7 + '":"\u5b9a\u9884\u7b97","' + $fStatus7 + '":"\u672a\u5f00\u59cb","' + $fOwner7 + '":"\u5c0f\u534f","' + $fAmount7 + '":9000,"' + $fDue7 + '":null,"' + $fTag7 + '":[],"' + $fDone7 + '":false,"' + $fLink7 + '":null}}'
+      foreach ($r7row in @($row7A, $row7B, $row7C)) {
+        Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/tables/$($table7.id)/records" -Method Post `
+          -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes($r7row)) | Out-Null
+      }
+      # view 1 (edit-panel shot): status=in-progress, sort amount desc, 4 visible cols
+      $view7A = '{"name":"\u8fdb\u884c\u4e2d\u4e8b\u9879","filterSpec":[{"fieldId":' + $fStatus7 + ',"value":"\u8fdb\u884c\u4e2d"}],"sortSpec":[{"fieldId":' + $fAmount7 + ',"direction":"desc"}],"visibleFields":[' + $fName7 + ',' + $fStatus7 + ',' + $fOwner7 + ',' + $fAmount7 + ']}'
+      $vEdit7 = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/tables/$($table7.id)/views" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes($view7A))
+      # view 2 (hidden-columns shot): only 4 of 8 columns survive the projection
+      $view7B = '{"name":"\u5df2\u5b8c\u6210 \u00b7 \u7cbe\u7b80","filterSpec":[{"fieldId":' + $fStatus7 + ',"value":"\u5df2\u5b8c\u6210"}],"sortSpec":[{"fieldId":' + $fAmount7 + ',"direction":"asc"}],"visibleFields":[' + $fName7 + ',' + $fStatus7 + ',' + $fAmount7 + ',' + $fDone7 + ']}'
+      $vHidden7 = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/tables/$($table7.id)/views" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes($view7B))
+      # view 3: no filter, amount desc (a third chip in the switcher)
+      $view7C = '{"name":"\u5168\u90e8\u91d1\u989d\u964d\u5e8f","filterSpec":[],"sortSpec":[{"fieldId":' + $fAmount7 + ',"direction":"desc"}],"visibleFields":[]}'
+      Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/tables/$($table7.id)/views" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes($view7C)) | Out-Null
+      # REAL CSV import: 3 rows, headers are numeric field ids, newlines are \n JSON escapes
+      $csvHeader7 = ($f7 | ForEach-Object { $_.id }) -join ','
+      $csvRow7A = 'CSV A,\u5df2\u5b8c\u6210,CSV \u5bfc\u5165,7701,2026-12-01,\u91cd\u8981,true,https://example.com/import-a'
+      $csvRow7B = 'CSV B,\u8fdb\u884c\u4e2d,CSV \u5bfc\u5165,7702,2026-12-02,\u7d27\u6025,false,https://example.com/import-b'
+      $csvRow7C = 'CSV C,\u672a\u5f00\u59cb,CSV \u5bfc\u5165,7703,2026-12-03,,false,'
+      $csvBody7 = '{"csv":"' + $csvHeader7 + '\n' + $csvRow7A + '\n' + $csvRow7B + '\n' + $csvRow7C + '"}'
+      $importRes7 = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/tables/$($table7.id)/import.csv" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes($csvBody7))
+      $r7ImportedCount = [int]$importRes7.imported
+      # view 4 (import-success shot): filter on the imported rows' owner column
+      $view7D = '{"name":"\u672c\u6b21\u5bfc\u5165","filterSpec":[{"fieldId":' + $fOwner7 + ',"value":"CSV \u5bfc\u5165"}],"sortSpec":[{"fieldId":' + $fAmount7 + ',"direction":"asc"}],"visibleFields":[' + $fName7 + ',' + $fOwner7 + ',' + $fAmount7 + ',' + $fStatus7 + ']}'
+      $vImported7 = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/tables/$($table7.id)/views" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes($view7D))
+      $r7TableId = $table7.id
+      $r7ViewEditId = $vEdit7.id
+      $r7ViewHiddenId = $vHidden7.id
+      $r7ViewImportedId = $vImported7.id
+      Write-Output "seeded r7 table id=$($table7.id) with 4 views; real CSV imported $r7ImportedCount rows; editor view=$($vEdit7.id) hidden view=$($vHidden7.id) imported view=$($vImported7.id)"
+    } catch {
+      Write-Output "warn: r7 seed failed ($($_.Exception.Message)) - live shots may show empty table"
+    }
+  }
+
   if ($Round -eq "r6") {
     # r6: seed a multi-dim table with the seven field types and three records so
     # the grid view, the field panel and the filtered/sorted view all show REAL
@@ -391,7 +462,32 @@ function Invoke-Shots {
     }
   }
 
-  if ($Round -eq "r6") {
+  if ($Round -eq "r7") {
+    # r7: view switcher / view editor / hidden columns / CSV import states.
+    # 01 = view switcher with 4 saved views (REAL api views, all-records active);
+    # 02 = view editor panel (?editView=<id> opens the panel with REAL saved spec);
+    # 03 = hidden-columns grid (?viewId=<id> -> real /api/views/:id/records projection);
+    # 04 = import preview dialog (?shot=bases-import-preview -> REAL preview api call, 5 rows);
+    # 05 = import error rows (?shot=bases-import-errors -> REAL api returns row 2/3 errors);
+    # 06 = import success (?viewId=<imported view>&imported=<REAL response count> -> banner + rows);
+    # 07 = narrow view (488x900, ?narrow=1 seam);
+    # 08 = cell editor with FIXED column widths (r6 U2-1 fix evidence, pinned editor state);
+    # 09 = filter feedback (r6 U2-2 fix evidence: real "apply filter" handler -> success
+    #      banner with the real hit count + disabled direction dropdown hint).
+    $r7Base = "http://127.0.0.1:$WebPort/?page=bases"
+    if ($r7TableId) { $r7Base = $r7Base + "&tableId=$r7TableId" }
+    $shots = @(
+      @{ name = "01-views-switcher";      url = $r7Base; width = 1280; height = 800 },
+      @{ name = "02-view-editor";         url = ($r7Base + "&editView=$r7ViewEditId"); width = 1280; height = 800 },
+      @{ name = "03-hidden-columns";      url = ($r7Base + "&viewId=$r7ViewHiddenId"); width = 1280; height = 800 },
+      @{ name = "04-import-preview";      url = ($r7Base + "&shot=bases-import-preview"); width = 1280; height = 800 },
+      @{ name = "05-import-errors";       url = ($r7Base + "&shot=bases-import-errors"); width = 1280; height = 800 },
+      @{ name = "06-import-success";      url = ($r7Base + "&viewId=$r7ViewImportedId&imported=$r7ImportedCount"); width = 1280; height = 800 },
+      @{ name = "07-views-narrow";        url = ($r7Base + "&viewId=$r7ViewHiddenId&narrow=1"); width = 488; height = 900 },
+      @{ name = "08-cell-editor-fixed";   url = "http://127.0.0.1:$WebPort/?page=bases&shot=bases-edit"; width = 1280; height = 800 },
+      @{ name = "09-filter-feedback";     url = ($r7Base + "&filterFieldId=$fStatus7&filterValue=%E5%B7%B2%E5%AE%8C%E6%88%90&shot=bases-filter-feedback"); width = 1280; height = 800 }
+    )
+  } elseif ($Round -eq "r6") {
     # r6 bases page: grid view states.
     # 01 = live grid with all seven field types (real api data);
     # 02 = empty state (no table at all -> first-use guidance);
@@ -634,7 +730,18 @@ function Invoke-Shots {
   # seed todo, so repeat runs stay deterministic.
   # r5: delete both seeded projects (by id - the script stays ASCII) and the two
   # seeded todos.
-  if ($Round -eq "r6") {
+  if ($Round -eq "r7") {
+    # r7: delete the seeded table (views + records cascade) so repeat runs stay
+    # deterministic and the shell baseline still shows the first-use empty state.
+    try {
+      if ($r7TableId) {
+        Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/tables/$r7TableId" -Method Delete | Out-Null
+      }
+      Write-Output "cleaned seeded r7 table(s) and views"
+    } catch {
+      Write-Output "warn: r7 cleanup failed ($($_.Exception.Message))"
+    }
+  } elseif ($Round -eq "r6") {
     # r6: delete the seeded tables (fields + records cascade) so repeat runs stay
     # deterministic and the real db keeps no leftover rows.
     try {

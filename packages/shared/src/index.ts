@@ -321,7 +321,7 @@ export function assembleRangeSchedules(
 }
 
 /** 数据库 schema 版本号，每轮迁移必须 +1（宪法：禁止手改库文件） */
-export const SCHEMA_VERSION: number = 5;
+export const SCHEMA_VERSION: number = 6;
 
 
 /** 迁移脚本类型：user_version 从 from 升到 to */
@@ -1137,8 +1137,14 @@ export const MAX_PAGE_SIZE = 100;
 export interface RecordQuerySpec {
   filterFieldId?: number | null;
   filterValue?: unknown;
+  /** 多条件 AND 筛选（r7 视图口径）；与 filterFieldId 二选一，filters 优先 */
+  filters?: readonly ViewFilterCondition[];
   sortFieldId?: number | null;
   sortDirection?: "asc" | "desc";
+  /** 多级排序（r7 视图口径）；与 sortFieldId 二选一，sorts 优先 */
+  sorts?: readonly ViewSortRule[];
+  /** 投影：只保留这些字段 id（空数组 = 全部可见，不做投影） */
+  visibleFields?: readonly number[] | null;
   page?: number;
   pageSize?: number;
 }
@@ -1158,6 +1164,12 @@ export interface RecordQueryResult {
  * ② 筛选值先按字段类型归一再校验，不符 → 抛错（api 映射 400：筛选值类型不符）；
  * ③ 排序字段不存在 → 抛错；
  * ④ 分页：page 从 1 起，pageSize 上限 MAX_PAGE_SIZE；越界页返回空列表但 total 不变。
+ *
+ * r7 扩展（多字段 AND 筛选 + 视图投影，口径仍只在 shared 一处）：
+ * ⑤ `filters` 多条件是 **AND** 语义（任一条件不命中即淘汰）；单条件入口
+ *    （filterFieldId + filterValue）与多条件走**同一条**归一 + 校验 + 命中路径；
+ * ⑥ `sorts` 多级排序按规则顺序生效，**空值恒最后**（与升降序无关）；
+ * ⑦ `visibleFields` 非空时做投影：返回记录只保留这些字段 id 的键。
  */
 export function queryRecords(
   records: readonly TableRecord[],
@@ -1166,12 +1178,20 @@ export function queryRecords(
 ): RecordQueryResult {
   const byId = new Map(fields.map((f) => [f.id, f]));
   let list: TableRecord[] = [...records];
-  if (spec.filterFieldId !== undefined && spec.filterFieldId !== null) {
-    const field = byId.get(spec.filterFieldId);
+
+  // —— 筛选：单条件与多条件同一条路径（多条件 = AND）——
+  const conditions: ViewFilterCondition[] =
+    spec.filters && spec.filters.length > 0
+      ? [...spec.filters]
+      : spec.filterFieldId !== undefined && spec.filterFieldId !== null
+        ? [{ fieldId: spec.filterFieldId, value: spec.filterValue ?? null }]
+        : [];
+  for (const condition of conditions) {
+    const field = byId.get(condition.fieldId);
     if (!field) {
-      throw new ValidationError(`筛选字段不存在：${spec.filterFieldId}`);
+      throw new ValidationError(`筛选字段不存在：${condition.fieldId}`);
     }
-    const filterValue = coerceFieldValue(field.type, spec.filterValue ?? null, field.options);
+    const filterValue = coerceFieldValue(field.type, condition.value ?? null, field.options);
     const check = validateFieldValue(field.type, filterValue, field.options);
     if (!check.valid) {
       throw new ValidationError(`筛选值类型不符：${check.error ?? "取值非法"}`);
@@ -1180,13 +1200,48 @@ export function queryRecords(
       matchesFieldValue(field.type, r.data[String(field.id)], filterValue, field.options),
     );
   }
-  if (spec.sortFieldId !== undefined && spec.sortFieldId !== null) {
-    const field = byId.get(spec.sortFieldId);
-    if (!field) {
-      throw new ValidationError(`排序字段不存在：${spec.sortFieldId}`);
+
+  // —— 排序：多级规则按顺序生效；空值恒最后（升降序都一样）——
+  const rules: ViewSortRule[] =
+    spec.sorts && spec.sorts.length > 0
+      ? [...spec.sorts]
+      : spec.sortFieldId !== undefined && spec.sortFieldId !== null
+        ? [{ fieldId: spec.sortFieldId, direction: spec.sortDirection ?? "asc" }]
+        : [];
+  for (const rule of rules) {
+    if (!byId.has(rule.fieldId)) {
+      throw new ValidationError(`排序字段不存在：${rule.fieldId}`);
     }
-    list = sortRecordsByField(list, field, spec.sortDirection ?? "asc");
   }
+  if (rules.length > 0) {
+    list = [...list].sort((a, b) => {
+      for (const rule of rules) {
+        const field = byId.get(rule.fieldId)!;
+        const va = a.data[String(field.id)];
+        const vb = b.data[String(field.id)];
+        const aEmpty = isEmptyFieldValue(va);
+        const bEmpty = isEmptyFieldValue(vb);
+        if (aEmpty || bEmpty) {
+          if (aEmpty && bEmpty) continue;
+          return aEmpty ? 1 : -1;
+        }
+        const cmp = compareValues(field.type, va, vb, field.options);
+        if (cmp !== 0) return rule.direction === "desc" ? -cmp : cmp;
+      }
+      return a.position - b.position || a.id - b.id;
+    });
+  }
+
+  // —— 投影：只保留可见字段（空数组 = 全部可见，不投影）——
+  const visible = spec.visibleFields;
+  if (visible && visible.length > 0) {
+    const keep = new Set(visible.map((v) => String(v)));
+    list = list.map((r) => ({
+      ...r,
+      data: Object.fromEntries(Object.entries(r.data).filter(([k]) => keep.has(k))),
+    }));
+  }
+
   const pageSize = Math.min(
     MAX_PAGE_SIZE,
     Math.max(1, Math.floor(spec.pageSize ?? DEFAULT_PAGE_SIZE)),
@@ -1244,4 +1299,399 @@ export function buildBoardCsvFileName(projectName: string, now: Date = new Date(
   const m = String(now.getMonth() + 1).padStart(2, "0");
   const d = String(now.getDate()).padStart(2, "0");
   return `xieflow-board-${sanitizeFileNamePart(projectName)}-${y}${m}${d}.csv`;
+}
+
+// ---- r7：视图（筛选 / 排序 / 字段可见性）+ CSV 导入（口径全部集中 shared，api 只装配） ----
+
+/** 视图名称上限 */
+export const MAX_VIEW_NAME = 100;
+
+/** 排序方向白名单（升 / 降） */
+export const SORT_DIRECTIONS = ["asc", "desc"] as const;
+export type SortDirection = (typeof SORT_DIRECTIONS)[number];
+
+export function assertValidSortDirection(direction: unknown): asserts direction is SortDirection {
+  if (direction !== "asc" && direction !== "desc") {
+    throw new ValidationError(`非法排序方向：${String(direction)}`);
+  }
+}
+
+export function assertValidViewName(name: unknown): asserts name is string {
+  if (typeof name !== "string" || name.trim() === "") {
+    throw new ValidationError("视图名称不能为空");
+  }
+  if (name.length > MAX_VIEW_NAME) {
+    throw new ValidationError(`视图名称过长：最多 ${MAX_VIEW_NAME} 字（当前 ${name.length} 字）`);
+  }
+}
+
+/** 视图筛选条件（一条 = 一个字段 + 一个值；多条之间是 AND） */
+export interface ViewFilterCondition {
+  fieldId: number;
+  value: unknown;
+}
+
+/** 视图排序规则（多条按顺序生效） */
+export interface ViewSortRule {
+  fieldId: number;
+  direction: SortDirection;
+}
+
+/** 视图（表的一个保存态：筛选 / 排序 / 字段可见性） */
+export interface TableView {
+  id: number;
+  tableId: number;
+  name: string;
+  filterSpec: ViewFilterCondition[];
+  sortSpec: ViewSortRule[];
+  visibleFields: number[];
+  position: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 视图 spec 入参（原始形状；归一后落库） */
+export interface ViewSpecInput {
+  filterSpec?: unknown;
+  sortSpec?: unknown;
+  visibleFields?: unknown;
+}
+
+/** 归一后的视图 spec（落库形态） */
+export interface NormalizedViewSpec {
+  filterSpec: ViewFilterCondition[];
+  sortSpec: ViewSortRule[];
+  visibleFields: number[];
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * 视图 spec 归一（r7 唯一口径，api / db / UI 共用）：
+ * ① 筛选条件：必须是数组；每条含合法 fieldId（必须存在于本表）+ 取值；
+ *    取值先按字段类型归一再校验（类型不符直接拒绝，不留坏 spec）；
+ *    同一字段不得重复（重复条件语义重复，直接拒绝）；
+ * ② 排序规则：必须是数组；fieldId 必须存在；direction 只能是 asc / desc；
+ *    同一字段不得重复；
+ * ③ 可见字段：必须是数组；每个 id 必须存在（去重后落库）；
+ *    **空数组 = 全部字段可见**（不投影），非空 = 只显示这些列。
+ */
+export function normalizeViewSpec(
+  fields: readonly TableField[],
+  input: ViewSpecInput,
+): NormalizedViewSpec {
+  const byId = new Map(fields.map((f) => [f.id, f]));
+
+  // —— 筛选条件 ——
+  const filterSpec: ViewFilterCondition[] = [];
+  const seenFilter = new Set<number>();
+  const rawFilter = input.filterSpec;
+  if (rawFilter !== undefined && rawFilter !== null) {
+    if (!Array.isArray(rawFilter)) throw new ValidationError("筛选条件必须是数组");
+    for (const item of rawFilter) {
+      if (!isPlainObject(item)) throw new ValidationError("筛选条件必须是对象");
+      const rawId = item["fieldId"];
+      const fieldId = Number(rawId);
+      if (!Number.isInteger(fieldId) || fieldId <= 0) {
+        throw new ValidationError(`筛选字段 id 非法：${String(rawId)}`);
+      }
+      const field = byId.get(fieldId);
+      if (!field) throw new ValidationError(`筛选字段不存在：${fieldId}`);
+      if (seenFilter.has(fieldId)) throw new ValidationError(`筛选字段重复：${fieldId}`);
+      seenFilter.add(fieldId);
+      const rawValue = item["value"];
+      if (rawValue === undefined) throw new ValidationError(`筛选条件缺少取值：${field.name}`);
+      const coerced = coerceFieldValue(field.type, rawValue, field.options);
+      const check = validateFieldValue(field.type, coerced, field.options);
+      if (!check.valid) {
+        throw new ValidationError(`筛选值类型不符：${field.name} ${check.error ?? "取值非法"}`);
+      }
+      filterSpec.push({ fieldId, value: coerced });
+    }
+  }
+
+  // —— 排序规则 ——
+  const sortSpec: ViewSortRule[] = [];
+  const seenSort = new Set<number>();
+  const rawSort = input.sortSpec;
+  if (rawSort !== undefined && rawSort !== null) {
+    if (!Array.isArray(rawSort)) throw new ValidationError("排序规则必须是数组");
+    for (const item of rawSort) {
+      if (!isPlainObject(item)) throw new ValidationError("排序规则必须是对象");
+      const rawId = item["fieldId"];
+      const fieldId = Number(rawId);
+      if (!Number.isInteger(fieldId) || fieldId <= 0) {
+        throw new ValidationError(`排序字段 id 非法：${String(rawId)}`);
+      }
+      if (!byId.has(fieldId)) throw new ValidationError(`排序字段不存在：${fieldId}`);
+      if (seenSort.has(fieldId)) throw new ValidationError(`排序字段重复：${fieldId}`);
+      seenSort.add(fieldId);
+      const rawDirection = item["direction"] ?? "asc";
+      assertValidSortDirection(rawDirection);
+      sortSpec.push({ fieldId, direction: rawDirection });
+    }
+  }
+
+  // —— 字段可见性（空数组 = 全部可见）——
+  const visibleFields: number[] = [];
+  const rawVisible = input.visibleFields;
+  if (rawVisible !== undefined && rawVisible !== null) {
+    if (!Array.isArray(rawVisible)) throw new ValidationError("可见字段必须是数组");
+    for (const item of rawVisible) {
+      const fieldId = Number(item);
+      if (!Number.isInteger(fieldId) || fieldId <= 0) {
+        throw new ValidationError(`可见字段 id 非法：${String(item)}`);
+      }
+      if (!byId.has(fieldId)) throw new ValidationError(`可见字段不存在：${fieldId}`);
+      if (!visibleFields.includes(fieldId)) visibleFields.push(fieldId);
+    }
+  }
+
+  return { filterSpec, sortSpec, visibleFields };
+}
+
+/** 视图 spec 的可读摘要（UI 视图条与提示文案共用同一口径） */
+export function describeViewSpec(
+  view: Pick<TableView, "filterSpec" | "sortSpec" | "visibleFields">,
+  fields: readonly TableField[],
+): string {
+  const byId = new Map(fields.map((f) => [f.id, f]));
+  const nameOf = (id: number): string => byId.get(id)?.name ?? `#${id}`;
+  const filters = view.filterSpec.map(
+    (c) => `${nameOf(c.fieldId)} = ${Array.isArray(c.value) ? c.value.join("、") : String(c.value ?? "")}`,
+  );
+  const sorts = view.sortSpec.map((r) => `${nameOf(r.fieldId)} ${r.direction === "desc" ? "降序" : "升序"}`);
+  const parts: string[] = [];
+  if (filters.length > 0) parts.push(`筛选 ${filters.join(" 且 ")}`);
+  if (sorts.length > 0) parts.push(`排序 ${sorts.join(" → ")}`);
+  if (view.visibleFields.length > 0) {
+    const hidden = fields.filter((f) => !view.visibleFields.includes(f.id)).map((f) => f.name);
+    if (hidden.length > 0) parts.push(`隐藏列 ${hidden.join("、")}`);
+  }
+  return parts.length > 0 ? parts.join(" · ") : "无筛选 / 无排序 / 全部列可见";
+}
+
+// ---- CSV 导入（r7：逐行归一 + 错误行清单 + 零半态） ----
+
+/** 导入预览展示的行数（UI 预览前 5 行） */
+export const CSV_IMPORT_PREVIEW_ROWS = 5;
+
+/** 单次导入的最大数据行数（防超大文件打爆内存） */
+export const CSV_IMPORT_MAX_ROWS = 1000;
+
+/** 导入错误行（行号 1 起，数据行；表头不计入，全空行不占号） */
+export interface CsvImportRowError {
+  row: number;
+  reason: string;
+  column: string | null;
+}
+
+/** 导入计划（预览与提交共用同一份口径） */
+export interface CsvImportPlan {
+  headers: string[];
+  /** 数据行总数（不含表头，不含全空行） */
+  total: number;
+  /** 前 5 行原始文本（UI 预览用） */
+  preview: string[][];
+  /** 全部合法行（已按字段类型归一） */
+  rows: Record<string, unknown>[];
+  /** 非法行清单（逐行带行号与原因） */
+  errors: CsvImportRowError[];
+}
+
+/**
+ * CSV 文本解析（RFC 4180）：引号内可含逗号 / 换行，双引号写成两个；
+ * CRLF / LF / CR 都算行分隔；UTF-8 BOM 自动剥掉。
+ */
+export function parseCsvText(text: string): string[][] {
+  const src = text.startsWith(CSV_UTF8_BOM) ? text.slice(CSV_UTF8_BOM.length) : text;
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = "";
+  let inQuotes = false;
+  let i = 0;
+  const pushCell = (): void => {
+    row.push(cell);
+    cell = "";
+  };
+  const pushRow = (): void => {
+    pushCell();
+    rows.push(row);
+    row = [];
+  };
+  while (i < src.length) {
+    const ch = src[i]!;
+    if (inQuotes) {
+      if (ch === '"') {
+        if (src[i + 1] === '"') {
+          cell += '"';
+          i += 2;
+          continue;
+        }
+        inQuotes = false;
+        i += 1;
+        continue;
+      }
+      cell += ch;
+      i += 1;
+      continue;
+    }
+    if (ch === '"') {
+      inQuotes = true;
+      i += 1;
+      continue;
+    }
+    if (ch === ",") {
+      pushCell();
+      i += 1;
+      continue;
+    }
+    if (ch === "\r") {
+      if (src[i + 1] === "\n") i += 1;
+      pushRow();
+      i += 1;
+      continue;
+    }
+    if (ch === "\n") {
+      pushRow();
+      i += 1;
+      continue;
+    }
+    cell += ch;
+    i += 1;
+  }
+  if (cell !== "" || row.length > 0) pushRow();
+  return rows;
+}
+
+/** 表头列 → 字段 id 的绑定 */
+export interface CsvHeaderBinding {
+  header: string;
+  fieldId: number;
+}
+
+/**
+ * 表头映射（列名优先匹配字段名，其次匹配字段 id 字符串）：
+ * 未知列 / 空列名 / 同一字段被两列占用 → 直接拒绝（这是**整表级**错误，不是行级）。
+ */
+export function mapCsvHeadersToFields(
+  fields: readonly TableField[],
+  headers: readonly string[],
+): CsvHeaderBinding[] {
+  const byName = new Map(fields.map((f) => [f.name, f.id]));
+  const byId = new Map(fields.map((f) => [String(f.id), f.id]));
+  const out: CsvHeaderBinding[] = [];
+  const used = new Set<number>();
+  for (const raw of headers) {
+    const header = raw.trim();
+    if (header === "") throw new ValidationError("表头存在空列名");
+    let fieldId = byName.get(header);
+    if (fieldId === undefined) fieldId = byId.get(header);
+    if (fieldId === undefined) throw new ValidationError(`未知列：${header}`);
+    if (used.has(fieldId)) throw new ValidationError(`列重复：${header}`);
+    used.add(fieldId);
+    out.push({ header, fieldId });
+  }
+  return out;
+}
+
+/**
+ * 导入计划（r7 唯一口径，preview 与 commit 共用）：
+ * ① 逐行走 shared `normalizeRecordData`（归一 + 校验）——与单条写入同一条路径；
+ * ② 非法行**不阻断**整批：错误行收集到 errors（带行号 + 中文原因），合法行进 rows；
+ * ③ 全空行跳过且不占行号；列数与表头不一致的行按非法行处理；
+ * ④ 没有任何数据行 → 抛错（整表级错误，api 映射 400）。
+ */
+export function planCsvImport(
+  fields: readonly TableField[],
+  headers: readonly string[],
+  rows: readonly string[][],
+): CsvImportPlan {
+  const bindings = mapCsvHeadersToFields(fields, headers);
+  const errors: CsvImportRowError[] = [];
+  const okRows: Record<string, unknown>[] = [];
+  const preview: string[][] = [];
+  let rowNo = 0;
+  for (const raw of rows) {
+    if (raw.every((c) => c.trim() === "")) continue; // 全空行：跳过且不占行号
+    rowNo += 1;
+    if (rowNo > CSV_IMPORT_MAX_ROWS) {
+      throw new ValidationError(`导入行数超过上限 ${CSV_IMPORT_MAX_ROWS}`);
+    }
+    if (preview.length < CSV_IMPORT_PREVIEW_ROWS) preview.push([...raw]);
+    if (raw.length !== headers.length) {
+      errors.push({
+        row: rowNo,
+        reason: `列数与表头不一致（表头 ${headers.length} 列，本行 ${raw.length} 列）`,
+        column: null,
+      });
+      continue;
+    }
+    const data: Record<string, unknown> = {};
+    for (let idx = 0; idx < bindings.length; idx += 1) {
+      const binding = bindings[idx]!;
+      data[String(binding.fieldId)] = raw[idx] ?? "";
+    }
+    try {
+      okRows.push(normalizeRecordData(fields, data));
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      const named = /字段「(.+?)」/.exec(message);
+      errors.push({ row: rowNo, reason: message, column: named?.[1] ?? null });
+    }
+  }
+  if (rowNo === 0) {
+    throw new ValidationError("CSV 只有表头，没有数据行");
+  }
+  return { headers: [...headers], total: rowNo, preview, rows: okRows, errors };
+}
+
+/**
+ * 导入提交判定（零半态口径，集中在 shared）：
+ * **任一行非法 → 一行都不落库**（全成功或全不落，二选一，没有中间态）。
+ */
+export function shouldCommitImport(plan: CsvImportPlan): boolean {
+  return plan.errors.length === 0 && plan.rows.length > 0;
+}
+
+/** 导入请求体归一（{ csv } 或 { headers, rows } 两种形态） */
+export interface CsvImportPayload {
+  headers: string[];
+  rows: string[][];
+}
+
+export function normalizeCsvImportPayload(raw: unknown): CsvImportPayload {
+  if (!isPlainObject(raw)) {
+    throw new ValidationError("导入体必须是对象");
+  }
+  const csv = raw["csv"];
+  if (typeof csv === "string") {
+    const parsed = parseCsvText(csv);
+    if (parsed.length === 0) throw new ValidationError("CSV 内容为空");
+    const headers = (parsed[0] ?? []).map((h) => h.trim());
+    if (headers.length === 0 || headers.every((h) => h === "")) {
+      throw new ValidationError("CSV 缺少表头行");
+    }
+    return { headers, rows: parsed.slice(1) };
+  }
+  const headersRaw = raw["headers"];
+  const rowsRaw = raw["rows"];
+  if (Array.isArray(headersRaw) && Array.isArray(rowsRaw)) {
+    const headers = headersRaw.map((h) => {
+      if (typeof h !== "string") throw new ValidationError("表头必须是字符串数组");
+      return h.trim();
+    });
+    const rows = rowsRaw.map((r) => {
+      if (!Array.isArray(r)) throw new ValidationError("rows 必须是二维字符串数组");
+      return r.map((c) => {
+        if (typeof c !== "string") throw new ValidationError("rows 必须是二维字符串数组");
+        return c;
+      });
+    });
+    if (headers.length === 0) throw new ValidationError("CSV 缺少表头行");
+    return { headers, rows };
+  }
+  throw new ValidationError('导入体必须是 { csv: "..." } 或 { headers: [...], rows: [...] }');
 }
