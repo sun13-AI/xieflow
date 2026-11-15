@@ -12,7 +12,7 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | 轮 | 任务 | 状态 | 版本 | 断言规模 | VERDICT |
 |----|------|------|------|----------|---------|
 | r1 | M0 仓库骨架 | ✅已发版（本地 tag；push 待配 remote） | v0.0.1 | e2e 42 | 通过 |
-| r2 | M1 第 1 片：待办 CRUD UI + 四象限 | 🔨研发完成（9f90120），复验中 | — | e2e 66 · audit 51 | 待 waizhuan + ui-reviewer |
+| r2 | M1 第 1 片：待办 CRUD UI + 四象限 | ✅已发版（初验双打回→返工#1→双 VERDICT 通过） | v0.0.3 | e2e 69 · audit 52 | 通过（waizhuan）+ UI 通过（观察员） |
 
 附加交付（r2 内 lead 直做，已入库 8e4fb9b）：
 - 一键启动：start.cmd 双击 / scripts\start.ps1 start|stop|status（三轮全链路验证；期间排掉「僵尸 api 抢 8787」环境坑，非脚本缺陷）

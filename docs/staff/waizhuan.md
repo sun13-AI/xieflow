@@ -15,6 +15,8 @@
 | 轮次 | 日期 | 任务 | 复验方式 | 发现问题 | 裁决 |
 |---|---|---|---|---|---|
 | r1 | 2026-11-15 | M0 仓库骨架 | 两轮实跑 test:all（离线 41 / 在线 42 全绿）、探针真读库核验（last_health_check 每次刷新）、双端口收净复查、5 张图逐张目验、.gitignore 实测拦截 | P1 分离启动即退（tsx watch 无控制台，2/2 复现，`< NUL` 可修）/ P2 无 remote / P3 CI 分支 main≠master / P4 两条自洽占位断言 / P5 plan.md 未提交 | VERDICT: 通过（5 项问题均不打回，但 P1/P2 列为收尾硬前置） |
+| r2 | 2026-11-15 | M1 第 1 片 | test:all 实跑（117 断言全绿，与 README 逐字一致）；真实用户路径 HTTP 50 请求逐条记录（27×400 + 5×404 全拒，零静默成功）；持久化跨 api 重启 9 条全保住；真浏览器 headless 实测（弹窗空标题 inline alert、日期落库联动、CDP fill 失败经键盘复测排除非缺陷） | P1 shot.ps1 分离启动 3 冷启 1 存活（对照实验非 watch 45s+ 存活）→ 定返工标准 3/3 / P2 发版 / P3 vite 代理 500 语义错位 / P4 tmp-single-copy.ts 残留 + shot 清单缺 06 / P5 标题无长度上限等 3 条 | VERDICT: 打回（P1 成立） |
+| r2 返工#1 复审 | 2026-11-15 | 返工项复核 | test:all 重跑 exit 0（69/52 与 README 逐字一致）；独立 down→up 3/3 全过（http-verified）；杀 api 实测语义化文案；shots -Round r2 10 张全出含 06 且跑后库空；curl 真发 201 字→400 / 200 字→201 | 记账：ui 复审报告待入库、.gitignore 重复 release/ | VERDICT: 通过 |
 
 ## 绩效纪要
 
