@@ -9,6 +9,12 @@
 - 截图矩阵：docs/ui/r5/ 共 8 张 + 1 份落盘 CSV（统计卡有数据 / 空项目统计 / 导出按钮态 / CSV 落盘内容 / 窄屏 / 建卡弹窗 / 加载态 / 错误态），逐张 read_image 目验 + SHA256 两两互异自查；壳基线 5 张自动重拍
 - 已知遗留：① 导出后 headless 浏览器不自行退出（触发文件下载）→ shot.ps1 改为「等 PNG 落盘 → 必要时杀浏览器树」的防挂死捕获 ② r4 目录看板图是 r5 之前形态（看板页以 r5 目录为准）③ 本轮无 schema 迁移（统计/导出复用 v4 三表）
 
+### 2026-11-15 · r5 看板统计与导出（M2 收官）
+- 首轮双通过：waizhuan **Excel COM 真开**验证（9 列不串列、BOM EF BB BF、含逗号/引号/换行同格）+ 统计口径逐字段手算吻合（分母 0 三档全记 0% 无 NaN）+ 移动联动即时变化；ui 阻断岗 U1=0（58 张哈希亲算、r3 假图零复发）
+- 关键工程细节：CSV 下载用 arrayBuffer 按字节落盘（fetch 文本解码会剥 BOM）；统计口径集中 shared computeBoardStats，零分母不除零
+- 发版：**v0.0.9 三平台全绿 + Release 资产核对通过（xieflow-v0.0.9.tar.gz 5.3MB）**
+- 遗留：U2-1 列级「完成率」与列名「已完成」语义冲突 → r6 必修；U2-2 导出文件名只含内部 id → r6 必修；P4×2 CSV 无项目名列/空列占位行 → r6 评估
+
 ### 2026-11-15 · r4 复验返工记录（M2 起步）
 - 初验双打回：waizhuan P1 **用户死路**（建项目零列、建卡静默无效——纯数据层交付漏了用户第一次用的完整链路）+ ui-reviewer U1 **壳变更 tab 激活三连漏**（r2/r3/r4 同类坑第三犯）
 - 返工 #1（yanfa-r4b，e64abd8）：createProject 自动三列（shared DEFAULT_BOARD_COLUMNS）+ 双守卫不静默 + **壳基线固化**（shot.ps1 Invoke-ShellBaseline，每轮自动拍五 tab 激活态——三连漏流程性归零）+ 项目切换深链 + 断言 e2e 217 / audit 233
@@ -44,7 +50,8 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r2 | M1 第 1 片：待办 CRUD UI + 四象限 | ✅已发版（初验双打回→返工#1→双 VERDICT 通过） | v0.0.5 | e2e 69 · audit 52 | 通过（waizhuan）+ UI 通过（观察员） |
 | r3 | M1 第 2 片：日程与待办双向联动 | ✅已发版（初验双打回→返工#1→复审：ui 放行→waizhuan P2 修复确认 + CI 两跳 v0.0.6/v0.0.7 全绿） | v0.0.7 | e2e 167 · audit 138 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r4 | M2 第 1 片：项目+看板数据层与最小 UI | ✅已发版（初验双打回→返工#1→双复审通过；壳基线机制固化） | v0.0.8 | e2e 217 · audit 233 | 通过（waizhuan）+ UI 通过（阻断岗） |
-| r5 | M2 第 2 片：看板统计与 Excel 导出（M2 收官） | 🔨研发中（yanfa 已交付，待 waizhuan + ui 复验） | — | e2e 288 · audit 313 | 待复验 |
+| r5 | M2 第 2 片：看板统计与 Excel/CSV 导出（M2 收官） | ✅已发版（首轮双通过；Excel COM 真开验证） | v0.0.9 | e2e 288 · audit 313 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r6 | M3 第 1 片：多维表格字段引擎 + 网格视图 | 🔨研发中 | — | — | — |
 
 附加交付（r2 内 lead 直做，已入库 8e4fb9b）：
 - 一键启动：start.cmd 双击 / scripts\start.ps1 start|stop|status（三轮全链路验证；期间排掉「僵尸 api 抢 8787」环境坑，非脚本缺陷）
