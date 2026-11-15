@@ -30,6 +30,7 @@ import {
   computeRepeatInstances,
   assembleRangeSchedules,
   reorderPositions,
+  DEFAULT_BOARD_COLUMNS,
   assertValidScheduleTitle,
   assertValidScheduleDate,
   assertValidScheduleTime,
@@ -792,19 +793,44 @@ try {
       "cards.todo_id 外键拒绝不存在的待办（raw 直达 FK）",
     );
 
-    // 看板数据层闭环：建项目 → 建列 → 建卡 → 跨列移动 → 两侧 position 重排 → 删除级联
+    // 看板数据层闭环：建项目（自动带默认三列，r4 返工#1 A1）→ 落卡 → 跨列移动
+    // → 两侧 position 重排 → 删除级联
+    eq(
+      DEFAULT_BOARD_COLUMNS,
+      ["待办", "进行中", "已完成"],
+      "shared 默认列模板口径（服务层建列与 UI 文案同一来源）",
+    );
     const proj = v4Open.db.createProject("装修项目", "新家装修全流程");
     ok(proj.id > 0, "createProject 返回自增 id");
     eq(proj.name, "装修项目", "项目 name 读回");
     eq(proj.description, "新家装修全流程", "项目 description 读回");
-    const col1 = v4Open.db.createBoardColumn(proj.id, "待办", 0);
-    const col2 = v4Open.db.createBoardColumn(proj.id, "进行中", 1);
-    eq(col1.projectId, proj.id, "列 projectId 读回");
-    eq(col2.position, 1, "列 position 读回");
-    // 列 position 冲突：同项目内唯一 → 落库前守卫
+    // r4 返工#1 A1：createProject 自动创建默认三列（消灭「建项目 → 看板零列」用户死路）
+    const defaultCols = v4Open.db.listBoardColumns(proj.id);
+    eq(
+      defaultCols.map((c) => [c.name, c.position]),
+      [
+        ["待办", 0],
+        ["进行中", 1],
+        ["已完成", 2],
+      ],
+      "createProject 自动创建默认三列（待办/进行中/已完成 @ position 0/1/2 连续）",
+    );
+    ok(
+      defaultCols.every((c) => c.projectId === proj.id),
+      "默认三列都归属新项目（projectId 一致）",
+    );
+    eq(defaultCols[0]!.projectId, proj.id, "默认列 projectId 读回");
+    eq(
+      v4Open.db.listBoardCards(defaultCols[0]!.id),
+      [],
+      "默认列初始零卡片（有列无卡：与死路形态相反）",
+    );
+    const col1 = defaultCols[0]!;
+    const col2 = defaultCols[1]!;
+    // position 冲突守卫仍生效：默认列已占 0/1/2，再占 1 位被拒
     throws(
       () => v4Open.db.createBoardColumn(proj.id, "重复位置列", 1),
-      "createBoardColumn position 冲突抛错（服务层守卫）",
+      "createBoardColumn position 冲突抛错（服务层守卫，默认列占用后仍拦截）",
     );
     const todoForCard = v4Open.db.createTodo("选瓷砖", "q2", null);
     const card1 = v4Open.db.createBoardCard(proj.id, col1.id, "量房", null, 0);
@@ -838,9 +864,14 @@ try {
       ],
       "移动后目标列重排：原卡让位、新卡落位（position 连续 0..1）",
     );
-    // 跨项目移动拒绝（真实守卫，不是 SQL FK 拦截）
+    // 跨项目移动拒绝（真实守卫，不是 SQL FK 拦截）；「别的列」缺省 position 落默认三列之后（列尾=3）
     const proj2 = v4Open.db.createProject("第二个项目", null);
-    const proj2col = v4Open.db.createBoardColumn(proj2.id, "别的列", 0);
+    eq(
+      v4Open.db.listBoardColumns(proj2.id).length,
+      3,
+      "第二个项目同样自带默认三列（createProject 默认建列不分支）",
+    );
+    const proj2col = v4Open.db.createBoardColumn(proj2.id, "别的列");
     throws(
       () => v4Open.db.moveBoardCard(card1.id, proj2col.id, 0),
       "moveBoardCard 跨项目移动抛错（服务层守卫）",

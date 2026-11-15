@@ -122,7 +122,7 @@ export default function ProjectsPage({ onOpenBoard }: { onOpenBoard?: () => void
 
       {projects.length === 0 ? (
         <section className="card" data-state="project-empty">
-          <p className="empty">还没有任何项目——点「新建项目」创建第一个，项目会自带「待办 / 进行中 / 已完成」三列看板。</p>
+          <p className="empty">还没有任何项目——点「新建项目」创建第一个，新建项目会自动带上「待办 / 进行中 / 已完成」三列看板。</p>
         </section>
       ) : (
         <div className="project-grid" data-state="project-list">
@@ -192,7 +192,7 @@ export default function ProjectsPage({ onOpenBoard }: { onOpenBoard?: () => void
       )}
 
       <p className="hint seam-note">
-        看板规则：每个项目自带「待办 / 进行中 / 已完成」三列；卡片可跨列移动，列内顺序自动重排。
+        看板规则：新建项目自动带上「待办 / 进行中 / 已完成」三列；卡片可跨列移动，列内顺序自动重排。
       </p>
     </div>
   );

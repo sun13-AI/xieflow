@@ -2,10 +2,18 @@
 # Usage:
 #   powershell -File scripts\shot.ps1 up              # start api + web dev servers
 #   powershell -File scripts\shot.ps1 shots           # capture current round states
-#   powershell -File scripts\shot.ps1 shots -Round r2 # capture r2 todo-page states
+#   powershell -File scripts\shot.ps1 shots -Round r4 # capture r4 project/board states
 #   powershell -File scripts\shot.ps1 down            # stop servers
 #   powershell -File scripts\shot.ps1 status          # show port status
 #   powershell -File scripts\shot.ps1 all             # up + shots + down
+#
+# SHELL BASELINE (rework#1 B, ui-reviewer U1-1 3-round lesson): any -Round r4+ run
+# of `shots` ALSO captures the five-tab shell active states (workbench / todos /
+# schedules / projects / board) into docs\ui\shell\. The shell is a render-layer
+# change whenever its tabs change; the inherited pages' active states must have
+# evidence in the SAME round, automatically. Rule: whenever you add or rename a
+# tab (shell change), the five active states are re-shot by this block - no
+# manual checklist needed. Keep the list in sync with App.tsx PageTab.
 param(
   [Parameter(Position = 0)]
   [ValidateSet("up", "shots", "down", "status", "all")]
@@ -95,6 +103,43 @@ function Find-Browser {
   return $browser
 }
 
+# SHELL BASELINE: five-tab shell active states (rework#1 B). Fired automatically on
+# every r4+ shots run so a shell change can never leave inherited pages without
+# evidence again (r2/r3/r4 three-round U1-1 lesson). Landing dir: docs\ui\shell\.
+function Invoke-ShellBaseline {
+  param([string]$BrowserPath)
+  $shellDir = Join-Path $Root "docs\ui\shell"
+  New-Item -ItemType Directory -Force -Path $shellDir | Out-Null
+  # keep in sync with App.tsx PageTab: url param ?page= value -> file prefix
+  $tabs = @(
+    @{ page = "";          file = "workbench-tab-active" },
+    @{ page = "todos";     file = "todos-tab-active" },
+    @{ page = "schedules"; file = "schedules-tab-active" },
+    @{ page = "projects";  file = "projects-tab-active" },
+    @{ page = "board";     file = "board-tab-active" }
+  )
+  foreach ($t in $tabs) {
+    $url = "http://127.0.0.1:$WebPort/"
+    if ($t.page -ne "") { $url = $url + "?page=" + $t.page }
+    $out = Join-Path $shellDir ($t.file + ".png")
+    $args = @(
+      "--headless=new", "--disable-gpu", "--hide-scrollbars",
+      "--force-device-scale-factor=1",
+      "--screenshot=$out", "--window-size=1280,800",
+      "--virtual-time-budget=6000", $url
+    )
+    $proc = Start-Process -FilePath $BrowserPath -ArgumentList $args -Wait -PassThru -WindowStyle Hidden
+    if ($proc.ExitCode -ne 0) { Write-Output "warn: shell $($t.file) exit=$($proc.ExitCode)" }
+    if (Test-Path $out) {
+      $kb = [math]::Round((Get-Item $out).Length / 1KB)
+      Write-Output "shell baseline ok: $($t.file).png ($kb KB)"
+    } else {
+      throw "shell baseline failed: $out"
+    }
+  }
+  Write-Output "shell baseline done -> $shellDir"
+}
+
 function Invoke-Shots {
   if (-not (Test-Port $ApiPort) -or -not (Test-Port $WebPort)) {
     throw "servers not ready, run: powershell -File scripts\shot.ps1 up"
@@ -165,8 +210,11 @@ function Invoke-Shots {
   }
 
   # r4: live board shots follow the r3 lesson (06 == 10 byte-identical): seed a
-  # project + 3 columns + cards FIRST, capture 04 (before state), then do a REAL
-  # cross-column move via PATCH /api/cards/:id/move, then capture 05 (after state).
+  # project FIRST, capture 04 (before state), then do a REAL cross-column move via
+  # PATCH /api/cards/:id/move, then capture 05 (after state).
+  # rework#1 (A): POST /api/projects now auto-creates the three default columns
+  # (ToDo/Doing/Done template = todo/doing/done), so the seed consumes THAT real
+  # user path - no explicit column POSTs anymore (the r4-verify P1 dead-end path).
   # The move leaves a real before/after trace; hashes must differ. All ASCII.
   $r4CardToMoveId = $null
   $r4TargetColumnId = $null
@@ -177,11 +225,17 @@ function Invoke-Shots {
       )
       $proj4 = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/projects" -Method Post `
         -ContentType "application/json; charset=utf-8" -Body $projBody4
-      $colTodo4 = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/projects/$($proj4.id)/columns" -Method Post `
-        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes('{"name":"To Do"}'))
-      $colDoing4 = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/projects/$($proj4.id)/columns" -Method Post `
-        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes('{"name":"Doing"}'))
-      Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/projects/$($proj4.id)/columns" -Method Post `
+      # rework#1: default columns come with the project (0=To Do,1=Doing,2=Done).
+      # Rename via PATCH keeps them the real auto-created columns.
+      $dfltCols = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/projects/$($proj4.id)/columns" -Method Get
+      $colTodo4 = $dfltCols.columns | Where-Object { $_.position -eq 0 } | Select-Object -First 1
+      $colDoing4 = $dfltCols.columns | Where-Object { $_.position -eq 1 } | Select-Object -First 1
+      Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/board-columns/$($colTodo4.id)" -Method Patch `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes('{"name":"To Do"}')) | Out-Null
+      Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/board-columns/$($colDoing4.id)" -Method Patch `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes('{"name":"Doing"}')) | Out-Null
+      $colDone4 = $dfltCols.columns | Where-Object { $_.position -eq 2 } | Select-Object -First 1
+      Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/board-columns/$($colDone4.id)" -Method Patch `
         -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes('{"name":"Done"}')) | Out-Null
       $seedTodo4 = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/todos" -Method Post `
         -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes('{"title":"r4 badge seed todo","quadrant":"q2"}'))
@@ -193,9 +247,12 @@ function Invoke-Shots {
         -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes(('{"title":"r4 card C tiles","todoId":' + $seedTodo4.id + '}'))) | Out-Null
       Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/projects/$($proj4.id)/columns/$($colDoing4.id)/cards" -Method Post `
         -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes('{"title":"r4 card D budget"}')) | Out-Null
+      # second project exists only to prove the D rework: project switch dropdown
+      Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/projects" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes('{"name":"r4 switch target project"}')) | Out-Null
       $r4CardToMoveId = $c1.id
       $r4TargetColumnId = $colDoing4.id
-      Write-Output "seeded r4 project id=$($proj4.id) card-to-move=$($c1.id) target-column=$($colDoing4.id)"
+      Write-Output "seeded r4 project id=$($proj4.id) with default columns + 1 switch-target; card-to-move=$($c1.id) target-column=$($colDoing4.id)"
     } catch {
       Write-Output "warn: r4 seed failed ($($_.Exception.Message)) - live shots may show empty board"
     }
@@ -205,6 +262,13 @@ function Invoke-Shots {
     # r4 projects/board pages: pinned states via ?page=projects|board&shot=*- seams.
     # 04 = live board BEFORE the move; 05 = AFTER (real PATCH between the two).
     # 06 = new-card modal; 07 = narrow board (488px, 1-col); 08 = projects tab live.
+    # rework#1 additions: 09/10 = projects loading/error (U1-2); 11/12 = board
+    # loading/error (U1-2); 13 = board tab direct entry (no project context);
+    # 14 = new-card modal no-column warning (A2 defensive, pinned); 15 = board
+    # no-columns alert banner (A2 defensive); 16 = A3 empty-state copy re-shot.
+    # 17/18/19 = REWORK PROOF batch (created AFTER the main batch by the live
+    # probe): real user path create-project -> board -> move, captured in
+    # scripts\shot-rework.ps1 (this array keeps the reproducible matrix).
     $shots = @(
       @{ name = "01-project-empty";     url = "http://127.0.0.1:$WebPort/?page=projects&shot=project-empty"; width = 1280; height = 800 },
       @{ name = "02-project-list";      url = "http://127.0.0.1:$WebPort/?page=projects&shot=project-data";  width = 1280; height = 800 },
@@ -213,7 +277,15 @@ function Invoke-Shots {
       @{ name = "05-board-moved";       url = "http://127.0.0.1:$WebPort/?page=board"; width = 1280; height = 800 },
       @{ name = "06-board-modal";       url = "http://127.0.0.1:$WebPort/?page=board&shot=board-modal"; width = 1280; height = 800 },
       @{ name = "07-board-narrow";      url = "http://127.0.0.1:$WebPort/?page=board&shot=board-narrow&narrow=1"; width = 488; height = 900 },
-      @{ name = "08-projects-tab-live"; url = "http://127.0.0.1:$WebPort/?page=projects"; width = 1280; height = 800 }
+      @{ name = "08-projects-tab-live"; url = "http://127.0.0.1:$WebPort/?page=projects"; width = 1280; height = 800 },
+      @{ name = "09-projects-loading";  url = "http://127.0.0.1:$WebPort/?page=projects&shot=project-loading"; width = 1280; height = 800 },
+      @{ name = "10-projects-error";    url = "http://127.0.0.1:$WebPort/?page=projects&shot=project-error"; width = 1280; height = 800 },
+      @{ name = "11-board-loading";     url = "http://127.0.0.1:$WebPort/?page=board&shot=board-loading"; width = 1280; height = 800 },
+      @{ name = "12-board-error";       url = "http://127.0.0.1:$WebPort/?page=board&shot=board-error"; width = 1280; height = 800 },
+      @{ name = "13-board-direct";      url = "http://127.0.0.1:$WebPort/?page=board"; width = 1280; height = 800 },
+      @{ name = "14-board-no-columns-modal"; url = "http://127.0.0.1:$WebPort/?page=board&shot=board-no-columns-modal"; width = 1280; height = 800 },
+      @{ name = "15-board-no-columns";  url = "http://127.0.0.1:$WebPort/?page=board&shot=board-no-columns"; width = 1280; height = 800 },
+      @{ name = "16-project-empty-rework"; url = "http://127.0.0.1:$WebPort/?page=projects&shot=project-empty"; width = 1280; height = 800 }
     )
   } elseif ($Round -eq "r3") {
     # r3 schedules page: pinned states via ?page=schedules&shot=schedule-* seams
@@ -322,7 +394,7 @@ function Invoke-Shots {
   if ($Round -eq "r4") {
     try {
       $projs = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/projects" -Method Get
-      $seededProjects = $projs.projects | Where-Object { $_.name -eq "r4 live shot project" }
+      $seededProjects = $projs.projects | Where-Object { $_.name -eq "r4 live shot project" -or $_.name -eq "r4 switch target project" }
       foreach ($p in $seededProjects) {
         Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/projects/$($p.id)" -Method Delete | Out-Null
       }
@@ -352,7 +424,7 @@ function Invoke-Shots {
 
 switch ($Action) {
   "up"     { Start-Servers }
-  "shots"  { Invoke-Shots }
+  "shots"  { Invoke-Shots; if ($Round -ne "r1" -and $Round -ne "r2" -and $Round -ne "r3") { Invoke-ShellBaseline -BrowserPath (Find-Browser) } }
   "down"   { Stop-Servers }
   "status" {
     $a = Test-Port $ApiPort; $w = Test-Port $WebPort
@@ -360,6 +432,9 @@ switch ($Action) {
   }
   "all"    {
     Start-Servers
-    try { Invoke-Shots } finally { Stop-Servers }
+    try {
+      Invoke-Shots
+      if ($Round -ne "r1" -and $Round -ne "r2" -and $Round -ne "r3") { Invoke-ShellBaseline -BrowserPath (Find-Browser) }
+    } finally { Stop-Servers }
   }
 }

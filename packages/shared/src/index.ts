@@ -367,6 +367,9 @@ export interface BoardCard {
 /** 项目/列/卡片名称统一上限（与待办/日程标题同一 MAX_TODO_TITLE=200 口径） */
 export const MAX_BOARD_NAME = 200;
 
+/** 默认看板列模板（r4 返工#1 A1）：createProject 自动按此建三列，api/UI/文档同一口径 */
+export const DEFAULT_BOARD_COLUMNS: readonly string[] = ["待办", "进行中", "已完成"];
+
 /**
  * 看板名称守卫（项目名 / 列名 / 卡片标题共用同一规则，api 只做 400 映射）。
  * 与 assertValidTodoTitle / assertValidScheduleTitle 同款：非空、≤200 字。

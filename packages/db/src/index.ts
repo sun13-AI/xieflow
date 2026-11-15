@@ -38,6 +38,7 @@ import {
   assertValidScheduleRepeat,
   assertValidBoardName,
   reorderPositions,
+  DEFAULT_BOARD_COLUMNS,
   LINK_SCHEDULE_DEFAULT_START,
   LINK_SCHEDULE_DEFAULT_END,
 } from "@xieflow/shared";
@@ -340,6 +341,11 @@ export class XieFlowDb {
 
   // ---- projects / board / cards（r4：项目与看板数据层） ----
 
+  /**
+   * 项目创建（r4 返工#1 A1）：自动创建默认三列「待办 / 进行中 / 已完成」（position 0/1/2）。
+   * 模板集中 shared DEFAULT_BOARD_COLUMNS——消灭「新建项目 → 看板零列零卡」用户死路，
+   * 与项目页/看板空态文案口径一致。先建项目、后逐列落库（列守卫与显式建列同源）。
+   */
   createProject(name: string, description: string | null = null): Project {
     // 先守卫、后落库（r2 收紧范式延续）：空名/超长名在 SQL 之前拦截
     assertValidBoardName(name);
@@ -350,7 +356,11 @@ export class XieFlowDb {
     );
     const row = this.db.get("SELECT * FROM projects WHERE id = ?", [res.lastInsertRowid]);
     if (!row) throw new Error("项目写入后读回失败");
-    return mapRowToProject(row);
+    const project = mapRowToProject(row);
+    for (const [i, colName] of DEFAULT_BOARD_COLUMNS.entries()) {
+      this.createBoardColumn(project.id, colName, i);
+    }
+    return project;
   }
 
   getProject(id: number): Project | null {

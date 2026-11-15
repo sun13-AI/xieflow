@@ -1,9 +1,19 @@
 // 协流 XieFlow — r4 看板页：三列看板 + 卡片 + 跨列移动按钮 + 关联待办状态徽标
 // 数据契约来自 @xieflow/shared；移动走 PATCH /api/cards/:id/move（重排规则集中
 // shared reorderPositions，服务层保证两侧列 position 连续，UI 只消费结果）。
+// r4 返工#1：D「打开看板」不再固定第一个项目——?projectId= 深链 + 项目切换下拉
+// （GET /api/projects 已有，数据层零改动）；A2 无列时「＋ 新建卡片」给出语义提示，
+// 不再静默 return；U3-1 页头文案与按钮渲染口径对齐（「→ 目标列」，无「←」）。
 // 截图钉态：?page=board&shot=board-* 让 headless 确定性捕获（真实状态都存在）。
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { MAX_BOARD_NAME, type BoardCard, type BoardColumn, type Project, type Todo } from "@xieflow/shared";
+import {
+  DEFAULT_BOARD_COLUMNS,
+  MAX_BOARD_NAME,
+  type BoardCard,
+  type BoardColumn,
+  type Project,
+  type Todo,
+} from "@xieflow/shared";
 import { SERVICE_DOWN_MESSAGE, fetchJsonOrThrow } from "./httpClient";
 
 const TODO_STATUS_BADGES: Record<Todo["status"], { label: string; cls: string }> = {
@@ -16,6 +26,7 @@ interface BoardLoadState {
   phase: "loading" | "error" | "ready";
   message?: string;
   project?: Project | null;
+  projects?: Project[];
   columns?: BoardColumn[];
   cards?: BoardCard[];
   todos?: Todo[];
@@ -23,19 +34,31 @@ interface BoardLoadState {
 
 interface BoardFetch {
   project: Project | null;
+  projects: Project[];
   columns: BoardColumn[];
   cards: BoardCard[];
   todos: Todo[];
 }
 
-/** 看板数据：第一个项目 + 全部列 + 全部卡 + 全量待办（徽标按 todoId 查状态） */
-async function fetchBoard(): Promise<BoardFetch> {
+/** URL ?projectId= 深链目标（存在且在项目列表内才生效，否则回落第一个项目） */
+function pickProject(projects: Project[], projectIdParam: string | null): Project | null {
+  if (projects.length === 0) return null;
+  const wanted = projectIdParam === null ? null : Number(projectIdParam);
+  if (wanted !== null && Number.isInteger(wanted)) {
+    const hit = projects.find((p) => p.id === wanted);
+    if (hit) return hit;
+  }
+  return projects[0]!;
+}
+
+/** 看板数据：项目列表 + 指定项目（默认第一个）的全部列卡 + 全量待办（徽标按 todoId 查状态） */
+async function fetchBoard(projectIdParam: string | null): Promise<BoardFetch> {
   const [projRes, todoRes] = await Promise.all([fetch("/api/projects"), fetch("/api/todos")]);
   const projData = (await fetchJsonOrThrow(projRes)) as { projects: Project[] };
   const todoData = (await fetchJsonOrThrow(todoRes)) as { todos: Todo[] };
-  const project = projData.projects.length > 0 ? projData.projects[0]! : null;
+  const project = pickProject(projData.projects, projectIdParam);
   if (project === null) {
-    return { project: null, columns: [], cards: [], todos: todoData.todos };
+    return { project: null, projects: projData.projects, columns: [], cards: [], todos: todoData.todos };
   }
   const colRes = await fetch(`/api/projects/${project.id}/columns`);
   const colData = (await fetchJsonOrThrow(colRes)) as { columns: BoardColumn[] };
@@ -46,7 +69,7 @@ async function fetchBoard(): Promise<BoardFetch> {
       return d.cards;
     }),
   );
-  return { project, columns: colData.columns, cards: cardLists.flat(), todos: todoData.todos };
+  return { project, projects: projData.projects, columns: colData.columns, cards: cardLists.flat(), todos: todoData.todos };
 }
 
 /** 钉态种子：与 audit-http 移动断言场景同构（三列、五卡、两徽标） */
@@ -68,7 +91,11 @@ function pinSeedBoard(now: Date): BoardFetch {
     { id: 4, projectId: 1, columnId: 2, title: "写 r4 看板复验材料", description: null, position: 0, todoId: 11, createdAt: iso, updatedAt: iso },
     { id: 5, projectId: 1, columnId: 3, title: "定预算", description: null, position: 0, todoId: null, createdAt: iso, updatedAt: iso },
   ];
-  return { project: { id: 1, name: "新家装修", description: "装修全流程跟踪", createdAt: iso, updatedAt: iso }, columns, cards, todos };
+  const projects: Project[] = [
+    { id: 1, name: "新家装修", description: "装修全流程跟踪", createdAt: iso, updatedAt: iso },
+    { id: 2, name: "Q4 产品发布", description: null, createdAt: iso, updatedAt: iso },
+  ];
+  return { project: projects[0]!, projects, columns, cards, todos };
 }
 
 /** 移动后钉态种子：与 board-data 相同数据源，但卡「量房」已移到「进行中」列首位 */
@@ -94,7 +121,8 @@ export default function BoardPage() {
 
   const load = useCallback(async (): Promise<void> => {
     try {
-      const data = await fetchBoard();
+      const projectIdParam = new URLSearchParams(window.location.search).get("projectId");
+      const data = await fetchBoard(projectIdParam);
       setState({ phase: "ready", ...data });
     } catch (err: unknown) {
       setState({ phase: "error", message: err instanceof Error ? err.message : String(err) });
@@ -103,7 +131,20 @@ export default function BoardPage() {
 
   useEffect(() => {
     if (shot === "board-empty") {
-      setState({ phase: "ready", project: null, columns: [], cards: [], todos: [] });
+      setState({ phase: "ready", project: null, projects: [], columns: [], cards: [], todos: [] });
+      return;
+    }
+    if (shot === "board-no-columns") {
+      // 防御形态钉态：项目在场但零列（真实路径已被默认三列消灭，防御分支仍可捕获）
+      const seed = pinSeedBoard(new Date());
+      setState({ phase: "ready", project: seed.project, projects: seed.projects, columns: [], cards: [], todos: seed.todos });
+      return;
+    }
+    if (shot === "board-no-columns-modal") {
+      // A2 防御钉态：零列时打开「＋ 新建卡片」弹窗（创建按钮提示「先建列」，提交即出语义错误）
+      const seed = pinSeedBoard(new Date());
+      setState({ phase: "ready", project: seed.project, projects: seed.projects, columns: [], cards: [], todos: seed.todos });
+      setModalOpen(true);
       return;
     }
     if (shot === "board-loading") {
@@ -115,7 +156,8 @@ export default function BoardPage() {
       return;
     }
     if (shot === "board-data" || shot === "board-modal") {
-      setState({ phase: "ready", ...pinSeedBoard(new Date()) });
+      const seed = pinSeedBoard(new Date());
+      setState({ phase: "ready", ...seed });
       return;
     }
     if (shot === "board-moved") {
@@ -130,15 +172,35 @@ export default function BoardPage() {
   }, [shot, load]);
 
   const project = state.phase === "ready" ? (state.project ?? null) : null;
+  const projects = state.phase === "ready" ? (state.projects ?? []) : [];
   const columns = state.phase === "ready" ? (state.columns ?? []) : [];
   const cards = state.phase === "ready" ? (state.cards ?? []) : [];
   const todos = state.phase === "ready" ? (state.todos ?? []) : [];
   const todoById = useMemo(() => new Map(todos.map((t) => [t.id, t])), [todos]);
 
-  /** 新建卡片（默认落第一列列尾）：POST 卡片路由 */
+  /** 项目切换（D）：写 URL ?projectId= 并重拉看板（深链可分享/可回放） */
+  const switchProject = async (id: string): Promise<void> => {
+    const url = new URL(window.location.href);
+    if (id === "") {
+      url.searchParams.delete("projectId");
+    } else {
+      url.searchParams.set("projectId", id);
+    }
+    window.history.replaceState(null, "", url);
+    await load();
+  };
+
+  /** 新建卡片（默认落第一列列尾）：POST 卡片路由。无列时不静默——给出语义提示（A2）。 */
   const submitDraft = async (): Promise<void> => {
     setSubmitError(null);
-    if (project === null || columns.length === 0) return;
+    if (project === null) {
+      setSubmitError("还没有任何项目——请先到「项目」页创建一个项目，再回到看板。");
+      return;
+    }
+    if (columns.length === 0) {
+      setSubmitError("当前项目还没有看板列，请先建列再新建卡片。");
+      return;
+    }
     try {
       const res = await fetch(`/api/projects/${project.id}/columns/${columns[0]!.id}/cards`, {
         method: "POST",
@@ -205,7 +267,7 @@ export default function BoardPage() {
     return (
       <div className="board-page" data-state="board-empty">
         <section className="card">
-          <p className="empty">还没有任何项目——先到「项目」页创建一个项目，它会自带三列看板。</p>
+          <p className="empty">还没有任何项目——先到「项目」页创建一个项目，新建项目会自动带上「{DEFAULT_BOARD_COLUMNS.join(" / ")}」三列。</p>
         </section>
       </div>
     );
@@ -226,7 +288,22 @@ export default function BoardPage() {
       <div className="toolbar board-toolbar">
         <span className="board-title">
           {project.name}
-          <span className="hint"> — 点「→ / ←」跨列移动卡片，列内顺序自动重排；关联待办的卡片带状态徽标。</span>
+          <span className="hint"> — 点「→ 目标列」按钮跨列移动卡片，列内顺序自动重排；关联待办的卡片带状态徽标。</span>
+        </span>
+        <span className="board-switch">
+          <label className="board-switch-label" htmlFor="board-project-switch">项目：</label>
+          <select
+            id="board-project-switch"
+            data-state="board-project-switch"
+            value={project.id}
+            onChange={(e) => void switchProject(e.target.value)}
+          >
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
         </span>
         <button
           type="button"
@@ -240,6 +317,15 @@ export default function BoardPage() {
           ＋ 新建卡片
         </button>
       </div>
+
+      {columns.length === 0 && (
+        <section className="card state-error" data-state="board-no-columns" role="alert">
+          <p className="empty">
+            这个项目还没有任何看板列——「＋ 新建卡片」暂时不可用。正常情况下新建项目会自动带上
+            「{DEFAULT_BOARD_COLUMNS.join(" / ")}」三列；若列表缺失，请到「项目」页确认项目状态或检查 api 服务。
+          </p>
+        </section>
+      )}
 
       <div className="board-grid" data-state="board-columns">
         {columns.map((col) => {
@@ -332,7 +418,7 @@ export default function BoardPage() {
                 取消
               </button>
               <button type="button" className="btn btn-primary" onClick={() => void submitDraft()}>
-                创建（落到「{columns[0]?.name ?? "第一列"}」）
+                创建（落到「{columns[0]?.name ?? "——（先建列）"}」）
               </button>
             </div>
           </div>

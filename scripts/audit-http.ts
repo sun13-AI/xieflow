@@ -457,6 +457,26 @@ async function audit() {
     eq(r.json && r.json.description, "看板审计用", "项目 description 读回");
     ok(r.json && typeof r.json.id === "number" && r.json.id > 0, "POST 项目返回自增 id");
     project = r.json;
+    // r4 返工#1 A1（waizhuan P1 用户死路）：建项目即自带默认三列——HTTP 层锁定
+    const dflt = await expectStatus("GET", `/api/projects/${project.id}/columns`, undefined, 200, "POST 项目后 GET columns -> 200（默认三列已备）");
+    eq(
+      dflt.json && dflt.json.columns.map((x: { name: string; position: number }) => [x.name, x.position]),
+      [["待办", 0], ["进行中", 1], ["已完成", 2]],
+      "createProject 自动创建默认三列（待办/进行中/已完成 @ 0/1/2）",
+    );
+    eq(
+      dflt.json && dflt.json.columns.every((x: { projectId: number }) => x.projectId === project.id),
+      true,
+      "默认三列都归属新项目",
+    );
+    // 第二项目也自带三列（不是只有首个项目特殊处理）
+    const projDflt = await expectStatus("POST", "/api/projects", { name: "r4 默认列样本" }, 201, "POST 第二个项目 -> 201");
+    const dflt2 = await req("GET", `/api/projects/${projDflt.json.id}/columns`);
+    eq(
+      dflt2.json && dflt2.json.columns.length,
+      3,
+      "第二项目 GET columns 同样为 3（默认列非首项目特例）",
+    );
     await expectStatus("POST", "/api/projects", { name: "" }, 400, "POST 空项目名 -> 400");
     await expectStatus("POST", "/api/projects", { name: "   " }, 400, "POST 纯空白项目名 -> 400");
     await expectStatus("POST", "/api/projects", { name: "长".repeat(201) }, 400, "POST 超长项目名（201 字）-> 400");
@@ -483,17 +503,23 @@ async function audit() {
   let colDoing;
   let colDone;
   {
-    const r1 = await expectStatus("POST", `/api/projects/${project.id}/columns`, { name: "待办", position: 0 }, 201, "POST 列（待办，position 0）-> 201");
-    eq(r1.json && r1.json.name, "待办", "列 name 读回");
-    eq(r1.json && r1.json.projectId, project.id, "列 projectId 读回");
-    eq(r1.json && r1.json.position, 0, "列 position 读回");
-    colTodo = r1.json;
-    const r2 = await expectStatus("POST", `/api/projects/${project.id}/columns`, { name: "进行中" }, 201, "POST 列缺 position（自动追加列尾）-> 201");
+    // r4 返工#1 A1：主审计项目的默认三列（0/1/2）直接读回复用——UI「打开看板」
+    // 消费的就是这条真实路径（POST /api/projects 自动建列）
+    const dfltCols = await req("GET", `/api/projects/${project.id}/columns`);
+    colTodo = dfltCols.json.columns.find((x: { position: number }) => x.position === 0);
+    colDoing = dfltCols.json.columns.find((x: { position: number }) => x.position === 1);
+    colDone = dfltCols.json.columns.find((x: { position: number }) => x.position === 2);
+    eq(colTodo && colTodo.name, "待办", "默认列 0 名读回（待办）");
+    eq(colDoing && colDoing.name, "进行中", "默认列 1 名读回（进行中）");
+    eq(colDone && colDone.name, "已完成", "默认列 2 名读回（已完成）");
+    // 显式建列语义仍在：position 冲突守卫 / 缺省自动追加列尾（默认列占 0/1/2 → 新列落 3）
+    await expectStatus("POST", `/api/projects/${project.id}/columns`, { name: "占位尝试", position: 0 }, 400, "POST 列 position 冲突（默认列已占 0）-> 400");
+    const r2 = await expectStatus("POST", `/api/projects/${project.id}/columns`, { name: "加急" }, 201, "POST 列缺 position（自动追加列尾 3）-> 201");
     colDoing = r2.json;
-    eq(colDoing && colDoing.position, 1, "缺省 position 自动追加为 1（列尾）");
-    const r3 = await expectStatus("POST", `/api/projects/${project.id}/columns`, { name: "已完成", position: 2 }, 201, "POST 列（已完成，position 2）-> 201");
+    eq(colDoing && colDoing.position, 3, "缺省 position 自动追加为 3（默认三列之后列尾）");
+    const r3 = await expectStatus("POST", `/api/projects/${project.id}/columns`, { name: "已完成（改）", position: 4 }, 201, "POST 列（显式 position 4）-> 201");
     colDone = r3.json;
-    await expectStatus("POST", `/api/projects/${project.id}/columns`, { name: "", position: 3 }, 400, "POST 空列名 -> 400");
+    await expectStatus("POST", `/api/projects/${project.id}/columns`, { name: "", position: 5 }, 400, "POST 空列名 -> 400");
     await expectStatus("POST", `/api/projects/${project.id}/columns`, { name: "冲突列", position: 0 }, 400, "POST 列 position 冲突（0 已占用）-> 400");
     await expectStatus("POST", "/api/projects/99999/columns", { name: "幽灵列" }, 400, "POST 列到不存在项目（越权外键）-> 400");
     await expectStatus("POST", "/api/projects/not-a-number/columns", { name: "x" }, 400, "POST 列到非数字项目 id -> 400");
@@ -502,8 +528,8 @@ async function audit() {
     ok(Array.isArray(lst.json && lst.json.columns), "列列表返回数组");
     eq(
       lst.json.columns.map((x: { name: string }) => x.name),
-      ["待办", "进行中", "已完成"],
-      "列列表按 position 升序（待办/进行中/已完成）",
+      ["待办", "进行中", "已完成", "加急", "已完成（改）"],
+      "列列表按 position 升序（默认三列 + 显式追加两列）",
     );
 
     const p = await expectStatus("PATCH", `/api/board-columns/${colDoing.id}`, { name: "进行中（改）" }, 200, "PATCH 改列名 -> 200");

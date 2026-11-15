@@ -87,12 +87,12 @@ export default function App() {
     if (shot === "error")
       return { phase: "error", message: "ECONNREFUSED 127.0.0.1:8787（截图钉态）" };
     if (shot === "empty")
-      return { phase: "ready", settings: [], schemaVersion: 3, todaySchedules: [], todos: [] };
+      return { phase: "ready", settings: [], schemaVersion: 4, todaySchedules: [], todos: [] };
     if (shot === "ready" || shot === "workbench")
       return {
         phase: "ready",
         settings: [{ key: "company.name", value: "协流示例公司", updatedAt: now.toISOString() }],
-        schemaVersion: 3,
+        schemaVersion: 4,
         todaySchedules: workbenchTodaySeed(now),
         todos: [],
       };
@@ -131,6 +131,7 @@ export default function App() {
           <button
             type="button"
             className={`tab ${tab === "home" ? "tab-active" : ""}`}
+            data-tab="home"
             onClick={() => setTab("home")}
           >
             工作台
@@ -138,6 +139,7 @@ export default function App() {
           <button
             type="button"
             className={`tab ${tab === "todos" ? "tab-active" : ""}`}
+            data-tab="todos"
             onClick={() => setTab("todos")}
           >
             待办
@@ -145,6 +147,7 @@ export default function App() {
           <button
             type="button"
             className={`tab ${tab === "schedules" ? "tab-active" : ""}`}
+            data-tab="schedules"
             onClick={() => setTab("schedules")}
           >
             日程
@@ -152,6 +155,7 @@ export default function App() {
           <button
             type="button"
             className={`tab ${tab === "projects" ? "tab-active" : ""}`}
+            data-tab="projects"
             onClick={() => setTab("projects")}
           >
             项目
@@ -159,6 +163,7 @@ export default function App() {
           <button
             type="button"
             className={`tab ${tab === "board" ? "tab-active" : ""}`}
+            data-tab="board"
             onClick={() => setTab("board")}
           >
             看板
