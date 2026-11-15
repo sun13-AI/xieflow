@@ -410,3 +410,221 @@ body {
 .force-narrow .topbar {
   flex-wrap: wrap;
 }
+
+/* ---- r3：日程页月视图 ---- */
+.schedule-toolbar {
+  justify-content: space-between;
+  align-items: center;
+}
+
+.month-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.month-label {
+  font-weight: 700;
+  font-size: 15px;
+  min-width: 96px;
+  text-align: center;
+}
+
+.calendar {
+  padding: 14px;
+}
+
+.cal-header {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.cal-head-cell {
+  font-size: 12px;
+  color: var(--ink-2);
+  text-align: center;
+  padding: 4px 0;
+}
+
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-auto-rows: minmax(84px, auto);
+  gap: 4px;
+}
+
+.cal-cell {
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 4px 5px;
+  min-width: 0;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.cal-cell:hover {
+  border-color: var(--accent);
+}
+
+.cal-outside {
+  opacity: 0.45;
+}
+
+.cal-today {
+  background: #e8f0ff;
+  border-color: #b8ccf8;
+}
+
+.cal-day {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.cal-today .cal-day {
+  color: var(--accent);
+}
+
+.cal-chips {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 3px;
+}
+
+.cal-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: var(--card);
+  border-radius: 6px;
+  padding: 2px 5px;
+  font-size: 11px;
+  cursor: pointer;
+  text-align: left;
+  min-width: 0;
+  width: 100%;
+}
+
+.cal-chip:hover {
+  outline: 1px solid var(--accent);
+}
+
+.cal-chip-time {
+  color: var(--accent);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.cal-chip-title {
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.cal-chip .status-pill {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 10px;
+  padding: 0 6px;
+}
+
+/* ---- r3：日程弹窗 ---- */
+.field-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.field select {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  background: var(--card);
+}
+
+/* ---- r3：工作台今日日程卡 ---- */
+.today-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.today-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.today-time {
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.today-title {
+  font-size: 13px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.today-item .status-pill {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* ---- r3：窄屏（?narrow=1 seam 同规则：月网格单列纵排） ---- */
+@media (max-width: 480px) {
+  .cal-grid,
+  .cal-header {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cal-header {
+    display: none;
+  }
+
+  .field-pair {
+    grid-template-columns: 1fr;
+  }
+
+  .schedule-toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+.force-narrow .cal-grid,
+.force-narrow .cal-header {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.force-narrow .cal-header {
+  display: none;
+}
+
+.force-narrow .field-pair {
+  grid-template-columns: 1fr;
+}
+
+.force-narrow .schedule-toolbar {
+  flex-direction: column;
+  align-items: flex-start;
+}

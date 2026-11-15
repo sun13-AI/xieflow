@@ -150,8 +150,141 @@ export interface AppSetting {
   updatedAt: string;
 }
 
+// ---- r3：日程与待办双向联动（数据契约、守卫、循环实例化规则集中在此） ----
+
+/** 日程重复规则：none 不重复 / daily 每天 / weekly 每周 / monthly 每月 */
+export type ScheduleRepeat = "none" | "daily" | "weekly" | "monthly";
+
+export const REPEAT_LABELS: Record<ScheduleRepeat, string> = {
+  none: "不重复",
+  daily: "每天",
+  weekly: "每周",
+  monthly: "每月",
+};
+
+const REPEATS: readonly ScheduleRepeat[] = ["none", "daily", "weekly", "monthly"];
+
+/** 严格 HH:mm（00:00~23:59，零填充，不允许空白/24 点/60 分） */
+export function isIsoTime(value: unknown): value is string {
+  return typeof value === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+}
+
+/** 日程领域对象 */
+export interface Schedule {
+  id: number;
+  title: string;
+  date: string; // YYYY-MM-DD
+  start: string; // HH:mm
+  end: string; // HH:mm
+  todoId: number | null; // 关联待办（可空外键；联动载体）
+  repeat: ScheduleRepeat;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 联动默认时段：待办设 due_date 自动生成的日程占当天 09:00~10:00 */
+export const LINK_SCHEDULE_DEFAULT_START = "09:00";
+export const LINK_SCHEDULE_DEFAULT_END = "10:00";
+
+/** 循环实例化扫描窗口上限（天）：防无限窗口拖垮性能，实例数封顶 */
+export const MAX_REPEAT_HORIZON_DAYS = 100;
+
+export function assertValidScheduleTitle(title: unknown): asserts title is string {
+  if (typeof title !== "string" || title.trim() === "") {
+    throw new ValidationError("日程标题不能为空");
+  }
+  if (title.length > MAX_TODO_TITLE) {
+    throw new ValidationError(`日程标题过长：最多 ${MAX_TODO_TITLE} 字（当前 ${title.length} 字）`);
+  }
+}
+
+export function assertValidScheduleDate(date: unknown): asserts date is string {
+  if (!isIsoDate(date)) {
+    throw new ValidationError(`非法日程日期：${String(date)}`);
+  }
+}
+
+export function assertValidScheduleTime(time: unknown): asserts time is string {
+  if (!isIsoTime(time)) {
+    throw new ValidationError(`非法日程时间：${String(time)}`);
+  }
+}
+
+export function assertValidScheduleRange(start: unknown, end: unknown): void {
+  assertValidScheduleTime(start);
+  assertValidScheduleTime(end);
+  if (end <= start) {
+    throw new ValidationError(`日程结束时间必须晚于开始时间：${start} → ${end}`);
+  }
+}
+
+export function assertValidScheduleRepeat(repeat: unknown): asserts repeat is ScheduleRepeat {
+  if (typeof repeat !== "string" || !REPEATS.includes(repeat as ScheduleRepeat)) {
+    throw new ValidationError(`非法重复规则：${String(repeat)}`);
+  }
+}
+
+/** 月份加法（锚日收敛：1-31 +1 月落在 2 月为 2-28，不跳月；+2 月仍回 3-31，不丢锚日） */
+export function addMonths(date: Date, months: number): Date {
+  const anchorDay = date.getDate();
+  const first = new Date(date.getFullYear(), date.getMonth() + months, 1);
+  const daysInMonth = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
+  first.setDate(Math.min(anchorDay, daysInMonth));
+  return first;
+}
+
+export interface RepeatWindow {
+  from: string; // YYYY-MM-DD（含）
+  to: string; // YYYY-MM-DD（含）
+}
+
+/**
+ * 循环日程实例化规则（r3 任务单：集中定义，禁止散落 if-else）。
+ * 返回「查询窗口内的展开实例」：none 仅首日本体（在窗口内时）；
+ * daily/weekly/monthly 以 date 为锚日逐周期推进，实例复制本体字段、仅 date 不同，
+ * 全部落在窗口内；monthly 始终按原始锚日推算（1-31 在 2 月收敛为 2-28，3 月回 3-31）。
+ * 锚日早于窗口时快进到窗口起点再收集；实例数封顶 MAX_REPEAT_HORIZON_DAYS。
+ * 窗口非法（to < from）抛 ValidationError。
+ */
+export function computeRepeatInstances(
+  schedule: Schedule,
+  window: RepeatWindow,
+): Schedule[] {
+  assertValidScheduleDate(window.from);
+  assertValidScheduleDate(window.to);
+  assertValidScheduleRepeat(schedule.repeat);
+  if (window.to < window.from) {
+    throw new ValidationError(`实例化窗口非法：${window.from} → ${window.to}`);
+  }
+  const anchor = new Date(`${schedule.date}T00:00:00`);
+  const fromTime = new Date(`${window.from}T00:00:00`).getTime();
+  const toTime = new Date(`${window.to}T00:00:00`).getTime();
+  const instances: Schedule[] = [];
+  if (schedule.repeat === "none") {
+    if (anchor.getTime() >= fromTime && anchor.getTime() <= toTime) {
+      instances.push({ ...schedule });
+    }
+    return instances;
+  }
+  const stepDays = schedule.repeat === "weekly" ? 7 : 1;
+  const advance = (d: Date): Date =>
+    schedule.repeat === "monthly"
+      ? addMonths(anchor, Math.round((d.getFullYear() - anchor.getFullYear()) * 12 + d.getMonth() - anchor.getMonth()) + 1)
+      : new Date(d.getFullYear(), d.getMonth(), d.getDate() + stepDays);
+  let cursor = anchor;
+  // 快进：锚日在窗口前时按周期推进到窗口起点（daily 最多数千次廉价日期运算）
+  while (cursor.getTime() < fromTime) {
+    cursor = advance(cursor);
+  }
+  while (cursor.getTime() <= toTime && instances.length < MAX_REPEAT_HORIZON_DAYS) {
+    instances.push({ ...schedule, date: localDateStr(cursor) });
+    cursor = advance(cursor);
+  }
+  return instances;
+}
+
 /** 数据库 schema 版本号，每轮迁移必须 +1（宪法：禁止手改库文件） */
-export const SCHEMA_VERSION: number = 2;
+export const SCHEMA_VERSION: number = 3;
 
 /** 迁移脚本类型：user_version 从 from 升到 to */
 export interface Migration {

@@ -1,42 +1,89 @@
 // 协流 XieFlow — 外壳：页面切换（useState tab，无路由库）+ 首页工作台
-// r2 起：首页（设置项 + schema 卡）与待办页两个 tab。
-// 五个截图状态真实存在：加载中 / 空数据 / 正常 / 错误 / 窄屏（CSS 响应式）
+// r3 起：工作台（设置项 + schema 卡 + 今日日程卡）/ 待办页 / 日程页三个 tab。
+// 截图状态真实存在：加载中 / 空数据 / 正常 / 错误 / 窄屏（?narrow=1 显式钉态）
 import { useEffect, useState } from "react";
-import type { AppSetting } from "@xieflow/shared";
+import type { AppSetting, Schedule, Todo } from "@xieflow/shared";
 import TodosPage from "./TodosPage";
+import SchedulesPage from "./SchedulesPage";
 
 type LoadState =
   | { phase: "loading" }
   | { phase: "error"; message: string }
-  | { phase: "ready"; settings: AppSetting[]; schemaVersion: number };
+  | { phase: "ready"; settings: AppSetting[]; schemaVersion: number; todaySchedules: Schedule[]; todos: Todo[] };
 
-type PageTab = "home" | "todos";
+type PageTab = "home" | "todos" | "schedules";
 
-/** 健康检查：读 /api/health（dev server 代理到 api；fetch 失败即错误态） */
-async function fetchHealth(): Promise<{ schemaVersion: number; settings: AppSetting[] }> {
+/** 健康检查 + 今日日程（工作台卡片数据源；日程查询失败不阻塞工作台） */
+async function fetchHealth(): Promise<{
+  schemaVersion: number;
+  settings: AppSetting[];
+  todaySchedules: Schedule[];
+  todos: Todo[];
+}> {
   const res = await fetch("/api/health");
   if (!res.ok) throw new Error(`健康检查失败：HTTP ${res.status}`);
-  return (await res.json()) as { schemaVersion: number; settings: AppSetting[] };
+  const data = (await res.json()) as { schemaVersion: number; settings: AppSetting[] };
+  const pad = (n: number): string => String(n).padStart(2, "0");
+  const n = new Date();
+  const today = `${n.getFullYear()}-${pad(n.getMonth() + 1)}-${pad(n.getDate())}`;
+  let todaySchedules: Schedule[] = [];
+  let todos: Todo[] = [];
+  try {
+    const [schRes, todoRes] = await Promise.all([
+      fetch(`/api/schedules?from=${today}&to=${today}`),
+      fetch("/api/todos"),
+    ]);
+    if (schRes.ok) {
+      todaySchedules = ((await schRes.json()) as { schedules: Schedule[] }).schedules;
+    }
+    if (todoRes.ok) {
+      todos = ((await todoRes.json()) as { todos: Todo[] }).todos;
+    }
+  } catch {
+    /* 今日日程卡降级为空态，不阻塞工作台 */
+  }
+  return { schemaVersion: data.schemaVersion, settings: data.settings, todaySchedules, todos };
+}
+
+const TODO_BADGES: Record<Todo["status"], { label: string; cls: string }> = {
+  open: { label: "进行中", cls: "pill-open" },
+  done: { label: "已完成", cls: "pill-done" },
+  archived: { label: "已归档", cls: "pill-archived" },
+};
+
+/** 工作台钉态种子：今日日程卡有 2 条（1 条关联待办，展示徽标形态） */
+function workbenchTodaySeed(now: Date): Schedule[] {
+  const pad = (n: number): string => String(n).padStart(2, "0");
+  const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  const iso = `${today}T09:00:00.000Z`;
+  return [
+    { id: 31, title: "需求评审会", date: today, start: "10:00", end: "11:00", todoId: null, repeat: "none", createdAt: iso, updatedAt: iso },
+    { id: 32, title: "写 r3 复验材料", date: today, start: "15:00", end: "16:00", todoId: 11, repeat: "none", createdAt: iso, updatedAt: iso },
+  ];
 }
 
 export default function App() {
-  // tab 与截图钉态都从 URL 读（?page=todos 让待办页可直达/可截图）
+  // tab 与截图钉态都从 URL 读（?page=todos / ?page=schedules 让页面可直达/可截图）
   const [tab, setTab] = useState<PageTab>(() => {
     const page = new URLSearchParams(window.location.search).get("page");
-    return page === "todos" ? "todos" : "home";
+    return page === "todos" ? "todos" : page === "schedules" ? "schedules" : "home";
   });
   const [state, setState] = useState<LoadState>(() => {
     // 截图脚本用 ?shot= 钉住特定状态（真实状态都存在，参数只为确定性捕获）
     const shot = new URLSearchParams(window.location.search).get("shot");
+    const now = new Date();
     if (shot === "loading") return { phase: "loading" };
     if (shot === "error")
       return { phase: "error", message: "ECONNREFUSED 127.0.0.1:8787（截图钉态）" };
-    if (shot === "empty") return { phase: "ready", settings: [], schemaVersion: 2 };
+    if (shot === "empty")
+      return { phase: "ready", settings: [], schemaVersion: 3, todaySchedules: [], todos: [] };
     if (shot === "ready" || shot === "workbench")
       return {
         phase: "ready",
-        settings: [{ key: "company.name", value: "协流示例公司", updatedAt: new Date().toISOString() }],
-        schemaVersion: 2,
+        settings: [{ key: "company.name", value: "协流示例公司", updatedAt: now.toISOString() }],
+        schemaVersion: 3,
+        todaySchedules: workbenchTodaySeed(now),
+        todos: [],
       };
     return { phase: "loading" };
   });
@@ -63,6 +110,8 @@ export default function App() {
     };
   }, []);
 
+  const todoById = new Map(state.phase === "ready" ? state.todos.map((t) => [t.id, t]) : []);
+
   return (
     <main className="shell">
       <header className="topbar">
@@ -82,12 +131,21 @@ export default function App() {
           >
             待办
           </button>
+          <button
+            type="button"
+            className={`tab ${tab === "schedules" ? "tab-active" : ""}`}
+            onClick={() => setTab("schedules")}
+          >
+            日程
+          </button>
         </nav>
-        <span className="badge">r2 · 待办四象限</span>
+        <span className="badge">r3 · 日程与待办联动</span>
       </header>
 
       {tab === "todos" ? (
         <TodosPage />
+      ) : tab === "schedules" ? (
+        <SchedulesPage />
       ) : (
         <>
           {state.phase === "loading" && (
@@ -105,28 +163,55 @@ export default function App() {
           )}
 
           {state.phase === "ready" && (
-            <section className="card state-ready" data-state="ready">
-              <h2>工作台</h2>
-              {state.settings.length === 0 ? (
-                <p className="empty" data-state="empty">
-                  数据库已就绪（schema v{state.schemaVersion}），还没有任何设置项——这是正常空态。
-                </p>
-              ) : (
-                <ul className="settings-list">
-                  {state.settings.map((s) => (
-                    <li key={s.key}>
-                      <code>{s.key}</code> = {s.value}
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <dl className="meta">
-                <dt>schema 版本</dt>
-                <dd>v{state.schemaVersion}</dd>
-                <dt>里程碑</dt>
-                <dd>M1 待办+日程</dd>
-              </dl>
-            </section>
+            <>
+              <section className="card" data-state="today-schedules">
+                <h2>今日日程</h2>
+                {state.todaySchedules.length === 0 ? (
+                  <p className="empty" data-state="today-empty">
+                    今天暂无日程——切到「日程」页点日期即可安排。
+                  </p>
+                ) : (
+                  <ul className="today-list">
+                    {state.todaySchedules.map((s) => {
+                      const linked = s.todoId !== null ? todoById.get(s.todoId) : undefined;
+                      return (
+                        <li key={`${s.id}-${s.date}`} className="today-item">
+                          <span className="today-time">{s.start}–{s.end}</span>
+                          <span className="today-title">{s.title}</span>
+                          {linked && (
+                            <span className={`status-pill ${TODO_BADGES[linked.status].cls}`}>
+                              {TODO_BADGES[linked.status].label}
+                            </span>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </section>
+              <section className="card state-ready" data-state="ready">
+                <h2>工作台</h2>
+                {state.settings.length === 0 ? (
+                  <p className="empty" data-state="empty">
+                    数据库已就绪（schema v{state.schemaVersion}），还没有任何设置项——这是正常空态。
+                  </p>
+                ) : (
+                  <ul className="settings-list">
+                    {state.settings.map((s) => (
+                      <li key={s.key}>
+                        <code>{s.key}</code> = {s.value}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <dl className="meta">
+                  <dt>schema 版本</dt>
+                  <dd>v{state.schemaVersion}</dd>
+                  <dt>里程碑</dt>
+                  <dd>M1 待办+日程</dd>
+                </dl>
+              </section>
+            </>
           )}
         </>
       )}

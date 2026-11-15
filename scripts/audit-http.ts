@@ -85,7 +85,7 @@ async function audit() {
     const h = await req("GET", "/api/health");
     eq(h.status, 200, "GET /api/health -> 200");
     eq(h.json && h.json.ok, true, "health.ok = true");
-    eq(h.json && h.json.schemaVersion, 2, "health.schemaVersion = 2");
+    eq(h.json && h.json.schemaVersion, 3, "health.schemaVersion = 3");
     const s = await req("GET", "/api/settings");
     eq(s.status, 200, "GET /api/settings -> 200");
     ok(Array.isArray(s.json && s.json.settings), "settings 返回数组");
@@ -174,6 +174,143 @@ async function audit() {
   console.log("\n== unknown route ==");
   {
     await expectStatus("GET", "/api/todos/1/comments", undefined, 404, "未知路由 -> 404");
+  }
+
+  console.log("\n== schedules CRUD (r3) ==");
+  let schedule;
+  let linkTodo;
+  {
+    // health 探针反映 schema v3
+    const h3 = await req("GET", "/api/health");
+    eq(h3.json && h3.json.schemaVersion, 3, "health.schemaVersion = 3（r3 迁移后）");
+
+    const r = await expectStatus(
+      "POST",
+      "/api/schedules",
+      { title: "季度评审会", date: "2026-11-17", start: "14:00", end: "15:00", repeat: "weekly" },
+      201,
+      "POST 合法日程 -> 201",
+    );
+    eq(r.json && r.json.title, "季度评审会", "日程 title 读回");
+    eq(r.json && r.json.date, "2026-11-17", "日程 date 读回");
+    eq(r.json && r.json.start, "14:00", "日程 start 读回");
+    eq(r.json && r.json.end, "15:00", "日程 end 读回");
+    eq(r.json && r.json.repeat, "weekly", "日程 repeat 读回");
+    eq(r.json && r.json.todoId, null, "日程 todoId 默认 null");
+    schedule = r.json;
+
+    await expectStatus("POST", "/api/schedules", { title: "", date: "2026-11-17", start: "09:00", end: "10:00" }, 400, "POST 空日程标题 -> 400");
+    await expectStatus("POST", "/api/schedules", { title: "坏日期", date: "2026-02-30", start: "09:00", end: "10:00" }, 400, "POST 非法日期（2-30）-> 400");
+    await expectStatus("POST", "/api/schedules", { title: "坏日期2", date: "not-a-date", start: "09:00", end: "10:00" }, 400, "POST 非法日期格式 -> 400");
+    await expectStatus("POST", "/api/schedules", { title: "坏时间", date: "2026-11-17", start: "9:00", end: "10:00" }, 400, "POST 非法开始时间（9:00）-> 400");
+    await expectStatus("POST", "/api/schedules", { title: "倒挂", date: "2026-11-17", start: "15:00", end: "14:00" }, 400, "POST 结束早于开始 -> 400");
+    await expectStatus("POST", "/api/schedules", { title: "坏 repeat", date: "2026-11-17", start: "09:00", end: "10:00", repeat: "hourly" }, 400, "POST 非法 repeat（hourly）-> 400");
+    await expectStatus("POST", "/api/schedules", { title: "缺字段", date: "2026-11-17", start: "09:00" }, 400, "POST 缺 end -> 400");
+    await expectStatus(
+      "POST",
+      "/api/schedules",
+      { title: "越权外键", date: "2026-11-17", start: "09:00", end: "10:00", todoId: 424242 },
+      400,
+      "POST 关联不存在的待办（越权外键）-> 400",
+    );
+
+    const g = await expectStatus("GET", `/api/schedules/${schedule.id}`, undefined, 200, "GET 日程详情 -> 200");
+    eq(g.json && g.json.id, schedule.id, "日程详情 id 一致");
+    await expectStatus("GET", "/api/schedules/99999", undefined, 404, "GET 不存在日程 -> 404");
+    await expectStatus("GET", "/api/schedules/not-a-number", undefined, 400, "GET 非数字日程 id -> 400");
+
+    // 区间查询（含端点；与本审计库中已知日程对表）
+    const range = await expectStatus(
+      "GET",
+      "/api/schedules?from=2026-11-01&to=2026-11-30",
+      undefined,
+      200,
+      "GET 日程区间查询 -> 200",
+    );
+    ok(Array.isArray(range.json && range.json.schedules), "区间查询返回 schedules 数组");
+    ok(
+      range.json.schedules.some((s: { id: number }) => s.id === schedule.id),
+      "区间查询含刚建的 2026-11-17 日程",
+    );
+    const empty = await expectStatus("GET", "/api/schedules?from=2025-01-01&to=2025-01-31", undefined, 200, "GET 空区间 -> 200");
+    eq(empty.json && empty.json.schedules.length, 0, "窗外区间返回空数组");
+    await expectStatus("GET", "/api/schedules?from=2026-13-01&to=2026-12-31", undefined, 400, "GET 区间非法 from（13 月）-> 400");
+    await expectStatus("GET", "/api/schedules?from=2026-12-31&to=2026-12-01", undefined, 400, "GET 区间 from 晚于 to -> 400");
+
+    const p = await expectStatus(
+      "PATCH",
+      `/api/schedules/${schedule.id}`,
+      { title: "季度评审会（改）", repeat: "monthly" },
+      200,
+      "PATCH 改日程标题与 repeat -> 200",
+    );
+    eq(p.json && p.json.title, "季度评审会（改）", "PATCH 后 title 读回");
+    eq(p.json && p.json.repeat, "monthly", "PATCH 后 repeat 读回");
+    await expectStatus("PATCH", `/api/schedules/${schedule.id}`, { start: "16:00", end: "15:00" }, 400, "PATCH 倒挂时间 -> 400");
+    await expectStatus("PATCH", `/api/schedules/${schedule.id}`, { date: "2026-02-30" }, 400, "PATCH 非法日期 -> 400");
+    await expectStatus("PATCH", "/api/schedules/99999", { title: "x" }, 404, "PATCH 不存在日程 -> 404");
+    await expectStatus("PATCH", "/api/schedules/not-a-number", { title: "x" }, 400, "PATCH 非数字日程 id -> 400");
+  }
+
+  console.log("\n== todo <-> schedule two-way sync (r3) ==");
+  {
+    // 方向一：待办设 due_date → 自动生成关联日程
+    const t = await expectStatus("POST", "/api/todos", { title: "写联动复验材料", quadrant: "q2", dueDate: "2026-11-20" }, 201, "POST 带截止日待办 -> 201");
+    linkTodo = t.json;
+    const afterCreate = await req("GET", "/api/schedules?from=2026-11-20&to=2026-11-20");
+    eq(afterCreate.json.schedules.length, 1, "建待办（带 dueDate）自动生成关联日程");
+    const gen = afterCreate.json.schedules[0];
+    eq(gen.date, "2026-11-20", "生成日程 date = 待办 dueDate");
+    eq(gen.todoId, linkTodo.id, "生成日程 todo_id 关联该待办");
+    eq(gen.start, "09:00", "生成日程默认 09:00 开始");
+    eq(gen.end, "10:00", "生成日程默认 10:00 结束");
+    eq(gen.title, linkTodo.title, "生成日程标题沿用待办标题");
+
+    // 方向二：日程改期 → 回写待办 due_date
+    const moved = await expectStatus("PATCH", `/api/schedules/${gen.id}`, { date: "2026-11-25" }, 200, "PATCH 关联日程改期 -> 200");
+    eq(moved.json && moved.json.date, "2026-11-25", "日程本体已改期");
+    const todoAfter = await req("GET", `/api/todos/${linkTodo.id}`);
+    eq(todoAfter.json && todoAfter.json.dueDate, "2026-11-25", "日程改期回写待办 dueDate（联动闭环）");
+
+    // 待办侧改期 → 日程跟着变
+    const todoMoved = await expectStatus(
+      "PATCH",
+      `/api/todos/${linkTodo.id}/due-date`,
+      { dueDate: "2026-11-28" },
+      200,
+      "PATCH 待办改期 -> 200",
+    );
+    eq(todoMoved.json && todoMoved.json.dueDate, "2026-11-28", "待办 dueDate 已改");
+    const schAfter = await req("GET", `/api/todos/${linkTodo.id}/schedule`);
+    eq(schAfter.json && schAfter.json.schedule && schAfter.json.schedule.date, "2026-11-28", "待办改期同步日程 date（反向联动闭环）");
+
+    // 清空 dueDate → 关联日程删除
+    await expectStatus("PATCH", `/api/todos/${linkTodo.id}/due-date`, { dueDate: null }, 200, "PATCH 待办清空 dueDate -> 200");
+    const afterClear = await req("GET", "/api/schedules?from=2026-11-01&to=2026-12-31");
+    ok(
+      !afterClear.json.schedules.some((s: { id: number }) => s.id === gen.id),
+      "待办清空 dueDate 后关联日程已删除",
+    );
+    await expectStatus("PATCH", `/api/todos/${linkTodo.id}/due-date`, { dueDate: "2026-02-30" }, 400, "PATCH 待办改期为非法日期 -> 400");
+    await expectStatus("PATCH", "/api/todos/99999/due-date", { dueDate: "2026-11-28" }, 404, "PATCH 不存在待办改期 -> 404");
+    await expectStatus("PATCH", `/api/todos/${linkTodo.id}/due-date`, { dueDate: "not-a-date" }, 400, "PATCH 待办改期非法格式 -> 400");
+
+    // 待办删除 → 关联日程级联删除
+    const t2 = await expectStatus("POST", "/api/todos", { title: "级联样本", quadrant: "q1", dueDate: "2026-12-01" }, 201, "POST 级联样本待办 -> 201");
+    const beforeDel = await req("GET", "/api/schedules?from=2026-12-01&to=2026-12-01");
+    eq(beforeDel.json.schedules.length, 1, "级联样本已生成关联日程");
+    await expectStatus("DELETE", `/api/todos/${t2.json.id}`, undefined, 200, "DELETE 级联样本待办 -> 200");
+    const afterDel = await req("GET", "/api/schedules?from=2026-12-01&to=2026-12-01");
+    eq(afterDel.json.schedules.length, 0, "待办删除后关联日程级联删除");
+  }
+
+  console.log("\n== schedules delete (r3) ==");
+  {
+    const d = await expectStatus("DELETE", `/api/schedules/${schedule.id}`, undefined, 200, "DELETE 存在日程 -> 200");
+    ok(d.json && d.json.deleted === true, "delete 日程返回 deleted=true");
+    await expectStatus("GET", `/api/schedules/${schedule.id}`, undefined, 404, "DELETE 后 GET 日程 -> 404");
+    await expectStatus("DELETE", `/api/schedules/${schedule.id}`, undefined, 404, "DELETE 重复同一日程 id -> 404");
+    await expectStatus("DELETE", "/api/schedules/not-a-number", undefined, 400, "DELETE 非数字日程 id -> 400");
   }
 }
 

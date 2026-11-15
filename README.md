@@ -14,9 +14,10 @@ powershell -File scripts\start.ps1 stop    # 收服务
 # 开发模式：
 pnpm dev:api         # api 服务 http://127.0.0.1:8787
 pnpm dev:web         # web 界面 http://127.0.0.1:5173
-pnpm run test:all    # typecheck + e2e（69 断言）+ HTTP 审计（52 断言）
+pnpm run test:all    # typecheck + e2e（155 断言）+ HTTP 审计（113 断言）
 pwsh scripts/shot.ps1 all            # 起服务 → r1 截图 5 态 → 收服务
 pwsh scripts/shot.ps1 all -Round r2  # 同上，拍 r2 待办页钉态
+pwsh scripts/shot.ps1 all -Round r3  # 同上，拍 r3 日程页钉态（10 张）
 ```
 
 ### 打包（对齐 IKanBot 的 pack/dist 语义）
@@ -36,29 +37,46 @@ pnpm run dist        # 上述 + 安装包 release/xieflow-setup-<版本>.zip（�
 
 ```
 packages/
-  shared/            数据契约与状态机（集中定义，禁止散落 if-else）
-  db/                schema.ts（user_version 迁移）/ index.ts（连接）/ mappers.ts（行↔领域对象）
+  shared/            数据契约与状态机（集中定义，禁止散落 if-else；r3 加日程 repeat 规则与循环实例化）
+  db/                schema.ts（user_version 迁移）/ index.ts（连接 + 门面 + 联动）/ mappers.ts（行↔领域对象）
 apps/
-  web/               React + Vite 界面（r2：工作台 + 待办页 tab 切换）
-  api/               Fastify 服务（/api/health + settings + todos 路由）
+  web/               React + Vite 界面（r3：工作台 + 待办页 + 日程页 三 tab）
+  api/               Fastify 服务（/api/health + settings + todos + schedules 路由）
 scripts/
   e2e-test.ts        直连服务层断言（内存库 + 文件库 + HTTP 冒烟）
   audit-http.ts      HTTP 路由层审计（对运行中的 api 断言，含 4xx 分支）
   audit-http.ps1     一键审计（临时 api + 一次性 db，跑完杀进程）
-  shot.ps1           截图矩阵脚本（headless Edge，一次性进程，-Round r1/r2）
+  shot.ps1           截图矩阵脚本（headless Edge，一次性进程，-Round r1/r2/r3）
 .github/workflows/   CI：三平台 verify + tag 触发 Release
 ```
 
-## 核心概念（r2 已落地的部分）
+## 核心概念（r3 已落地的部分）
 
-- **迁移纪律**：schema 变更只走 `packages/db/src/schema.ts` 的 `MIGRATIONS` 队列（v1 settings → v2 todos），`user_version` 管理，重开幂等
+- **迁移纪律**：schema 变更只走 `packages/db/src/schema.ts` 的 `MIGRATIONS` 队列（v1 settings → v2 todos → v3 schedules），`user_version` 管理，重开幂等、v2 旧库原地升级只补跑 v3
 - **状态机集中**：待办状态流转（open/done/archived）定义在 `packages/shared`，非法流转服务层与路由层双层拒绝
 - **汇总计数唯一入口**：今/明/周 + 四象限计数只写在 `computeTodoSummary`（shared 纯函数），api 下发、UI 消费同一口径
+- **循环实例化唯一入口**：daily/weekly/monthly 的展开规则只写在 `computeRepeatInstances`（shared 纯函数，含月末收敛 1-31→2-28 与实例数封顶）
+- **双向联动闭环**：待办设 `due_date` → 自动生成关联日程；日程改期 → 回写待办 `due_date`；待办清空 `due_date` → 关联日程删除；待办删除 → 日程级联删除
 - **探针真读库**：`/api/health` 每次 真 写读一次 settings，不只是进程活着
 
 ## 界面与测试对照
 
 按 AGENTS.md 立项规则：**界面更新必须带截图证据（每次，无例外）**，截图与实现同一提交。
+
+### r3 矩阵：[docs/ui/r3/](docs/ui/r3/README.md) —— 日程页月视图 + 联动徽标 + 工作台今日日程（共 10 张）：
+
+| 截图 | 形态 | 对应断言 |
+|---|---|---|
+| [01-schedule-empty.png](docs/ui/r3/01-schedule-empty.png) | 日程月视图空态（本月暂无日程 + 今天高亮） | e2e「新库 schedules 为空」；audit「GET 空区间 -> 200」 |
+| [02-schedule-month.png](docs/ui/r3/02-schedule-month.png) | 月视图有日程（多日散布的日程块） | e2e「循环日程实例化（computeRepeatInstances）」节；audit「区间查询含刚建的日程」 |
+| [03-schedule-modal.png](docs/ui/r3/03-schedule-modal.png) | 新建日程弹窗（标题/日期/起止时间/重复/关联待办） | audit「POST 合法日程 -> 201」及 400 分支（空标题/非法日期 2-30/非法 repeat hourly/越权外键） |
+| [04-schedule-badge.png](docs/ui/r3/04-schedule-badge.png) | 联动徽标（关联日程块上的待办状态徽标：进行中/已完成） | audit「生成日程 todo_id 关联该待办」；e2e「待办设 due_date 自动生成关联日程」 |
+| [05-schedule-narrow.png](docs/ui/r3/05-schedule-narrow.png) | 窄屏纵排（?narrow=1 seam，488×900） | 无 UI 形态（CSS 断点，确定性钉态） |
+| [06-schedule-live.png](docs/ui/r3/06-schedule-live.png) | 真实数据链路（seed 待办 → 设 due_date → 自动日程上日历，拍后清理） | audit「建待办（带 dueDate）自动生成关联日程」端到端实证 |
+| [07-workbench-today.png](docs/ui/r3/07-workbench-today.png) | 工作台「今日日程」卡 + schema v3 | e2e「settings 读写」+「日程改期回写待办 due_date（联动闭环）」 |
+| [08-schedule-loading.png](docs/ui/r3/08-schedule-loading.png) | 日程页加载态（正在加载日程…） | 无独立断言（fetch pending 态，证据为区间查询 200 链路 + 本图） |
+| [09-schedule-error.png](docs/ui/r3/09-schedule-error.png) | 日程页错误态（语义化文案，不暴露 5xx 原始码） | 无独立断言（httpClient.ts 语义化映射；停 api 实测同文案） |
+| [10-schedule-moved.png](docs/ui/r3/10-schedule-moved.png) | **改期同步后**（待办改期 → 日程落到新日期格并带徽标） | audit「待办改期同步日程 date（反向联动闭环）」+「PATCH 待办改期 -> 200」 |
 
 ### r2 矩阵：[docs/ui/r2/](docs/ui/r2/README.md) —— 待办页 5 钉态 + 真实链路 + 返工 #1 新增 4 形态（共 10 张）：
 
@@ -85,12 +103,12 @@ scripts/
 | [04-error.png](docs/ui/r1/04-error.png) | 错误态（api 未启动，红卡 + 提示） | 无 UI 形态（错误分支由 fetchHealth catch 保证） |
 | [05-narrow.png](docs/ui/r1/05-narrow.png) | 窄屏形态（meta 纵排，?narrow=1 测试 seam） | 无 UI 形态（CSS 断点规则，DPR 无关的确定性窄屏钉态） |
 
-> 测试 seam 说明：`?shot=` 钉住页面状态、`?page=todos` 直达待办页、`?narrow=1` 钉住窄屏布局——所有状态在真实运行中都存在，参数只为让 headless 截图确定性捕获（Windows 显示缩放会干扰视口 CSS 断点，见 RUNBOOK 已知坑）。
+> 测试 seam 说明：`?shot=` 钉住页面状态、`?page=todos` / `?page=schedules` 直达页面、`?narrow=1` 钉住窄屏布局——所有状态在真实运行中都存在，参数只为让 headless 截图确定性捕获（Windows 显示缩放会干扰视口 CSS 断点，见 RUNBOOK 已知坑）。
 
 ### 断言规模（每轮更新，下降 = 回归 = 冻结发版）
 
-- e2e **69** 项（迁移一致性 7 · settings 9 · todo CRUD 15 · 输入校验 13 · 状态机 10 · 汇总计数 7 · raw schema 约束 4 · 迁移幂等 3 · HTTP 冒烟 1，服务离线时该节降级跳过计 68；在线 69）
-- audit-http **52** 项（服务就绪 1 · health/settings 5 · 新建 12 · 列表详情 7 · 状态流转 9 · summary 11 · 删除 6 · 未知路由 1）
+- e2e **155** 项（服务离线口径 154；在线 155）——逐节实测：迁移一致性 7 · settings 9 · todo CRUD 15 · 输入校验 13 · 状态机 10 · 汇总计数 7 · raw schema 约束 4 · 迁移幂等 3 · **日程契约与守卫 28 · 循环日程实例化 14 · schema v2→v3 迁移升级与双向联动 18 · schedules CRUD 26** · HTTP 冒烟 1（服务离线时该节降级跳过）
+- audit-http **113** 项（服务就绪 1 · health/settings 5 · todo 新建 12 · todo 列表详情 7 · todo 状态流转 9 · todo summary 11 · todo 删除 6 · 未知路由 1 · **schedules CRUD 34 · 待办↔日程双向联动 22 · schedules 删除 5**）
 - typecheck 4 包全绿（strict + noUncheckedIndexedAccess）
 - CI：ubuntu / windows / macos 三平台 verify 门禁 + tag 触发 Release
 
@@ -100,4 +118,4 @@ scripts/
 
 ## 下一轮入口
 
-r3：日程与待办双向联动（待办页已就位，日程实体与联动规则待设计）。
+r4：M2 第 1 片 · 项目 + 看板数据层（r3 已发版后开工；日程/待办实体与联动规则已就位，状态机与循环规则继续集中 packages/shared）。

@@ -33,6 +33,25 @@ export const MIGRATIONS: Migration[] = [
       `CREATE INDEX IF NOT EXISTS idx_todos_due_date ON todos (due_date)`,
     ],
   },
+  {
+    version: 3,
+    name: "r3 · schedules 表（日程与待办双向联动）",
+    up: [
+      `CREATE TABLE IF NOT EXISTS schedules (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        date TEXT NOT NULL,
+        start_time TEXT NOT NULL,
+        end_time TEXT NOT NULL,
+        todo_id INTEGER REFERENCES todos(id) ON DELETE CASCADE,
+        repeat TEXT NOT NULL DEFAULT 'none' CHECK (repeat IN ('none','daily','weekly','monthly')),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_schedules_date ON schedules (date)`,
+      `CREATE INDEX IF NOT EXISTS idx_schedules_todo_id ON schedules (todo_id)`,
+    ],
+  },
 ];
 
 /** 当前 schema 版本（与 shared 的 SCHEMA_VERSION 保持一致，e2e 会断言二者相等） */

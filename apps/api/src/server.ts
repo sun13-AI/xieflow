@@ -1,7 +1,8 @@
-// 协流 XieFlow — api 服务：健康探针 + settings + todos 路由（r2）
+// 协流 XieFlow — api 服务：健康探针 + settings + todos + schedules 路由（r3）
 // 数据文件在 data/xieflow.db；audit-http.ts 对本服务的路由行为做断言。
 // 路由层错误契约：输入非法 → 400（shared ValidationError）；id 不存在 → 404。
 // 状态机校验走 shared（TODO_STATUS_TRANSITIONS），路由层不散落 if-else。
+// r3 联动：待办 due_date ↔ 日程 date 双向同步（规则集中在 shared + db 服务层）。
 import Fastify from "fastify";
 import type { FastifyReply } from "fastify";
 import { mkdirSync } from "node:fs";
@@ -12,8 +13,12 @@ import { CURRENT_SCHEMA_VERSION } from "@xieflow/db";
 import {
   ValidationError,
   assertValidTodoStatus,
+  assertValidDueDate,
+  assertValidScheduleDate,
   computeTodoSummary,
+  computeRepeatInstances,
   canTransitionTodo,
+  type Schedule,
 } from "@xieflow/shared";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -147,6 +152,191 @@ app.delete("/api/todos/:id", async (req, reply) => {
       return reply.code(404).send({ error: `待办不存在：${id}` });
     }
     return { deleted: true };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+// ---- schedules（r3：日程 CRUD + 区间查询 + 待办双向联动） ----
+
+interface CreateScheduleBody {
+  title?: unknown;
+  date?: unknown;
+  start?: unknown;
+  end?: unknown;
+  todoId?: unknown;
+  repeat?: unknown;
+}
+
+app.post("/api/schedules", async (req, reply) => {
+  try {
+    const body = (req.body ?? {}) as CreateScheduleBody;
+    if (typeof body.title !== "string") {
+      throw new ValidationError("日程标题不能为空");
+    }
+    if (body.date === undefined || body.date === null) {
+      throw new ValidationError("缺少 date");
+    }
+    if (body.start === undefined || body.start === null) {
+      throw new ValidationError("缺少 start");
+    }
+    if (body.end === undefined || body.end === null) {
+      throw new ValidationError("缺少 end");
+    }
+    let todoId: number | null = null;
+    if (body.todoId !== undefined && body.todoId !== null) {
+      const n = Number(body.todoId);
+      if (!Number.isInteger(n) || n <= 0) {
+        throw new ValidationError(`非法 todoId：${String(body.todoId)}`);
+      }
+      todoId = n;
+    }
+    const schedule = requireDb().createSchedule(
+      body.title,
+      body.date as string,
+      body.start as string,
+      body.end as string,
+      todoId,
+      (body.repeat ?? "none") as Schedule["repeat"],
+    );
+    return reply.code(201).send(schedule);
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+/**
+ * 区间查询：date 落在 [from, to] 的日程本体 + 各日程循环实例在窗口内的展开（并集去重）。
+ * 非法 from/to → 400；from 晚于 to → 400。
+ */
+app.get("/api/schedules", async (req, reply) => {
+  try {
+    const q = (req.query ?? {}) as { from?: string; to?: string };
+    const from = q.from ?? "";
+    const to = q.to ?? "";
+    assertValidScheduleDate(from);
+    assertValidScheduleDate(to);
+    if (to < from) {
+      throw new ValidationError(`查询区间非法：from 晚于 to（${from} → ${to}）`);
+    }
+    const store = requireDb();
+    const bodies = store.listSchedulesByDateRange(from, to);
+    const seen = new Set<number>();
+    const schedules: Array<Schedule & { isInstance: boolean }> = [];
+    for (const s of bodies) {
+      if (!seen.has(s.id)) {
+        seen.add(s.id);
+        schedules.push({ ...s, isInstance: false });
+      }
+      for (const inst of computeRepeatInstances(s, { from, to })) {
+        if (!seen.has(inst.id + inst.date.length * 0) && !schedules.some((x) => x.id === inst.id && x.date === inst.date)) {
+          schedules.push({ ...inst, isInstance: inst.date !== s.date });
+        }
+      }
+    }
+    schedules.sort((a, b) => (a.date === b.date ? (a.start < b.start ? -1 : 1) : a.date < b.date ? -1 : 1));
+    return { schedules };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.get("/api/schedules/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const schedule = requireDb().getSchedule(id);
+    if (!schedule) {
+      return reply.code(404).send({ error: `日程不存在：${id}` });
+    }
+    return schedule;
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+interface PatchScheduleBody {
+  title?: unknown;
+  date?: unknown;
+  start?: unknown;
+  end?: unknown;
+  repeat?: unknown;
+  todoId?: unknown;
+}
+
+app.patch("/api/schedules/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const body = (req.body ?? {}) as PatchScheduleBody;
+    const store = requireDb();
+    if (store.getSchedule(id) === null) {
+      return reply.code(404).send({ error: `日程不存在：${id}` });
+    }
+    const patch: Parameters<XieFlowDb["updateSchedule"]>[1] = {};
+    if (body.title !== undefined) patch.title = body.title as string;
+    if (body.repeat !== undefined) patch.repeat = body.repeat as Schedule["repeat"];
+    if (body.start !== undefined) patch.start = body.start as string;
+    if (body.end !== undefined) patch.end = body.end as string;
+    if (body.todoId !== undefined) {
+      if (body.todoId === null) {
+        patch.todoId = null;
+      } else {
+        const n = Number(body.todoId);
+        if (!Number.isInteger(n) || n <= 0) {
+          throw new ValidationError(`非法 todoId：${String(body.todoId)}`);
+        }
+        patch.todoId = n;
+      }
+    }
+    // date 走 updateScheduleDate（联动入口）：关联待办的 due_date 同步回写
+    if (body.date !== undefined) {
+      assertValidScheduleDate(body.date);
+      return store.updateScheduleDate(id, body.date as string);
+    }
+    return store.updateSchedule(id, patch);
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.delete("/api/schedules/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const deleted = requireDb().deleteSchedule(id);
+    if (!deleted) {
+      return reply.code(404).send({ error: `日程不存在：${id}` });
+    }
+    return { deleted: true };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+// ---- 联动路由（r3）：待办改期 / 查关联日程 ----
+
+app.patch("/api/todos/:id/due-date", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const body = (req.body ?? {}) as { dueDate?: unknown };
+    assertValidDueDate(body.dueDate ?? null);
+    const store = requireDb();
+    if (store.getTodo(id) === null) {
+      return reply.code(404).send({ error: `待办不存在：${id}` });
+    }
+    return store.updateTodoDueDate(id, (body.dueDate ?? null) as string | null);
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.get("/api/todos/:id/schedule", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const store = requireDb();
+    if (store.getTodo(id) === null) {
+      return reply.code(404).send({ error: `待办不存在：${id}` });
+    }
+    const linked = store.listSchedules().find((s) => s.todoId === id) ?? null;
+    return { schedule: linked };
   } catch (err) {
     return toErrorReply(err, reply);
   }

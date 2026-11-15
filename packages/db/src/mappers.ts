@@ -1,5 +1,6 @@
 // 协流 XieFlow — mappers.ts：行 → 领域对象（snake_case ↔ camelCase 唯一入口）
-import type { AppSetting, Todo, Quadrant, TodoStatus } from "@xieflow/shared";
+import type { AppSetting, Todo, Quadrant, TodoStatus, Schedule, ScheduleRepeat } from "@xieflow/shared";
+import { REPEATS_ORDER } from "./repeat-order.js";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Row = Record<string, any>;
@@ -30,6 +31,24 @@ export function mapRowToTodo(row: Row): Todo {
     quadrant,
     status,
     dueDate: row.due_date === null ? null : String(row.due_date),
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+  };
+}
+
+export function mapRowToSchedule(row: Row): Schedule {
+  const repeat = String(row.repeat) as ScheduleRepeat;
+  if (!REPEATS_ORDER.includes(repeat)) {
+    throw new Error(`非法重复规则值：${row.repeat}`);
+  }
+  return {
+    id: Number(row.id),
+    title: String(row.title),
+    date: String(row.date),
+    start: String(row.start_time),
+    end: String(row.end_time),
+    todoId: row.todo_id === null ? null : Number(row.todo_id),
+    repeat,
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
   };
