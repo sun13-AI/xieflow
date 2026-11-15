@@ -75,7 +75,22 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 - 前置：r2 已发版（v0.0.5）✅
 - 特别项：ui-reviewer 若本轮再抓到 waizhuan 漏掉的 U1，按 org.md 门槛升级为阻断岗（双 VERDICT 并行裁决从本轮生效）
 
-### r4（预占）· M2 第 1 片：项目 + 看板数据层
+### r4 · M2 第 1 片：项目 + 看板数据层与最小 UI
+- 目标：项目（project）落库 + 看板（board：列/卡片）数据层 + 最小看板 UI——M2 起步轮
+- 交付清单：
+  1. schema v3→v4：projects 表（id/name/description/created_at）、board_columns（id/project_id/name/position）、cards（id/project_id/column_id/title/description/position/todo_id 可空关联待办）
+  2. api：projects CRUD、columns CRUD + 排序、cards CRUD + 跨列移动（position 重排规则集中 shared）
+  3. web：项目页（列表 + 建项目）→ 看板视图（列 + 卡片 + 跨列拖拽/按钮移动）+ 卡片关联待办徽标
+  4. 断言：e2e ≥+20（迁移/排序规则/移动闭环）、audit ≥+20（含 4xx：越权外键/非法 position/空名）
+  5. 截图 ≥6：项目空态/项目列表/建项目弹窗/看板有卡/移动后/窄屏
+- 验收标准：
+  1. 全量绿：e2e ≥187、audit ≥158，README 同步
+  2. 卡片移动后两侧列 position 重排有断言锁定；position 规则集中 shared
+  3. todo_id 关联复用 r3 联动模式（徽标）
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r3 已发版（v0.0.7）✅
+
+### r5（预占）· M2 第 2 片：看板统计与 Excel 导出（M2 收官）
 - 前置：r3 已发版
 
 ## 历史轮次（r1~r2 已收档，见下方记账区）
