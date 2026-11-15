@@ -10,5 +10,6 @@ data/backups/
 scripts/.shot-server.json
 scripts/.shot-*.log
 scripts/.tmp-e2e/
+scripts/.tmp-audit/
 *.tsbuildinfo
 .DS_Store

@@ -1,19 +1,22 @@
 # XieFlow scripts/shot.ps1 - screenshot helper (ASCII only for PS 5.1 compatibility)
 # Usage:
-#   powershell -File scripts\shot.ps1 up      # start api + web dev servers
-#   powershell -File scripts\shot.ps1 shots   # capture 5 states to docs/ui/r1/
-#   powershell -File scripts\shot.ps1 down    # stop servers
-#   powershell -File scripts\shot.ps1 status  # show port status
-#   powershell -File scripts\shot.ps1 all     # up + shots + down
+#   powershell -File scripts\shot.ps1 up              # start api + web dev servers
+#   powershell -File scripts\shot.ps1 shots           # capture current round states
+#   powershell -File scripts\shot.ps1 shots -Round r2 # capture r2 todo-page states
+#   powershell -File scripts\shot.ps1 down            # stop servers
+#   powershell -File scripts\shot.ps1 status          # show port status
+#   powershell -File scripts\shot.ps1 all             # up + shots + down
 param(
   [Parameter(Position = 0)]
   [ValidateSet("up", "shots", "down", "status", "all")]
-  [string]$Action = "status"
+  [string]$Action = "status",
+  [ValidateSet("r1", "r2")]
+  [string]$Round = "r1"
 )
 
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
-$UiDir = Join-Path $Root "docs\ui\r1"
+$UiDir = Join-Path $Root ("docs\ui\" + $Round)
 $ApiPort = 8787
 $WebPort = 5173
 
@@ -80,13 +83,24 @@ function Invoke-Shots {
   $browser = Find-Browser
   Write-Output "browser: $browser"
 
-  $shots = @(
-    @{ name = "01-loading"; url = "http://127.0.0.1:$WebPort/?shot=loading"; width = 1280; height = 800 },
-    @{ name = "02-empty"; url = "http://127.0.0.1:$WebPort/?shot=empty"; width = 1280; height = 800 },
-    @{ name = "03-ready"; url = "http://127.0.0.1:$WebPort/?shot=ready"; width = 1280; height = 800 },
-    @{ name = "04-error"; url = "http://127.0.0.1:$WebPort/?shot=error"; width = 1280; height = 800 },
-    @{ name = "05-narrow"; url = "http://127.0.0.1:$WebPort/?shot=ready&narrow=1"; width = 488; height = 760 }
-  )
+  if ($Round -eq "r2") {
+    # r2 todo page: pinned states via ?page=todos&shot=todo-* seams (App.tsx / TodosPage.tsx)
+    $shots = @(
+      @{ name = "01-todo-empty";      url = "http://127.0.0.1:$WebPort/?page=todos&shot=todo-empty"; width = 1280; height = 800 },
+      @{ name = "02-todo-modal";      url = "http://127.0.0.1:$WebPort/?page=todos&shot=todo-modal"; width = 1280; height = 800 },
+      @{ name = "03-todo-quadrants";  url = "http://127.0.0.1:$WebPort/?page=todos&shot=todo-data";  width = 1280; height = 800 },
+      @{ name = "04-todo-done";       url = "http://127.0.0.1:$WebPort/?page=todos&shot=todo-done";  width = 1280; height = 800 },
+      @{ name = "05-todo-narrow";     url = "http://127.0.0.1:$WebPort/?page=todos&shot=todo-data&narrow=1"; width = 488; height = 760 }
+    )
+  } else {
+    $shots = @(
+      @{ name = "01-loading"; url = "http://127.0.0.1:$WebPort/?shot=loading"; width = 1280; height = 800 },
+      @{ name = "02-empty";   url = "http://127.0.0.1:$WebPort/?shot=empty";   width = 1280; height = 800 },
+      @{ name = "03-ready";   url = "http://127.0.0.1:$WebPort/?shot=ready";   width = 1280; height = 800 },
+      @{ name = "04-error";   url = "http://127.0.0.1:$WebPort/?shot=error";   width = 1280; height = 800 },
+      @{ name = "05-narrow";  url = "http://127.0.0.1:$WebPort/?shot=ready&narrow=1"; width = 488; height = 760 }
+    )
+  }
 
   foreach ($s in $shots) {
     $out = Join-Path $UiDir ($s.name + ".png")

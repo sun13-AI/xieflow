@@ -38,13 +38,19 @@ export const MIGRATIONS: Migration[] = [
 /** 当前 schema 版本（与 shared 的 SCHEMA_VERSION 保持一致，e2e 会断言二者相等） */
 export const CURRENT_SCHEMA_VERSION: number = SCHEMA_VERSION;
 
-/** 确保迁移队列覆盖到 CURRENT_SCHEMA_VERSION 且 version 连续 */
-export function assertMigrationsConsistent(): void {
-  const versions = MIGRATIONS.map((m) => m.version);
+/**
+ * 确保迁移队列覆盖到目标版本且 version 连续。
+ * 参数默认用真实队列；e2e 传入构造的坏队列验证校验逻辑本身（真实行为断言）。
+ */
+export function assertMigrationsConsistent(
+  queue: readonly Migration[] = MIGRATIONS,
+  targetVersion: number = CURRENT_SCHEMA_VERSION,
+): void {
+  const versions = queue.map((m) => m.version);
   const max = versions.length > 0 ? Math.max(...versions) : 0;
-  if (max !== CURRENT_SCHEMA_VERSION) {
+  if (max !== targetVersion) {
     throw new Error(
-      `迁移队列最高版本 ${max} 与 SCHEMA_VERSION ${CURRENT_SCHEMA_VERSION} 不一致`,
+      `迁移队列最高版本 ${max} 与 SCHEMA_VERSION ${targetVersion} 不一致`,
     );
   }
   for (let i = 0; i < versions.length; i++) {

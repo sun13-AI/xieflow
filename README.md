@@ -10,8 +10,9 @@
 pnpm install
 pnpm dev:api         # api 服务 http://127.0.0.1:8787
 pnpm dev:web         # web 界面 http://127.0.0.1:5173
-pnpm run test:all    # typecheck + e2e（42 断言）
-pwsh scripts/shot.ps1 all   # 起服务 → 截图 5 态 → 收服务
+pnpm run test:all    # typecheck + e2e（66 断言）+ HTTP 审计（51 断言）
+pwsh scripts/shot.ps1 all            # 起服务 → r1 截图 5 态 → 收服务
+pwsh scripts/shot.ps1 all -Round r2  # 同上，拍 r2 待办页 5 钉态
 ```
 
 数据在 `data/xieflow.db`（SQLite 单文件，node-sqlite3-wasm 纯 WASM 免原生编译）。
@@ -23,25 +24,39 @@ packages/
   shared/            数据契约与状态机（集中定义，禁止散落 if-else）
   db/                schema.ts（user_version 迁移）/ index.ts（连接）/ mappers.ts（行↔领域对象）
 apps/
-  web/               React + Vite 界面
-  api/               Fastify 健康探针服务（/api/health）
+  web/               React + Vite 界面（r2：工作台 + 待办页 tab 切换）
+  api/               Fastify 服务（/api/health + settings + todos 路由）
 scripts/
   e2e-test.ts        直连服务层断言（内存库 + 文件库 + HTTP 冒烟）
-  shot.ps1           截图矩阵脚本（headless Edge，一次性进程，带超时清理）
+  audit-http.ts      HTTP 路由层审计（对运行中的 api 断言，含 4xx 分支）
+  audit-http.ps1     一键审计（临时 api + 一次性 db，跑完杀进程）
+  shot.ps1           截图矩阵脚本（headless Edge，一次性进程，-Round r1/r2）
 .github/workflows/   CI：三平台 verify + tag 触发 Release
 ```
 
-## 核心概念（r1 已落地的部分）
+## 核心概念（r2 已落地的部分）
 
 - **迁移纪律**：schema 变更只走 `packages/db/src/schema.ts` 的 `MIGRATIONS` 队列（v1 settings → v2 todos），`user_version` 管理，重开幂等
-- **状态机集中**：待办状态流转（open/done/archived）定义在 `packages/shared`，非法流转服务层抛错
+- **状态机集中**：待办状态流转（open/done/archived）定义在 `packages/shared`，非法流转服务层与路由层双层拒绝
+- **汇总计数唯一入口**：今/明/周 + 四象限计数只写在 `computeTodoSummary`（shared 纯函数），api 下发、UI 消费同一口径
 - **探针真读库**：`/api/health` 每次 真 写读一次 settings，不只是进程活着
 
 ## 界面与测试对照
 
 按 AGENTS.md 立项规则：**界面更新必须带截图证据（每次，无例外）**，截图与实现同一提交。
 
-当前矩阵：[docs/ui/r1/](docs/ui/r1/README.md) —— 1 个页面 × 5 个状态形态 = 5 张实拍：
+### r2 矩阵：[docs/ui/r2/](docs/ui/r2/README.md) —— 待办页 5 钉态 + 真实链路 1 张：
+
+| 截图 | 形态 | 对应断言 |
+|---|---|---|
+| [01-todo-empty.png](docs/ui/r2/01-todo-empty.png) | 待办空态（计数卡全 0） | e2e「新库 todos 为空」 |
+| [02-todo-modal.png](docs/ui/r2/02-todo-modal.png) | 新建弹窗（标题/象限/可选截止日） | audit「POST 合法体 -> 201」及 400 分支 |
+| [03-todo-quadrants.png](docs/ui/r2/03-todo-quadrants.png) | 四象限有数据 + 今/明/周计数 | e2e「今/明/周汇总计数」节 + audit summary 组 |
+| [04-todo-done.png](docs/ui/r2/04-todo-done.png) | 状态流转后（划线 + 按钮联动 + 计数变化） | e2e「todo 状态机」节 + audit「PATCH open->done -> 200」 |
+| [05-todo-narrow.png](docs/ui/r2/05-todo-narrow.png) | 窄屏纵排（?narrow=1 seam） | 无 UI 形态（CSS 断点，确定性钉态） |
+| [06-todo-live.png](docs/ui/r2/06-todo-live.png) | 真实数据链路（API 建一条 → 页面消费） | audit POST/GET 的端到端实证 |
+
+### r1 矩阵：[docs/ui/r1/](docs/ui/r1/README.md) —— 首页工作台 5 态：
 
 | 截图 | 形态 | 对应断言（scripts/e2e-test.ts） |
 |---|---|---|
@@ -51,11 +66,12 @@ scripts/
 | [04-error.png](docs/ui/r1/04-error.png) | 错误态（api 未启动，红卡 + 提示） | 无 UI 形态（错误分支由 fetchHealth catch 保证） |
 | [05-narrow.png](docs/ui/r1/05-narrow.png) | 窄屏形态（meta 纵排，?narrow=1 测试 seam） | 无 UI 形态（CSS 断点规则，DPR 无关的确定性窄屏钉态） |
 
-> 测试 seam 说明：`?shot=` 钉住页面状态、`?narrow=1` 钉住窄屏布局——五种状态在真实运行中都存在，参数只为让 headless 截图确定性捕获（Windows 显示缩放会干扰视口 CSS 断点，见 RUNBOOK 已知坑）。
+> 测试 seam 说明：`?shot=` 钉住页面状态、`?page=todos` 直达待办页、`?narrow=1` 钉住窄屏布局——所有状态在真实运行中都存在，参数只为让 headless 截图确定性捕获（Windows 显示缩放会干扰视口 CSS 断点，见 RUNBOOK 已知坑）。
 
 ### 断言规模（每轮更新，下降 = 回归 = 冻结发版）
 
-- e2e **42** 项（迁移一致性 4 · settings 9 · todo CRUD 15 · 状态机 10 · 持久化幂等 2 · HTTP 冒烟 1 · 空串校验 1）
+- e2e **66** 项（迁移一致性 7 · settings 9 · todo CRUD 15 · 输入校验 11 · 状态机 10 · 汇总计数 7 · raw schema 约束 4 · 迁移幂等 3 · HTTP 冒烟 1，服务离线时该节降级跳过计 66；在线 67）
+- audit-http **51** 项（服务就绪 1 · health/settings 5 · 新建 11 · 列表详情 7 · 状态流转 9 · summary 11 · 删除 6 · 未知路由 1）
 - typecheck 4 包全绿（strict + noUncheckedIndexedAccess）
 - CI：ubuntu / windows / macos 三平台 verify 门禁 + tag 触发 Release
 
@@ -65,4 +81,4 @@ scripts/
 
 ## 下一轮入口
 
-r2：待办 CRUD UI（列表 + 新建弹窗 + 四象限视图），数据层已在 v2 迁移中就位。
+r3：日程与待办双向联动（待办页已就位，日程实体与联动规则待设计）。
