@@ -159,6 +159,12 @@ try {
   const guardSeed = db.createTodo("守卫样本", "q1", null);
   throws(() => db!.createTodo("   ", "q1", null), "纯空白标题抛错");
   throws(() => db!.createTodo("x", "Q1", null), "象限大小写敏感：Q1 拒绝");
+  throws(
+    () => db!.createTodo("长".repeat(201), "q1", null),
+    "超长标题（201 字）抛错（MAX_TODO_TITLE=200）",
+  );
+  const maxTitle = db.createTodo("标".repeat(200), "q1", null);
+  eq(maxTitle.title.length, 200, "恰好 200 字标题可落库（边界通过）");
   throws(() => db!.createTodo("x", "q1 ", null), "象限尾部空白拒绝");
   throws(() => db!.createTodo("x", "q1", "not-a-date"), "非法 dueDate 格式拒绝");
   throws(() => db!.createTodo("x", "q1", "2026-13-01"), "月份 13 的 dueDate 拒绝");
@@ -173,7 +179,7 @@ try {
     () => db!.transitionTodo(guardSeed.id, "DONE" as TodoStatus),
     "状态大小写敏感：DONE 拒绝",
   );
-  eq(db.listTodos().length, 1, "全部非法输入均未落库");
+  eq(db.listTodos().length, 2, "全部非法输入均未落库（库中仅守卫样本 + 200 字合法边界样本）");
 
   // 5. todo 状态机
   section("todo 状态机");

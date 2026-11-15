@@ -102,6 +102,13 @@ async function audit() {
     created = r.json;
     await expectStatus("POST", "/api/todos", { title: "", quadrant: "q1" }, 400, "POST 空标题 -> 400");
     await expectStatus("POST", "/api/todos", { title: "   ", quadrant: "q1" }, 400, "POST 纯空白标题 -> 400");
+    await expectStatus(
+      "POST",
+      "/api/todos",
+      { title: "长".repeat(201), quadrant: "q1" },
+      400,
+      "POST 超长标题（201 字）-> 400（MAX_TODO_TITLE=200）",
+    );
     await expectStatus("POST", "/api/todos", { title: "无象限" }, 400, "POST 缺 quadrant -> 400");
     await expectStatus("POST", "/api/todos", { title: "非法象限", quadrant: "q9" }, 400, "POST 非法象限 -> 400");
     await expectStatus("POST", "/api/todos", { title: "错格式", quadrant: "q2", dueDate: "20-01-01" }, 400, "POST 非法 dueDate -> 400");

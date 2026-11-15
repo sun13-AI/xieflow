@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   EMPTY_SUMMARY,
+  MAX_TODO_TITLE,
   QUADRANT_LABELS,
   TODO_STATUS_TRANSITIONS,
   computeTodoSummary,
@@ -12,6 +13,7 @@ import {
   type TodoStatus,
   type TodoSummary,
 } from "@xieflow/shared";
+import { SERVICE_DOWN_MESSAGE, fetchJsonOrThrow } from "./httpClient";
 
 const QUADRANTS: Quadrant[] = ["q1", "q2", "q3", "q4"];
 
@@ -32,8 +34,7 @@ interface FetchResult {
 /** 列表 + 汇总一次取回（GET /api/todos 同时下发 todos 与 summary） */
 async function fetchTodos(): Promise<FetchResult> {
   const res = await fetch("/api/todos");
-  if (!res.ok) throw new Error(`待办列表加载失败：HTTP ${res.status}`);
-  const data = (await res.json()) as {
+  const data = (await fetchJsonOrThrow(res)) as {
     todos: Todo[];
     summary: TodoSummary;
   };
@@ -97,9 +98,21 @@ export default function TodosPage() {
   }, []);
 
   useEffect(() => {
-    // 钉态：todo-empty / todo-modal 用空库形态；todo-data / todo-done / todo-narrow 用种子数据
+    // 钉态：todo-empty / todo-modal 用空库形态；todo-data / todo-done / todo-narrow 用种子数据；
+    // todo-loading / todo-error 钉加载/错误形态（返工 #1·F：矩阵补形态）
     if (shot === "todo-empty" || shot === "todo-modal") {
       setState({ phase: "ready", todos: [], summary: EMPTY_SUMMARY, schemaVersion: 2 });
+      return;
+    }
+    if (shot === "todo-loading") {
+      setState({ phase: "loading" });
+      return;
+    }
+    if (shot === "todo-error") {
+      setState({
+        phase: "error",
+        message: SERVICE_DOWN_MESSAGE + "（截图钉态：真实场景为 api 停机时 vite 代理 5xx）",
+      });
       return;
     }
     if (shot === "todo-data" || shot === "todo-done" || shot === "todo-narrow") {
@@ -132,16 +145,17 @@ export default function TodosPage() {
           dueDate: draft.dueDate === "" ? null : draft.dueDate,
         }),
       });
-      if (!res.ok) {
-        const data = (await res.json().catch(() => null)) as { error?: string } | null;
-        setSubmitError(data?.error ?? `新建失败：HTTP ${res.status}`);
+      const data = (await fetchJsonOrThrow(res)) as { error?: string } | null;
+      if (res.status !== 201) {
+        setSubmitError(data?.error ?? "新建失败，请稍后重试");
         return;
       }
       setModalOpen(false);
       setDraft({ title: "", quadrant: "q1", dueDate: "" });
       await load();
     } catch (err: unknown) {
-      setSubmitError(err instanceof Error ? err.message : String(err));
+      // 网络失败 / 5xx（api 停机时 vite 代理 500）：统一语义化文案
+      setSubmitError(err instanceof Error ? err.message : SERVICE_DOWN_MESSAGE);
     }
   };
 
@@ -154,14 +168,15 @@ export default function TodosPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ status: to }),
       });
-      if (!res.ok) {
-        const data = (await res.json().catch(() => null)) as { error?: string } | null;
-        window.alert(data?.error ?? `流转失败：HTTP ${res.status}`);
+      const data = (await fetchJsonOrThrow(res)) as { error?: string } | null;
+      if (res.status !== 200) {
+        window.alert(data?.error ?? "流转失败，请稍后重试");
         return;
       }
       await load();
     } catch (err: unknown) {
-      window.alert(err instanceof Error ? err.message : String(err));
+      // 网络失败 / 5xx：统一语义化文案（业务 4xx 消息已在上方透传）
+      window.alert(err instanceof Error ? err.message : SERVICE_DOWN_MESSAGE);
     } finally {
       setBusyId(null);
     }
@@ -184,6 +199,12 @@ export default function TodosPage() {
       </section>
     );
   }
+
+  // 钉态：弹窗空标题提交反馈（?shot=todo-modal-empty-title：弹窗开 + 空标题 + 已点创建的 inline alert）
+  const modalEmptyTitle = shot === "todo-modal-empty-title";
+  const [modalOpenPinned, submitErrorPinned] = modalEmptyTitle
+    ? [true, "待办标题不能为空"]
+    : [modalOpen, submitError];
 
   return (
     <div className="todos-page" data-state="todo-ready">
@@ -271,15 +292,18 @@ export default function TodosPage() {
         </div>
       )}
 
-      {modalOpen && (
+      {modalOpenPinned && (
         <div className="modal-backdrop" data-state="todo-modal">
           <div className="modal-card" role="dialog" aria-label="新建待办">
             <h2>新建待办</h2>
             <label className="field">
-              <span className="field-label">标题（必填）</span>
+              <span className="field-label">
+                标题（必填，最多 {MAX_TODO_TITLE} 字，当前 {draft.title.length}）
+              </span>
               <input
                 type="text"
                 value={draft.title}
+                maxLength={MAX_TODO_TITLE}
                 placeholder="例：写 r2 复验材料"
                 onChange={(e) => setDraft({ ...draft, title: e.target.value })}
               />
@@ -309,8 +333,8 @@ export default function TodosPage() {
                 onChange={(e) => setDraft({ ...draft, dueDate: e.target.value })}
               />
             </label>
-            {submitError && (
-              <p className="error-message" role="alert">{submitError}</p>
+            {submitErrorPinned && (
+              <p className="error-message" role="alert">{submitErrorPinned}</p>
             )}
             <div className="modal-actions">
               <button type="button" className="btn btn-secondary" onClick={() => setModalOpen(false)}>
@@ -325,12 +349,10 @@ export default function TodosPage() {
       )}
 
       {/* 状态流转说明：操作按钮按 TODO_STATUS_TRANSITIONS 渲染（open→done/archived，
-          done→open/archived，archived→open），非法流转在 api 侧被 400 拒绝 */}
+          done→open/archived，archived→open），非法流转在 api 侧被 400 拒绝。
+          r2 返工 #1·G：不再向最终用户暴露 packages/shared 包路径（开发者噪声）。 */}
       <p className="hint seam-note">
-        流转规则（packages/shared TODO_STATUS_TRANSITIONS）：
-        {(Object.keys(TODO_STATUS_TRANSITIONS) as TodoStatus[])
-          .map((from) => `${STATUS_LABELS[from]}→${TODO_STATUS_TRANSITIONS[from].map((t) => STATUS_LABELS[t]).join("/")}`)
-          .join("；")}
+        流转规则：已完成与已归档的待办都可重开，重开后又可完成或归档。
       </p>
     </div>
   );

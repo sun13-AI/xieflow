@@ -14,7 +14,7 @@ powershell -File scripts\start.ps1 stop    # 收服务
 # 开发模式：
 pnpm dev:api         # api 服务 http://127.0.0.1:8787
 pnpm dev:web         # web 界面 http://127.0.0.1:5173
-pnpm run test:all    # typecheck + e2e（66 断言）+ HTTP 审计（51 断言）
+pnpm run test:all    # typecheck + e2e（69 断言）+ HTTP 审计（52 断言）
 pwsh scripts/shot.ps1 all            # 起服务 → r1 截图 5 态 → 收服务
 pwsh scripts/shot.ps1 all -Round r2  # 同上，拍 r2 待办页钉态
 ```
@@ -60,16 +60,20 @@ scripts/
 
 按 AGENTS.md 立项规则：**界面更新必须带截图证据（每次，无例外）**，截图与实现同一提交。
 
-### r2 矩阵：[docs/ui/r2/](docs/ui/r2/README.md) —— 待办页 5 钉态 + 真实链路 1 张：
+### r2 矩阵：[docs/ui/r2/](docs/ui/r2/README.md) —— 待办页 5 钉态 + 真实链路 + 返工 #1 新增 4 形态（共 10 张）：
 
 | 截图 | 形态 | 对应断言 |
 |---|---|---|
 | [01-todo-empty.png](docs/ui/r2/01-todo-empty.png) | 待办空态（计数卡全 0） | e2e「新库 todos 为空」 |
-| [02-todo-modal.png](docs/ui/r2/02-todo-modal.png) | 新建弹窗（标题/象限/可选截止日） | audit「POST 合法体 -> 201」及 400 分支 |
+| [02-todo-modal.png](docs/ui/r2/02-todo-modal.png) | 新建弹窗（标题 200 字上限提示/象限/可选截止日） | audit「POST 合法体 -> 201」及 400 分支（含超长标题 400） |
 | [03-todo-quadrants.png](docs/ui/r2/03-todo-quadrants.png) | 四象限有数据 + 今/明/周计数 | e2e「今/明/周汇总计数」节 + audit summary 组 |
 | [04-todo-done.png](docs/ui/r2/04-todo-done.png) | 状态流转后（划线 + 按钮联动 + 计数变化） | e2e「todo 状态机」节 + audit「PATCH open->done -> 200」 |
 | [05-todo-narrow.png](docs/ui/r2/05-todo-narrow.png) | 窄屏纵排（?narrow=1 seam） | 无 UI 形态（CSS 断点，确定性钉态） |
-| [06-todo-live.png](docs/ui/r2/06-todo-live.png) | 真实数据链路（API 建一条 → 页面消费） | audit POST/GET 的端到端实证 |
+| [06-todo-live.png](docs/ui/r2/06-todo-live.png) | 真实数据链路（脚本 seed → 页面消费 → 拍后清理） | audit POST/GET 的端到端实证 |
+| [07-workbench-tab.png](docs/ui/r2/07-workbench-tab.png) | 工作台 tab 激活（tab 栏 + 工作台内容） | e2e「settings 读写」节 |
+| [08-todo-loading.png](docs/ui/r2/08-todo-loading.png) | 待办页加载态（正在加载待办…） | 无独立断言（fetch pending 态，证据为 GET 200 链路 + 本图） |
+| [09-todo-error.png](docs/ui/r2/09-todo-error.png) | 待办页错误态（语义化文案，不暴露 5xx 原始码） | 无独立断言（httpClient.ts 语义化映射；停 api 实测同文案） |
+| [10-todo-empty-title.png](docs/ui/r2/10-todo-empty-title.png) | 弹窗空标题提交反馈（inline alert + 200 字提示） | audit「POST 空标题 -> 400」的 UI 形态 |
 
 ### r1 矩阵：[docs/ui/r1/](docs/ui/r1/README.md) —— 首页工作台 5 态：
 
@@ -85,8 +89,8 @@ scripts/
 
 ### 断言规模（每轮更新，下降 = 回归 = 冻结发版）
 
-- e2e **66** 项（迁移一致性 7 · settings 9 · todo CRUD 15 · 输入校验 11 · 状态机 10 · 汇总计数 7 · raw schema 约束 4 · 迁移幂等 3 · HTTP 冒烟 1，服务离线时该节降级跳过计 66；在线 67）
-- audit-http **51** 项（服务就绪 1 · health/settings 5 · 新建 11 · 列表详情 7 · 状态流转 9 · summary 11 · 删除 6 · 未知路由 1）
+- e2e **69** 项（迁移一致性 7 · settings 9 · todo CRUD 15 · 输入校验 13 · 状态机 10 · 汇总计数 7 · raw schema 约束 4 · 迁移幂等 3 · HTTP 冒烟 1，服务离线时该节降级跳过计 68；在线 69）
+- audit-http **52** 项（服务就绪 1 · health/settings 5 · 新建 12 · 列表详情 7 · 状态流转 9 · summary 11 · 删除 6 · 未知路由 1）
 - typecheck 4 包全绿（strict + noUncheckedIndexedAccess）
 - CI：ubuntu / windows / macos 三平台 verify 门禁 + tag 触发 Release
 

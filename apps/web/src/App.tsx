@@ -32,7 +32,7 @@ export default function App() {
     if (shot === "error")
       return { phase: "error", message: "ECONNREFUSED 127.0.0.1:8787（截图钉态）" };
     if (shot === "empty") return { phase: "ready", settings: [], schemaVersion: 2 };
-    if (shot === "ready")
+    if (shot === "ready" || shot === "workbench")
       return {
         phase: "ready",
         settings: [{ key: "company.name", value: "协流示例公司", updatedAt: new Date().toISOString() }],
@@ -47,7 +47,7 @@ export default function App() {
       document.documentElement.classList.add("force-narrow");
     }
     const shot = params.get("shot");
-    if (shot === "loading" || shot === "error" || shot === "empty" || shot === "ready") {
+    if (shot === "loading" || shot === "error" || shot === "empty" || shot === "ready" || shot === "workbench") {
       return; // 钉态不探测
     }
     let alive = true;

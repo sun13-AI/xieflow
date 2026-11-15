@@ -112,6 +112,9 @@ export class ValidationError extends Error {
   }
 }
 
+/** 待办标题长度上限（r2 返工 #1·D：5000 字标题 201 落库且 UI 横向溢出，前后端共用同一上限） */
+export const MAX_TODO_TITLE = 200;
+
 export function assertValidQuadrant(quadrant: unknown): asserts quadrant is Quadrant {
   if (typeof quadrant !== "string" || !QUADRANT_LABELS[quadrant as Quadrant]) {
     throw new ValidationError(`非法象限：${String(quadrant)}`);
@@ -127,6 +130,9 @@ export function assertValidTodoStatus(status: unknown): asserts status is TodoSt
 export function assertValidTitle(title: unknown): asserts title is string {
   if (typeof title !== "string" || title.trim() === "") {
     throw new ValidationError("待办标题不能为空");
+  }
+  if (title.length > MAX_TODO_TITLE) {
+    throw new ValidationError(`待办标题过长：最多 ${MAX_TODO_TITLE} 字（当前 ${title.length} 字）`);
   }
 }
 

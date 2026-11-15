@@ -24,6 +24,7 @@
 - 截图脚本**只准 ASCII**——PS 5.1 读无 BOM UTF-8 中文会语法炸
 - 绝不裸跑 GUI 常驻进程；截图走一次性 headless 进程
 - Windows 显示缩放会让 CSS 断点不可靠 → 窄屏形态用 `?narrow=1` 类测试 seam 显式钉态
+- **自测不许弹用户窗口**（owner 指令）：一切验证走 headless（`--headless=new` + `-WindowStyle Hidden`）；绝不打开可见浏览器窗口/控制台窗口，避免 owner 桌面窗口堆叠
 
 ## 二、每轮迭代收尾必须发小版本（每次，无例外）
 
@@ -78,5 +79,6 @@ lead 审批记录进 `docs/plan.md` 的「危险区台账」一节。
 - 状态机集中定义在 `packages/shared`，禁止散落 if-else
 - 提交信息格式：`r<N>: <做了什么>`；一轮迭代至少一个提交，收尾有版本提交
 - PowerShell 脚本只准 ASCII（PS 5.1 编码坑）
+- **自测全程 headless/隐藏窗口**（owner 指令）：不得弹出任何可见窗口（浏览器、控制台、资源管理器）；用 HTTP 断言 + headless 截图代替「打开看看」
 - git 推送走系统代理：`git -c http.proxy=http://127.0.0.1:7897 push`（github.com 直连间歇被重置）
 - 凭据：`scripts/credential-github.ps1` 从 Windows 凭据管理器读 gh CLI token 喂给 git，token 不落盘不入库
