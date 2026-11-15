@@ -26,8 +26,10 @@ $env:XIEFLOW_DB_PATH = $ScratchDb
 # start api: production tsx (no watch -> no stdin watcher issue, r1 P1 lesson).
 # Windows needs cmd.exe to resolve pnpm.cmd; "< NUL" gives stdin so the process tree
 # survives detached start. Unix pwsh resolves pnpm directly.
-$isWindows = $null -ne $env:ComSpec
-if ($isWindows) {
+# NB: do NOT name this $isWindows - it is a read-only automatic variable in pwsh 7
+# (CI failure lesson, v0.0.3).
+$onWindows = $null -ne $env:ComSpec
+if ($onWindows) {
   $proc = Start-Process -FilePath "cmd.exe" `
     -ArgumentList "/c", "pnpm exec tsx apps/api/src/server.ts < NUL > `"$ApiLog`" 2>&1" `
     -WorkingDirectory $Root -WindowStyle Hidden -PassThru
@@ -52,7 +54,7 @@ try {
   Write-Output "AUDIT-HTTP WRAPPER: ALL GREEN"
 } finally {
   # kill the whole api process tree (PS 5.1 has no Kill(bool) overload -> taskkill /T)
-  if ($isWindows) {
+  if ($onWindows) {
     if ($proc -and -not $proc.HasExited) {
       & taskkill /PID $proc.Id /T /F 2>$null | Out-Null
     }
