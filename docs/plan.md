@@ -2,6 +2,14 @@
 
 > 宪法见设计包 AGENTS.md；轮次规则见 RUNBOOK.md（均在 D:\work\好东西\xieflow-design\）。
 
+### 2026-11-15 · r6 研发（yanfa · M3 起步轮）
+- 交付：schema v4→v5 迁移（tables / fields / records 三表，records.data 存 JSON、键为字段 id）+ 字段类型引擎全集中 shared（`validateFieldValue` / `coerceFieldValue` / `compareValues` / `normalizeRecordData` / `queryRecords`，7 种类型 text·number·date·select·multi-select·checkbox·url，**api 层零类型分支**）+ api 路由（tables/fields/records CRUD + 按字段筛选 + 按字段排序 + 分页，4xx：非法类型 / 未知字段 / 筛选值类型不符 / 未知筛选或排序字段）+ web 多维表格页（「表格」tab：网格视图 + 单元格按类型渲染与编辑 + 字段管理面板 + 筛选/排序/分页 + 深链参数）
+- 顺带修 r5 遗留：**U2-1** 列级指标改名「待办完成率」（汇总卡同步改「项目待办完成率」，避免与列名「已完成」语义冲突）+ **U2-2** 导出文件名改 `xieflow-board-<项目名>-<YYYYMMDD>.csv`（口径集中 shared `buildBoardCsvFileName`，中文名按 RFC 5987 `filename*=UTF-8''` 下发）
+- 「用户第一次用」全链路实跑通（headless Edge + CDP 真点）：建表 → 加字段（面板）→ 加行 → 编辑单元格 → 筛选 → 排序 → 删表清理（探针日志见 r6 yanfa 报告第五节）
+- 断言规模：e2e 288 → **449**（+161：字段类型引擎 86 + 记录归一与查询装配 25 + 导出文件名 6 + v4→v5 迁移与数据层 44）· audit-http 313 → **403**（+90：tables/fields/records 86 + U2-2 文件名 4）· typecheck 4 包全绿；`pnpm run test:all` exit 0
+- 截图矩阵：docs/ui/r6/ 共 8 张（多类型网格 / 真实空表 / 字段管理面板 / 筛选排序后 / 窄屏 / 错误态 / 加载态 / 单元格编辑态），逐张 read_image 目验 + 全库 67 张 SHA256 两两互异自查（唯一同态组仍是 r4 已披露的两组）；壳基线由 5 张扩为 **6 张**（新增「表格」tab 激活态）
+- 已知遗留：① 筛选为单值等值/包含语义（多字段 AND 筛选未做，留 r7 视图轮）② 记录 data 以字段 id 为键，字段改名不影响数据、但外部直接读库需先查字段表 ③ r5 目录看板图仍是改名前形态（未重拍，避免破坏 r5 真值对真图证据链）
+
 ### 2026-11-15 · r5 研发（yanfa · M2 收官轮）
 - 交付：api 统计端点 `GET /api/projects/:id/stats`（各列卡片数/完成率/待办关联数 + 项目合计）· api 导出端点 `GET /api/projects/:id/export.csv`（UTF-8 BOM + CRLF + RFC4180 转义 + 中文表头 9 列 + 每列至少一行）· web 看板页统计卡（四块汇总 + 各列完成率条）与「导出 CSV」按钮（按字节落盘，保留 BOM）
 - 规则集中：统计口径只写在 shared `computeBoardStats`（完成 = 关联待办状态 done；分母 0 记 0% 不除零）；CSV 生成只写在 shared `buildBoardCsvContent` / `escapeCsvField` / `countCsvRecords`（api 只装配 + 404/400 映射）
@@ -51,7 +59,7 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r3 | M1 第 2 片：日程与待办双向联动 | ✅已发版（初验双打回→返工#1→复审：ui 放行→waizhuan P2 修复确认 + CI 两跳 v0.0.6/v0.0.7 全绿） | v0.0.7 | e2e 167 · audit 138 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r4 | M2 第 1 片：项目+看板数据层与最小 UI | ✅已发版（初验双打回→返工#1→双复审通过；壳基线机制固化） | v0.0.8 | e2e 217 · audit 233 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r5 | M2 第 2 片：看板统计与 Excel/CSV 导出（M2 收官） | ✅已发版（首轮双通过；Excel COM 真开验证） | v0.0.9 | e2e 288 · audit 313 | 通过（waizhuan）+ UI 通过（阻断岗） |
-| r6 | M3 第 1 片：多维表格字段引擎 + 网格视图 | 🔨研发中 | — | — | — |
+| r6 | M3 第 1 片：多维表格字段引擎 + 网格视图 | 🔨研发中（待 waizhuan + ui 复验） | — | e2e 449 · audit 403 | — |
 
 附加交付（r2 内 lead 直做，已入库 8e4fb9b）：
 - 一键启动：start.cmd 双击 / scripts\start.ps1 start|stop|status（三轮全链路验证；期间排掉「僵尸 api 抢 8787」环境坑，非脚本缺陷）

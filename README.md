@@ -14,7 +14,7 @@ powershell -File scripts\start.ps1 stop    # 收服务
 # 开发模式：
 pnpm dev:api         # api 服务 http://127.0.0.1:8787
 pnpm dev:web         # web 界面 http://127.0.0.1:5173
-pnpm run test:all    # typecheck + e2e（288 断言）+ HTTP 审计（313 断言）
+pnpm run test:all    # typecheck + e2e（449 断言）+ HTTP 审计（403 断言）
 ```
 
 ### 打包（对齐 IKanBot 的 pack/dist 语义）
@@ -49,8 +49,8 @@ packages/
   shared/            数据契约与状态机（集中定义，禁止散落 if-else）
   db/                schema.ts（user_version 迁移）/ index.ts / mappers.ts
 apps/
-  web/               React + Vite 界面（工作台 / 待办四象限 / 日程月视图 / 项目 / 看板）
-  api/               Fastify 服务（health / settings / todos / schedules / projects / board）
+  web/               React + Vite 界面（工作台 / 待办四象限 / 日程月视图 / 项目 / 看板 / 多维表格网格）
+  api/               Fastify 服务（health / settings / todos / schedules / projects / board / tables+fields+records）
 scripts/
   e2e-test.ts        直连服务层断言
   audit-http.ts      HTTP 路由层审计（含 4xx 分支）
@@ -64,21 +64,34 @@ docs/
   plan.md            轮次看板与任务单（每轮更新）
   feedback/          研发报告 / 复验报告（VERDICT）/ UI 审查报告
   staff/             agent 员工档案与逐轮履历
-  ui/                截图矩阵（逐张对照断言；shell/ 为五 tab 壳基线）
+  ui/                截图矩阵（逐张对照断言；shell/ 为六 tab 壳基线）
 .github/workflows/   CI：三平台 verify + tag 触发 Release
 ```
 
 ## 路线图
 
-M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 → M3 多维表格 → M4 文档 → M5 AI 工作台 → M6 知识库 RAG → M7 导图+白板 → M8 组织管理 → M9 网络版 → M10 多端与单机版
+M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表格（进行中）→ M4 文档 → M5 AI 工作台 → M6 知识库 RAG → M7 导图+白板 → M8 组织管理 → M9 网络版 → M10 多端与单机版
 
 进度看板：[docs/plan.md](docs/plan.md)
 
 ## 界面与测试对照
 
-按 AGENTS.md 立项规则：**界面更新必须带截图证据（每次，无例外）**，截图与实现同一提交。逐图索引（r1/r2/r3/r4/r5 矩阵全量、逐张对照断言）：
+按 AGENTS.md 立项规则：**界面更新必须带截图证据（每次，无例外）**，截图与实现同一提交。逐图索引（r1/r2/r3/r4/r5/r6 矩阵全量、逐张对照断言）：
 
-### r5 矩阵：[docs/ui/r5/](docs/ui/r5/README.md) —— 看板统计卡 + CSV 台账导出（M2 第 收官，共 8 张 + 1 份落盘 CSV）：
+### r6 矩阵：[docs/ui/r6/](docs/ui/r6/README.md) —— 多维表格字段引擎 + 网格视图（M3 第 1 片，共 8 张）：
+
+| 截图 | 形态 | 对应断言 |
+|---|---|---|
+| [01-bases-grid-live.png](docs/ui/r6/01-bases-grid-live.png) | **真实链路·多类型网格**（8 字段列 + 3 行；单选蓝徽标 / 多选双徽标 / 数字右对齐 / 日期 / 复选框 ☑否 / 链接可点 / 空格子「—」） | audit「字段：新表自带 8 个默认字段」「记录：多选字段读回数组」；e2e「createTable 自动创建默认字段（7 种类型齐备）」 |
+| [02-bases-empty.png](docs/ui/r6/02-bases-empty.png) | **真实链路·空表**（表在场、字段表头可见、零行 + 「＋ 新增行」引导；共 0 行） | e2e「默认字段覆盖全部 7 种字段类型」；audit「字段：新表自带 8 个默认字段」 |
+| [03-bases-fields-panel.png](docs/ui/r6/03-bases-fields-panel.png) | **字段管理面板**（8 行字段：名称 + 类型 + 候选项 + 删除；底部「添加字段」行） | audit「POST 字段非法类型 -> 400」「POST 单选零候选项 -> 400」「PATCH 字段改名 -> 200」；e2e「updateField 改类型生效」 |
+| [04-bases-filtered-sorted.png](docs/ui/r6/04-bases-filtered-sorted.png) | **真实链路·筛选 + 排序后**（筛选=标签「重要」、排序=金额降序 → 命中 2 行、1200 → 300） | audit「筛选：已完成 -> 2 条命中」「排序：数字降序 9000 / 1500 / 300」「GET 记录（筛选值类型不符）-> 400」 |
+| [05-bases-narrow.png](docs/ui/r6/05-bases-narrow.png) | 窄屏 488×900（工具条纵排、网格不折字横向滚动） | 无 UI 形态（CSS 断点，确定性钉态） |
+| [06-bases-error.png](docs/ui/r6/06-bases-error.png) | 多维表格页错误态（钉态，语义化文案） | 无独立断言（httpClient.ts 语义化映射） |
+| [07-bases-loading.png](docs/ui/r6/07-bases-loading.png) | 多维表格页加载态（钉态） | 无独立断言（fetch pending 态，证据为 GET 200 链路 + 本图） |
+| [08-bases-cell-editor.png](docs/ui/r6/08-bases-cell-editor.png) | **单元格编辑态**（钉态：第一行「名称」格内文本框） | audit「PATCH 编辑单元格 -> 200」「记录：编辑后数字读回」；e2e「updateRecord 编辑单元格生效」 |
+
+### r5 矩阵：[docs/ui/r5/](docs/ui/r5/README.md) —— 看板统计卡 + CSV 台账导出（M2 第 收官，共 8 张 + 1 份落盘 CSV；**r6 起列级指标改称「待办完成率」、导出文件名改为含项目名**，看板页当前文案以 r6 代码与断言为准，本目录图仍是改名前形态）：
 
 | 截图 | 形态 | 对应断言 |
 |---|---|---|
@@ -116,7 +129,7 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 → M3 多维表格 
 | [18-board-switched-project.png](docs/ui/r4/18-board-switched-project.png) | **返工 #1·D 证据**：项目切换深链 → 第二项目看板（下拉选中态） | audit「GET /api/projects -> 200」多项目读回 UI 形态 |
 | [19-board-card-moved-ui.png](docs/ui/r4/19-board-card-moved-ui.png) | **返工 #1·A4 全路径②**：建卡 → 真实移动 → 两侧列重排 | audit「PATCH 卡跨列移动 -> 200」+ 两侧重排 UI 形态 |
 
-### 壳基线：[docs/ui/shell/](docs/ui/shell/README.md) —— 五 tab 激活态（r4 返工 #1 B 固化，shot.ps1 自动拍摄）：工作台 / 待办 / 日程 / 项目 / 看板各 1 张（r2/r3 U1-1 三轮连漏的流程性终结）。
+### 壳基线：[docs/ui/shell/](docs/ui/shell/README.md) —— 六 tab 激活态（r4 返工 #1 B 固化，shot.ps1 自动拍摄；r6 新增「表格」tab → 基线扩为六张）：工作台 / 待办 / 日程 / 项目 / 看板 / 表格各 1 张（r2/r3 U1-1 三轮连漏的流程性终结）。
 
 ### r3 矩阵：[docs/ui/r3/](docs/ui/r3/README.md) —— 日程页月视图 + 联动徽标 + 工作台今日日程（共 11 张，返工 #1 修正 06/10 + 补 11）：
 
@@ -155,15 +168,15 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 → M3 多维表格 
 
 ### 断言规模（每轮更新，下降 = 回归 = 冻结发版）
 
-- e2e **288** 项（服务离线口径 288，api 在线时 HTTP 冒烟节 +1 = 289）：迁移一致性 7 · settings 9 · todo CRUD 15 · 输入校验 13 · 状态机 10 · 汇总计数 7 · raw schema 4 · 迁移幂等 3 · 日程契约与守卫 28 · 循环实例化 14 · 区间查询装配 12 · v2→v3 迁移+双向联动 18 · schedules CRUD 26 · 看板排序规则（reorderPositions）12 · 看板名称守卫 6 · v3→v4 迁移+看板数据层 33 · **看板统计口径（computeBoardStats）35（r5 新增）· 看板 CSV 台账（buildBoardCsvContent）36（r5 新增）**
-- HTTP audit **313** 项（服务就绪 1 · health/settings 5 · todo 新建 12 · 列表详情 7 · 状态流转 9 · summary 11 · 删除 6 · 未知路由 1 · schedules CRUD 36 · 双向联动 22 · 循环实例 over HTTP 23 · projects CRUD 25 · board columns CRUD 20 · cards CRUD + 跨列移动 50 · **board stats + CSV export 80（r5 新增）** · schedules 删除 5）
+- e2e **449** 项（服务离线口径 449，api 在线时 HTTP 冒烟节 +1 = 450）：迁移一致性 7 · settings 9 · todo CRUD 15 · 输入校验 13 · 状态机 10 · 汇总计数 7 · raw schema 4 · 迁移幂等 3 · 日程契约与守卫 28 · 循环实例化 14 · 区间查询装配 12 · v2→v3 迁移+双向联动 18 · schedules CRUD 26 · 看板排序规则（reorderPositions）12 · 看板名称守卫 6 · v3→v4 迁移+看板数据层 33 · 看板统计口径（computeBoardStats）35 · 看板 CSV 台账（buildBoardCsvContent）36 · **字段类型引擎（validateFieldValue / coerceFieldValue / compareValues）86（r6 新增）· 记录数据归一与查询装配（normalizeRecordData / queryRecords）25（r6 新增）· 看板导出文件名（buildBoardCsvFileName · U2-2）6（r6 新增）· v4→v5 迁移+多维表格数据层 44（r6 新增）**
+- HTTP audit **403** 项（服务就绪 1 · health/settings 5 · todo 新建 12 · 列表详情 7 · 状态流转 9 · summary 11 · 删除 6 · 未知路由 1 · schedules CRUD 36 · 双向联动 22 · 循环实例 over HTTP 23 · projects CRUD 25 · board columns CRUD 20 · cards CRUD + 跨列移动 50 · board stats + CSV export 84 · **tables / fields / records（r6）86（r6 新增）** · schedules 删除 5）
 - typecheck 4 包全绿（strict + noUncheckedIndexedAccess）
 - CI：ubuntu / windows / macos 三平台 verify 门禁 + tag 触发 Release
-- r5 规模变化：e2e 217 → 288（+71）· audit 233 → 313（+80）；**无一条断言被删**（只涨不缩，宪法第四条）
+- r6 规模变化：e2e 288 → 449（+161）· audit 313 → 403（+90）；**无一条断言被删**（只涨不缩，宪法第四条）
 
 ### 核心概念（r4 已落地的部分）
 
-- **迁移纪律**：schema 变更只走 `packages/db/src/schema.ts` 的 `MIGRATIONS` 队列（v1 settings → v2 todos → v3 schedules → v4 projects/board_columns/cards），`user_version` 管理，重开幂等、旧库原地升级只补跑缺失版本
+- **迁移纪律**：schema 变更只走 `packages/db/src/schema.ts` 的 `MIGRATIONS` 队列（v1 settings → v2 todos → v3 schedules → v4 projects/board_columns/cards → v5 tables/fields/records），`user_version` 管理，重开幂等、旧库原地升级只补跑缺失版本
 - **状态机集中**：待办状态流转（open/done/archived）定义在 `packages/shared`，非法流转服务层与路由层双层拒绝
 - **汇总计数唯一入口**：今/明/周 + 四象限计数只写在 `computeTodoSummary`（shared 纯函数），api 下发、UI 消费同一口径
 - **循环实例化唯一入口**：daily/weekly/monthly 展开规则只写在 `computeRepeatInstances`（shared 纯函数，含月末收敛与实例封顶）；区间查询装配只写在 `assembleRangeSchedules`
@@ -175,8 +188,20 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 → M3 多维表格 
 - **看板统计唯一入口**（r5）：统计口径只写在 shared `computeBoardStats` 纯函数——「卡片算已完成 ⟺ 关联待办状态为 done」，
   列完成率 = 该列完成卡片 ÷ 该列卡片总数，项目完成率 = 项目完成卡片 ÷ 项目卡片总数，**分母 0 记 0%（不除零）**；
   api `GET /api/projects/:id/stats` 与 UI 统计卡消费同一口径，卡片移动后统计即时变化
+  （**r6 起列级指标改名「待办完成率」**，避免与列名「已完成」语义冲突——r5 UI 审查 U2-1）
 - **CSV 台账导出唯一入口**（r5）：`GET /api/projects/:id/export.csv` = UTF-8 BOM（`EF BB BF`）+ CRLF + RFC4180 转义 + 中文表头 9 列，
   每列至少一行（空列占位）；**落盘必须按字节**（fetch 文本解码会剥掉 BOM，Excel 直开会乱码）
+  （**r6 起文件名含项目名**：`xieflow-board-<项目名>-<YYYYMMDD>.csv`，不再只露内部 id——r5 UI 审查 U2-2；
+  中文名按 RFC 5987 用 `filename*=UTF-8''` 下发，口径集中在 shared `buildBoardCsvFileName`）
+- **字段类型引擎唯一入口**（r6）：7 种字段类型（text / number / date / select / multi-select / checkbox / url）的
+  **校验**（`validateFieldValue`）、**写入归一**（`coerceFieldValue`：数字字符串→数字、日期补零、裸域名补 https://、
+  逗号串→多选数组、"true"/"1"→布尔）、**排序比较**（`compareValues`：数值按值、日期按时间、单选按候选项顺序、
+  **空值恒最后**）三条规则全部只写在 `packages/shared`——**api 层不出现任何字段类型分支**（只做装配 + 400/404 映射）
+- **多维表格数据层**（r6）：schema v5 新增 `tables` / `fields` / `records` 三表（`records.data` 存 JSON，键为字段 id）；
+  **建表自动带 8 个默认字段**（7 种类型齐备）——消灭「建表零字段」死路；删字段同步清掉记录里的孤儿键；
+  记录写入统一过 shared `normalizeRecordData`（未知字段 / 类型不符一律拒绝）
+- **记录查询唯一入口**（r6）：按字段筛选 + 按字段排序 + 分页的规则集中在 shared `queryRecords`
+  （筛选值先归一再校验 → 类型不符抛错由 api 映射 400；空值恒排最后；pageSize 上限 100）
 - **探针真读库**：`/api/health` 每次真写读一次 settings，不只是进程活着
 
 ## 明确不做（当前阶段）

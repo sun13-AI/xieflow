@@ -45,12 +45,35 @@ import {
   countCsvRecords,
   CSV_UTF8_BOM,
   BOARD_CSV_HEADERS,
+  FIELD_TYPES,
+  FIELD_TYPE_LABELS,
+  isFieldType,
+  fieldTypeUsesOptions,
+  validateFieldValue,
+  assertValidFieldValue,
+  coerceFieldValue,
+  compareValues,
+  isEmptyFieldValue,
+  matchesFieldValue,
+  normalizeRecordData,
+  sortRecordsByField,
+  queryRecords,
+  DEFAULT_TABLE_FIELDS,
+  assertValidTableName,
+  assertValidFieldName,
+  assertValidFieldType,
+  assertValidFieldOptions,
+  sanitizeFileNamePart,
+  buildBoardCsvFileName,
+  MAX_PAGE_SIZE,
   type Schedule,
   type ScheduleWithInstanceFlag,
   type ScheduleRepeat,
   type BoardCard,
   type BoardColumn,
   type Todo,
+  type TableField,
+  type TableRecord,
 } from "@xieflow/shared";
 import type { TodoStatus } from "@xieflow/shared";
 
@@ -142,6 +165,7 @@ try {
         { version: 3, name: "c", up: [] },
         { version: 4, name: "d", up: [] },
         { version: 5, name: "e", up: [] },
+        { version: 6, name: "f", up: [] },
       ]),
     "队列超出 SCHEMA_VERSION：一致性校验抛错",
   );
@@ -529,8 +553,8 @@ try {
     const v3Migrated = openDatabaseRaw({ path: v3Path });
     eq(
       v3Migrated.appliedMigrations,
-      [3, 4],
-      "v2 旧库重开补跑 v3+v4 迁移（真实 PRAGMA 升级路径，r4 起队列追加 v4）",
+      [3, 4, 5],
+      "v2 旧库重开补跑 v3+v4+v5 迁移（真实 PRAGMA 升级路径，r6 起队列追加 v5）",
     );
     const tables = v3Migrated.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -755,8 +779,8 @@ try {
     const v4Open = openDatabaseRaw({ path: v4Path });
     eq(
       v4Open.appliedMigrations,
-      [4],
-      "v3 旧库重开只补跑 v4 迁移（真实 PRAGMA 升级路径）",
+      [4, 5],
+      "v3 旧库重开只补跑 v4+v5 迁移（真实 PRAGMA 升级路径）",
     );
     const tables = v4Open.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -1156,6 +1180,409 @@ try {
     const emptyCsv = buildBoardCsvContent([], [], []);
     eq(emptyCsv, CSV_UTF8_BOM + BOARD_CSV_HEADERS.join(","), "CSV：零列项目导出仅含表头");
     eq(countCsvRecords(emptyCsv), 1, "CSV：零列项目导出记录数=1（表头）");
+  }
+
+  // 16. r6 字段类型引擎：校验 / 归一 / 比较器（每种字段类型 ≥6 条断言）
+  section("字段类型引擎（validateFieldValue / coerceFieldValue / compareValues）");
+  {
+    // —— 字段类型清单 ——
+    eq(FIELD_TYPES.length, 7, "字段类型共 7 种（text/number/date/select/multi-select/checkbox/url）");
+    eq(
+      [...FIELD_TYPES],
+      ["text", "number", "date", "select", "multi-select", "checkbox", "url"],
+      "字段类型清单与顺序固定",
+    );
+    ok(
+      FIELD_TYPES.every((t) => typeof FIELD_TYPE_LABELS[t] === "string" && FIELD_TYPE_LABELS[t].length > 0),
+      "每种字段类型都有中文标签（字段管理面板与错误消息同源）",
+    );
+    ok(isFieldType("multi-select"), "isFieldType 认得多选");
+    ok(!isFieldType("money"), "isFieldType 拒绝未知类型");
+    ok(fieldTypeUsesOptions("select") && fieldTypeUsesOptions("multi-select"), "单选/多选需要候选项");
+    ok(!fieldTypeUsesOptions("text") && !fieldTypeUsesOptions("number"), "文本/数字不需要候选项");
+
+    // —— text ——
+    eq(validateFieldValue("text", "abc").valid, true, "校验·文本：字符串合法");
+    eq(validateFieldValue("text", 42).valid, false, "校验·文本：非字符串非法");
+    eq(validateFieldValue("text", null).valid, true, "校验·文本：空值合法（空格子不是错误）");
+    eq(coerceFieldValue("text", 42), "42", "归一·文本：数字转字符串");
+    eq(coerceFieldValue("text", "  a  "), "  a  ", "归一·文本：保留原文空白");
+    eq(compareValues("text", "a", "b") < 0, true, "比较器·文本：字典序 a < b");
+    eq(compareValues("text", "b", "a") > 0, true, "比较器·文本：反向 b > a");
+    eq(compareValues("text", null, "a") > 0, true, "比较器·文本：空值恒最后");
+    eq(compareValues("text", "a", "a"), 0, "比较器·文本：相等返回 0");
+
+    // —— number ——
+    eq(validateFieldValue("number", 42).valid, true, "校验·数字：数值合法");
+    eq(validateFieldValue("number", "42").valid, false, "校验·数字：数字字符串非法（须先归一）");
+    eq(validateFieldValue("number", Number.NaN).valid, false, "校验·数字：NaN 非法");
+    eq(validateFieldValue("number", Number.POSITIVE_INFINITY).valid, false, "校验·数字：Infinity 非法");
+    eq(coerceFieldValue("number", "42"), 42, "归一·数字：数字字符串转数字");
+    eq(coerceFieldValue("number", " 42 "), 42, "归一·数字：去空白后转数字");
+    eq(coerceFieldValue("number", ""), null, "归一·数字：空串按清空处理");
+    eq(coerceFieldValue("number", "abc"), "abc", "归一·数字：认不出的值原样返回（交校验拦下）");
+    eq(compareValues("number", 10, 9) > 0, true, "比较器·数字：按值比（10 > 9，不是字符串比）");
+    eq(compareValues("number", 2, 10) < 0, true, "比较器·数字：2 < 10（不是字符串比）");
+    eq(compareValues("number", null, 1) > 0, true, "比较器·数字：空值恒最后");
+
+    // —— date ——
+    eq(validateFieldValue("date", "2026-11-15").valid, true, "校验·日期：ISO 日期合法");
+    eq(validateFieldValue("date", "2026-13-01").valid, false, "校验·日期：13 月非法");
+    eq(validateFieldValue("date", "2026-02-30").valid, false, "校验·日期：不存在的日历日非法");
+    eq(validateFieldValue("date", "2026/11/15").valid, false, "校验·日期：斜杠格式非法");
+    eq(coerceFieldValue("date", "2026-1-5"), "2026-01-05", "归一·日期：补零成 YYYY-MM-DD");
+    eq(coerceFieldValue("date", "2026-11-15T10:00:00Z"), "2026-11-15", "归一·日期：带时刻只取日期部分");
+    eq(coerceFieldValue("date", "2026/11/15"), "2026-11-15", "归一·日期：斜杠改横杠");
+    eq(coerceFieldValue("date", ""), null, "归一·日期：空串按清空处理");
+    eq(compareValues("date", "2026-11-15", "2026-11-16") < 0, true, "比较器·日期：按时间比");
+    eq(compareValues("date", "2026-12-01", "2026-11-30") > 0, true, "比较器·日期：跨月比");
+    eq(compareValues("date", null, "2026-11-15") > 0, true, "比较器·日期：空值恒最后");
+
+    // —— select ——
+    const selOptions = ["未开始", "进行中", "已完成"];
+    eq(validateFieldValue("select", "进行中", selOptions).valid, true, "校验·单选：在候选项内合法");
+    eq(validateFieldValue("select", "搁置", selOptions).valid, false, "校验·单选：不在候选项内非法");
+    eq(validateFieldValue("select", 42, selOptions).valid, false, "校验·单选：非字符串非法");
+    eq(coerceFieldValue("select", " 进行中 ", selOptions), "进行中", "归一·单选：去空白");
+    eq(coerceFieldValue("select", "", selOptions), null, "归一·单选：空串按清空处理");
+    eq(compareValues("select", "已完成", "未开始", selOptions) > 0, true, "比较器·单选：按候选项顺序比");
+    eq(compareValues("select", "未开始", "已完成", selOptions) < 0, true, "比较器·单选：反向按候选项顺序");
+    eq(compareValues("select", null, "未开始", selOptions) > 0, true, "比较器·单选：空值恒最后");
+
+    // —— multi-select ——
+    const msOptions = ["重要", "紧急", "返工"];
+    eq(validateFieldValue("multi-select", ["重要"], msOptions).valid, true, "校验·多选：候选项子集合法");
+    eq(validateFieldValue("multi-select", ["未知"], msOptions).valid, false, "校验·多选：非候选项非法");
+    eq(validateFieldValue("multi-select", "重要", msOptions).valid, false, "校验·多选：非数组非法");
+    eq(coerceFieldValue("multi-select", "重要, 紧急", msOptions), ["重要", "紧急"], "归一·多选：逗号串转数组");
+    eq(coerceFieldValue("multi-select", ["重要", "重要", "紧急"], msOptions), ["重要", "紧急"], "归一·多选：去重");
+    eq(coerceFieldValue("multi-select", "", msOptions), null, "归一·多选：空串按清空处理");
+    eq(compareValues("multi-select", ["紧急"], ["重要"], msOptions) > 0, true, "比较器·多选：按首个候选项顺序比");
+    eq(compareValues("multi-select", [], ["重要"], msOptions) > 0, true, "比较器·多选：空数组恒最后");
+
+    // —— checkbox ——
+    eq(validateFieldValue("checkbox", true).valid, true, "校验·复选框：布尔值合法");
+    eq(validateFieldValue("checkbox", "true").valid, false, "校验·复选框：字符串非法");
+    eq(validateFieldValue("checkbox", 1).valid, false, "校验·复选框：数字非法");
+    eq(coerceFieldValue("checkbox", "true"), true, "归一·复选框：\"true\" 转布尔");
+    eq(coerceFieldValue("checkbox", "1"), true, "归一·复选框：\"1\" 转布尔");
+    eq(coerceFieldValue("checkbox", "0"), false, "归一·复选框：\"0\" 转布尔");
+    eq(compareValues("checkbox", false, true) < 0, true, "比较器·复选框：false < true");
+    eq(compareValues("checkbox", true, false) > 0, true, "比较器·复选框：true > false");
+    eq(compareValues("checkbox", null, false) > 0, true, "比较器·复选框：空值恒最后（false 是值不是空）");
+
+    // —— url ——
+    eq(validateFieldValue("url", "https://example.com").valid, true, "校验·链接：https 合法");
+    eq(validateFieldValue("url", "ftp://example.com").valid, false, "校验·链接：非 http(s) 非法");
+    eq(validateFieldValue("url", 42).valid, false, "校验·链接：非字符串非法");
+    eq(coerceFieldValue("url", "example.com"), "https://example.com", "归一·链接：裸域名补 https://");
+    eq(coerceFieldValue("url", ""), null, "归一·链接：空串按清空处理");
+    eq(compareValues("url", "https://a.com", "https://b.com") < 0, true, "比较器·链接：按字符串比");
+    eq(compareValues("url", null, "https://a.com") > 0, true, "比较器·链接：空值恒最后");
+
+    // —— 空值判定与守卫 ——
+    eq(isEmptyFieldValue(null), true, "空值判定：null 是空");
+    eq(isEmptyFieldValue(""), true, "空值判定：空串是空");
+    eq(isEmptyFieldValue([]), true, "空值判定：空数组是空");
+    eq(isEmptyFieldValue(false), false, "空值判定：false 是值不是空");
+    throws(() => assertValidFieldValue("number", "abc"), "断言式校验：数字字段收到字符串抛错");
+    throws(() => assertValidFieldValue("select", "搁置", selOptions), "断言式校验：单选值不在候选项抛错");
+    noThrow(() => assertValidFieldValue("text", "ok"), "断言式校验：合法值不抛错");
+    throws(() => assertValidTableName(""), "守卫：表格空名称抛错");
+    noThrow(() => assertValidTableName("预算表"), "守卫：合法表格名通过");
+    throws(() => assertValidFieldName("   "), "守卫：字段纯空白名称抛错");
+    throws(() => assertValidFieldType("money"), "守卫：非法字段类型抛错");
+    noThrow(() => assertValidFieldType("multi-select"), "守卫：合法字段类型通过");
+    throws(() => assertValidFieldOptions("select", []), "守卫：单选零候选项抛错");
+    throws(() => assertValidFieldOptions("select", ["A", "A"]), "守卫：候选项重复抛错");
+    throws(() => assertValidFieldOptions("text", ["A"]), "守卫：文本字段带候选项抛错");
+    noThrow(() => assertValidFieldOptions("multi-select", ["A", "B"]), "守卫：多选候选项合法通过");
+  }
+
+  // 17. r6 记录数据归一 + 查询装配（筛选 / 排序 / 分页，规则集中 shared）
+  section("记录数据归一与查询装配（normalizeRecordData / queryRecords）");
+  {
+    const mkField = (id: number, name: string, type: TableField["type"], options: string[] = [], position = 0): TableField => ({
+      id,
+      tableId: 1,
+      name,
+      type,
+      position,
+      options,
+      createdAt: "2026-11-15T08:00:00.000Z",
+      updatedAt: "2026-11-15T08:00:00.000Z",
+    });
+    const mkRecord = (id: number, data: Record<string, unknown>, position = 0): TableRecord => ({
+      id,
+      tableId: 1,
+      data,
+      position,
+      createdAt: "2026-11-15T08:00:00.000Z",
+      updatedAt: "2026-11-15T08:00:00.000Z",
+    });
+    const fName = mkField(1, "名称", "text");
+    const fAmount = mkField(2, "金额", "number");
+    const fStatus = mkField(3, "状态", "select", ["未开始", "进行中", "已完成"]);
+    const fields = [fName, fAmount, fStatus];
+
+    // —— 归一 ——
+    eq(
+      normalizeRecordData(fields, { "1": "量房", "2": "42" }),
+      { "1": "量房", "2": 42, "3": null },
+      "归一：数字字符串转数字 + 缺省字段补 null",
+    );
+    throws(() => normalizeRecordData(fields, { "999": "x" }), "归一：未知字段 id 抛错");
+    throws(() => normalizeRecordData(fields, { "2": "abc" }), "归一：数字字段收到非法字符串抛错");
+    throws(() => normalizeRecordData(fields, { "3": "搁置" }), "归一：单选值不在候选项抛错");
+
+    // —— 筛选 ——
+    const records = [
+      mkRecord(11, { "1": "B", "2": 10, "3": "进行中" }, 0),
+      mkRecord(12, { "1": "A", "2": null, "3": "未开始" }, 1),
+      mkRecord(13, { "1": "C", "2": 5, "3": "已完成" }, 2),
+    ];
+    eq(
+      queryRecords(records, fields, { filterFieldId: 3, filterValue: "进行中" }).records.map((r) => r.id),
+      [11],
+      "查询·筛选：按单选字段筛出 1 条",
+    );
+    eq(
+      queryRecords(records, fields, { filterFieldId: 2, filterValue: "10" }).records.map((r) => r.id),
+      [11],
+      "查询·筛选：数字字段筛选值走归一（\"10\" → 10）",
+    );
+    throws(
+      () => queryRecords(records, fields, { filterFieldId: 2, filterValue: "abc" }),
+      "查询·筛选：筛选值类型不符抛错（api 映射 400）",
+    );
+    throws(() => queryRecords(records, fields, { filterFieldId: 999 }), "查询·筛选：未知筛选字段抛错");
+    throws(() => queryRecords(records, fields, { sortFieldId: 999 }), "查询·排序：未知排序字段抛错");
+    throws(
+      () => queryRecords(records, fields, { filterFieldId: 3, filterValue: "搁置" }),
+      "查询·筛选：筛选值不在候选项内抛错",
+    );
+
+    // —— 排序 ——
+    eq(
+      queryRecords(records, fields, { sortFieldId: 2 }).records.map((r) => r.id),
+      [13, 11, 12],
+      "查询·排序：数字升序（5 < 10），空值排最后",
+    );
+    eq(
+      queryRecords(records, fields, { sortFieldId: 2, sortDirection: "desc" }).records.map((r) => r.id),
+      [11, 13, 12],
+      "查询·排序：数字降序（10 > 5），空值仍排最后",
+    );
+    eq(
+      queryRecords(records, fields, { sortFieldId: 3 }).records.map((r) => r.id),
+      [12, 11, 13],
+      "查询·排序：单选按候选项顺序（未开始 < 进行中 < 已完成）",
+    );
+    eq(
+      sortRecordsByField(records, fAmount, "asc").map((r) => r.id),
+      [13, 11, 12],
+      "排序：sortRecordsByField 空值恒最后",
+    );
+    eq(
+      matchesFieldValue("multi-select", ["重要", "紧急"], "重要"),
+      true,
+      "筛选判定：多选包含命中",
+    );
+    eq(matchesFieldValue("number", 5, 5), true, "筛选判定：数字相等命中");
+    eq(matchesFieldValue("checkbox", true, false), false, "筛选判定：复选框不等不命中");
+
+    // —— 分页 ——
+    const page1 = queryRecords(records, fields, { page: 1, pageSize: 2 });
+    eq(page1.records.map((r) => r.id), [11, 12], "分页：第 1 页 2 条");
+    eq(page1.total, 3, "分页：total = 全部命中数");
+    eq(page1.totalPages, 2, "分页：totalPages = ceil(total / pageSize)");
+    const page2 = queryRecords(records, fields, { page: 2, pageSize: 2 });
+    eq(page2.records.map((r) => r.id), [13], "分页：第 2 页 1 条");
+    const page99 = queryRecords(records, fields, { page: 99, pageSize: 2 });
+    eq(page99.records.length, 0, "分页：越界页返回空列表");
+    eq(page99.total, 3, "分页：越界页 total 不变");
+    eq(queryRecords(records, fields, { pageSize: 9999 }).pageSize, MAX_PAGE_SIZE, "分页：pageSize 上限封顶");
+    eq(queryRecords(records, fields, { pageSize: 0 }).pageSize, 1, "分页：pageSize 下限为 1");
+  }
+
+  // 18. r6 U2-2 必修：导出文件名含项目名（不再只露内部 id）
+  section("看板导出文件名（buildBoardCsvFileName · U2-2）");
+  {
+    const fixed = new Date(2026, 10, 15);
+    eq(
+      buildBoardCsvFileName("新家装修", fixed),
+      "xieflow-board-新家装修-20261115.csv",
+      "导出文件名：xieflow-board-<项目名>-<YYYYMMDD>.csv",
+    );
+    eq(
+      buildBoardCsvFileName("Q4 产品发布", fixed),
+      "xieflow-board-Q4-产品发布-20261115.csv",
+      "导出文件名：项目名中的空格折叠成短横线",
+    );
+    ok(
+      !/project-\d+/.test(buildBoardCsvFileName("新家装修", fixed)),
+      "导出文件名：不含内部项目 id（U2-2 语义）",
+    );
+    eq(sanitizeFileNamePart("a/b:c"), "a-b-c", "文件名清洗：路径分隔符等非法字符折叠成短横线");
+    eq(sanitizeFileNamePart("!!!"), "board", "文件名清洗：全非法字符回落到 board");
+    ok(buildBoardCsvFileName("新家装修", fixed).endsWith(".csv"), "导出文件名：.csv 扩展名");
+  }
+
+  // 19. schema v4→v5 迁移升级 + 多维表格数据层（服务层闭环）
+  section("schema v4→v5 迁移升级与多维表格数据层（服务层）");
+  {
+    mkdirSync("scripts/.tmp-e2e", { recursive: true });
+    const v5Path = `scripts/.tmp-e2e/upgrade-r6-${Date.now()}.db`;
+    // 造一个真 v4 旧库：v5 迁移执行前把 user_version 钉回 4（模拟 r4 版本的原地升级）
+    const v4Open2 = openDatabaseRaw({ path: v5Path });
+    v4Open2.raw.exec("PRAGMA user_version = 4");
+    v4Open2.raw.close();
+    const v5Open = openDatabaseRaw({ path: v5Path });
+    eq(v5Open.appliedMigrations, [5], "v4 旧库重开只补跑 v5 迁移（真实 PRAGMA 升级路径）");
+    const tableNames = v5Open.raw
+      .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+      .map((r) => String((r as unknown as { name: unknown }).name));
+    ok(tableNames.includes("tables"), "v5 迁移后 tables 表存在（sqlite_master 真实读回）");
+    ok(tableNames.includes("fields"), "v5 迁移后 fields 表存在（sqlite_master 真实读回）");
+    ok(tableNames.includes("records"), "v5 迁移后 records 表存在（sqlite_master 真实读回）");
+    eq(
+      (v5Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
+      CURRENT_SCHEMA_VERSION,
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（5）",
+    );
+    const rawDb5: SqliteDatabase = v5Open.raw;
+    throws(
+      () =>
+        rawDb5.run(
+          "INSERT INTO tables (name, description, created_at, updated_at) " +
+            "VALUES (NULL, NULL, '2026-01-01', '2026-01-01')",
+        ),
+      "tables.name NOT NULL 拒绝 NULL（raw 直达 schema）",
+    );
+    throws(
+      () =>
+        rawDb5.run(
+          "INSERT INTO fields (table_id, name, type, position, options, created_at, updated_at) " +
+            "VALUES (424242, 'x', 'text', 0, '[]', '2026-01-01', '2026-01-01')",
+        ),
+      "fields.table_id 外键拒绝不存在的表（raw 直达 FK）",
+    );
+    throws(
+      () =>
+        rawDb5.run(
+          "INSERT INTO fields (table_id, name, type, position, options, created_at, updated_at) " +
+            "VALUES (1, 'x', 'money', 0, '[]', '2026-01-01', '2026-01-01')",
+        ),
+      "fields.type CHECK 拒绝未知字段类型（raw 直达 schema）",
+    );
+    throws(
+      () =>
+        rawDb5.run(
+          "INSERT INTO records (table_id, data, position, created_at, updated_at) " +
+            "VALUES (424242, '{}', 0, '2026-01-01', '2026-01-01')",
+        ),
+      "records.table_id 外键拒绝不存在的表（raw 直达 FK）",
+    );
+
+    // —— 数据层闭环：建表（自动带默认字段）→ 加字段 → 加行 → 编辑单元格 → 删字段 ——
+    const tbl = v5Open.db.createTable("装修预算表", "M3 起步轮的样例表");
+    ok(tbl.id > 0, "createTable 返回自增 id");
+    eq(tbl.name, "装修预算表", "createTable name 读回");
+    const defFields = v5Open.db.listFields(tbl.id);
+    eq(
+      defFields.map((f) => [f.name, f.type]),
+      [
+        ["名称", "text"],
+        ["状态", "select"],
+        ["负责人", "text"],
+        ["金额", "number"],
+        ["截止日期", "date"],
+        ["标签", "multi-select"],
+        ["完成", "checkbox"],
+        ["链接", "url"],
+      ],
+      "createTable 自动创建默认字段（7 种类型齐备，消灭「建表零字段」死路）",
+    );
+    eq(defFields.map((f) => f.position), [0, 1, 2, 3, 4, 5, 6, 7], "默认字段 position 连续 0..7");
+    eq(
+      defFields.find((f) => f.name === "状态")!.options,
+      ["未开始", "进行中", "已完成"],
+      "默认单选字段带候选项",
+    );
+    eq(
+      new Set(defFields.map((f) => f.type)).size,
+      7,
+      "默认字段覆盖全部 7 种字段类型",
+    );
+    eq(DEFAULT_TABLE_FIELDS.length, 8, "默认字段模板共 8 个字段");
+    eq(
+      v5Open.db.listFields(tbl.id).every((f) => f.tableId === tbl.id),
+      true,
+      "字段归属自己的表",
+    );
+
+    // 自定义字段
+    const custom = v5Open.db.createField(tbl.id, "供应商", "text", [], 8);
+    eq(custom.name, "供应商", "createField name 读回");
+    eq(custom.type, "text", "createField type 读回");
+    eq(custom.position, 8, "createField position 缺省 = 追加到列尾");
+    const selField = v5Open.db.createField(tbl.id, "阶段", "select", ["A", "B"], 9);
+    eq(selField.options, ["A", "B"], "createField 候选项读回");
+    throws(() => v5Open.db.createField(tbl.id, "坏字段", "money" as unknown as TableField["type"]), "createField 非法类型抛错");
+    throws(() => v5Open.db.createField(tbl.id, "坏单选", "select", []), "createField 单选零候选项抛错");
+    throws(() => v5Open.db.createField(424242, "孤儿字段", "text"), "createField 表不存在抛错");
+
+    // 改字段（改名 + 改类型）
+    const renamed = v5Open.db.updateField(custom.id, { name: "供应商名称" });
+    eq(renamed.name, "供应商名称", "updateField 改名生效");
+    const retyped = v5Open.db.updateField(custom.id, { type: "number" });
+    eq(retyped.type, "number", "updateField 改类型生效");
+    eq(retyped.options, [], "updateField 改成非单选类型时候选项清空");
+
+    // —— 记录（行） ——
+    const rec = v5Open.db.createRecord(tbl.id, {
+      [String(defFields[0]!.id)]: "量房",
+      [String(defFields[3]!.id)]: "1200",
+    });
+    eq(rec.data[String(defFields[0]!.id)], "量房", "createRecord 文本字段读回");
+    eq(rec.data[String(defFields[3]!.id)], 1200, "createRecord 数字字段按引擎归一（\"1200\" → 1200）");
+    eq(rec.data[String(defFields[1]!.id)], null, "createRecord 未给的字段补 null");
+    eq(v5Open.db.listRecords(tbl.id).length, 1, "createRecord 后表内 1 行");
+    throws(
+      () => v5Open.db.createRecord(tbl.id, { "99999": "x" }),
+      "createRecord 写入未知字段抛错",
+    );
+    throws(
+      () => v5Open.db.createRecord(tbl.id, { [String(defFields[3]!.id)]: "abc" }),
+      "createRecord 写入非法数字抛错",
+    );
+    const edited = v5Open.db.updateRecord(rec.id, {
+      [String(defFields[0]!.id)]: "量房复测",
+      [String(defFields[3]!.id)]: 1500,
+    });
+    eq(edited.data[String(defFields[0]!.id)], "量房复测", "updateRecord 编辑单元格生效");
+    eq(edited.data[String(defFields[3]!.id)], 1500, "updateRecord 数字字段读回");
+
+    // 删字段 → 该字段的键从所有记录里清掉
+    v5Open.db.deleteField(selField.id);
+    eq(v5Open.db.getField(selField.id), null, "deleteField 后字段读回为 null");
+    ok(
+      !(String(selField.id) in v5Open.db.getRecord(rec.id)!.data),
+      "deleteField 后记录里对应的键被清掉（不留孤儿键）",
+    );
+    eq(v5Open.db.listRecords(tbl.id).length, 1, "删字段不影响记录条数");
+
+    // 删记录 / 删表级联
+    eq(v5Open.db.deleteRecord(rec.id), true, "deleteRecord 返回 true");
+    eq(v5Open.db.getRecord(rec.id), null, "deleteRecord 后读回为 null");
+    eq(v5Open.db.listRecords(tbl.id).length, 0, "删记录后表内 0 行");
+    v5Open.db.createRecord(tbl.id, { [String(defFields[0]!.id)]: "选瓷砖" });
+    v5Open.db.deleteTable(tbl.id);
+    eq(v5Open.db.getTable(tbl.id), null, "deleteTable 后表读回为 null");
+    eq(v5Open.db.listFields(tbl.id).length, 0, "deleteTable 级联删字段");
+    eq(v5Open.db.listRecords(tbl.id).length, 0, "deleteTable 级联删记录");
+    v5Open.raw.close();
+    db = null;
   }
 
   // 13. HTTP 冒烟 /api/health

@@ -4,6 +4,7 @@
 #   powershell -File scripts\shot.ps1 shots           # capture current round states
 #   powershell -File scripts\shot.ps1 shots -Round r4 # capture r4 project/board states
 #   powershell -File scripts\shot.ps1 shots -Round r5 # capture r5 board stats + CSV export states
+#   powershell -File scripts\shot.ps1 shots -Round r6 # capture r6 bases grid states
 #   powershell -File scripts\shot.ps1 down            # stop servers
 #   powershell -File scripts\shot.ps1 status          # show port status
 #   powershell -File scripts\shot.ps1 all             # up + shots + down
@@ -15,11 +16,12 @@
 # evidence in the SAME round, automatically. Rule: whenever you add or rename a
 # tab (shell change), the five active states are re-shot by this block - no
 # manual checklist needed. Keep the list in sync with App.tsx PageTab.
+# r6: a sixth tab (bases) was added -> the baseline now captures six active states.
 param(
   [Parameter(Position = 0)]
   [ValidateSet("up", "shots", "down", "status", "all")]
   [string]$Action = "status",
-  [ValidateSet("r1", "r2", "r3", "r4", "r5")]
+  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6")]
   [string]$Round = "r1"
 )
 
@@ -117,7 +119,8 @@ function Invoke-ShellBaseline {
     @{ page = "todos";     file = "todos-tab-active" },
     @{ page = "schedules"; file = "schedules-tab-active" },
     @{ page = "projects";  file = "projects-tab-active" },
-    @{ page = "board";     file = "board-tab-active" }
+    @{ page = "board";     file = "board-tab-active" },
+    @{ page = "bases";     file = "bases-tab-active" }
   )
   foreach ($t in $tabs) {
     $url = "http://127.0.0.1:$WebPort/"
@@ -332,7 +335,95 @@ function Invoke-Shots {
     }
   }
 
-  if ($Round -eq "r5") {
+  if ($Round -eq "r6") {
+    # r6: seed a multi-dim table with the seven field types and three records so
+    # the grid view, the field panel and the filtered/sorted view all show REAL
+    # api data (no fake pixels). The seed JSON uses \u escapes so this script
+    # stays pure ASCII (PS 5.1 cannot read UTF-8 literals); the api decodes them
+    # into Chinese. Field ids come from the default template ORDER (position
+    # 0..7), so no Chinese field names are needed in this script either.
+    $r6TableId = $null
+    $r6EmptyTableId = $null
+    $r6FieldAmount = $null
+    $r6FieldTag = $null
+    try {
+      $tableBody6 = [System.Text.Encoding]::UTF8.GetBytes(
+        '{"name":"r6 \u591a\u7ef4\u8868\u683c","description":"seeded for r6 grid shots"}'
+      )
+      $table6 = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/tables" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body $tableBody6
+      $fields6 = (Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/tables/$($table6.id)/fields" -Method Get).fields | Sort-Object position
+      $fName = $fields6[0].id
+      $fStatus = $fields6[1].id
+      $fOwner = $fields6[2].id
+      $fAmount = $fields6[3].id
+      $fDue = $fields6[4].id
+      $fTag = $fields6[5].id
+      $fDone = $fields6[6].id
+      $fLink = $fields6[7].id
+      # row A: text / select / text / number / date / multi-select / checkbox / url
+      $rowA = '{"data":{"' + $fName + '":"\u91cf\u623f","' + $fStatus + '":"\u5df2\u5b8c\u6210","' + $fOwner + '":"\u5c0f\u534f","' + $fAmount + '":1200,"' + $fDue + '":"2026-11-20","' + $fTag + '":["\u91cd\u8981"],"' + $fDone + '":true,"' + $fLink + '":"https://example.com/measure"}}'
+      Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/tables/$($table6.id)/records" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes($rowA)) | Out-Null
+      # row B: two multi-select tags -> shows the multi-value pill form
+      $rowB = '{"data":{"' + $fName + '":"\u9009\u74f7\u7816","' + $fStatus + '":"\u8fdb\u884c\u4e2d","' + $fOwner + '":"\u5c0f\u6d41","' + $fAmount + '":300,"' + $fDue + '":"2026-12-01","' + $fTag + '":["\u91cd\u8981","\u7d27\u6025"],"' + $fDone + '":false,"' + $fLink + '":"https://example.com/tiles"}}'
+      Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/tables/$($table6.id)/records" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes($rowB)) | Out-Null
+      # row C: empty date / empty tags / empty link -> shows the empty-cell form
+      $rowC = '{"data":{"' + $fName + '":"\u5b9a\u9884\u7b97","' + $fStatus + '":"\u672a\u5f00\u59cb","' + $fOwner + '":"\u5c0f\u534f","' + $fAmount + '":9000,"' + $fDue + '":null,"' + $fTag + '":[],"' + $fDone + '":false,"' + $fLink + '":null}}'
+      Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/tables/$($table6.id)/records" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes($rowC)) | Out-Null
+      $r6TableId = $table6.id
+      $r6FieldAmount = $fAmount
+      $r6FieldTag = $fTag
+      # a second table with ZERO rows -> the real empty-grid state (field headers
+      # stay visible); the "no table at all" first-use state lives in the shell
+      # baseline (captured after this seed is cleaned up).
+      $emptyBody6 = [System.Text.Encoding]::UTF8.GetBytes(
+        '{"name":"r6 \u7a7a\u8868"}'
+      )
+      $emptyTable6 = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/tables" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body $emptyBody6
+      $r6EmptyTableId = $emptyTable6.id
+      Write-Output "seeded r6 table id=$($table6.id) with 8 default fields + 3 records; empty table id=$($emptyTable6.id)"
+    } catch {
+      Write-Output "warn: r6 seed failed ($($_.Exception.Message)) - live grid shots may show empty table"
+    }
+  }
+
+  if ($Round -eq "r6") {
+    # r6 bases page: grid view states.
+    # 01 = live grid with all seven field types (real api data);
+    # 02 = empty state (no table at all -> first-use guidance);
+    # 03 = field management panel (pinned, 8 default fields);
+    # 04 = filtered + sorted (real query: filter by tag, sort by amount desc);
+    # 05 = narrow grid (?narrow=1 seam, 488x900);
+    # 06 = error state (pinned); 07 = loading state (pinned);
+    # 08 = cell editor open (pinned) -> shows the per-type editor controls.
+    $r6Base = "http://127.0.0.1:$WebPort/?page=bases"
+    if ($r6TableId) {
+      $r6Base = $r6Base + "&tableId=$r6TableId"
+    }
+    $r6Empty = "http://127.0.0.1:$WebPort/?page=bases"
+    if ($r6EmptyTableId) {
+      $r6Empty = $r6Empty + "&tableId=$r6EmptyTableId"
+    }
+    $r6Filter = ""
+    if ($r6TableId -and $r6FieldTag -and $r6FieldAmount) {
+      # tag filter (multi-select contains) + amount sort desc -> a real filtered view
+      $r6Filter = "&filterFieldId=$r6FieldTag&filterValue=%E9%87%8D%E8%A6%81&sortFieldId=$r6FieldAmount&sortDirection=desc"
+    }
+    $shots = @(
+      @{ name = "01-bases-grid-live";   url = $r6Base; width = 1280; height = 800 },
+      @{ name = "02-bases-empty";       url = $r6Empty; width = 1280; height = 800 },
+      @{ name = "03-bases-fields-panel"; url = "http://127.0.0.1:$WebPort/?page=bases&shot=bases-fields"; width = 1280; height = 800 },
+      @{ name = "04-bases-filtered-sorted"; url = ($r6Base + $r6Filter); width = 1280; height = 800 },
+      @{ name = "05-bases-narrow";      url = ($r6Base + "&narrow=1"); width = 488; height = 900 },
+      @{ name = "06-bases-error";       url = "http://127.0.0.1:$WebPort/?page=bases&shot=bases-error"; width = 1280; height = 800 },
+      @{ name = "07-bases-loading";     url = "http://127.0.0.1:$WebPort/?page=bases&shot=bases-loading"; width = 1280; height = 800 },
+      @{ name = "08-bases-cell-editor"; url = "http://127.0.0.1:$WebPort/?page=bases&shot=bases-edit"; width = 1280; height = 800 }
+    )
+  } elseif ($Round -eq "r5") {
     # r5 board page: stats card + CSV export states.
     # 01 = live board with cards (stats card carries real counts + rate bars);
     # 02 = live EMPTY project (default three columns, zero cards -> all stats 0);
@@ -543,7 +634,20 @@ function Invoke-Shots {
   # seed todo, so repeat runs stay deterministic.
   # r5: delete both seeded projects (by id - the script stays ASCII) and the two
   # seeded todos.
-  if ($Round -eq "r5") {
+  if ($Round -eq "r6") {
+    # r6: delete the seeded tables (fields + records cascade) so repeat runs stay
+    # deterministic and the real db keeps no leftover rows.
+    try {
+      foreach ($tid6 in @($r6TableId, $r6EmptyTableId)) {
+        if ($tid6) {
+          Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/tables/$tid6" -Method Delete | Out-Null
+        }
+      }
+      Write-Output "cleaned seeded r6 table(s)"
+    } catch {
+      Write-Output "warn: r6 cleanup failed ($($_.Exception.Message))"
+    }
+  } elseif ($Round -eq "r5") {
     try {
       foreach ($pid5 in @($r5ProjectId, $r5EmptyProjectId)) {
         if ($pid5) {

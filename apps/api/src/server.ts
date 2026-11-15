@@ -18,12 +18,19 @@ import {
   assertValidDueDate,
   assertValidScheduleDate,
   assertValidBoardName,
+  assertValidTableName,
+  assertValidFieldName,
+  assertValidFieldType,
+  assertValidFieldOptions,
   computeTodoSummary,
   assembleRangeSchedules,
   computeBoardStats,
   buildBoardCsvContent,
+  buildBoardCsvFileName,
   canTransitionTodo,
+  queryRecords,
   type Schedule,
+  type FieldType,
 } from "@xieflow/shared";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -682,12 +689,15 @@ app.get("/api/projects/:id/stats", async (req, reply) => {
 /**
  * 看板台账导出（r5 任务单）：UTF-8 BOM + CRLF + RFC4180 转义，Excel 双击直开。
  * 内容唯一入口 = shared buildBoardCsvContent（每列至少一行：空列出占位行）。
+ * r6 U2-2 必修：文件名含项目名（xieflow-board-<项目名>-<YYYYMMDD>.csv），不再只露内部 id；
+ * 中文项目名按 RFC 5987 用 filename*=UTF-8'' 编码下发，同时给一个 ASCII 回落名。
  */
 app.get("/api/projects/:id/export.csv", async (req, reply) => {
   try {
     const projectId = parseId((req.params as { id: string }).id);
     const store = requireDb();
-    if (store.getProject(projectId) === null) {
+    const project = store.getProject(projectId);
+    if (!project) {
       return reply.code(404).send({ error: `项目不存在：${projectId}` });
     }
     const csv = buildBoardCsvContent(
@@ -695,10 +705,309 @@ app.get("/api/projects/:id/export.csv", async (req, reply) => {
       store.listBoardCardsByProject(projectId),
       store.listTodos(),
     );
+    const fileName = buildBoardCsvFileName(project.name);
+    const asciiFallback = fileName.replace(/[^\x20-\x7e]/g, "_");
     return reply
       .header("content-type", "text/csv; charset=utf-8")
-      .header("content-disposition", `attachment; filename="xieflow-board-project-${projectId}.csv"`)
+      .header(
+        "content-disposition",
+        `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encodeURIComponent(fileName)}`,
+      )
       .send(csv);
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+// ---- 多维表格（r6：表 / 字段 / 记录 + 筛选 / 排序 / 分页） ----
+// 路由层只做「装配 + 400/404 映射」：字段类型的校验 / 归一 / 比较口径全在 shared
+// （api 层不得出现类型分支——每种类型的差异只写 shared 一处）。
+
+interface CreateTableBody {
+  name?: unknown;
+  description?: unknown;
+}
+
+app.post("/api/tables", async (req, reply) => {
+  try {
+    const body = (req.body ?? {}) as CreateTableBody;
+    if (typeof body.name !== "string") {
+      throw new ValidationError("表格名称不能为空");
+    }
+    const table = requireDb().createTable(body.name, parseDescription(body.description));
+    return reply.code(201).send(table);
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.get("/api/tables", async () => {
+  return { tables: requireDb().listTables() };
+});
+
+app.get("/api/tables/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const table = requireDb().getTable(id);
+    if (!table) {
+      return reply.code(404).send({ error: `表格不存在：${id}` });
+    }
+    return table;
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+interface PatchTableBody {
+  name?: unknown;
+  description?: unknown;
+}
+
+app.patch("/api/tables/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const body = (req.body ?? {}) as PatchTableBody;
+    const store = requireDb();
+    if (store.getTable(id) === null) {
+      return reply.code(404).send({ error: `表格不存在：${id}` });
+    }
+    const patch: Parameters<XieFlowDb["updateTable"]>[1] = {};
+    if (body.name !== undefined) {
+      if (typeof body.name !== "string") throw new ValidationError("表格名称不能为空");
+      patch.name = body.name;
+    }
+    if (body.description !== undefined) patch.description = parseDescription(body.description);
+    return store.updateTable(id, patch);
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.delete("/api/tables/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const deleted = requireDb().deleteTable(id);
+    if (!deleted) {
+      return reply.code(404).send({ error: `表格不存在：${id}` });
+    }
+    return { deleted: true };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+interface CreateFieldBody {
+  name?: unknown;
+  type?: unknown;
+  options?: unknown;
+  position?: unknown;
+}
+
+/** 候选项请求体解析（只校验形状，类型语义交给 shared 守卫） */
+function parseOptionsBody(raw: unknown): string[] {
+  if (raw === undefined || raw === null) return [];
+  if (!Array.isArray(raw)) {
+    throw new ValidationError("options 必须是字符串数组");
+  }
+  return raw.map((item) => {
+    if (typeof item !== "string") {
+      throw new ValidationError("options 必须是字符串数组");
+    }
+    return item;
+  });
+}
+
+app.post("/api/tables/:id/fields", async (req, reply) => {
+  try {
+    const tableId = parseId((req.params as { id: string }).id);
+    const body = (req.body ?? {}) as CreateFieldBody;
+    if (typeof body.name !== "string") {
+      throw new ValidationError("字段名称不能为空");
+    }
+    const fieldType = body.type;
+    assertValidFieldType(fieldType);
+    const options = parseOptionsBody(body.options);
+    assertValidFieldOptions(fieldType, options);
+    const store = requireDb();
+    if (store.getTable(tableId) === null) {
+      return reply.code(404).send({ error: `表格不存在：${tableId}` });
+    }
+    const position =
+      body.position === undefined || body.position === null ? undefined : Number(body.position);
+    const field = store.createField(tableId, body.name, fieldType, options, position);
+    return reply.code(201).send(field);
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.get("/api/tables/:id/fields", async (req, reply) => {
+  try {
+    const tableId = parseId((req.params as { id: string }).id);
+    const store = requireDb();
+    if (store.getTable(tableId) === null) {
+      return reply.code(404).send({ error: `表格不存在：${tableId}` });
+    }
+    return { fields: store.listFields(tableId) };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+interface PatchFieldBody {
+  name?: unknown;
+  type?: unknown;
+  options?: unknown;
+  position?: unknown;
+}
+
+app.patch("/api/fields/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const body = (req.body ?? {}) as PatchFieldBody;
+    const store = requireDb();
+    if (store.getField(id) === null) {
+      return reply.code(404).send({ error: `字段不存在：${id}` });
+    }
+    const patch: Parameters<XieFlowDb["updateField"]>[1] = {};
+    if (body.name !== undefined) {
+      if (typeof body.name !== "string") throw new ValidationError("字段名称不能为空");
+      patch.name = body.name;
+    }
+    if (body.type !== undefined) {
+      assertValidFieldType(body.type);
+      patch.type = body.type;
+    }
+    if (body.options !== undefined) {
+      patch.options = parseOptionsBody(body.options);
+    }
+    if (body.position !== undefined) patch.position = Number(body.position);
+    return store.updateField(id, patch);
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.delete("/api/fields/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const deleted = requireDb().deleteField(id);
+    if (!deleted) {
+      return reply.code(404).send({ error: `字段不存在：${id}` });
+    }
+    return { deleted: true };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+interface RecordBody {
+  data?: unknown;
+}
+
+/** 记录 data 请求体解析（形状校验；字段级归一/校验在 shared + 服务层） */
+function parseRecordDataBody(raw: unknown): Record<string, unknown> {
+  if (raw === undefined || raw === null) return {};
+  if (typeof raw !== "object" || Array.isArray(raw)) {
+    throw new ValidationError("data 必须是对象");
+  }
+  return raw as Record<string, unknown>;
+}
+
+/** 查询串里的正整数 id（缺省 = 不筛/不排；非法 → 400） */
+function parseOptionalQueryId(raw: unknown, label: string): number | undefined {
+  if (raw === undefined || raw === null || raw === "") return undefined;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n <= 0) {
+    throw new ValidationError(`非法 ${label}：${String(raw)}`);
+  }
+  return n;
+}
+
+app.post("/api/tables/:id/records", async (req, reply) => {
+  try {
+    const tableId = parseId((req.params as { id: string }).id);
+    const body = (req.body ?? {}) as RecordBody;
+    const data = parseRecordDataBody(body.data);
+    const store = requireDb();
+    if (store.getTable(tableId) === null) {
+      return reply.code(404).send({ error: `表格不存在：${tableId}` });
+    }
+    const record = store.createRecord(tableId, data);
+    return reply.code(201).send(record);
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+/**
+ * 记录查询（r6 任务单核心）：按字段筛选 + 按字段排序 + 分页。
+ * 规则（筛选命中 / 排序比较 / 空值恒最后 / 分页口径）集中在 shared queryRecords，
+ * 路由层只负责解析查询串与 400/404 映射——api 层没有任何字段类型分支。
+ */
+app.get("/api/tables/:id/records", async (req, reply) => {
+  try {
+    const tableId = parseId((req.params as { id: string }).id);
+    const query = (req.query ?? {}) as Record<string, unknown>;
+    const store = requireDb();
+    if (store.getTable(tableId) === null) {
+      return reply.code(404).send({ error: `表格不存在：${tableId}` });
+    }
+    const fields = store.listFields(tableId);
+    const filterFieldId = parseOptionalQueryId(query.filterFieldId, "filterFieldId");
+    const sortFieldId = parseOptionalQueryId(query.sortFieldId, "sortFieldId");
+    const page = parseOptionalQueryId(query.page, "page");
+    const pageSize = parseOptionalQueryId(query.pageSize, "pageSize");
+    const sortDirection = query.sortDirection === "desc" ? "desc" : "asc";
+    return queryRecords(store.listRecords(tableId), fields, {
+      filterFieldId,
+      filterValue: query.filterValue,
+      sortFieldId,
+      sortDirection,
+      page,
+      pageSize,
+    });
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.get("/api/records/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const record = requireDb().getRecord(id);
+    if (!record) {
+      return reply.code(404).send({ error: `记录不存在：${id}` });
+    }
+    return record;
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.patch("/api/records/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const body = (req.body ?? {}) as RecordBody;
+    const data = parseRecordDataBody(body.data);
+    const store = requireDb();
+    if (store.getRecord(id) === null) {
+      return reply.code(404).send({ error: `记录不存在：${id}` });
+    }
+    return store.updateRecord(id, data);
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.delete("/api/records/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const deleted = requireDb().deleteRecord(id);
+    if (!deleted) {
+      return reply.code(404).send({ error: `记录不存在：${id}` });
+    }
+    return { deleted: true };
   } catch (err) {
     return toErrorReply(err, reply);
   }

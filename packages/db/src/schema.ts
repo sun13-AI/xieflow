@@ -88,6 +88,39 @@ export const MIGRATIONS: Migration[] = [
       `CREATE INDEX IF NOT EXISTS idx_cards_todo_id ON cards (todo_id)`,
     ],
   },
+  {
+    version: 5,
+    name: "r6 · tables / fields / records 表（多维表格字段引擎 + 网格视图）",
+    up: [
+      `CREATE TABLE IF NOT EXISTS tables (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        description TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+      `CREATE TABLE IF NOT EXISTS fields (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        table_id INTEGER NOT NULL REFERENCES tables(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        type TEXT NOT NULL CHECK (type IN ('text','number','date','select','multi-select','checkbox','url')),
+        position INTEGER NOT NULL,
+        options TEXT NOT NULL DEFAULT '[]',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_fields_table ON fields (table_id)`,
+      `CREATE TABLE IF NOT EXISTS records (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        table_id INTEGER NOT NULL REFERENCES tables(id) ON DELETE CASCADE,
+        data TEXT NOT NULL DEFAULT '{}',
+        position INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_records_table ON records (table_id)`,
+    ],
+  },
 ];
 
 /** 当前 schema 版本（与 shared 的 SCHEMA_VERSION 保持一致，e2e 会断言二者相等） */

@@ -929,3 +929,308 @@ body {
   flex-direction: column;
   align-items: flex-start;
 }
+
+/* ---- r6：多维表格页（网格视图 + 字段管理面板） ---- */
+
+/* 网格视图需要更宽的画布：只有「表格」tab 用宽壳，其他页形态不动 */
+.shell-wide {
+  max-width: 1200px;
+}
+
+.bases-page {
+  display: block;
+}
+
+.bases-toolbar {
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.bases-toolbar .btn {
+  white-space: nowrap;
+}
+
+.bases-title {
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.bases-switch {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.bases-switch-label {
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.bases-switch select {
+  max-width: 180px;
+}
+
+.bases-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+
+.bases-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.bases-control select,
+.bases-control input[type="text"] {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 5px 8px;
+  font-size: 13px;
+  font-family: inherit;
+  background: var(--card);
+  max-width: 180px;
+}
+
+.bases-count {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.bases-grid-wrap {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow-x: auto;
+}
+
+.bases-grid {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.bases-grid th {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
+.bases-col-name {
+  display: block;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.bases-col-type {
+  display: inline-block;
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--ink-2);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0 6px;
+}
+
+.bases-grid td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+  max-width: 240px;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.bases-grid tbody tr:hover td {
+  background: #fafbff;
+}
+
+.bases-cell-number {
+  text-align: right;
+}
+
+.bases-number {
+  font-variant-numeric: tabular-nums;
+}
+
+.bases-empty-cell {
+  color: var(--ink-2);
+}
+
+.bases-pill {
+  display: inline-block;
+  margin-right: 4px;
+  font-size: 11px;
+  border-radius: 999px;
+  padding: 1px 8px;
+  background: #e8f0ff;
+  color: var(--accent);
+}
+
+.bases-pill-multi {
+  background: #f0f8ee;
+  color: var(--success);
+}
+
+.bases-link {
+  color: var(--accent);
+}
+
+.bases-check {
+  font-size: 14px;
+}
+
+.bases-col-action {
+  width: 72px;
+  text-align: center;
+}
+
+.bases-empty-row {
+  padding: 18px 10px !important;
+  color: var(--ink-2);
+  text-align: center;
+  cursor: default;
+}
+
+.bases-editor input,
+.bases-editor select {
+  width: 100%;
+  min-width: 90px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  padding: 4px 6px;
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.bases-editor input[type="checkbox"] {
+  width: auto;
+  min-width: 0;
+}
+
+/* ---- r6：字段管理面板 ---- */
+.bases-fields-card {
+  max-width: 720px;
+}
+
+.bases-fields-list {
+  list-style: none;
+  margin: 12px 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.bases-field-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) 100px minmax(0, 1.4fr) auto;
+  align-items: center;
+  gap: 6px;
+}
+
+.bases-field-row input[type="text"],
+.bases-field-row select {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 5px 8px;
+  font-size: 13px;
+  font-family: inherit;
+  min-width: 0;
+  width: 100%;
+}
+
+.bases-field-options-empty {
+  color: var(--ink-2);
+  font-size: 12px;
+}
+
+.bases-field-add {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) 100px minmax(0, 1.4fr) auto;
+  align-items: center;
+  gap: 6px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+}
+
+.bases-field-add input[type="text"],
+.bases-field-add select {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 5px 8px;
+  font-size: 13px;
+  font-family: inherit;
+  min-width: 0;
+  width: 100%;
+}
+
+/* ---- r6：窄屏（?narrow=1 seam 同规则：工具条纵排 + 网格横向滚动） ---- */
+@media (max-width: 480px) {
+  .bases-toolbar,
+  .bases-controls {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .bases-count {
+    margin-left: 0;
+  }
+
+  .bases-field-row,
+  .bases-field-add {
+    grid-template-columns: 1fr;
+  }
+
+  /* 窄屏网格不折字：列保持宽度，表格整体横向滚动（折字会把「已完成」拆成竖排） */
+  .bases-grid {
+    min-width: 760px;
+  }
+
+  .bases-grid th,
+  .bases-grid td {
+    white-space: nowrap;
+  }
+}
+
+.force-narrow .bases-toolbar,
+.force-narrow .bases-controls {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.force-narrow .bases-count {
+  margin-left: 0;
+}
+
+.force-narrow .bases-field-row,
+.force-narrow .bases-field-add {
+  grid-template-columns: 1fr;
+}
+
+.force-narrow .bases-grid {
+  min-width: 760px;
+}
+
+.force-narrow .bases-grid th,
+.force-narrow .bases-grid td {
+  white-space: nowrap;
+}
+
+/* 空态：引导文案下方的按钮左对齐（不用弹窗的右对齐） */
+.bases-empty-actions {
+  justify-content: flex-start;
+}

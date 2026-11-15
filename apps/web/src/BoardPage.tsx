@@ -17,6 +17,7 @@ import {
   TODO_STATUS_LABELS,
   computeBoardStats,
   countCsvRecords,
+  buildBoardCsvFileName,
   type BoardCard,
   type BoardColumn,
   type BoardStats,
@@ -31,11 +32,11 @@ const TODO_STATUS_BADGES: Record<Todo["status"], { label: string; cls: string }>
   archived: { label: TODO_STATUS_LABELS.archived, cls: "pill-archived" },
 };
 
-/** 导出反馈态（done 时带真实字节数与行数） */
+/** 导出反馈态（done 时带真实字节数、行数与文件名） */
 type ExportState =
   | { phase: "idle" }
   | { phase: "exporting" }
-  | { phase: "done"; bytes: number; rows: number }
+  | { phase: "done"; bytes: number; rows: number; fileName: string }
   | { phase: "error"; message: string };
 
 interface BoardLoadState {
@@ -298,6 +299,8 @@ export default function BoardPage() {
    * 导出 CSV 台账（r5 任务单）：GET /api/projects/:id/export.csv → 浏览器落盘。
    * 关键：必须按**字节**落盘（arrayBuffer → Blob）——fetch 的文本解码会把 UTF-8 BOM
    * 剥掉，按文本落盘会让 Excel 直开乱码（audit 有字节层 BOM 断言）。
+   * r6 U2-2 必修：文件名含项目名（xieflow-board-<项目名>-<YYYYMMDD>.csv），
+   * 不再只露内部 id；文件名口径集中在 shared buildBoardCsvFileName（与 api 响应头同源）。
    */
   const exportCsv = async (projectId: number): Promise<void> => {
     setExportState({ phase: "exporting" });
@@ -310,16 +313,17 @@ export default function BoardPage() {
       const buf = await res.arrayBuffer();
       const text = new TextDecoder("utf-8").decode(buf);
       const rows = countCsvRecords(text);
+      const fileName = buildBoardCsvFileName(project?.name ?? "board");
       const blob = new Blob([buf], { type: "text/csv;charset=utf-8" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `xieflow-board-project-${projectId}.csv`;
+      a.download = fileName;
       document.body.appendChild(a);
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-      setExportState({ phase: "done", bytes: buf.byteLength, rows });
+      setExportState({ phase: "done", bytes: buf.byteLength, rows, fileName });
     } catch (err: unknown) {
       setExportState({ phase: "error", message: err instanceof Error ? err.message : SERVICE_DOWN_MESSAGE });
     }
@@ -428,7 +432,7 @@ export default function BoardPage() {
         >
           {exportState.phase === "exporting" && "正在生成 CSV 台账…"}
           {exportState.phase === "done" &&
-            `已导出 CSV：${exportState.rows} 行（含表头）· ${(exportState.bytes / 1024).toFixed(1)} KB · 文件名 xieflow-board-project-${project.id}.csv`}
+            `已导出 CSV：${exportState.rows} 行（含表头）· ${(exportState.bytes / 1024).toFixed(1)} KB · 文件名 ${exportState.fileName}`}
           {exportState.phase === "error" && `导出失败：${exportState.message}`}
         </p>
       )}
@@ -437,7 +441,7 @@ export default function BoardPage() {
         <div className="board-stats-head">
           <h2>看板统计</h2>
           <span className="hint">
-            完成率口径：关联待办状态为「已完成」的卡片 ÷ 本列卡片总数（零卡片列记 0%）
+            待办完成率口径：关联待办状态为「已完成」的卡片 ÷ 本列卡片总数（零卡片列记 0%）
           </span>
         </div>
         <div className="stats-row">
@@ -450,7 +454,7 @@ export default function BoardPage() {
             <span className="stat-value">{stats.totals.doneCount}</span>
           </div>
           <div className="stat-card" data-stat="rate">
-            <span className="stat-label">项目完成率</span>
+            <span className="stat-label">项目待办完成率</span>
             <span className="stat-value">{stats.totals.completionRate}%</span>
           </div>
           <div className="stat-card" data-stat="todos">
@@ -467,7 +471,7 @@ export default function BoardPage() {
                 <span className="rate-fill" style={{ width: `${c.completionRate}%` }} />
               </span>
               <span className="stat-column-rate">
-                完成率 {c.completionRate}%（{c.doneCount}/{c.cardCount}）· 关联待办 {c.todoLinkedCount}
+                待办完成率 {c.completionRate}%（{c.doneCount}/{c.cardCount}）· 关联待办 {c.todoLinkedCount}
               </span>
             </li>
           ))}

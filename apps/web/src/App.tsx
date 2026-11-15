@@ -8,13 +8,14 @@ import TodosPage from "./TodosPage";
 import SchedulesPage from "./SchedulesPage";
 import ProjectsPage from "./ProjectsPage";
 import BoardPage from "./BoardPage";
+import BasesPage from "./BasesPage";
 
 type LoadState =
   | { phase: "loading" }
   | { phase: "error"; message: string }
   | { phase: "ready"; settings: AppSetting[]; schemaVersion: number; todaySchedules: Schedule[]; todos: Todo[] };
 
-type PageTab = "home" | "todos" | "schedules" | "projects" | "board";
+type PageTab = "home" | "todos" | "schedules" | "projects" | "board" | "bases";
 
 /** 健康检查 + 今日日程（工作台卡片数据源；日程查询失败不阻塞工作台） */
 async function fetchHealth(): Promise<{
@@ -77,7 +78,9 @@ export default function App() {
           ? "projects"
           : page === "board"
             ? "board"
-            : "home";
+            : page === "bases"
+              ? "bases"
+              : "home";
   });
   const [state, setState] = useState<LoadState>(() => {
     // 截图脚本用 ?shot= 钉住特定状态（真实状态都存在，参数只为确定性捕获）
@@ -87,12 +90,12 @@ export default function App() {
     if (shot === "error")
       return { phase: "error", message: "ECONNREFUSED 127.0.0.1:8787（截图钉态）" };
     if (shot === "empty")
-      return { phase: "ready", settings: [], schemaVersion: 4, todaySchedules: [], todos: [] };
+      return { phase: "ready", settings: [], schemaVersion: 5, todaySchedules: [], todos: [] };
     if (shot === "ready" || shot === "workbench")
       return {
         phase: "ready",
         settings: [{ key: "company.name", value: "协流示例公司", updatedAt: now.toISOString() }],
-        schemaVersion: 4,
+        schemaVersion: 5,
         todaySchedules: workbenchTodaySeed(now),
         todos: [],
       };
@@ -124,7 +127,7 @@ export default function App() {
   const todoById = new Map(state.phase === "ready" ? state.todos.map((t) => [t.id, t]) : []);
 
   return (
-    <main className="shell">
+    <main className={tab === "bases" ? "shell shell-wide" : "shell"}>
       <header className="topbar">
         <span className="logo">协流 XieFlow</span>
         <nav className="tabs" data-state="tabs">
@@ -168,8 +171,16 @@ export default function App() {
           >
             看板
           </button>
+          <button
+            type="button"
+            className={`tab ${tab === "bases" ? "tab-active" : ""}`}
+            data-tab="bases"
+            onClick={() => setTab("bases")}
+          >
+            表格
+          </button>
         </nav>
-        <span className="badge">r5 · 看板统计与导出</span>
+        <span className="badge">r6 · 多维表格字段引擎</span>
       </header>
 
       {tab === "todos" ? (
@@ -180,6 +191,8 @@ export default function App() {
         <ProjectsPage onOpenBoard={() => setTab("board")} />
       ) : tab === "board" ? (
         <BoardPage />
+      ) : tab === "bases" ? (
+        <BasesPage />
       ) : (
         <>
           {state.phase === "loading" && (
@@ -242,7 +255,7 @@ export default function App() {
                   <dt>schema 版本</dt>
                   <dd>v{state.schemaVersion}</dd>
                   <dt>里程碑</dt>
-                  <dd>M2 项目+看板（进行中）</dd>
+                  <dd>M3 多维表格（进行中）</dd>
                 </dl>
               </section>
             </>

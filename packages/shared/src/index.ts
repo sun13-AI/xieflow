@@ -321,7 +321,7 @@ export function assembleRangeSchedules(
 }
 
 /** 数据库 schema 版本号，每轮迁移必须 +1（宪法：禁止手改库文件） */
-export const SCHEMA_VERSION: number = 4;
+export const SCHEMA_VERSION: number = 5;
 
 
 /** 迁移脚本类型：user_version 从 from 升到 to */
@@ -666,4 +666,582 @@ export function countCsvRecords(csvText: string): number {
   }
   if (pending) records += 1;
   return records;
+}
+
+// ---- r6：多维表格（表 / 字段 / 记录）+ 字段类型引擎（规则集中 shared，api 层不得出现类型分支） ----
+
+/** 字段类型（r6 任务单：7 种） */
+export type FieldType =
+  | "text"
+  | "number"
+  | "date"
+  | "select"
+  | "multi-select"
+  | "checkbox"
+  | "url";
+
+export const FIELD_TYPES: readonly FieldType[] = [
+  "text",
+  "number",
+  "date",
+  "select",
+  "multi-select",
+  "checkbox",
+  "url",
+];
+
+/** 字段类型中文标签（字段管理面板与 API 错误消息共用同一口径） */
+export const FIELD_TYPE_LABELS: Record<FieldType, string> = {
+  text: "文本",
+  number: "数字",
+  date: "日期",
+  select: "单选",
+  "multi-select": "多选",
+  checkbox: "复选框",
+  url: "链接",
+};
+
+export function isFieldType(value: unknown): value is FieldType {
+  return typeof value === "string" && (FIELD_TYPES as readonly string[]).includes(value);
+}
+
+/** 是否需要候选项（单选 / 多选）——选项守卫与 UI 候选项渲染共用 */
+export function fieldTypeUsesOptions(type: FieldType): boolean {
+  return type === "select" || type === "multi-select";
+}
+
+/** 多维表格（一张表 = 一张网格表） */
+export interface BaseTable {
+  id: number;
+  name: string;
+  description: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 字段（表的一列；type 决定取值校验 / 归一 / 排序口径） */
+export interface TableField {
+  id: number;
+  tableId: number;
+  name: string;
+  type: FieldType;
+  position: number;
+  /** 单选 / 多选的候选项；其余类型恒为空数组 */
+  options: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 记录（表的一行；data 以「字段 id 字符串 → 值」的 JSON 存储） */
+export interface TableRecord {
+  id: number;
+  tableId: number;
+  data: Record<string, unknown>;
+  position: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 表名 / 字段名长度上限（与看板名称同一量级） */
+export const MAX_TABLE_NAME = 200;
+export const MAX_FIELD_NAME = 100;
+
+export function assertValidTableName(name: unknown): asserts name is string {
+  if (typeof name !== "string" || name.trim() === "") {
+    throw new ValidationError("表格名称不能为空");
+  }
+  if (name.length > MAX_TABLE_NAME) {
+    throw new ValidationError(`表格名称过长：最多 ${MAX_TABLE_NAME} 字（当前 ${name.length} 字）`);
+  }
+}
+
+export function assertValidFieldName(name: unknown): asserts name is string {
+  if (typeof name !== "string" || name.trim() === "") {
+    throw new ValidationError("字段名称不能为空");
+  }
+  if (name.length > MAX_FIELD_NAME) {
+    throw new ValidationError(`字段名称过长：最多 ${MAX_FIELD_NAME} 字（当前 ${name.length} 字）`);
+  }
+}
+
+export function assertValidFieldType(type: unknown): asserts type is FieldType {
+  if (!isFieldType(type)) {
+    throw new ValidationError(`非法字段类型：${String(type)}`);
+  }
+}
+
+/**
+ * 候选项守卫：单选 / 多选必须至少一个候选项；其余类型不许带候选项。
+ * 候选项本身去重且不能为空串。
+ */
+export function assertValidFieldOptions(
+  type: FieldType,
+  options: readonly string[],
+): void {
+  const cleaned = options.map((o) => o.trim()).filter((o) => o !== "");
+  if (fieldTypeUsesOptions(type)) {
+    if (cleaned.length === 0) {
+      throw new ValidationError(`${FIELD_TYPE_LABELS[type]}字段必须至少有一个候选项`);
+    }
+    if (new Set(cleaned).size !== cleaned.length) {
+      throw new ValidationError("候选项不能重复");
+    }
+  } else if (cleaned.length > 0) {
+    throw new ValidationError(`${FIELD_TYPE_LABELS[type]}字段不支持候选项`);
+  }
+}
+
+/** 字段校验结果（valid=false 时 error 是可直接展示的中文原因） */
+export interface FieldValidationResult {
+  valid: boolean;
+  error: string | null;
+}
+
+function validationOk(): FieldValidationResult {
+  return { valid: true, error: null };
+}
+
+function validationFail(error: string): FieldValidationResult {
+  return { valid: false, error };
+}
+
+/**
+ * 字段类型校验（r6 引擎核心之一，全集中 shared）：
+ * ① 空值（null / undefined）对任何类型都合法——空格子不是错误；
+ * ② text / url 必须是字符串；url 还必须以 http:// 或 https:// 开头；
+ * ③ number 必须是有限数值（字符串不算——字符串由 coerceFieldValue 先归一）；
+ * ④ date 必须是严格 YYYY-MM-DD 的真实日历日期；
+ * ⑤ checkbox 必须是布尔值；
+ * ⑥ select 的值必须在候选项内；multi-select 必须是候选项的子集。
+ */
+export function validateFieldValue(
+  type: FieldType,
+  value: unknown,
+  options: readonly string[] = [],
+): FieldValidationResult {
+  if (value === null || value === undefined) return validationOk();
+  switch (type) {
+    case "text":
+      return typeof value === "string"
+        ? validationOk()
+        : validationFail("文本字段必须是字符串");
+    case "url":
+      if (typeof value !== "string") return validationFail("链接字段必须是字符串");
+      return /^https?:\/\/\S+$/.test(value)
+        ? validationOk()
+        : validationFail("链接字段必须以 http:// 或 https:// 开头");
+    case "number":
+      return typeof value === "number" && Number.isFinite(value)
+        ? validationOk()
+        : validationFail("数字字段必须是数值");
+    case "date":
+      return isIsoDate(value)
+        ? validationOk()
+        : validationFail("日期字段必须是 YYYY-MM-DD 合法日期");
+    case "checkbox":
+      return typeof value === "boolean"
+        ? validationOk()
+        : validationFail("复选框字段必须是布尔值");
+    case "select":
+      return typeof value === "string" && options.includes(value)
+        ? validationOk()
+        : validationFail(`单选值必须在候选项内：${options.join(" / ")}`);
+    case "multi-select":
+      if (!Array.isArray(value)) return validationFail("多选字段必须是数组");
+      if (!value.every((v) => typeof v === "string" && options.includes(v))) {
+        return validationFail(`多选值必须是候选项的子集：${options.join(" / ")}`);
+      }
+      return validationOk();
+  }
+}
+
+/** 校验失败即抛 ValidationError（api 层只做 400 映射，不做类型分支） */
+export function assertValidFieldValue(
+  type: FieldType,
+  value: unknown,
+  options: readonly string[] = [],
+): void {
+  const result = validateFieldValue(type, value, options);
+  if (!result.valid) {
+    throw new ValidationError(`${FIELD_TYPE_LABELS[type]}字段${result.error ?? "取值非法"}`);
+  }
+}
+
+/** 数字字符串 → 数字（仅当整串都是合法数值时才转，转不动就原样返回交由校验拦下） */
+function coerceNumber(value: unknown): unknown {
+  if (typeof value === "number") return value;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (trimmed === "") return null;
+    const n = Number(trimmed);
+    return Number.isFinite(n) ? n : value;
+  }
+  return value;
+}
+
+/** 日期归一：补零 / 斜杠改横杠 / 带时刻只取日期部分；认不出就原样返回 */
+function coerceDate(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  const trimmed = value.trim();
+  if (trimmed === "") return null;
+  const slash = /^(\d{4})[/.](\d{1,2})[/.](\d{1,2})$/.exec(trimmed);
+  if (slash) {
+    return `${slash[1]}-${slash[2]!.padStart(2, "0")}-${slash[3]!.padStart(2, "0")}`;
+  }
+  const short = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T ].*)?$/.exec(trimmed);
+  if (short) {
+    return `${short[1]}-${short[2]!.padStart(2, "0")}-${short[3]!.padStart(2, "0")}`;
+  }
+  return value;
+}
+
+/** 链接归一：去空白；像域名但没写协议时补 https:// */
+function coerceUrl(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  const trimmed = value.trim();
+  if (trimmed === "") return null;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  if (/^[^/\s]+\.[^/\s]+$/.test(trimmed)) return `https://${trimmed}`;
+  return value;
+}
+
+/** 多选归一：数组或逗号串 → 去空去重的字符串数组 */
+function coerceMultiSelect(value: unknown): unknown {
+  const raw: string[] = Array.isArray(value)
+    ? value.map((v) => (typeof v === "string" ? v.trim() : v))
+    : typeof value === "string"
+      ? value.split(",").map((v) => v.trim())
+      : [value];
+  if (typeof value === "string" && value.trim() === "") return null;
+  const out: string[] = [];
+  for (const item of raw) {
+    if (typeof item !== "string" || item === "") continue;
+    if (!out.includes(item)) out.push(item);
+  }
+  return out;
+}
+
+/** 复选框归一："true"/"1" → true，"false"/"0"/"" → false；其他原样返回 */
+function coerceCheckbox(value: unknown): unknown {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    const t = value.trim().toLowerCase();
+    if (t === "") return null;
+    if (t === "true" || t === "1") return true;
+    if (t === "false" || t === "0") return false;
+  }
+  return value;
+}
+
+/**
+ * 写入前归一（r6 引擎核心之二，全集中 shared）：
+ * ① 空串按「清空该格」处理 → null（多选除外：空数组）；
+ * ② number：数字字符串 → 数字；
+ * ③ date：2026-1-5 → 2026-01-05；带时刻只取日期；
+ * ④ url：像域名就补 https://；
+ * ⑤ multi-select：逗号串 / 数组 → 去空去重数组；
+ * ⑥ checkbox："true"/"1" → true，"false"/"0" → false；
+ * ⑦ 认不出的值原样返回——由 validateFieldValue 判定并拒绝（归一不掩盖错误）。
+ */
+export function coerceFieldValue(
+  type: FieldType,
+  value: unknown,
+  options: readonly string[] = [],
+): unknown {
+  if (value === null || value === undefined) return null;
+  switch (type) {
+    case "text":
+      if (typeof value === "string") return value;
+      if (typeof value === "number" || typeof value === "boolean") return String(value);
+      return value;
+    case "number":
+      return coerceNumber(value);
+    case "date":
+      return coerceDate(value);
+    case "select":
+      if (typeof value !== "string") return value;
+      const trimmed = value.trim();
+      if (trimmed === "") return null;
+      return options.includes(trimmed) ? trimmed : value;
+    case "multi-select":
+      return coerceMultiSelect(value);
+    case "checkbox":
+      return coerceCheckbox(value);
+    case "url":
+      return coerceUrl(value);
+  }
+}
+
+/** 空值判定：null / undefined / 空串 / 空数组（复选框 false 是值，不是空） */
+export function isEmptyFieldValue(value: unknown): boolean {
+  if (value === null || value === undefined) return true;
+  if (typeof value === "string") return value.trim() === "";
+  if (Array.isArray(value)) return value.length === 0;
+  return false;
+}
+
+/**
+ * 排序比较器（r6 引擎核心之三，全集中 shared）：
+ * ① 空值恒最后（a 空 → 返回正数，b 空 → 返回负数；两边都空 → 0）；
+ * ② number 按数值比（认不出的数当空值处理，排最后）；
+ * ③ date 按时间比（ISO 字符串按时间轴）；
+ * ④ select / multi-select 按候选项在 options 里的顺序比（不在选项内的排最后）；
+ * ⑤ checkbox：false < true；
+ * ⑥ text / url 按字符串比。
+ */
+export function compareValues(
+  type: FieldType,
+  a: unknown,
+  b: unknown,
+  options: readonly string[] = [],
+): number {
+  const aEmpty = isEmptyFieldValue(a);
+  const bEmpty = isEmptyFieldValue(b);
+  if (aEmpty && bEmpty) return 0;
+  if (aEmpty) return 1;
+  if (bEmpty) return -1;
+  switch (type) {
+    case "number": {
+      const na = Number(a);
+      const nb = Number(b);
+      const aBad = !Number.isFinite(na);
+      const bBad = !Number.isFinite(nb);
+      if (aBad && bBad) return 0;
+      if (aBad) return 1;
+      if (bBad) return -1;
+      return na === nb ? 0 : na < nb ? -1 : 1;
+    }
+    case "date": {
+      const ta = Date.parse(String(a));
+      const tb = Date.parse(String(b));
+      const aBad = Number.isNaN(ta);
+      const bBad = Number.isNaN(tb);
+      if (aBad && bBad) return 0;
+      if (aBad) return 1;
+      if (bBad) return -1;
+      return ta === tb ? 0 : ta < tb ? -1 : 1;
+    }
+    case "checkbox": {
+      const ba = a === true;
+      const bb = b === true;
+      return ba === bb ? 0 : ba ? 1 : -1;
+    }
+    case "select": {
+      const ia = options.indexOf(String(a));
+      const ib = options.indexOf(String(b));
+      if (ia === ib) return 0;
+      if (ia < 0) return 1;
+      if (ib < 0) return -1;
+      return ia < ib ? -1 : 1;
+    }
+    case "multi-select": {
+      const listA = Array.isArray(a) ? a.map(String) : [String(a)];
+      const listB = Array.isArray(b) ? b.map(String) : [String(b)];
+      const ia = options.indexOf(listA[0] ?? "");
+      const ib = options.indexOf(listB[0] ?? "");
+      if (ia !== ib) {
+        if (ia < 0) return 1;
+        if (ib < 0) return -1;
+        return ia < ib ? -1 : 1;
+      }
+      return listA.length === listB.length ? 0 : listA.length < listB.length ? -1 : 1;
+    }
+    default: {
+      const sa = String(a);
+      const sb = String(b);
+      return sa === sb ? 0 : sa < sb ? -1 : 1;
+    }
+  }
+}
+
+/** 筛选命中判定（按字段类型口径，与比较器同源） */
+export function matchesFieldValue(
+  type: FieldType,
+  value: unknown,
+  filterValue: unknown,
+  options: readonly string[] = [],
+): boolean {
+  if (filterValue === null || filterValue === undefined) return true;
+  switch (type) {
+    case "number": {
+      const n = Number(value);
+      const f = Number(filterValue);
+      if (!Number.isFinite(n) || !Number.isFinite(f)) return false;
+      return n === f;
+    }
+    case "checkbox": {
+      const b = value === true;
+      const f = filterValue === true;
+      return b === f;
+    }
+    case "multi-select": {
+      const list = Array.isArray(value) ? value.map(String) : [];
+      const wanted = Array.isArray(filterValue) ? filterValue.map(String) : [String(filterValue)];
+      return wanted.some((w) => list.includes(w));
+    }
+    default:
+      return String(value ?? "") === String(filterValue);
+  }
+}
+
+/**
+ * 记录数据归一（写入前唯一入口，全集中 shared）：
+ * ① data 的键是「字段 id 字符串」；出现表里不存在的键 → 未知字段 → 抛错；
+ * ② 每个值先按字段类型归一（coerceFieldValue），再校验（validateFieldValue）；
+ * ③ 表里没给的字段补 null（网格渲染口径统一）。
+ */
+export function normalizeRecordData(
+  fields: readonly TableField[],
+  data: Record<string, unknown>,
+): Record<string, unknown> {
+  const byId = new Map(fields.map((f) => [String(f.id), f]));
+  const out: Record<string, unknown> = {};
+  for (const key of Object.keys(data)) {
+    const field = byId.get(key);
+    if (!field) {
+      throw new ValidationError(`未知字段：${key}`);
+    }
+    const coerced = coerceFieldValue(field.type, data[key], field.options);
+    const check = validateFieldValue(field.type, coerced, field.options);
+    if (!check.valid) {
+      throw new ValidationError(`字段「${field.name}」${check.error ?? "取值非法"}`);
+    }
+    out[key] = coerced;
+  }
+  for (const field of fields) {
+    const key = String(field.id);
+    if (!(key in out)) out[key] = null;
+  }
+  return out;
+}
+
+/** 排序：按字段值排；空值恒最后（升序降序都最后） */
+export function sortRecordsByField(
+  records: readonly TableRecord[],
+  field: TableField,
+  direction: "asc" | "desc" = "asc",
+): TableRecord[] {
+  const sign = direction === "desc" ? -1 : 1;
+  const valueOf = (r: TableRecord): unknown => r.data[String(field.id)];
+  const filled = records.filter((r) => !isEmptyFieldValue(valueOf(r)));
+  const empty = records.filter((r) => isEmptyFieldValue(valueOf(r)));
+  filled.sort((a, b) => sign * compareValues(field.type, valueOf(a), valueOf(b), field.options));
+  return [...filled, ...empty];
+}
+
+/** 默认每页条数 / 每页上限（分页口径集中 shared） */
+export const DEFAULT_PAGE_SIZE = 20;
+export const MAX_PAGE_SIZE = 100;
+
+/** 记录查询参数（api 只装配数据，筛选 / 排序 / 分页规则全在 shared） */
+export interface RecordQuerySpec {
+  filterFieldId?: number | null;
+  filterValue?: unknown;
+  sortFieldId?: number | null;
+  sortDirection?: "asc" | "desc";
+  page?: number;
+  pageSize?: number;
+}
+
+/** 记录查询结果 */
+export interface RecordQueryResult {
+  records: TableRecord[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+/**
+ * 记录查询唯一入口（r6：按字段筛选 + 按字段排序 + 分页，规则集中 shared）：
+ * ① 筛选字段不存在 → 抛错（api 映射 400：未知字段）；
+ * ② 筛选值先按字段类型归一再校验，不符 → 抛错（api 映射 400：筛选值类型不符）；
+ * ③ 排序字段不存在 → 抛错；
+ * ④ 分页：page 从 1 起，pageSize 上限 MAX_PAGE_SIZE；越界页返回空列表但 total 不变。
+ */
+export function queryRecords(
+  records: readonly TableRecord[],
+  fields: readonly TableField[],
+  spec: RecordQuerySpec = {},
+): RecordQueryResult {
+  const byId = new Map(fields.map((f) => [f.id, f]));
+  let list: TableRecord[] = [...records];
+  if (spec.filterFieldId !== undefined && spec.filterFieldId !== null) {
+    const field = byId.get(spec.filterFieldId);
+    if (!field) {
+      throw new ValidationError(`筛选字段不存在：${spec.filterFieldId}`);
+    }
+    const filterValue = coerceFieldValue(field.type, spec.filterValue ?? null, field.options);
+    const check = validateFieldValue(field.type, filterValue, field.options);
+    if (!check.valid) {
+      throw new ValidationError(`筛选值类型不符：${check.error ?? "取值非法"}`);
+    }
+    list = list.filter((r) =>
+      matchesFieldValue(field.type, r.data[String(field.id)], filterValue, field.options),
+    );
+  }
+  if (spec.sortFieldId !== undefined && spec.sortFieldId !== null) {
+    const field = byId.get(spec.sortFieldId);
+    if (!field) {
+      throw new ValidationError(`排序字段不存在：${spec.sortFieldId}`);
+    }
+    list = sortRecordsByField(list, field, spec.sortDirection ?? "asc");
+  }
+  const pageSize = Math.min(
+    MAX_PAGE_SIZE,
+    Math.max(1, Math.floor(spec.pageSize ?? DEFAULT_PAGE_SIZE)),
+  );
+  const total = list.length;
+  const totalPages = total === 0 ? 0 : Math.ceil(total / pageSize);
+  const page = Math.max(1, Math.floor(spec.page ?? 1));
+  const start = (page - 1) * pageSize;
+  return {
+    records: list.slice(start, start + pageSize),
+    total,
+    page,
+    pageSize,
+    totalPages,
+  };
+}
+
+/** 默认字段模板（r6「用户第一次用」：新建表即带齐 7 种字段类型，不用先建字段） */
+export interface DefaultFieldSpec {
+  name: string;
+  type: FieldType;
+  options: string[];
+}
+
+export const DEFAULT_TABLE_FIELDS: readonly DefaultFieldSpec[] = [
+  { name: "名称", type: "text", options: [] },
+  { name: "状态", type: "select", options: ["未开始", "进行中", "已完成"] },
+  { name: "负责人", type: "text", options: [] },
+  { name: "金额", type: "number", options: [] },
+  { name: "截止日期", type: "date", options: [] },
+  { name: "标签", type: "multi-select", options: ["重要", "紧急"] },
+  { name: "完成", type: "checkbox", options: [] },
+  { name: "链接", type: "url", options: [] },
+];
+
+/**
+ * 文件名安全片段（r6 U2-2：导出文件名必须含项目名，不能只露内部 id）。
+ * 保留字母 / 数字 / 文字（含中文）与 - _ .，其余折叠成单个 -，去掉首尾 -。
+ */
+export function sanitizeFileNamePart(raw: string): string {
+  const cleaned = raw
+    .replace(/[^\p{L}\p{N}_.-]+/gu, "-")
+    .replace(/-{2,}/g, "-")
+    .replace(/^-+/, "")
+    .replace(/-+$/, "");
+  return cleaned.length > 0 ? cleaned.slice(0, 60) : "board";
+}
+
+/**
+ * 看板台账导出文件名（r6 U2-2 必修）：xieflow-board-<项目名>-<YYYYMMDD>.csv
+ * api 的 content-disposition 与 UI 的 a.download 共用本函数——两端文件名一致。
+ */
+export function buildBoardCsvFileName(projectName: string, now: Date = new Date()): string {
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `xieflow-board-${sanitizeFileNamePart(projectName)}-${y}${m}${d}.csv`;
 }

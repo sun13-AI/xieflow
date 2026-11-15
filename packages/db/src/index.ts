@@ -16,6 +16,9 @@ import {
   mapRowToProject,
   mapRowToBoardColumn,
   mapRowToBoardCard,
+  mapRowToBaseTable,
+  mapRowToTableField,
+  mapRowToTableRecord,
 } from "./mappers.js";
 import type {
   AppSetting,
@@ -25,6 +28,10 @@ import type {
   Project,
   BoardColumn,
   BoardCard,
+  BaseTable,
+  TableField,
+  TableRecord,
+  FieldType,
 } from "@xieflow/shared";
 import {
   canTransitionTodo,
@@ -37,8 +44,14 @@ import {
   assertValidScheduleRange,
   assertValidScheduleRepeat,
   assertValidBoardName,
+  assertValidTableName,
+  assertValidFieldName,
+  assertValidFieldType,
+  assertValidFieldOptions,
+  normalizeRecordData,
   reorderPositions,
   DEFAULT_BOARD_COLUMNS,
+  DEFAULT_TABLE_FIELDS,
   LINK_SCHEDULE_DEFAULT_START,
   LINK_SCHEDULE_DEFAULT_END,
 } from "@xieflow/shared";
@@ -642,5 +655,243 @@ export class XieFlowDb {
     const card = this.getBoardCard(cardId);
     if (!card) throw new Error(`卡片不存在：${cardId}`);
     return this.moveBoardCard(cardId, card.columnId, to);
+  }
+
+  // ---- 多维表格（r6：表 / 字段 / 记录） ----
+
+  /**
+   * 建表（r6「用户第一次用」：建表即带默认字段模板，不留零字段死路）。
+   * 默认字段覆盖 7 种类型（文本/单选/数字/日期/多选/复选框/链接），
+   * 模板口径集中 shared DEFAULT_TABLE_FIELDS——api / UI / 文档同一来源。
+   */
+  createTable(name: string, description: string | null = null): BaseTable {
+    assertValidTableName(name);
+    const now = new Date().toISOString();
+    const res = this.db.run(
+      "INSERT INTO tables (name, description, created_at, updated_at) VALUES (?, ?, ?, ?)",
+      [name, description, now, now],
+    );
+    const row = this.db.get("SELECT * FROM tables WHERE id = ?", [res.lastInsertRowid]);
+    if (!row) throw new Error("表格写入后读回失败");
+    const table = mapRowToBaseTable(row);
+    let position = 0;
+    for (const spec of DEFAULT_TABLE_FIELDS) {
+      this.createField(table.id, spec.name, spec.type, spec.options, position);
+      position += 1;
+    }
+    return table;
+  }
+
+  getTable(id: number): BaseTable | null {
+    const row = this.db.get("SELECT * FROM tables WHERE id = ?", [id]);
+    return row ? mapRowToBaseTable(row) : null;
+  }
+
+  listTables(): BaseTable[] {
+    return this.db.all("SELECT * FROM tables ORDER BY id").map(mapRowToBaseTable);
+  }
+
+  updateTable(id: number, patch: { name?: string; description?: string | null }): BaseTable {
+    const current = this.getTable(id);
+    if (!current) throw new Error(`表格不存在：${id}`);
+    const name = patch.name ?? current.name;
+    const description = patch.description !== undefined ? patch.description : current.description;
+    assertValidTableName(name);
+    this.db.run("UPDATE tables SET name = ?, description = ?, updated_at = ? WHERE id = ?", [
+      name,
+      description,
+      new Date().toISOString(),
+      id,
+    ]);
+    return this.getTable(id)!;
+  }
+
+  /** 删表：字段与记录经 schema 级联（ON DELETE CASCADE）随行删除 */
+  deleteTable(id: number): boolean {
+    const res = this.db.run("DELETE FROM tables WHERE id = ?", [id]);
+    return res.changes > 0;
+  }
+
+  createField(
+    tableId: number,
+    name: string,
+    type: FieldType,
+    options: readonly string[] = [],
+    position?: number,
+  ): TableField {
+    assertValidFieldName(name);
+    assertValidFieldType(type);
+    assertValidFieldOptions(type, options);
+    if (this.getTable(tableId) === null) {
+      throw new Error(`表格不存在：${tableId}`);
+    }
+    const pos =
+      position ??
+      Number(
+        (
+          this.db.get("SELECT COUNT(*) AS n FROM fields WHERE table_id = ?", [tableId]) as { n: unknown }
+        ).n,
+      );
+    if (!Number.isInteger(pos) || pos < 0) {
+      throw new Error(`非法字段位置：${String(pos)}`);
+    }
+    // 字段名在表内唯一：先查重再落库（错误消息稳定）
+    const dupName = this.db.get("SELECT id FROM fields WHERE table_id = ? AND name = ?", [
+      tableId,
+      name,
+    ]);
+    if (dupName) {
+      throw new Error(`字段名称已存在：${name}`);
+    }
+    const dupPos = this.db.get("SELECT id FROM fields WHERE table_id = ? AND position = ?", [
+      tableId,
+      pos,
+    ]);
+    if (dupPos) {
+      throw new Error(`字段位置已被占用：${pos}`);
+    }
+    const now = new Date().toISOString();
+    const res = this.db.run(
+      "INSERT INTO fields (table_id, name, type, position, options, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      [tableId, name, type, pos, JSON.stringify([...options]), now, now],
+    );
+    const row = this.db.get("SELECT * FROM fields WHERE id = ?", [res.lastInsertRowid]);
+    if (!row) throw new Error("字段写入后读回失败");
+    return mapRowToTableField(row);
+  }
+
+  getField(id: number): TableField | null {
+    const row = this.db.get("SELECT * FROM fields WHERE id = ?", [id]);
+    return row ? mapRowToTableField(row) : null;
+  }
+
+  listFields(tableId: number): TableField[] {
+    return this.db
+      .all("SELECT * FROM fields WHERE table_id = ? ORDER BY position, id", [tableId])
+      .map(mapRowToTableField);
+  }
+
+  updateField(
+    id: number,
+    patch: { name?: string; type?: string; options?: readonly string[]; position?: number },
+  ): TableField {
+    const current = this.getField(id);
+    if (!current) throw new Error(`字段不存在：${id}`);
+    const name = patch.name ?? current.name;
+    const type = (patch.type ?? current.type) as FieldType;
+    assertValidFieldName(name);
+    assertValidFieldType(type);
+    // 改类型时：给了候选项就用新的；没给就沿用旧的（非单选类型一律清空）
+    const rawOptions =
+      patch.options !== undefined ? [...patch.options] : type === current.type ? [...current.options] : [];
+    const options =
+      type === "select" || type === "multi-select" ? rawOptions : [];
+    assertValidFieldOptions(type, options);
+    const position = patch.position ?? current.position;
+    if (!Number.isInteger(position) || position < 0) {
+      throw new Error(`非法字段位置：${String(position)}`);
+    }
+    if (
+      name !== current.name &&
+      this.db.get("SELECT id FROM fields WHERE table_id = ? AND name = ? AND id != ?", [
+        current.tableId,
+        name,
+        id,
+      ])
+    ) {
+      throw new Error(`字段名称已存在：${name}`);
+    }
+    if (
+      position !== current.position &&
+      this.db.get("SELECT id FROM fields WHERE table_id = ? AND position = ? AND id != ?", [
+        current.tableId,
+        position,
+        id,
+      ])
+    ) {
+      throw new Error(`字段位置已被占用：${position}`);
+    }
+    this.db.run(
+      "UPDATE fields SET name = ?, type = ?, position = ?, options = ?, updated_at = ? WHERE id = ?",
+      [name, type, position, JSON.stringify(options), new Date().toISOString(), id],
+    );
+    return this.getField(id)!;
+  }
+
+  /**
+   * 删字段：同时把该字段的键从本表所有记录里清掉（不留孤儿键，
+   * 否则读回时会出现「表里没有的字段值」）。
+   */
+  deleteField(id: number): boolean {
+    const field = this.getField(id);
+    if (!field) return false;
+    for (const record of this.listRecords(field.tableId)) {
+      const key = String(field.id);
+      if (!(key in record.data)) continue;
+      const next = { ...record.data };
+      delete next[key];
+      this.db.run("UPDATE records SET data = ?, updated_at = ? WHERE id = ?", [
+        JSON.stringify(next),
+        new Date().toISOString(),
+        record.id,
+      ]);
+    }
+    const res = this.db.run("DELETE FROM fields WHERE id = ?", [id]);
+    return res.changes > 0;
+  }
+
+  /**
+   * 建记录（表的一行）：data 的键是「字段 id 字符串」，
+   * 值先经 shared normalizeRecordData 归一 + 校验（未知字段 / 类型不符一律拒绝）。
+   */
+  createRecord(tableId: number, data: Record<string, unknown>): TableRecord {
+    if (this.getTable(tableId) === null) {
+      throw new Error(`表格不存在：${tableId}`);
+    }
+    const fields = this.listFields(tableId);
+    const normalized = normalizeRecordData(fields, data);
+    const pos = Number(
+      (
+        this.db.get("SELECT COUNT(*) AS n FROM records WHERE table_id = ?", [tableId]) as { n: unknown }
+      ).n,
+    );
+    const now = new Date().toISOString();
+    const res = this.db.run(
+      "INSERT INTO records (table_id, data, position, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+      [tableId, JSON.stringify(normalized), pos, now, now],
+    );
+    const row = this.db.get("SELECT * FROM records WHERE id = ?", [res.lastInsertRowid]);
+    if (!row) throw new Error("记录写入后读回失败");
+    return mapRowToTableRecord(row);
+  }
+
+  getRecord(id: number): TableRecord | null {
+    const row = this.db.get("SELECT * FROM records WHERE id = ?", [id]);
+    return row ? mapRowToTableRecord(row) : null;
+  }
+
+  listRecords(tableId: number): TableRecord[] {
+    return this.db
+      .all("SELECT * FROM records WHERE table_id = ? ORDER BY position, id", [tableId])
+      .map(mapRowToTableRecord);
+  }
+
+  /** 编辑单元格（整行 data 覆盖写）：同样先归一 + 校验再落库 */
+  updateRecord(id: number, data: Record<string, unknown>): TableRecord {
+    const current = this.getRecord(id);
+    if (!current) throw new Error(`记录不存在：${id}`);
+    const fields = this.listFields(current.tableId);
+    const normalized = normalizeRecordData(fields, data);
+    this.db.run("UPDATE records SET data = ?, updated_at = ? WHERE id = ?", [
+      JSON.stringify(normalized),
+      new Date().toISOString(),
+      id,
+    ]);
+    return this.getRecord(id)!;
+  }
+
+  deleteRecord(id: number): boolean {
+    const res = this.db.run("DELETE FROM records WHERE id = ?", [id]);
+    return res.changes > 0;
   }
 }

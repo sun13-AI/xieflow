@@ -15,6 +15,8 @@
 
 export {}; // top-level await needs module scope
 
+import { buildBoardCsvFileName } from "@xieflow/shared";
+
 const PORT = Number(process.env.XIEFLOW_API_PORT ?? 8788);
 const BASE = `http://127.0.0.1:${PORT}`;
 
@@ -109,7 +111,7 @@ async function audit() {
     eq(h.json && h.json.ok, true, "health.ok = true");
     // r4 起动态对表：health.schemaVersion 必须等于迁移队列最高版本（不再硬编码 2/3，
     // r3 v0.0.6 CI 红教训——静态硬编码在每轮迁移后必过期）
-    eq(h.json && h.json.schemaVersion, 4, "health.schemaVersion = 4（r4 迁移后）");
+    eq(h.json && h.json.schemaVersion, 5, "health.schemaVersion = 5（r6 迁移后）");
     const s = await req("GET", "/api/settings");
     eq(s.status, 200, "GET /api/settings -> 200");
     ok(Array.isArray(s.json && s.json.settings), "settings 返回数组");
@@ -206,7 +208,7 @@ async function audit() {
   {
     // health 探针反映 schema v4（r4 起迁移后动态推进）
     const h3 = await req("GET", "/api/health");
-    eq(h3.json && h3.json.schemaVersion, 4, "health.schemaVersion = 4（schedules 节复核）");
+    eq(h3.json && h3.json.schemaVersion, 5, "health.schemaVersion = 5（schedules 节复核）");
 
     const r = await expectStatus(
       "POST",
@@ -762,6 +764,13 @@ async function audit() {
     ok((csvRes.headers.get("content-type") ?? "").includes("text/csv"), "CSV：content-type 含 text/csv");
     ok((csvRes.headers.get("content-type") ?? "").includes("charset=utf-8"), "CSV：content-type 带 charset=utf-8");
     ok((csvRes.headers.get("content-disposition") ?? "").includes("attachment"), "CSV：content-disposition 为 attachment（浏览器直接下载）");
+    // r6 U2-2 必修：文件名含项目名（不再只露内部 id）
+    const disposition = csvRes.headers.get("content-disposition") ?? "";
+    const expectedFileName = buildBoardCsvFileName("r5 统计导出项目");
+    ok(disposition.includes("filename*=UTF-8''"), "CSV：content-disposition 带 RFC5987 UTF-8 文件名段（中文项目名可下载）");
+    ok(disposition.includes(encodeURIComponent(expectedFileName)), "CSV：文件名含项目名与日期（U2-2）");
+    ok(!disposition.includes(`project-${projectId}`), "CSV：文件名不再只含内部项目 id（U2-2）");
+    ok(disposition.includes('filename="'), "CSV：content-disposition 保留 ASCII 回落文件名段");
     const raw = await reqBytes(`/api/projects/${projectId}/export.csv`);
     eq(raw.bytes[0], 0xef, "CSV：首字节 EF（UTF-8 BOM 第 1 字节）");
     eq(raw.bytes[1], 0xbb, "CSV：次字节 BB（UTF-8 BOM 第 2 字节）");
@@ -829,6 +838,264 @@ async function audit() {
     eq(zeroColStats.json.columns.length, 0, "统计：零列项目统计列数为 0");
     eq(zeroColStats.json.totals.columnCount, 0, "统计：零列项目合计列数 0");
     eq(zeroColStats.json.totals.completionRate, 0, "统计：零列项目完成率 0（不除零）");
+  }
+
+  console.log("\n== tables / fields / records (r6) ==");
+  {
+    // —— 表（多维表格）——
+    const tbl = await expectStatus("POST", "/api/tables", { name: "装修预算表", description: "r6 样例" }, 201, "POST 表 -> 201");
+    const tableId = tbl.json.id as number;
+    eq(tbl.json.name, "装修预算表", "表：name 读回");
+    eq(tbl.json.description, "r6 样例", "表：description 读回");
+    await expectStatus("POST", "/api/tables", { name: "" }, 400, "POST 表空名称 -> 400");
+    await expectStatus("POST", "/api/tables", {}, 400, "POST 表缺 name -> 400");
+    const list = await expectStatus("GET", "/api/tables", undefined, 200, "GET 表列表 -> 200");
+    ok(Array.isArray(list.json.tables), "表：列表返回数组");
+    ok(
+      list.json.tables.some((x: { id: number }) => x.id === tableId),
+      "表：新表出现在列表里",
+    );
+    await expectStatus("GET", "/api/tables/99999", undefined, 404, "GET 不存在的表 -> 404");
+    await expectStatus("GET", "/api/tables/not-a-number", undefined, 400, "GET 非数字表 id -> 400");
+    await expectStatus("GET", "/api/tables/0", undefined, 400, "GET 表 id=0 -> 400");
+
+    // —— 字段（默认模板 + 自定义 + 4xx）——
+    const fieldsRes = await expectStatus("GET", `/api/tables/${tableId}/fields`, undefined, 200, "GET 字段列表 -> 200");
+    eq(fieldsRes.json.fields.length, 8, "字段：新表自带 8 个默认字段（不留零字段死路）");
+    eq(
+      fieldsRes.json.fields.map((x: { type: string }) => x.type),
+      ["text", "select", "text", "number", "date", "multi-select", "checkbox", "url"],
+      "字段：默认字段覆盖 7 种类型",
+    );
+    eq(
+      fieldsRes.json.fields.find((x: { name: string }) => x.name === "状态").options,
+      ["未开始", "进行中", "已完成"],
+      "字段：默认单选字段带候选项",
+    );
+    await expectStatus("GET", "/api/tables/99999/fields", undefined, 404, "GET 不存在表的字段 -> 404");
+
+    const newField = await expectStatus(
+      "POST",
+      `/api/tables/${tableId}/fields`,
+      { name: "供应商", type: "text" },
+      201,
+      "POST 字段 -> 201",
+    );
+    eq(newField.json.name, "供应商", "字段：name 读回");
+    eq(newField.json.type, "text", "字段：type 读回");
+    eq(newField.json.options, [], "字段：非单选类型候选项为空数组");
+    const selField = await expectStatus(
+      "POST",
+      `/api/tables/${tableId}/fields`,
+      { name: "阶段", type: "select", options: ["A", "B"] },
+      201,
+      "POST 单选字段（带候选项）-> 201",
+    );
+    eq(selField.json.options, ["A", "B"], "字段：候选项读回");
+    await expectStatus("POST", `/api/tables/${tableId}/fields`, { name: "坏类型", type: "money" }, 400, "POST 字段非法类型 -> 400");
+    await expectStatus("POST", `/api/tables/${tableId}/fields`, { name: "零选项", type: "select", options: [] }, 400, "POST 单选零候选项 -> 400");
+    await expectStatus("POST", `/api/tables/${tableId}/fields`, { name: "文本带选项", type: "text", options: ["A"] }, 400, "POST 文本字段带候选项 -> 400");
+    await expectStatus("POST", `/api/tables/${tableId}/fields`, { name: "", type: "text" }, 400, "POST 字段空名称 -> 400");
+    await expectStatus("POST", "/api/tables/99999/fields", { name: "孤儿字段", type: "text" }, 404, "POST 字段到不存在的表 -> 404");
+
+    const patchedField = await expectStatus(
+      "PATCH",
+      `/api/fields/${newField.json.id}`,
+      { name: "供应商名称" },
+      200,
+      "PATCH 字段改名 -> 200",
+    );
+    eq(patchedField.json.name, "供应商名称", "字段：改名后读回");
+    await expectStatus("PATCH", "/api/fields/99999", { name: "x" }, 404, "PATCH 不存在的字段 -> 404");
+    await expectStatus("PATCH", `/api/fields/${newField.json.id}`, { name: "" }, 400, "PATCH 字段空名称 -> 400");
+    await expectStatus("PATCH", `/api/fields/${newField.json.id}`, { type: "money" }, 400, "PATCH 字段非法类型 -> 400");
+
+    // —— 记录（行）+ 单元格编辑 ——
+    const byName = new Map<string, number>(
+      fieldsRes.json.fields.map((x: { name: string; id: number }) => [x.name, x.id]),
+    );
+    const nameId = byName.get("名称")!;
+    const amountId = byName.get("金额")!;
+    const statusId = byName.get("状态")!;
+    const dateId = byName.get("截止日期")!;
+    const tagId = byName.get("标签")!;
+    const doneId = byName.get("完成")!;
+    const linkId = byName.get("链接")!;
+
+    const rec1 = await expectStatus(
+      "POST",
+      `/api/tables/${tableId}/records`,
+      {
+        data: {
+          [String(nameId)]: "量房",
+          [String(amountId)]: "1200",
+          [String(statusId)]: "进行中",
+          [String(dateId)]: "2026-12-01",
+          [String(tagId)]: ["重要", "紧急"],
+          [String(doneId)]: false,
+          [String(linkId)]: "https://example.com/a",
+        },
+      },
+      201,
+      "POST 记录（7 种字段类型全填）-> 201",
+    );
+    eq(rec1.json.data[String(nameId)], "量房", "记录：文本字段读回");
+    eq(rec1.json.data[String(amountId)], 1200, "记录：数字字段按引擎归一（\"1200\" -> 1200）");
+    eq(rec1.json.data[String(tagId)], ["重要", "紧急"], "记录：多选字段读回数组");
+    eq(rec1.json.data[String(doneId)], false, "记录：复选框字段读回布尔");
+    await expectStatus("POST", `/api/tables/${tableId}/records`, { data: { "99999": "x" } }, 400, "POST 记录带未知字段 -> 400");
+    await expectStatus("POST", `/api/tables/${tableId}/records`, { data: { [String(amountId)]: "abc" } }, 400, "POST 记录带非法数字 -> 400");
+    await expectStatus("POST", `/api/tables/${tableId}/records`, { data: { [String(statusId)]: "搁置" } }, 400, "POST 记录带非法单选值 -> 400");
+    await expectStatus("POST", "/api/tables/99999/records", { data: {} }, 404, "POST 记录到不存在的表 -> 404");
+
+    const rec2 = await expectStatus(
+      "POST",
+      `/api/tables/${tableId}/records`,
+      { data: { [String(nameId)]: "选瓷砖", [String(amountId)]: 300, [String(statusId)]: "未开始" } },
+      201,
+      "POST 第二条记录 -> 201",
+    );
+    const rec3 = await expectStatus(
+      "POST",
+      `/api/tables/${tableId}/records`,
+      { data: { [String(nameId)]: "定预算", [String(amountId)]: 9000, [String(statusId)]: "已完成" } },
+      201,
+      "POST 第三条记录 -> 201",
+    );
+
+    const recList = await expectStatus("GET", `/api/tables/${tableId}/records`, undefined, 200, "GET 记录列表 -> 200");
+    eq(recList.json.records.length, 3, "记录：列表 3 条");
+    eq(recList.json.total, 3, "记录：total = 3");
+    ok(Array.isArray(recList.json.records), "记录：列表返回数组");
+    await expectStatus("GET", "/api/tables/99999/records", undefined, 404, "GET 不存在表的记录 -> 404");
+
+    const one = await expectStatus("GET", `/api/records/${rec1.json.id}`, undefined, 200, "GET 记录详情 -> 200");
+    eq(one.json.id, rec1.json.id, "记录：详情 id 一致");
+    await expectStatus("GET", "/api/records/99999", undefined, 404, "GET 不存在的记录 -> 404");
+    await expectStatus("GET", "/api/records/not-a-number", undefined, 400, "GET 非数字记录 id -> 400");
+
+    // 编辑单元格（整行 data 覆盖写）
+    const edited = await expectStatus(
+      "PATCH",
+      `/api/records/${rec1.json.id}`,
+      { data: { ...rec1.json.data, [String(amountId)]: 1500, [String(statusId)]: "已完成" } },
+      200,
+      "PATCH 编辑单元格 -> 200",
+    );
+    eq(edited.json.data[String(amountId)], 1500, "记录：编辑后数字读回");
+    eq(edited.json.data[String(statusId)], "已完成", "记录：编辑后单选读回");
+    await expectStatus("PATCH", `/api/records/${rec1.json.id}`, { data: { "99999": "x" } }, 400, "PATCH 记录带未知字段 -> 400");
+    await expectStatus("PATCH", "/api/records/99999", { data: {} }, 404, "PATCH 不存在的记录 -> 404");
+
+    // —— 筛选 ——
+    const filtered = await expectStatus(
+      "GET",
+      `/api/tables/${tableId}/records?filterFieldId=${statusId}&filterValue=${encodeURIComponent("已完成")}`,
+      undefined,
+      200,
+      "GET 记录（按单选字段筛选）-> 200",
+    );
+    eq(filtered.json.total, 2, "筛选：已完成 -> 2 条命中");
+    eq(
+      filtered.json.records.map((x: { data: Record<string, unknown> }) => x.data[String(nameId)]),
+      ["量房", "定预算"],
+      "筛选：命中的是两条「已完成」记录",
+    );
+    const filteredNum = await expectStatus(
+      "GET",
+      `/api/tables/${tableId}/records?filterFieldId=${amountId}&filterValue=300`,
+      undefined,
+      200,
+      "GET 记录（按数字字段筛选）-> 200",
+    );
+    eq(filteredNum.json.total, 1, "筛选：数字字段筛选命中 1 条");
+    await expectStatus(
+      "GET",
+      `/api/tables/${tableId}/records?filterFieldId=${amountId}&filterValue=abc`,
+      undefined,
+      400,
+      "GET 记录（筛选值类型不符）-> 400",
+    );
+    await expectStatus(
+      "GET",
+      `/api/tables/${tableId}/records?filterFieldId=${statusId}&filterValue=${encodeURIComponent("搁置")}`,
+      undefined,
+      400,
+      "GET 记录（筛选值不在候选项内）-> 400",
+    );
+    await expectStatus(
+      "GET",
+      `/api/tables/${tableId}/records?filterFieldId=99999&filterValue=1`,
+      undefined,
+      400,
+      "GET 记录（筛选字段不存在）-> 400",
+    );
+
+    // —— 排序 ——
+    const sortedAsc = await expectStatus(
+      "GET",
+      `/api/tables/${tableId}/records?sortFieldId=${amountId}&sortDirection=asc`,
+      undefined,
+      200,
+      "GET 记录（按数字字段升序）-> 200",
+    );
+    eq(
+      sortedAsc.json.records.map((x: { data: Record<string, unknown> }) => x.data[String(amountId)]),
+      [300, 1500, 9000],
+      "排序：数字升序 300 / 1500 / 9000",
+    );
+    const sortedDesc = await expectStatus(
+      "GET",
+      `/api/tables/${tableId}/records?sortFieldId=${amountId}&sortDirection=desc`,
+      undefined,
+      200,
+      "GET 记录（按数字字段降序）-> 200",
+    );
+    eq(
+      sortedDesc.json.records.map((x: { data: Record<string, unknown> }) => x.data[String(amountId)]),
+      [9000, 1500, 300],
+      "排序：数字降序 9000 / 1500 / 300",
+    );
+    await expectStatus(
+      "GET",
+      `/api/tables/${tableId}/records?sortFieldId=99999`,
+      undefined,
+      400,
+      "GET 记录（排序字段不存在）-> 400",
+    );
+
+    // —— 分页 ——
+    const page1 = await expectStatus(
+      "GET",
+      `/api/tables/${tableId}/records?page=1&pageSize=2`,
+      undefined,
+      200,
+      "GET 记录（第 1 页）-> 200",
+    );
+    eq(page1.json.records.length, 2, "分页：第 1 页 2 条");
+    eq(page1.json.total, 3, "分页：total 不随分页变化");
+    eq(page1.json.totalPages, 2, "分页：totalPages = 2");
+    const page2 = await expectStatus(
+      "GET",
+      `/api/tables/${tableId}/records?page=2&pageSize=2`,
+      undefined,
+      200,
+      "GET 记录（第 2 页）-> 200",
+    );
+    eq(page2.json.records.length, 1, "分页：第 2 页 1 条");
+    eq(page2.json.page, 2, "分页：page 回显 2");
+
+    // —— 删字段 / 删记录 / 删表 ——
+    await expectStatus("DELETE", `/api/fields/${selField.json.id}`, undefined, 200, "DELETE 字段 -> 200");
+    await expectStatus("DELETE", `/api/fields/${selField.json.id}`, undefined, 404, "DELETE 重复同一字段 id -> 404");
+    const fieldsAfter = await req("GET", `/api/tables/${tableId}/fields`);
+    eq(fieldsAfter.json.fields.length, 9, "字段：删掉一个自定义字段后剩 9 个（8 默认 + 1 自定义）");
+    await expectStatus("DELETE", `/api/records/${rec3.json.id}`, undefined, 200, "DELETE 记录 -> 200");
+    await expectStatus("GET", `/api/records/${rec3.json.id}`, undefined, 404, "DELETE 后 GET 记录 -> 404");
+    await expectStatus("DELETE", `/api/tables/${tableId}`, undefined, 200, "DELETE 表 -> 200");
+    await expectStatus("GET", `/api/tables/${tableId}`, undefined, 404, "DELETE 表后 GET 表 -> 404");
+    await expectStatus("GET", `/api/records/${rec1.json.id}`, undefined, 404, "删表：记录级联删除（记录路由读回 404）");
+    await expectStatus("GET", `/api/tables/${tableId}/fields`, undefined, 404, "删表：字段级联删除（字段列表 404）");
   }
 
   console.log("\n== schedules delete (r3) ==");

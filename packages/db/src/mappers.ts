@@ -9,7 +9,12 @@ import type {
   Project,
   BoardColumn,
   BoardCard,
+  BaseTable,
+  TableField,
+  TableRecord,
+  FieldType,
 } from "@xieflow/shared";
+import { isFieldType } from "@xieflow/shared";
 import { REPEATS_ORDER } from "./repeat-order.js";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -94,6 +99,72 @@ export function mapRowToBoardCard(row: Row): BoardCard {
     description: row.description === null ? null : String(row.description),
     position: Number(row.position),
     todoId: row.todo_id === null ? null : Number(row.todo_id),
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+  };
+}
+
+/** 候选项 JSON 解析（坏 JSON 视为无候选项，不让一行坏数据炸掉整表读取） */
+function parseFieldOptions(raw: unknown): string[] {
+  if (typeof raw !== "string" || raw === "") return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return parsed.filter((x): x is string => typeof x === "string");
+    }
+  } catch {
+    /* 坏 JSON -> 空候选项 */
+  }
+  return [];
+}
+
+/** 记录 data JSON 解析（坏 JSON 视为空对象） */
+function parseRecordData(raw: unknown): Record<string, unknown> {
+  if (typeof raw !== "string" || raw === "") return {};
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+  } catch {
+    /* 坏 JSON -> 空对象 */
+  }
+  return {};
+}
+
+export function mapRowToBaseTable(row: Row): BaseTable {
+  return {
+    id: Number(row.id),
+    name: String(row.name),
+    description: row.description === null ? null : String(row.description),
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+  };
+}
+
+export function mapRowToTableField(row: Row): TableField {
+  const type = String(row.type) as FieldType;
+  if (!isFieldType(type)) {
+    throw new Error(`非法字段类型值：${row.type}`);
+  }
+  return {
+    id: Number(row.id),
+    tableId: Number(row.table_id),
+    name: String(row.name),
+    type,
+    position: Number(row.position),
+    options: parseFieldOptions(row.options),
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+  };
+}
+
+export function mapRowToTableRecord(row: Row): TableRecord {
+  return {
+    id: Number(row.id),
+    tableId: Number(row.table_id),
+    data: parseRecordData(row.data),
+    position: Number(row.position),
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
   };
