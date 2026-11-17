@@ -131,7 +131,8 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r9 | M4 第 2 片：Markdown 导入导出 + AI 块级修订（mock） | ✅已发版（首轮双通过；会话中断后续做收官） | v0.0.13 | e2e 809 · audit 706 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r10 | M5 第 1 片：AI 工作台对话与工具调用框架 | ✅已发版（首轮双通过；8 工具真实 handler + 17 回放） | v0.0.14 | e2e 924 · audit 786 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r11 | M5 第 2 片：多轮上下文与产物生成（M5 收官） | ✅已发版（初验 ui 打回 U1 缺图证→返工#1 补图→复审双通过） | v0.0.15 | e2e 1020 · audit 867 | 通过（waizhuan）+ UI 通过（阻断岗） |
-| r12 | M6 第 1 片：知识库入库与向量检索（本地 RAG） | 🔨研发中 | — | — | — |
+| r12 | M6 第 1 片：知识库入库与本地检索 | ✅已发版（首轮双通过；TF-IDF 手算核对 + 变异红相 2 组） | v0.0.16 | e2e 1087 · audit 923 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r13 | M6 第 2 片：RAG 对话与引用溯源（M6 收官） | 🔨研发中 | — | — | — |
 
 附加交付（r2 内 lead 直做，已入库 8e4fb9b）：
 - 一键启动：start.cmd 双击 / scripts\start.ps1 start|stop|status（三轮全链路验证；期间排掉「僵尸 api 抢 8787」环境坑，非脚本缺陷）
@@ -331,7 +332,23 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 - 前置：r11 已发版（待 CI）✅
 - 特别项：r10 UI 记账「窄容器壳折行」在 r11 已修，本轮保持
 
-### r13（预占）· M6 第 2 片：RAG 对话与引用溯源（M6 收官）
+### r13 · M6 第 2 片：RAG 对话与引用溯源（M6 收官）
+- 目标：检索增强对话——AI 回答时先检索知识库再把引用注入上下文，回答附来源溯源——M6 收官轮
+- 交付清单：
+  1. RAG 编排集中 packages/agent/rag.ts：retrieve(query, limit) → buildAugmentedPrompt(question, chunks) → 产物带 citations: [{docId, chunkId, snippet, score}]
+  2. mock-planner 扩：识别「根据知识库/查资料/文档里」类意图 → 先调 search_knowledge → 再生成回答 → 附引用列表（回放评测集 ≥10 用例）
+  3. api：chat 响应带 citations 字段；GET /api/knowledge/docs/:id 溯源回看
+  4. web：对话流中 AI 气泡下方显示来源引用卡（可点跳转到知识库对应文档），产物预览含引用清单
+  5. 断言：e2e ≥+35（RAG 编排/引用注入/引用溯源）、audit ≥+25（含 4xx：无命中检索/引用 id 不存在）
+  6. 截图 ≥7：RAG 对话流/来源引用卡/引用跳转/产物引用清单/无命中态/窄屏/错误态
+- 验收标准：
+  1. 全量绿：e2e ≥1122、audit ≥948，README 双节同步
+  2. 回答带真实引用（docId/chunkId 可溯源），waizhuan 会点引用卡验证跳转
+  3. 无命中时如实说「知识库没有相关内容」不编造（有断言）
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r12 已发版 ✅
+
+### r14（预占）· M7 第 1 片：思维导图（Markdown 双视图）
 
 ## 历史轮次（r1~r2 已收档，见下方记账区）
 
