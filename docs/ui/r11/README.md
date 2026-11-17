@@ -1,6 +1,6 @@
 # r11 截图矩阵 · 多轮上下文与产物生成（M5 收官）
 
-> 入库位置 `docs/ui/r11/`；由 `powershell -File scripts/shot.ps1 all -Round r11` 一次性 headless 产出（7 张 PNG，最终版为全矩阵第二次重拍）。
+> 入库位置 `docs/ui/r11/`；由 `powershell -File scripts/shot.ps1 all -Round r11` 一次性 headless 产出（7 张矩阵 PNG，最终版为全矩阵第二次重拍）。**返工 #1（ui-reviewer U1）补拍第 8 张**：`powershell -File scripts/shot.ps1 all -Round r11 -Shot 08-docs-diff-inline`（同一 headless seam，只重拍缺失项，既有 7 张与壳 8 张字节未动）。
 > 壳基线 **8 张**由 `Invoke-ShellBaseline` 同批自动重拍到 `docs/ui/shell/`（八 tab 不变，但徽章推进 r11 → 旧八张逐位全异）。
 > 索引与根 `README.md`「界面与测试对照」+「断言规模」、实现代码同一提交。
 
@@ -13,16 +13,21 @@
 | [05-tools-page2.png](05-tools-page2.png) | 工具链第 2 页：侧栏分页 `第 2 页` 激活，列出 `list_tables / search_knowledge / summarize_document / export_document_md / list_schedules / create_schedule`（后 4 个为 r11 新增）；中间对话流工具气泡展开 arguments | `?shot=chat-tools2&toolsPage=2` 钉态，清单来自 `GET /api/tools` 真值（12 个，6/页） | audit「r11 工具目录扩到 12 个」「r11 工具目录含 create_schedule」；e2e「默认注册表恰 12 个工具」 |
 | [06-narrow.png](06-narrow.png) | 窄屏 488×900（?narrow=1）：**r10 U2-2 修复证据**——八药丸横排一行不折行、不裁切，徽章独占下一行；三栏纵排、上下文提示与工具列表完整 | 确定性钉态 + 真实两轮会话数据 | 无独立数字断言（CSS 断点，逐张目验；U2 修复由本图与前轮图对照） |
 | [07-error.png](07-error.png) | 错误态：`连接失败 / 服务未启动或网络异常，请稍后重试` + 操作提示 + 「重试」按钮 | `?shot=chat-error` 钉态，文案来自 `httpClient.ts` 的 `SERVICE_DOWN_MESSAGE` | 无独立断言（语义化错误映射；4xx 由 audit r11 节锁定） |
+| [08-docs-diff-inline.png](08-docs-diff-inline.png) | **r9 U2 必修渲染证据（返工 #1 补拍）**：AI 修订面板左侧「原文（红=被删）」`这一段…不被裁切` 保持原样 + `。后面还有一句冗余说明。` 红底删除线（`data-diff-kind="removed"`）；右侧「建议（mock-scripted-v1 · 绿=新增）」同段原样 + `（精简稿）` 绿底粗体（`data-diff-kind="added"`）；三类 span 同屏可辨、中文无乱码 | r11 段 seed 真建 1 文档 + import.md 真导入正文块；`?page=docs&docId=<seeded>&shot=docs-revise-diff` 真调 `POST /api/documents/:id/blocks/:id/revise {instruction:'精简', adopt:false}`（零写入）→ 面板按 `computeInlineDiff` 分段渲染；截图后脚本 DELETE 该 seed 文档（库归零） | e2e「局部修改保留 same 段」「局部修改含 removed 段（旧字高亮）」「局部修改含 added 段（新字高亮）」「去掉 removed 段后逐字等于建议文本」「去掉 added 段后逐字等于原文」（r9 U2 行内 diff 节 11 条，全绿）；对应 shared `computeInlineDiff` 与 DocsPage `data-diff-kind` span |
 
-## SHA256 自查（7/7 互异）
+## SHA256 自查（8/8 互异）
 
-`01=177CD605` · `02=8509F052` · `03=21B14ADF` · `04=27F69024` · `05=FD622E7C` · `06=74798C13` · `07=5A7FB36B` —— 7/7 两两互异；壳基线 8/8 互异（见 `docs/ui/shell/README.md`），`chat-tab-active=466A8EF0` 与矩阵任一图均不同字节。
+`01=177CD605` · `02=8509F052` · `03=21B14ADF` · `04=27F69024` · `05=FD622E7C` · `06=74798C13` · `07=5A7FB36B` · `08=82BFF768` —— 8/8 两两互异；壳基线 8/8 互异（见 `docs/ui/shell/README.md`），`chat-tab-active=466A8EF0` 与矩阵任一图均不同字节。01~07 哈希与返工前逐字相同（`-Shot` 定向补拍未触碰既有图）。
 
-全库 `docs/ui` **111 张 PNG / 109 个互异哈希**；唯一同态组仍是 r4 已披露的两组（`r4/01 = r4/16` = `9E5C0C23`、`r4/05 = r4/13` = `8397A028`），**r11 零新增同态组**。7 张逐张 `read_image` 目验：中文无乱码、无裁切、无塌陷。
+全库 `docs/ui` **112 张 PNG / 110 个互异哈希**；唯一同态组仍是 r4 已披露的两组（`r4/01 = r4/16` = `9E5C0C23`、`r4/05 = r4/13` = `8397A028`），**r11 零新增同态组**。01~07 前轮/审查岗已逐张目验，08 本轮 `read_image` 目验：中文无乱码、无裁切、无塌陷。
 
 ## 全矩阵重拍（诚实注记）
 
 首轮 01 把「再建一个」的第二轮 chat 放在 01↔02 的 between-capture 段，导致 01 只显示第 1 轮却以「多轮对话」命名；`read_image` 目验发现后改为 seed 阶段真发两轮，并**全矩阵第二次重拍**。第二轮同时发现窄容器 488px 下第八药丸被裁切，补 `.force-narrow` topbar 纵排 + 药丸微缩后又全矩阵第三次重拍；上面哈希均为最终版，废片未入库。07 错误态两次字节相同（`5A7FB36B`），如实注记，不计「变化」。
+
+## 返工 #1 · 08 定向补拍（诚实注记）
+
+ui-reviewer 阻断岗 U1：r9 必修「diff 行内增删改高亮」在 r11 15 张图中零截图证据。返工只补缺失形态，不重拍既有证据：`shot.ps1` 新增 r11 段 diff seed（真建文档 + import.md 真导入正文块）+ `08` seam 条目 + 截图后 DELETE 清理，并加可选 `-Shot <name>` 定向过滤器（`-Shot` 出现时跳过壳基线重拍）。实测 `all -Round r11 -Shot 08-docs-diff-inline` 一次产出 `08=82BFF768`，既有 7 张与壳 8 张哈希逐字未变；seed 文档/会话/待办全部清理，服务收净（8787/5173 全 free）。
 
 ## 「用户第一次用」全链路（headless CDP 真点，0 会话起步）
 

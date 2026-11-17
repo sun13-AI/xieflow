@@ -79,7 +79,7 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 
 按 AGENTS.md 立项规则：**界面更新必须带截图证据（每次，无例外）**，截图与实现同一提交。逐图索引（r1/r2/r3/r4/r5/r6/r7/r8/r9/r10/r11 矩阵全量、逐张对照断言）：
 
-### r11 矩阵：[docs/ui/r11/](docs/ui/r11/README.md) —— 多轮上下文与产物生成（M5 收官，共 7 张）：
+### r11 矩阵：[docs/ui/r11/](docs/ui/r11/README.md) —— 多轮上下文与产物生成（M5 收官，共 8 张；第 8 张为 ui-reviewer U1 返工补拍）：
 
 | 截图 | 形态 | 对应断言 |
 |---|---|---|
@@ -90,6 +90,7 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 | [05-tools-page2.png](docs/ui/r11/05-tools-page2.png) | **工具链第 2 页**（6/页分页，后 4 个 r11 新增工具在场；中间工具气泡展开 arguments） | audit「r11 工具目录扩到 12 个」；e2e「默认注册表恰 12 个工具」 |
 | [06-narrow.png](docs/ui/r11/06-narrow.png) | 窄屏 488×900：**r10 U2-2 修复**（八药丸横排一行不折行不裁切、徽章独占下一行）+ 三栏纵排 | 无独立数字断言（CSS 断点，确定性钉态，逐张目验） |
 | [07-error.png](docs/ui/r11/07-error.png) | 错误态（语义化文案 + 操作提示 + 「重试」按钮，钉态） | 无独立断言（4xx 由 audit r11 节锁定） |
+| [08-docs-diff-inline.png](docs/ui/r11/08-docs-diff-inline.png) | **r9 U2 必修渲染证据（返工 #1 补拍）**：AI 修订面板原文 `。后面还有一句冗余说明。` 红底删除线（`removed`）+ 建议 `（精简稿）` 绿底粗体（`added`）+ 同名同句 `same` 段，三类 span 同屏可辨；seed 真建文档 → 真调 `/revise {adopt:false}` → 渲染 → 截图 → DELETE 清理 | e2e「局部修改保留 same 段」「局部修改含 removed 段（旧字高亮）」「局部修改含 added 段（新字高亮）」「去掉 removed 段后逐字等于建议文本」「去掉 added 段后逐字等于原文」（r9 U2 `computeInlineDiff` 节 11 条） |
 
 ### r10 矩阵：[docs/ui/r10/](docs/ui/r10/README.md) —— AI 工作台对话与工具调用（M5 起步，共 7 张）：
 

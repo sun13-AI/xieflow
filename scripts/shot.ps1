@@ -9,6 +9,8 @@
 #   powershell -File scripts\shot.ps1 shots -Round r8 # capture r8 document block editor states
 #   powershell -File scripts\shot.ps1 shots -Round r9 # capture r9 document import/export/revise states
 #   powershell -File scripts\shot.ps1 shots -Round r10 # capture r10 AI workbench chat/tool/artifact states
+#   powershell -File scripts\shot.ps1 shots -Round r11 # capture r11 multi-turn context / artifact / diff-inline states
+#   powershell -File scripts\shot.ps1 shots -Round r11 -Shot 08-docs-diff-inline # rework#1: re-capture ONLY the diff-inline evidence (no other matrix/shell re-shot)
 #   powershell -File scripts\shot.ps1 down            # stop servers
 #   powershell -File scripts\shot.ps1 status          # show port status
 #   powershell -File scripts\shot.ps1 all             # up + shots + down
@@ -28,7 +30,9 @@ param(
   [ValidateSet("up", "shots", "down", "status", "all")]
   [string]$Action = "status",
   [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11")]
-  [string]$Round = "r1"
+  [string]$Round = "r1",
+  [Parameter()]
+  [string]$Shot = ""
 )
 
 # rework#1 (C): 06-todo-live needs real api data behind it. Before the live shot runs,
@@ -525,6 +529,8 @@ function Invoke-Shots {
   $r11ConvHtmlId = $null
   $r11ConvTableId = $null
   $r11TodoIds = @()
+  $r11DiffDocId = $null
+  $r11DiffBlockId = $null
   if ($Round -eq "r11") {
     try {
       $r11A = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/conversations" -Method Post `
@@ -558,8 +564,21 @@ function Invoke-Shots {
       $r11Table = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/conversations/$r11ConvTableId/chat" -Method Post `
         -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes($r11TableChat))
       Write-Output "seeded r11 conversations A=$r11ConvAId B=$r11ConvBId html=$r11ConvHtmlId table=$r11ConvTableId htmlType=$($r11Html.artifact.type) tableType=$($r11Table.artifact.type) secondResolution=$($r11Second.resolution.referenceKind)"
+      # r11 UI rework#1 (U1): ONE real document + paragraph block as the target of
+      # the docs-revise-diff seam. The panel calls the REAL /revise endpoint with
+      # adopt=false (zero writes) and renders computeInlineDiff spans. Chinese is
+      # \uXXXX escaped so this file stays pure ASCII for PS 5.1.
+      $r11DiffDoc = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/documents" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes(
+        '{"title":"r11 diff \u884c\u5185\u9ad8\u4eae\u6f14\u793a"}'))
+      $r11DiffDocId = $r11DiffDoc.id
+      $r11DiffMd = '{"markdown":"# r11 diff \u8bc1\u636e\u6587\u6863\n\n\u8fd9\u662f\u4e00\u6bb5\u5f88\u957f\u7684\u6b63\u6587\u5185\u5bb9\uff0c\u7528\u6765\u9a8c\u8bc1\u7a84\u5c4f\u957f\u6587\u672c\u81ea\u52a8\u6491\u9ad8\u4e0d\u88ab\u88c1\u5207\u3002\u540e\u9762\u8fd8\u6709\u4e00\u53e5\u5197\u4f59\u8bf4\u660e\u3002"}'
+      $r11DiffImported = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/documents/$r11DiffDocId/import.md" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes($r11DiffMd))
+      $r11DiffBlockId = $r11DiffImported.blocks[1].id
+      Write-Output "seeded r11 diff doc=$r11DiffDocId block=$r11DiffBlockId (paragraph for inline diff panel)"
     } catch {
-      Write-Output "warn: r11 seed failed ($($_.Exception.Message)) - live shots may show empty chats"
+      Write-Output "warn: r11 seed failed ($($_.Exception.Message)) - live shots may show empty chats/diff"
     }
   }
 
@@ -662,6 +681,7 @@ function Invoke-Shots {
     # 01 = two-turn conversation A (second chat sent between seed and capture);
     # 02 = same data + pinned context-hint note; 03/04 = real generated HTML/Markdown artifacts;
     # 05 = 12-tool catalogue page 2 with expanded tool-call receipts; 06 = narrow; 07 = error.
+    # 08 = r11 UI rework#1 (U1): r9 U2 diff-inline evidence, REAL docs-revise-diff seam.
     $r11Base = "http://127.0.0.1:$WebPort/?page=chat"
     $shots = @(
       @{ name = "01-multiturn-chat"; url = "$r11Base&convId=$r11ConvAId"; width = 1280; height = 800 },
@@ -670,7 +690,8 @@ function Invoke-Shots {
       @{ name = "04-artifact-table"; url = "$r11Base&convId=$r11ConvTableId&shot=chat-artifact-table"; width = 1280; height = 800 },
       @{ name = "05-tools-page2";    url = "$r11Base&convId=$r11ConvAId&shot=chat-tools2&toolsPage=2"; width = 1280; height = 800 },
       @{ name = "06-narrow";         url = "$r11Base&convId=$r11ConvAId&narrow=1"; width = 488; height = 900 },
-      @{ name = "07-error";          url = "$r11Base&shot=chat-error"; width = 1280; height = 800 }
+      @{ name = "07-error";          url = "$r11Base&shot=chat-error"; width = 1280; height = 800 },
+      @{ name = "08-docs-diff-inline"; url = "http://127.0.0.1:$WebPort/?page=docs&docId=$r11DiffDocId&shot=docs-revise-diff"; width = 1280; height = 800 }
     )
   } elseif ($Round -eq "r10") {
     # 01 = pinned empty state (before any conversation is selected/created in the UI);
@@ -882,6 +903,9 @@ function Invoke-Shots {
   }
 
   foreach ($s in $shots) {
+    # -Shot <name> re-captures ONE matrix item only (rework#1 U1: supplement 08
+    # without re-shooting the already-accepted 7 + shell 8 whose hashes are indexed).
+    if ($Shot -ne "" -and $s.name -ne $Shot) { continue }
     $out = Join-Path $UiDir ($s.name + ".png")
     # delete any stale png first: a failed capture must never look like a success
     if (Test-Path $out) { Remove-Item $out -Force }
@@ -1104,7 +1128,10 @@ function Invoke-Shots {
           Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/todos/$tid11" -Method Delete | Out-Null
         }
       }
-      Write-Output "cleaned seeded r11 conversations and created todos"
+      if ($r11DiffDocId) {
+        Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/documents/$r11DiffDocId" -Method Delete | Out-Null
+      }
+      Write-Output "cleaned seeded r11 conversations, created todos and diff doc"
     } catch {
       Write-Output "warn: r11 cleanup failed ($($_.Exception.Message))"
     }
@@ -1226,7 +1253,7 @@ function Invoke-Shots {
 
 switch ($Action) {
   "up"     { Start-Servers }
-  "shots"  { Invoke-Shots; if ($Round -ne "r1" -and $Round -ne "r2" -and $Round -ne "r3") { Invoke-ShellBaseline -BrowserPath (Find-Browser) } }
+  "shots"  { Invoke-Shots; if (-not $Shot -and $Round -ne "r1" -and $Round -ne "r2" -and $Round -ne "r3") { Invoke-ShellBaseline -BrowserPath (Find-Browser) } }
   "down"   { Stop-Servers }
   "status" {
     $a = Test-Port $ApiPort; $w = Test-Port $WebPort
@@ -1236,7 +1263,7 @@ switch ($Action) {
     Start-Servers
     try {
       Invoke-Shots
-      if ($Round -ne "r1" -and $Round -ne "r2" -and $Round -ne "r3") { Invoke-ShellBaseline -BrowserPath (Find-Browser) }
+      if (-not $Shot -and $Round -ne "r1" -and $Round -ne "r2" -and $Round -ne "r3") { Invoke-ShellBaseline -BrowserPath (Find-Browser) }
     } finally { Stop-Servers }
   }
 }
