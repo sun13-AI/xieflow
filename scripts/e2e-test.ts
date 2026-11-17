@@ -166,6 +166,13 @@ import {
   MAX_KNOWLEDGE_TITLE,
   MAX_KNOWLEDGE_CONTENT,
   MAX_KNOWLEDGE_QUERY,
+  RAG_NO_HIT_ANSWER,
+  RAG_SNIPPET_LENGTH,
+  RAG_INTENT_KEYWORDS,
+  isRagIntentQuery,
+  extractRagQuery,
+  normalizeTracebackChunkId,
+  type RagCitation,
 } from "@xieflow/shared";
 import type { TodoStatus } from "@xieflow/shared";
 import {
@@ -178,6 +185,7 @@ import {
   MOCK_PLANNER_ID,
   executeChat,
   TOOL_EVAL_CASES,
+  RAG_EVAL_CASES,
   runToolReplay,
   generateHtmlReport,
   generateMarkdownTable,
@@ -191,6 +199,10 @@ import {
   DEFAULT_CHUNK_SIZE,
   DEFAULT_CHUNK_OVERLAP,
   NO_EMBEDDING,
+  retrieve,
+  buildAugmentedPrompt,
+  citationsFromHits,
+  buildRagAnswer,
 } from "@xieflow/agent";
 
 // ---------- 极简断言器 ----------
@@ -3513,7 +3525,142 @@ try {
     tdb.close();
   }
 
-  // 44. HTTP 冒烟 /api/health
+  // 44. r13：RAG 编排 / 引用注入 / 引用溯源 / 无命中诚实答复
+  section("r13 RAG 编排与引用溯源（检索注入 / citations / 无命中不编造）");
+  {
+    // A. shared 契约（规则集中，api/web 零分支）
+    eq(RAG_NO_HIT_ANSWER, "知识库没有相关内容", "无命中诚实答复口径逐字锁定");
+    eq(RAG_SNIPPET_LENGTH, 120, "引用片段长度契约常量");
+    ok(RAG_INTENT_KEYWORDS.length >= 10, "RAG 意图词表不少于 10 条");
+    eq(isRagIntentQuery("根据知识库，苹果有哪些特性？"), true, "识别「根据知识库」类意图");
+    eq(isRagIntentQuery("查资料：番茄"), true, "识别「查资料」类意图");
+    eq(isRagIntentQuery("文档里有香蕉吗"), true, "识别「文档里」类意图");
+    eq(isRagIntentQuery("从知识库回答这个问题"), true, "识别「从知识库」类意图");
+    eq(isRagIntentQuery("检索知识库"), false, "直接工具调用「检索知识库」不算 RAG 问答");
+    eq(isRagIntentQuery("在知识库检索 手机"), false, "r12 工具直调句式不算 RAG 问答");
+    eq(isRagIntentQuery("列出文档"), false, "普通文档列表不算 RAG 问答");
+    eq(extractRagQuery("根据知识库，苹果 手机"), "苹果 手机", "RAG 检索词去掉触发前缀");
+    eq(extractRagQuery("查资料：番茄"), "番茄", "RAG 检索词去掉「查资料：」");
+    eq(extractRagQuery("文档里有香蕉吗"), "有香蕉吗", "RAG 检索词去掉「文档里」");
+    eq(normalizeTracebackChunkId(undefined), null, "溯源参数缺省返回 null（普通单篇回看）");
+    eq(normalizeTracebackChunkId(7), 7, "溯源参数合法正整数原样归一");
+    await throws(() => normalizeTracebackChunkId(0), "溯源 chunkId=0 抛 ValidationError");
+    await throws(() => normalizeTracebackChunkId("abc"), "溯源 chunkId 非数字抛 ValidationError");
+
+    // B. rag.ts 纯函数（真 db 取数 + 引用装配）
+    const rdb = openDatabase({ path: ":memory:" });
+    rdb.createKnowledgeDoc({
+      title: "r13科技稿",
+      sourceType: "text",
+      sourceId: null,
+      content: "苹果 手机 手机 手机 平板",
+      chunks: [{ position: 0, content: "苹果 手机 手机 手机 平板", tokenCount: 5 }],
+    });
+    rdb.createKnowledgeDoc({
+      title: "r13果园稿",
+      sourceType: "text",
+      sourceId: null,
+      content: "苹果 香蕉 水果",
+      chunks: [{ position: 0, content: "苹果 香蕉 水果", tokenCount: 3 }],
+    });
+    const r = retrieve(rdb, "苹果", 5);
+    eq(r.query, "苹果", "retrieve 回显真实 query");
+    eq(r.limit, 5, "retrieve 回显 limit");
+    eq(r.count, 2, "retrieve 命中 2 块（真 TF-IDF）");
+    eq(r.hits[0]!.docTitle, "r13果园稿", "retrieve 排序与 r12 TF-IDF 一致：「苹果」词频占比高的短稿居首");
+    const prompt = buildAugmentedPrompt("苹果有什么", r.hits);
+    ok(prompt.includes("[1]") && prompt.includes("[2]"), "augmented prompt 带 [n] 引用编号");
+    ok(prompt.includes("doc #") && prompt.includes("chunk #"), "prompt 注入 docId/chunkId 来源");
+    ok(prompt.includes("score 0."), "prompt 注入相关度分值");
+    ok(prompt.includes(r.hits[0]!.content), "prompt 注入真实命中正文（非占位）");
+    ok(prompt.includes("问题：苹果有什么") && prompt.includes("回答："), "prompt 含问题与回答分界");
+    eq(buildAugmentedPrompt("苹果有什么", r.hits), prompt, "prompt 逐字节确定（可录制回放）");
+    ok(buildAugmentedPrompt("无任何词xyz", []).includes("无可用上下文"), "零命中 prompt 明确标注无上下文");
+    const cits = citationsFromHits(r.hits);
+    eq(cits.length, 2, "citations 与命中一一对应");
+    eq(cits[0]!.docId, r.hits[0]!.docId, "citation.docId 真取自命中");
+    eq(cits[0]!.chunkId, r.hits[0]!.chunkId, "citation.chunkId 真取自命中");
+    eq(cits[0]!.snippet, r.hits[0]!.content.slice(0, RAG_SNIPPET_LENGTH), "citation.snippet 逐字取自真实 chunk");
+    eq(cits[0]!.score, r.hits[0]!.score, "citation.score 与 TF-IDF 命中分值相等");
+    eq(cits[0]!.docTitle, r.hits[0]!.docTitle, "citation 带展示用 docTitle");
+    const ans = buildRagAnswer("苹果有什么", r.hits);
+    eq(ans.noHit, false, "有命中 noHit=false");
+    eq(ans.hitCount, 2, "有命中 hitCount=2");
+    ok(ans.answer.includes("[1]"), "回答含引用标记 [1]");
+    ok(ans.answer.includes("r13果园稿"), "回答含真实来源标题");
+    ok(ans.answer.includes("苹果 香蕉"), "回答含真实命中片段（引用注入）");
+    ok(ans.answer.includes("苹果有什么"), "回答回应用户问题");
+    eq(ans.augmentedPrompt, prompt, "回答随附同一份 augmented prompt");
+    eq(ans.citations.length, 2, "回答随附 2 条引用");
+    const noHit = buildRagAnswer("不存在的词xyz", []);
+    eq(noHit.noHit, true, "零命中 noHit=true");
+    ok(noHit.answer.includes(RAG_NO_HIT_ANSWER), "零命中如实说「知识库没有相关内容」");
+    eq(noHit.citations.length, 0, "零命中引用清单为空（不伪造引用）");
+    eq(noHit.hitCount, 0, "零命中 hitCount=0");
+    const realNoHit = buildRagAnswer("qqqzzz不存在", retrieve(rdb, "qqqzzz不存在", 5).hits);
+    eq(realNoHit.noHit, true, "真检索零命中走诚实答复分支");
+    ok(!realNoHit.answer.includes("chunk #"), "零命中不出现伪造 chunk 引用");
+
+    // C. executeChat 编排：识别意图 → 先检索 → 注入回答 → 引用清单落库
+    const edb = openDatabase({ path: ":memory:" });
+    edb.createKnowledgeDoc({
+      title: "r13编排稿",
+      sourceType: "text",
+      sourceId: null,
+      content: "苹果 手机 手机 平板",
+      chunks: [{ position: 0, content: "苹果 手机 手机 平板", tokenCount: 4 }],
+    });
+    const reg = createDefaultToolRegistry();
+    const exec = await executeChat(edb, reg, mockPlanner, "根据知识库，苹果 手机");
+    ok(exec.intent.includes("search_knowledge"), "RAG 意图规划先调 search_knowledge");
+    eq(exec.toolCalls[0]!.name, "search_knowledge", "首个工具调用是真检索");
+    eq(exec.toolCalls[0]!.arguments.query, "苹果 手机", "检索词去掉 RAG 触发前缀");
+    eq(exec.toolCalls[0]!.ok, true, "检索工具真执行成功");
+    ok((exec.citations?.length ?? 0) > 0, "ChatExecution 携带非空引用清单");
+    const cit0 = exec.citations![0]!;
+    ok(edb.getKnowledgeDoc(cit0.docId) !== null, "引用 docId 可在知识库回查（溯源）");
+    ok(edb.getKnowledgeChunk(cit0.chunkId) !== null, "引用 chunkId 可在知识库回查（溯源）");
+    eq(edb.getKnowledgeChunk(cit0.chunkId)!.content.startsWith(cit0.snippet), true, "引用 snippet 逐字等于存储 chunk 前缀");
+    ok(exec.summary.includes("[1]"), "AI 汇总含引用标记（引用注入）");
+    ok(exec.rag?.noHit === false && exec.rag.hitCount > 0, "ChatExecution 回显 RAG 命中元数据");
+    ok(exec.rag!.augmentedPrompt.includes("[1]"), "RAG 元数据含 augmented prompt");
+    ok(exec.artifact.content.includes("citations"), "产物原文含引用清单字段");
+    const artPayload = JSON.parse(exec.artifact.content) as { citations: RagCitation[] };
+    eq(artPayload.citations.length, 1, "chat-result 产物 JSON 引用清单非空");
+    eq(artPayload.citations[0]!.chunkId, cit0.chunkId, "产物引用与回答引用逐项一致");
+    const noHitExec = await executeChat(edb, reg, mockPlanner, "根据知识库，qqqzzz不存在");
+    eq(noHitExec.citations?.length ?? -1, 0, "无命中回答的引用清单为空数组");
+    ok(noHitExec.summary.includes(RAG_NO_HIT_ANSWER), "无命中 AI 汇总如实说没有相关内容");
+    eq(noHitExec.rag?.noHit, true, "无命中元数据 noHit=true");
+    eq(noHitExec.toolCalls[0]!.name, "search_knowledge", "无命中也真检索（不跳过）");
+    const normal = await executeChat(edb, reg, mockPlanner, "列出待办");
+    eq(normal.citations, undefined, "非 RAG 对话不注入 citations（零污染）");
+    const conv = edb.createConversation("r13 引用溯源");
+    const saved = edb.recordChatExchange({
+      conversationId: conv.id,
+      userText: "根据知识库，苹果 手机",
+      toolCalls: exec.toolCalls,
+      summary: exec.summary,
+      artifact: exec.artifact,
+      citations: exec.citations,
+    });
+    const assistant = saved.messages.find((m) => m.role === "assistant")!;
+    const persisted = (assistant.content as { citations?: RagCitation[] }).citations ?? [];
+    eq(persisted.length, 1, "引用清单随 assistant 消息落库（reload 可复现）");
+    eq(persisted[0]!.chunkId, cit0.chunkId, "落库引用 chunkId 与回答一致");
+    eq(edb.listMessages(conv.id).length, 3, "RAG 会话仍按 user/tool/assistant 三条落库");
+
+    // D. 录制回放评测集（≥10 用例，真库真执行 + 引用溯源断言）
+    ok(RAG_EVAL_CASES.length >= 10, "RAG 回放评测集不少于 10 用例");
+    const replay = await runToolReplay(() => openDatabase({ path: ":memory:" }), reg, RAG_EVAL_CASES);
+    eq(replay.total, RAG_EVAL_CASES.length, "RAG 回放跑满全部用例");
+    eq(replay.passed, replay.total, `RAG 回放全过（失败：${replay.failures.join(" | ")}）`);
+    ok(replay.failures.length === 0, "RAG 回放零失败（规划/引用/无命中均锁定）");
+    rdb.close();
+    edb.close();
+  }
+
+  // 45. HTTP 冒烟 /api/health
   section("HTTP 冒烟 /api/health");
   let httpOk = false;
   let httpNote = "api 服务未运行（pnpm dev:api 后再跑 pnpm test 可覆盖此节）";

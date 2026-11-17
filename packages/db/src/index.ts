@@ -59,6 +59,7 @@ import type {
   KnowledgeDoc,
   KnowledgeChunk,
   KnowledgeSearchChunk,
+  RagCitation,
 } from "@xieflow/shared";
 import {
   canTransitionTodo,
@@ -1570,6 +1571,8 @@ export class XieFlowDb {
     readonly toolCalls: readonly ToolCallRecord[];
     readonly summary: string;
     readonly artifact: { readonly type: ArtifactType; readonly title: string; readonly content: string };
+    /** r13：RAG 引用清单并存进 assistant.content（无需 schema 变更，reload 可复现） */
+    readonly citations?: readonly RagCitation[];
   }): { messages: Message[]; artifact: Artifact } {
     if (this.getConversation(input.conversationId) === null) {
       throw new Error(`会话不存在：${input.conversationId}`);
@@ -1577,7 +1580,12 @@ export class XieFlowDb {
     return this.withTransaction(() => {
       const user = this.addMessage(input.conversationId, "user", { text: input.userText }, []);
       const tool = this.addMessage(input.conversationId, "tool", { text: "工具调用回执" }, input.toolCalls);
-      const assistant = this.addMessage(input.conversationId, "assistant", { text: input.summary }, []);
+      const assistant = this.addMessage(
+        input.conversationId,
+        "assistant",
+        { text: input.summary, ...(input.citations ? { citations: input.citations } : {}) },
+        [],
+      );
       const artifact = this.createArtifact(
         input.conversationId,
         input.artifact.type,

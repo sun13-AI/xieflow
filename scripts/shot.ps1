@@ -11,6 +11,7 @@
 #   powershell -File scripts\shot.ps1 shots -Round r10 # capture r10 AI workbench chat/tool/artifact states
 #   powershell -File scripts\shot.ps1 shots -Round r11 # capture r11 multi-turn context / artifact / diff-inline states
 #   powershell -File scripts\shot.ps1 shots -Round r12 # capture r12 knowledge ingest / TF-IDF search / source refs states
+#   powershell -File scripts\shot.ps1 shots -Round r13 # capture r13 RAG chat / citation cards / traceback / no-hit states
 #   powershell -File scripts\shot.ps1 shots -Round r11 -Shot 08-docs-diff-inline # rework#1: re-capture ONLY the diff-inline evidence (no other matrix/shell re-shot)
 #   powershell -File scripts\shot.ps1 down            # stop servers
 #   powershell -File scripts\shot.ps1 status          # show port status
@@ -31,7 +32,7 @@ param(
   [Parameter(Position = 0)]
   [ValidateSet("up", "shots", "down", "status", "all")]
   [string]$Action = "status",
-  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12")]
+  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13")]
   [string]$Round = "r1",
   [Parameter()]
   [string]$Shot = ""
@@ -609,6 +610,48 @@ function Invoke-Shots {
     }
   }
 
+  # r13: REAL knowledge docs + RAG conversations via HTTP. The hit and no-hit
+  # chats are seeded before capture so every citation card shows real citations;
+  # the jump shot uses the cited doc/chunk ids from the chat response itself.
+  # All Chinese is \uXXXX escaped (ASCII-only file, PS 5.1 safe).
+  $r13DocIds = @()
+  $r13ConvIds = @()
+  $r13CiteDoc = 0
+  $r13CiteChunk = 0
+  if ($Round -eq "r13") {
+    try {
+      $r13Seeds = @(
+        '{"title":"r13 \u79d1\u6280\u7a3f","sourceType":"text","content":"\u82f9\u679c \u624b\u673a \u624b\u673a \u624b\u673a \u5e73\u677f"}',
+        '{"title":"r13 \u679c\u56ed\u7a3f","sourceType":"text","content":"\u82f9\u679c \u9999\u8549 \u6c34\u679c"}'
+      )
+      foreach ($seed13 in $r13Seeds) {
+        $r13Ingested = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/knowledge/ingest" -Method Post `
+          -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes($seed13))
+        $r13DocIds += $r13Ingested.doc.id
+      }
+      $r13TitleBytes = [System.Text.Encoding]::UTF8.GetBytes('{"title":"r13 RAG \u4f1a\u8bdd"}')
+      $r13HitConv = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/conversations" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body $r13TitleBytes
+      $r13ConvIds += $r13HitConv.id
+      $r13HitBytes = [System.Text.Encoding]::UTF8.GetBytes('{"message":"\u6839\u636e\u77e5\u8bc6\u5e93\uff0c\u82f9\u679c \u624b\u673a"}')
+      $r13Hit = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/conversations/$($r13HitConv.id)/chat" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body $r13HitBytes
+      if ($r13Hit.citations.Count -gt 0) {
+        $r13CiteDoc = $r13Hit.citations[0].docId
+        $r13CiteChunk = $r13Hit.citations[0].chunkId
+      }
+      $r13NoHitConv = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/conversations" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body $r13TitleBytes
+      $r13ConvIds += $r13NoHitConv.id
+      $r13NoHitBytes = [System.Text.Encoding]::UTF8.GetBytes('{"message":"\u6839\u636e\u77e5\u8bc6\u5e93\uff0cqqqzzz\u4e0d\u5b58\u5728"}')
+      Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/conversations/$($r13NoHitConv.id)/chat" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body $r13NoHitBytes | Out-Null
+      Write-Output "seeded r13 docs=$($r13DocIds -join ',') convs=$($r13ConvIds -join ',') cited=$r13CiteDoc/$r13CiteChunk citations=$($r13Hit.citations.Count)"
+    } catch {
+      Write-Output "warn: r13 seed failed ($($_.Exception.Message)) - live RAG shots may show no citations"
+    }
+  }
+
   # r9: three REAL documents. Doc A demonstrates import/export (import happens
   # between shots 01/02); doc B demonstrates discard (never written); doc C
   # demonstrates adoption (a REAL revise adopt=true happens between 04/05).
@@ -704,7 +747,26 @@ function Invoke-Shots {
     }
   }
 
-  if ($Round -eq "r12") {
+  if ($Round -eq "r13") {
+    # 01 = real RAG conversation (AI bubble + citation cards from real chat);
+    # 02 = citation-card spotlight (same data); 03 = citation jump -> knowledge doc
+    # traceback (real GET /api/knowledge/docs/:id?chunkId=); 04 = artifact citation list;
+    # 05 = no-hit honest answer; 06 = narrow 488x900; 07 = pinned error state.
+    $r13ChatBase = "http://127.0.0.1:$WebPort/?page=chat"
+    $r13HitConvId = 0
+    $r13NoHitConvId = 0
+    if ($r13ConvIds.Count -gt 0) { $r13HitConvId = $r13ConvIds[0] }
+    if ($r13ConvIds.Count -gt 1) { $r13NoHitConvId = $r13ConvIds[1] }
+    $shots = @(
+      @{ name = "01-rag-chat";           url = "$r13ChatBase&convId=$r13HitConvId"; width = 1280; height = 900 },
+      @{ name = "02-citation-card";      url = "$r13ChatBase&convId=$r13HitConvId&shot=rag-citation-card"; width = 1280; height = 900 },
+      @{ name = "03-citation-jump";      url = "http://127.0.0.1:$WebPort/?page=knowledge&docId=$r13CiteDoc&chunkId=$r13CiteChunk"; width = 1280; height = 800 },
+      @{ name = "04-artifact-citations"; url = "$r13ChatBase&convId=$r13HitConvId&shot=rag-artifact-citations"; width = 1280; height = 1100 },
+      @{ name = "05-no-hit";             url = "$r13ChatBase&convId=$r13NoHitConvId"; width = 1280; height = 800 },
+      @{ name = "06-narrow";             url = "$r13ChatBase&convId=$r13HitConvId&narrow=1"; width = 488; height = 1400 },
+      @{ name = "07-error";              url = "$r13ChatBase&shot=chat-error"; width = 1280; height = 800 }
+    )
+  } elseif ($Round -eq "r12") {
     # 01 = pinned first-use empty state; 02 = ingest dialog (seeded docs behind it);
     # 03 = real seeded doc list (3 ingested docs); 04 = real TF-IDF search results;
     # 05 = source-reference spotlight (same hits, highlight emphasis); 06 = narrow 488x900;
@@ -1156,7 +1218,25 @@ function Invoke-Shots {
   # seed todo, so repeat runs stay deterministic.
   # r5: delete both seeded projects (by id - the script stays ASCII) and the two
   # seeded todos.
-  if ($Round -eq "r12") {
+  if ($Round -eq "r13") {
+    # r13: delete seeded RAG conversations (messages + artifacts cascade) and the
+    # two knowledge docs so repeat runs stay deterministic (no user data touched).
+    try {
+      foreach ($cid13 in $r13ConvIds) {
+        if ($cid13) {
+          Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/conversations/$cid13" -Method Delete | Out-Null
+        }
+      }
+      foreach ($kid13 in $r13DocIds) {
+        if ($kid13) {
+          Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/knowledge/docs/$kid13" -Method Delete | Out-Null
+        }
+      }
+      Write-Output "cleaned seeded r13 conversations and knowledge docs"
+    } catch {
+      Write-Output "warn: r13 cleanup failed ($($_.Exception.Message))"
+    }
+  } elseif ($Round -eq "r12") {
     # r12: delete the three seeded knowledge docs (chunks cascade) so repeat runs
     # stay deterministic and the shell baseline shows first-use empty knowledge.
     try {

@@ -15,6 +15,15 @@ interface DocMeta {
 interface KnowledgeQuery {
   readonly shot: string;
   readonly q: string;
+  readonly docId: string;
+  readonly chunkId: string;
+}
+
+interface Traceback {
+  readonly docId: number;
+  readonly chunkId: number;
+  readonly title: string;
+  readonly content: string;
 }
 
 interface KnowledgeData {
@@ -31,7 +40,7 @@ type SourceType = "text" | "document";
 
 function readQuery(): KnowledgeQuery {
   const p = new URLSearchParams(window.location.search);
-  return { shot: p.get("shot") ?? "", q: p.get("q") ?? "" };
+  return { shot: p.get("shot") ?? "", q: p.get("q") ?? "", docId: p.get("docId") ?? "", chunkId: p.get("chunkId") ?? "" };
 }
 
 async function getJson<T>(url: string): Promise<T> {
@@ -89,6 +98,21 @@ export default function KnowledgePage() {
   const [searchedQuery, setSearchedQuery] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const [trace, setTrace] = useState<Traceback | null>(null);
+
+  // r13：引用卡跳转后的溯源回看——真发 GET /api/knowledge/docs/:id?chunkId=，不伪造正文
+  useEffect(() => {
+    const docId = Number(query.docId);
+    const chunkId = Number(query.chunkId);
+    if (!Number.isInteger(docId) || docId <= 0 || !Number.isInteger(chunkId) || chunkId <= 0) return;
+    let alive = true;
+    getJson<{ doc: KnowledgeDoc; chunk: { id: number; content: string } }>(
+      `/api/knowledge/docs/${docId}?chunkId=${chunkId}`,
+    ).then((data) => {
+      if (alive) setTrace({ docId, chunkId, title: data.doc.title, content: data.chunk.content });
+    }).catch(() => { if (alive) setTrace(null); });
+    return () => { alive = false; };
+  }, [query.docId, query.chunkId, state.phase]);
 
   const refresh = useCallback(async () => {
     try {
@@ -226,7 +250,7 @@ export default function KnowledgePage() {
         ) : (
           <ul className="kb-doc-list" data-state="knowledge-doc-list">
             {state.docs.map((doc) => (
-              <li key={doc.id} className="kb-doc-item">
+              <li key={doc.id} className={`kb-doc-item${trace?.docId === doc.id ? " kb-doc-traced" : ""}`}>
                 <div className="kb-doc-title">{doc.title}</div>
                 <div className="kb-doc-meta">
                   <span className="kb-pill">{doc.sourceType === "document" ? `文档 #${doc.sourceId ?? "—"}` : "纯文本"}</span>
@@ -257,6 +281,13 @@ export default function KnowledgePage() {
           <p className="kb-shot-note">入库对话框钉态：表单字段来自真实文档列表，提交走 POST /api/knowledge/ingest。</p>
         )}
 
+        {trace !== null && (
+          <div className="kb-trace" data-state="knowledge-traceback">
+            <h3>溯源回看：{trace.title}</h3>
+            <p className="kb-trace-meta">doc #{trace.docId} · chunk #{trace.chunkId} · 由对话引用卡跳转而来（真读 GET /api/knowledge/docs/:id?chunkId=）</p>
+            <pre className="kb-trace-body">{trace.content}</pre>
+          </div>
+        )}
         {hits === null ? (
           <div className="kb-intro" data-state="knowledge-intro">
             <h3>本地知识检索（TF-IDF）</h3>

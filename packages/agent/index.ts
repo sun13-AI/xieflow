@@ -37,6 +37,7 @@ export {
 } from "./artifact-generators.js";
 export {
   TOOL_EVAL_CASES,
+  RAG_EVAL_CASES,
   runToolReplay,
   freshReplayDb,
   type RecordedToolCase,
@@ -53,3 +54,11 @@ export {
   type ChunkOptions,
   type EmbeddingProvider,
 } from "./knowledge.js";
+export {
+  retrieve,
+  buildAugmentedPrompt,
+  citationsFromHits,
+  buildRagAnswer,
+  type RagRetrieval,
+  type RagAnswer,
+} from "./rag.js";

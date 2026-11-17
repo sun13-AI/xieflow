@@ -13,13 +13,18 @@ import {
   normalizeToolCallRequest,
   planScriptedChat,
   isGeneratedArtifactType,
+  isRagIntentQuery,
+  extractRagQuery,
   type ArtifactType,
   type ContextResolution,
+  type KnowledgeSearchHit,
   type PlannedChat,
   type PlannerContextMessage,
+  type RagCitation,
   type ToolCallRecord,
 } from "@xieflow/shared";
 import { buildArtifactFromToolResults } from "./artifact-generators.js";
+import { buildRagAnswer } from "./rag.js";
 import type { ToolRegistry } from "./tool-registry.js";
 
 export const MOCK_PLANNER_ID = "mock-scripted-v1";
@@ -49,6 +54,10 @@ export interface ChatExecution {
   readonly contextWindow: number;
   /** 命中跨轮指代时的可审计元数据（未命中不出现） */
   readonly resolution?: ContextResolution;
+  /** r13：RAG 回答附带的引用清单（非 RAG 对话不出现） */
+  readonly citations?: readonly RagCitation[];
+  /** r13：RAG 编排元数据（augmented prompt / 命中数 / 无命中标记） */
+  readonly rag?: { readonly augmentedPrompt: string; readonly hitCount: number; readonly noHit: boolean };
 }
 
 export interface ExecuteChatOptions {
@@ -84,7 +93,13 @@ export async function executeChat(
     throw new ValidationError("toolCalls 必须是数组");
   }
   // 先整体校验（零半态）：任何一条非法都不执行前面的 handler
-  const calls = rawCalls.map((raw) => normalizeToolCallRequest(raw));
+  // r13：RAG 意图先真检索（唯一工具），再按命中生成带 [n] 引用的回答；
+  //     显式 toolCalls 覆盖（HTTP 4xx 探针）不走 RAG 分支，保持 r10/r12 行为不变。
+  const ragIntent = options.toolCalls === undefined && isRagIntentQuery(message);
+  const calls = ragIntent
+    ? [normalizeToolCallRequest({ name: "search_knowledge", arguments: { query: extractRagQuery(message) } })]
+    : rawCalls.map((raw) => normalizeToolCallRequest(raw));
+  const intent = ragIntent ? "search_knowledge" : plan.intent;
 
   const results = [];
   for (const call of calls) {
@@ -101,20 +116,33 @@ export async function executeChat(
     ...(result.error === undefined ? {} : { error: result.error }),
   }));
 
-  const summary = buildChatSummary(plan.intent, results);
+  const baseSummary = buildChatSummary(intent, results);
+  let summary = baseSummary;
+  let citations: readonly RagCitation[] | undefined;
+  let ragMeta: ChatExecution["rag"];
+  if (ragIntent) {
+    const searchResult = results.find((r) => r.name === "search_knowledge" && r.ok);
+    const hits = (searchResult?.data as { results?: readonly KnowledgeSearchHit[] } | null)?.results ?? [];
+    const rag = buildRagAnswer(message, hits);
+    summary = rag.answer;
+    citations = rag.citations;
+    ragMeta = { augmentedPrompt: rag.augmentedPrompt, hitCount: rag.hitCount, noHit: rag.noHit };
+  }
   const artifact = isGeneratedArtifactType(artifactType)
-    ? buildArtifactFromToolResults(artifactType, { intent: plan.intent, message, toolCalls, summary })
+    ? buildArtifactFromToolResults(artifactType, { intent, message, toolCalls, summary, citations })
     : {
         type: artifactType,
-        title: `对话产物 · ${plan.intent}`,
-        content: JSON.stringify({ intent: plan.intent, message, tools: toolCalls, summary }),
+        title: `对话产物 · ${intent}`,
+        content: JSON.stringify({ intent, message, tools: toolCalls, summary, ...(citations ? { citations } : {}) }),
       };
   return {
-    intent: plan.intent,
+    intent,
     toolCalls,
     summary,
     artifact,
     contextWindow,
     ...(plan.resolution ? { resolution: plan.resolution } : {}),
+    ...(citations ? { citations } : {}),
+    ...(ragMeta ? { rag: ragMeta } : {}),
   };
 }

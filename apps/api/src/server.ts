@@ -51,6 +51,7 @@ import {
   assertValidKnowledgeContent,
   assertValidKnowledgeQuery,
   normalizeKnowledgeLimit,
+  normalizeTracebackChunkId,
   assembleDocumentText,
   type RevisionRequest,
   type Schedule,
@@ -1758,6 +1759,7 @@ app.post("/api/conversations/:id/chat", async (req, reply) => {
       toolCalls: plan.toolCalls,
       summary: plan.summary,
       artifact: plan.artifact,
+      ...(plan.citations ? { citations: plan.citations } : {}),
     });
     return reply.code(201).send({
       conversationId: id,
@@ -1765,6 +1767,7 @@ app.post("/api/conversations/:id/chat", async (req, reply) => {
       summary: plan.summary,
       planner: chatPlanner.id,
       toolCalls: plan.toolCalls,
+      citations: plan.citations ?? [],
       messages: saved.messages,
       artifact: saved.artifact,
       contextWindow: plan.contextWindow,
@@ -1830,9 +1833,18 @@ app.get("/api/knowledge/docs", async () => {
 app.get("/api/knowledge/docs/:id", async (req, reply) => {
   try {
     const id = parseId((req.params as { id: string }).id);
+    // r13 溯源回看：?chunkId= 指定引用分块；非法参数 → 400 优先于文档不存在 404。
+    const query = req.query as { chunkId?: unknown };
+    const chunkId = normalizeTracebackChunkId(query.chunkId);
     const doc = requireDb().getKnowledgeDoc(id);
     if (!doc) return reply.code(404).send({ error: `知识文档不存在：${id}` });
-    return doc;
+    if (chunkId === null) return doc;
+    // 跨文档/不存在的 chunk id → 404。
+    const chunk = requireDb().getKnowledgeChunk(chunkId);
+    if (chunk === null || chunk.docId !== id) {
+      return reply.code(404).send({ error: `引用分块不存在：${chunkId}` });
+    }
+    return { doc, chunk };
   } catch (err) {
     return toErrorReply(err, reply);
   }

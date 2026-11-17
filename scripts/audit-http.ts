@@ -1923,6 +1923,69 @@ async function audit() {
     eq(after.json.docs.length, 0, "r12 清理后知识库归零（无残留）");
   }
 
+  console.log("\n== RAG r13: citations / traceback / no-hit / 4xx ==");
+  {
+    // 4xx / 404 traceback guards first
+    await expectStatus("GET", "/api/knowledge/docs/999999?chunkId=1", undefined, 404, "r13 溯源：文档不存在 -> 404");
+    await expectStatus("GET", "/api/knowledge/docs/1?chunkId=abc", undefined, 400, "r13 溯源：chunkId 非数字 -> 400");
+    await expectStatus("GET", "/api/knowledge/docs/1?chunkId=0", undefined, 400, "r13 溯源：chunkId=0 -> 400");
+
+    // two real knowledge docs (distinct tf so ranking is deterministic)
+    const ragD1 = await expectStatus("POST", "/api/knowledge/ingest", { title: "r13科技稿", sourceType: "text", content: "苹果 手机 手机 手机 平板" }, 201, "r13 真入库科技稿 -> 201");
+    const ragD2 = await expectStatus("POST", "/api/knowledge/ingest", { title: "r13果园稿", sourceType: "text", content: "苹果 香蕉 水果" }, 201, "r13 真入库果园稿 -> 201");
+    const ragDocId = ragD1.json.doc.id;
+    const ragChunkId = ragD1.json.chunks[0].id;
+    await expectStatus("GET", `/api/knowledge/docs/${ragDocId}?chunkId=999999`, undefined, 404, "r13 溯源：引用 id 不存在 -> 404");
+
+    const trace = await expectStatus("GET", `/api/knowledge/docs/${ragDocId}?chunkId=${ragChunkId}`, undefined, 200, "r13 溯源：合法 doc+chunk -> 200");
+    eq(trace.json.chunk.id, ragChunkId, "r13 溯源回看命中同一 chunk id");
+    eq(trace.json.chunk.content, "苹果 手机 手机 手机 平板", "r13 溯源回看 chunk 正文逐字相等");
+
+    const ragConv = await expectStatus("POST", "/api/conversations", { title: "r13 RAG 会话" }, 201, "r13 建 RAG 会话 -> 201");
+    const ragChat = await expectStatus("POST", `/api/conversations/${ragConv.json.id}/chat`, { message: "根据知识库，苹果 手机" }, 201, "r13 RAG 提问 -> 201");
+    eq(ragChat.json.intent, "search_knowledge", "r13 RAG 先调 search_knowledge（意图正确）");
+    eq(ragChat.json.toolCalls[0].name, "search_knowledge", "r13 RAG 工具回执为真实检索");
+    ok(ragChat.json.toolCalls[0].ok === true, "r13 RAG 检索真执行 ok=true");
+    ok(Array.isArray(ragChat.json.citations), "r13 chat 响应带 citations 字段");
+    ok(ragChat.json.citations.length > 0, "r13 RAG 回答带非空引用清单");
+    const rc = ragChat.json.citations[0];
+    eq(typeof rc.docId, "number", "r13 citation.docId 为数值");
+    eq(typeof rc.chunkId, "number", "r13 citation.chunkId 为数值");
+    eq(typeof rc.snippet, "string", "r13 citation.snippet 为字符串");
+    eq(typeof rc.score, "number", "r13 citation.score 为数值");
+    ok(rc.snippet.length > 0 && rc.score > 0, "r13 citation 摘要与相关度非空");
+    ok(ragChat.json.summary.includes("[1]") === true, "r13 AI 汇总含 [1] 引用标记");
+    ok(ragChat.json.summary.includes("r13科技稿") === true, "r13 AI 汇总注入真实来源标题");
+    ok(ragChat.json.artifact.content.includes("citations") === true, "r13 产物原文含引用清单");
+    const ragArt = JSON.parse(ragChat.json.artifact.content);
+    eq(ragArt.citations.length, ragChat.json.citations.length, "r13 产物引用条数与回答一致");
+    eq(ragArt.citations[0].chunkId, rc.chunkId, "r13 产物引用 chunkId 与回答一致");
+
+    // HTTP-only citation traceback: the cited chunk must be readable through GET doc/:id?chunkId=
+    const cited = await expectStatus("GET", `/api/knowledge/docs/${rc.docId}?chunkId=${rc.chunkId}`, undefined, 200, "r13 回答引用可经 HTTP 溯源 -> 200");
+    ok(cited.json.chunk.content.startsWith(rc.snippet) === true, "r13 引用 snippet 逐字等于存储 chunk 前缀（无编造）");
+    const msgs = await expectStatus("GET", `/api/conversations/${ragConv.json.id}/messages`, undefined, 200, "r13 回读 RAG 消息 -> 200");
+    eq(msgs.json.messages.length, 3, "r13 RAG 会话落 user/tool/assistant 三条");
+    const assistant = msgs.json.messages.find((m: { role: string }) => m.role === "assistant");
+    ok(assistant !== undefined && Array.isArray(assistant.content.citations), "r13 assistant 消息落库引用清单（reload 可复现）");
+    eq(assistant.content.citations[0].chunkId, rc.chunkId, "r13 落库引用与响应引用逐项一致");
+
+    // no-hit honesty over real HTTP (4xx guard above + answer shape)
+    const noHitChat = await expectStatus("POST", `/api/conversations/${ragConv.json.id}/chat`, { message: "根据知识库，qqqzzz不存在" }, 201, "r13 无命中 RAG 提问 -> 201");
+    eq(noHitChat.json.citations.length, 0, "r13 无命中引用清单为空（不伪造引用）");
+    ok(noHitChat.json.summary.includes("知识库没有相关内容") === true, "r13 无命中如实说知识库没有相关内容");
+    ok(noHitChat.json.summary.includes("[1]") === false, "r13 无命中不出现伪造引用标记");
+    const plain = await expectStatus("POST", `/api/conversations/${ragConv.json.id}/chat`, { message: "列出待办" }, 201, "r13 非 RAG 对话 -> 201");
+    eq(plain.json.citations.length, 0, "r13 非 RAG 对话引用清单为空（零污染）");
+
+    // cleanup
+    await expectStatus("DELETE", `/api/conversations/${ragConv.json.id}`, undefined, 200, "r13 删 RAG 会话 -> 200");
+    await expectStatus("DELETE", `/api/knowledge/docs/${ragD1.json.doc.id}`, undefined, 200, "r13 删科技稿 -> 200");
+    await expectStatus("DELETE", `/api/knowledge/docs/${ragD2.json.doc.id}`, undefined, 200, "r13 删果园稿 -> 200");
+    const ragAfter = await expectStatus("GET", "/api/knowledge/docs", undefined, 200, "r13 清理后知识库列表 -> 200");
+    ok(ragAfter.json.docs.length >= 0, "r13 清理后列表可读（本轮两篇已删）");
+  }
+
   console.log("\n== schedules delete (r3) ==");
   {
     const d = await expectStatus("DELETE", `/api/schedules/${schedule.id}`, undefined, 200, "DELETE 存在日程 -> 200");

@@ -217,7 +217,7 @@ export default function App() {
             知识库
           </button>
         </nav>
-        <span className="badge">r12 · 知识库入库与检索（M6 起步）</span>
+        <span className="badge">r13 · RAG 对话与引用溯源（M6 收官）</span>
       </header>
 
       {tab === "todos" ? (

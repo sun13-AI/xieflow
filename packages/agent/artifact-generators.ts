@@ -10,6 +10,7 @@ import {
   assertValidGeneratedArtifactType,
   type ArtifactType,
   type GeneratedArtifactType,
+  type RagCitation,
   type ToolCallRecord,
 } from "@xieflow/shared";
 
@@ -19,6 +20,8 @@ export interface ArtifactGenerationInput {
   readonly message: string;
   readonly toolCalls: readonly ToolCallRecord[];
   readonly summary: string;
+  /** r13：RAG 回答的引用清单（非 RAG 对话缺省，产物无引用章节） */
+  readonly citations?: readonly RagCitation[];
 }
 
 export interface ArtifactDraft {
@@ -50,7 +53,27 @@ function toolRows(toolCalls: readonly ToolCallRecord[]): string {
     .join("\n");
 }
 
-/** HTML 报告：完整文档（doctype / lang / charset / 表格 / 摘要），可直接用浏览器打开预览 */
+function citationHtml(citations: readonly RagCitation[] | undefined): string {
+  if (citations === undefined || citations.length === 0) return "";
+  const rows = citations
+    .map(
+      (c, i) =>
+        `<li>[${i + 1}] ${htmlEscape(c.docTitle)} · doc #${c.docId} · chunk #${c.chunkId} · 相关度 ${c.score.toFixed(4)}：${htmlEscape(c.snippet)}</li>`,
+    )
+    .join("\n");
+  return `<h2>来源引用清单（${citations.length} 条）</h2><ol>${rows}</ol>`;
+}
+
+function citationMarkdown(citations: readonly RagCitation[] | undefined): string[] {
+  if (citations === undefined || citations.length === 0) return [];
+  const lines = ["", `## 来源引用清单（${citations.length} 条）`, ""];
+  citations.forEach((c, i) => {
+    lines.push(`[${i + 1}] ${c.docTitle} · doc #${c.docId} · chunk #${c.chunkId} · 相关度 ${c.score.toFixed(4)}：${markdownCell(c.snippet)}`);
+  });
+  return lines;
+}
+
+/** HTML 报告：完整文档（doctype / lang / charset / 表格 / 摘要 / 引用清单），可直接用浏览器打开预览 */
 export function generateHtmlReport(input: ArtifactGenerationInput): ArtifactDraft {
   const rows = toolRows(input.toolCalls);
   const content = [
@@ -68,6 +91,7 @@ export function generateHtmlReport(input: ArtifactGenerationInput): ArtifactDraf
     rows,
     "</tbody></table>",
     `<h2>汇总</h2><pre>${htmlEscape(input.summary)}</pre>`,
+    citationHtml(input.citations),
     "</body>",
     "</html>",
   ].join("\n");
@@ -91,6 +115,7 @@ export function generateMarkdownTable(input: ArtifactGenerationInput): ArtifactD
   }
   if (input.toolCalls.length === 0) lines.push("| — | — | — | 本次对话没有工具调用 | {} |");
   lines.push("", "## 汇总", "", markdownCell(input.summary));
+  lines.push(...citationMarkdown(input.citations));
   return { type: "markdown-table", title: `${ARTIFACT_GENERATOR_LABELS["markdown-table"]} · ${input.intent}`, content: lines.join("\n") };
 }
 
@@ -108,6 +133,7 @@ export function generateJsonData(input: ArtifactGenerationInput): ArtifactDraft 
       ...(t.error === undefined ? {} : { error: t.error }),
     })),
     summary: input.summary,
+    ...(input.citations ? { citations: input.citations } : {}),
   };
   return {
     type: "json-data",

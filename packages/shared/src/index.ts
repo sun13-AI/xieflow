@@ -2853,3 +2853,51 @@ export interface KnowledgeSearchHit {
   readonly sourceId: number | null;
   readonly score: number;
 }
+
+// ---- r13（M6 收官）：RAG 对话与引用溯源契约，规则全集中 shared（api/web 零分支） ----
+
+/** 引用清单条目：doc_id / chunk_id / 摘要片段 / 相关度，可回溯到具体知识分块 */
+export interface RagCitation {
+  readonly docId: number;
+  readonly chunkId: number;
+  readonly snippet: string;
+  readonly score: number;
+  /** 展示/跳转用来源标题与片序（四要件之外的补充字段，不参与相等性判定） */
+  readonly docTitle: string;
+  readonly position: number;
+}
+/** 引用片段长度（UID 与断言同源） */
+export const RAG_SNIPPET_LENGTH = 120;
+/** 无命中时的诚实答复必须含此句（禁编造，改坏即红） */
+export const RAG_NO_HIT_ANSWER = "知识库没有相关内容";
+/**
+ * RAG 意图词：仅「根据知识库 / 查资料 / 文档里」类问法，
+ * 不含 r10/r12 的「检索知识库 / 在知识库检索 XXX」（那是直接工具调用不是问答）。
+ */
+export const RAG_INTENT_KEYWORDS: readonly string[] = [
+  "根据知识库", "从知识库", "知识库里", "知识库中", "参考知识库",
+  "查资料", "查一下资料", "查查资料", "文档里", "根据文档", "参考文档",
+];
+export function isRagIntentQuery(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  return RAG_INTENT_KEYWORDS.some((k) => value.includes(k));
+}
+/** 抽检索词：去掉触发前缀与语气词，失败回退原消息（确定性，零随机） */
+export function extractRagQuery(value: string): string {
+  let q = String(value ?? "").trim();
+  const prefix = /^(?:请|帮我)?(?:根据知识库|从知识库|知识库里|知识库中|参考知识库|查一下资料|查查资料|查资料|文档里|根据文档|参考文档)\s*[:：，,、啊呀]?\s*/u;
+  let prev = "";
+  while (q !== prev && q.length > 0) {
+    prev = q;
+    q = q.replace(prefix, "").trim();
+  }
+  q = q.replace(/^(?:请|帮我|回答|说一下|介绍|告诉我)\s*[:：，,、]?\s*/u, "").trim();
+  return q.length > 0 ? q.slice(0, MAX_CHAT_MESSAGE) : String(value ?? "").trim().slice(0, MAX_CHAT_MESSAGE);
+}
+/** GET /api/knowledge/docs/:id?chunkId= 的溯源参数归一（非法 → ValidationError → 400） */
+export function normalizeTracebackChunkId(value: unknown): number | null {
+  if (value === undefined || value === null || value === "") return null;
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isInteger(n) || n <= 0) throw new ValidationError("chunkId 必须是正整数");
+  return n;
+}

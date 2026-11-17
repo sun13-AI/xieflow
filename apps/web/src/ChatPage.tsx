@@ -4,7 +4,7 @@
 //   chat-artifact-html|chat-artifact-table|chat-tools2；深链 ?convId= 可分享回放。
 // r10 U2 修复：右侧产物卡按「第 N 轮产物 / 对应消息」与对话流同轮（不再错一轮）。
 import { useCallback, useEffect, useState } from "react";
-import type { Artifact, Conversation, Message, ToolCallRecord } from "@xieflow/shared";
+import type { Artifact, Conversation, Message, RagCitation, ToolCallRecord } from "@xieflow/shared";
 import { ARTIFACT_GENERATOR_LABELS, TOOL_NAMES } from "@xieflow/shared";
 import { SERVICE_DOWN_MESSAGE, fetchJsonOrThrow } from "./httpClient";
 
@@ -102,6 +102,19 @@ interface ArtifactContent {
   readonly content: string;
 }
 
+/** r13：引用清单从真实产物/消息取（不伪造）；产物 JSON / assistant.content.citations 两条路径 */
+function citationsOfMessage(m: Message): RagCitation[] {
+  return (m.content as { citations?: RagCitation[] }).citations ?? [];
+}
+function citationsOfArtifact(content: string): RagCitation[] {
+  try {
+    const parsed = JSON.parse(content) as { citations?: RagCitation[] };
+    return Array.isArray(parsed.citations) ? parsed.citations : [];
+  } catch {
+    return [];
+  }
+}
+
 async function loadArtifactContent(id: number, type?: string): Promise<ArtifactContent> {
   const suffix = type === undefined ? "" : `?type=${encodeURIComponent(type)}`;
   const res = await fetch(`/api/artifacts/${id}/content${suffix}`);
@@ -151,6 +164,16 @@ export default function ChatPage() {
   const roundCount = readyState !== null ? readyState.messages.filter((m) => m.role === "user").length : 0;
   const activeArtifactIndex = readyState === null ? -1 : roundCount > 0 ? Math.min(roundCount, readyState.artifacts.length) - 1 : -1;
   const activeArtifact = activeArtifactIndex >= 0 && readyState !== null ? readyState.artifacts[activeArtifactIndex]! : null;
+  // 引用清单：产物自带优先；HTML/表格产物无 JSON 字段时回退到本轮 assistant 消息
+  const activeCitations = activeArtifact !== null && citationsOfArtifact(activeArtifact.content).length > 0
+    ? citationsOfArtifact(activeArtifact.content)
+    : readyState !== null
+      ? (() => {
+          const asst = readyState.messages.filter((m) => m.role === "assistant");
+          const mine = asst[activeArtifactIndex];
+          return mine ? citationsOfMessage(mine) : [];
+        })()
+      : [];
 
   // 预览内容由真实 /content 端点提供（钉态用产物自带内容兜底，不伪造）
   useEffect(() => {
@@ -199,12 +222,16 @@ export default function ChatPage() {
         contextWindow: number;
         contextMessages: number;
         resolution?: { referenceKind: string; referencedTitle: string };
+        citations?: RagCitation[];
       };
       setDraft("");
       const refNote = res.resolution
         ? ` · 引用上一轮「${res.resolution.referencedTitle}」(${res.resolution.referenceKind})`
         : "";
-      setNotice(`已执行 ${res.toolCalls.length} 次工具调用并落库 · 上下文最近 ${res.contextMessages} 条${refNote}`);
+      const citeNote = res.citations && res.citations.length > 0
+        ? ` · 引用 ${res.citations.length} 条（可点卡片跳转原文）`
+        : res.citations ? " · 知识库没有相关内容（未编造引用）" : "";
+      setNotice(`已执行 ${res.toolCalls.length} 次工具调用并落库 · 上下文最近 ${res.contextMessages} 条${refNote}${citeNote}`);
       await refresh();
     } catch (err) {
       setNotice(err instanceof Error ? err.message : String(err));
@@ -239,7 +266,7 @@ export default function ChatPage() {
 
   const { conversations, messages, artifacts, tools, selectedId } = state;
   const toolDetail = query.shot === "chat-tools" || query.shot === "chat-tools2";
-  const artifactExpanded = ["chat-artifact", "chat-artifact-html", "chat-artifact-table"].includes(query.shot);
+  const artifactExpanded = ["chat-artifact", "chat-artifact-html", "chat-artifact-table", "rag-artifact-citations"].includes(query.shot);
   const shownTools = tools.slice((toolsPage - 1) * TOOLS_PER_PAGE, toolsPage * TOOLS_PER_PAGE);
   const forcedPreview: PreviewMode | null =
     query.shot === "chat-artifact-html" ? "html-report"
@@ -331,7 +358,7 @@ export default function ChatPage() {
             {selectedId === null ? "先创建一个会话，再发送消息。" : "这个会话还没有消息——发一句试试（如「盘点待办和文档」）。"}
           </p>
         ) : (
-          <div className="chat-bubbles" data-state="chat-bubbles">
+          <div className={`chat-bubbles${query.shot === "rag-citation-card" ? " chat-bubbles-rag" : ""}`} data-state="chat-bubbles">
             {messages.map((m) => {
               if (m.role === "tool") {
                 return (
@@ -367,6 +394,33 @@ export default function ChatPage() {
                 >
                   <span className="bubble-role">{m.role === "user" ? "你" : "AI"}</span>
                   <span className="bubble-text">{m.content.text}</span>
+                  {m.role === "assistant" && citationsOfMessage(m).length > 0 && (
+                    <div className="rag-citations" data-state="rag-citations">
+                      <p className="rag-cite-head">来源引用（{citationsOfMessage(m).length} 条 · 点击跳转知识库原文）</p>
+                      {citationsOfMessage(m).map((c, i) => (
+                        <a
+                          key={`${c.docId}-${c.chunkId}`}
+                          className={`rag-cite ${query.shot === "rag-citation-card" ? "rag-cite-spotlight" : ""}`}
+                          data-state="rag-cite"
+                          data-cite-doc={c.docId}
+                          data-cite-chunk={c.chunkId}
+                          href={`?page=knowledge&docId=${c.docId}&chunkId=${c.chunkId}`}
+                        >
+                          <span className="rag-cite-index">[{i + 1}]</span>
+                          <span className="rag-cite-title">{c.docTitle} · chunk #{c.chunkId} · 第 {c.position + 1} 片</span>
+                          <span className="rag-cite-snippet">{c.snippet}</span>
+                          <span className="rag-cite-foot">相关度 {c.score.toFixed(4)}</span>
+                          <span className="rag-cite-jump">查看原文 →</span>
+                        </a>
+                      ))}
+                      {query.shot === "rag-citation-card" && (
+                        <p className="rag-pin-note" data-state="rag-pin-note">引用卡钉态：来源、chunk 编号、片段与相关度均来自真实检索回执</p>
+                      )}
+                    </div>
+                  )}
+                  {m.role === "assistant" && citationsOfMessage(m).length === 0 && m.content.text.includes("知识库没有相关内容") && (
+                    <p className="rag-nohit" data-state="rag-nohit">知识库没有相关内容 · 本回答未引用任何来源（不编造）</p>
+                  )}
                 </div>
               );
             })}
@@ -424,6 +478,23 @@ export default function ChatPage() {
                   : (previewContent?.content ?? activeArtifact.content)}
               </pre>
             )}
+            <div className="artifact-citations" data-state="artifact-citations">
+              <p className="artifact-cite-head">产物引用清单（{activeCitations.length} 条）</p>
+              {activeCitations.length === 0 ? (
+                <p className="muted">本轮产物没有引用（非 RAG 对话或知识库无命中）。</p>
+              ) : (
+                <ol>
+                  {activeCitations.map((c) => (
+                    <li key={`${c.docId}-${c.chunkId}`}>
+                      <a href={`?page=knowledge&docId=${c.docId}&chunkId=${c.chunkId}`}>
+                        {c.docTitle} · chunk #{c.chunkId} · 相关度 {c.score.toFixed(4)}
+                      </a>
+                      <span>{c.snippet}</span>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
           </>
         )}
       </aside>

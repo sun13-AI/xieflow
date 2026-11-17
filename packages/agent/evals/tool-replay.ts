@@ -5,8 +5,15 @@
 // runToolReplay 在**全新的内存库**上真执行 handler（含 create_todo / create_schedule 实际创建），再逐字段比对：
 // 期望写错、规划漂移、handler 不真写库、指代消解失效四者任一发生都会进 failures，评测集不会退化成恒真占位。
 import { openDatabase, type XieFlowDb } from "@xieflow/db";
-import type { ArtifactType, PlannerContextMessage, ToolName, ToolCallRequest } from "@xieflow/shared";
+import {
+  RAG_NO_HIT_ANSWER,
+  type ArtifactType,
+  type PlannerContextMessage,
+  type ToolName,
+  type ToolCallRequest,
+} from "@xieflow/shared";
 import { executeChat, mockPlanner, type Planner } from "../mock-planner.js";
+import { chunkText } from "../knowledge.js";
 import type { ToolRegistry } from "../tool-registry.js";
 
 export interface RecordedToolCase {
@@ -19,11 +26,15 @@ export interface RecordedToolCase {
     readonly summary?: string;
     readonly artifactType?: ArtifactType;
     readonly resolution?: { readonly referenceKind: string; readonly referencedTitle: string };
+    /** r13：RAG 回答预期（命中数 / 无命中诚实答复 / 引用可溯源） */
+    readonly rag?: { readonly noHit: boolean; readonly citationCount: number; readonly answerIncludes?: string };
   };
   /** 多轮上下文：上一轮真实落库消息归一后的轻量上下文 */
   readonly context?: readonly PlannerContextMessage[];
   /** 需要文档存在时：先在全新内存库里真建一篇（id=1，消息里「文档 1」即可命中） */
   readonly seedDocument?: string;
+  /** r13：RAG 用例先在全新内存库里真入库知识文档（真实分块，非伪造） */
+  readonly seedKnowledge?: readonly { readonly title: string; readonly content: string }[];
   /** 状态变更类工具必须带：回放后在真实库里查回的标题清单 */
   readonly expectState?: {
     readonly todos?: readonly string[];
@@ -341,6 +352,136 @@ export const TOOL_EVAL_CASES: readonly RecordedToolCase[] = [
   },
 ];
 
+/**
+ * r13 录制回放评测集（11 条）：「根据知识库 / 查资料 / 文档里」类问答先真检索、
+ * 再注入引用回答；含命中与无命中两态，每条都核对引用数、回答标记与 chunk 可溯源。
+ */
+export const RAG_EVAL_CASES: readonly RecordedToolCase[] = [
+  {
+    name: "rag-genju-kb-hit",
+    message: "根据知识库，苹果 手机",
+    seedKnowledge: [{ title: "回放科技稿", content: "苹果 手机 手机 平板" }],
+    expected: {
+      intent: "search_knowledge",
+      toolCalls: [{ name: "search_knowledge", arguments: { query: "苹果 手机" } }],
+      okFlags: [true],
+      rag: { noHit: false, citationCount: 1, answerIncludes: "[1]" },
+    },
+  },
+  {
+    name: "rag-cha-ziliao",
+    message: "查资料：番茄",
+    seedKnowledge: [{ title: "回放菜谱稿", content: "番茄 炒蛋 步骤" }],
+    expected: {
+      intent: "search_knowledge",
+      toolCalls: [{ name: "search_knowledge", arguments: { query: "番茄" } }],
+      okFlags: [true],
+      rag: { noHit: false, citationCount: 1, answerIncludes: "回放菜谱稿" },
+    },
+  },
+  {
+    name: "rag-wendang-li",
+    message: "文档里有香蕉吗",
+    seedKnowledge: [{ title: "回放水果稿", content: "苹果 香蕉 水果" }],
+    expected: {
+      intent: "search_knowledge",
+      toolCalls: [{ name: "search_knowledge", arguments: { query: "有香蕉吗" } }],
+      okFlags: [true],
+      rag: { noHit: false, citationCount: 1, answerIncludes: "香蕉" },
+    },
+  },
+  {
+    name: "rag-cong-kb",
+    message: "从知识库回答：平板",
+    seedKnowledge: [{ title: "回放设备稿", content: "苹果 手机 平板" }],
+    expected: {
+      intent: "search_knowledge",
+      toolCalls: [{ name: "search_knowledge", arguments: { query: "平板" } }],
+      okFlags: [true],
+      rag: { noHit: false, citationCount: 1, answerIncludes: "平板" },
+    },
+  },
+  {
+    name: "rag-kb-li-no-hit",
+    message: "知识库里有什么",
+    seedKnowledge: [{ title: "回放说明稿", content: "协流 知识库 检索 演示" }],
+    expected: {
+      intent: "search_knowledge",
+      toolCalls: [{ name: "search_knowledge", arguments: { query: "有什么" } }],
+      okFlags: [true],
+      rag: { noHit: true, citationCount: 0, answerIncludes: RAG_NO_HIT_ANSWER },
+    },
+  },
+  {
+    name: "rag-empty-kb-no-hit",
+    message: "根据知识库，机器人",
+    expected: {
+      intent: "search_knowledge",
+      toolCalls: [{ name: "search_knowledge", arguments: { query: "机器人" } }],
+      okFlags: [true],
+      rag: { noHit: true, citationCount: 0, answerIncludes: RAG_NO_HIT_ANSWER },
+    },
+  },
+  {
+    name: "rag-two-docs-ranking",
+    message: "根据知识库，苹果",
+    seedKnowledge: [
+      { title: "回放科技稿", content: "苹果 苹果 手机 平板" },
+      { title: "回放水果稿", content: "苹果 香蕉 水果" },
+    ],
+    expected: {
+      intent: "search_knowledge",
+      toolCalls: [{ name: "search_knowledge", arguments: { query: "苹果" } }],
+      okFlags: [true],
+      rag: { noHit: false, citationCount: 2, answerIncludes: "[1]" },
+    },
+  },
+  {
+    name: "rag-genju-wendang",
+    message: "根据文档，手机",
+    seedKnowledge: [{ title: "回放参数稿", content: "手机 参数 说明" }],
+    expected: {
+      intent: "search_knowledge",
+      toolCalls: [{ name: "search_knowledge", arguments: { query: "手机" } }],
+      okFlags: [true],
+      rag: { noHit: false, citationCount: 1, answerIncludes: "回放参数稿" },
+    },
+  },
+  {
+    name: "rag-cankao-kb",
+    message: "参考知识库，香蕉",
+    seedKnowledge: [{ title: "回放果品稿", content: "香蕉 水果 苹果" }],
+    expected: {
+      intent: "search_knowledge",
+      toolCalls: [{ name: "search_knowledge", arguments: { query: "香蕉" } }],
+      okFlags: [true],
+      rag: { noHit: false, citationCount: 1, answerIncludes: "香蕉" },
+    },
+  },
+  {
+    name: "rag-shuoyixia-prefix",
+    message: "根据知识库，说一下平板",
+    seedKnowledge: [{ title: "回放终端稿", content: "平板 电脑 屏幕" }],
+    expected: {
+      intent: "search_knowledge",
+      toolCalls: [{ name: "search_knowledge", arguments: { query: "平板" } }],
+      okFlags: [true],
+      rag: { noHit: false, citationCount: 1, answerIncludes: "[1]" },
+    },
+  },
+  {
+    name: "rag-snippet-traceable",
+    message: "查资料：配置",
+    seedKnowledge: [{ title: "回放配置稿", content: "配置 手册 步骤 参数" }],
+    expected: {
+      intent: "search_knowledge",
+      toolCalls: [{ name: "search_knowledge", arguments: { query: "配置" } }],
+      okFlags: [true],
+      rag: { noHit: false, citationCount: 1, answerIncludes: "配置 手册" },
+    },
+  },
+];
+
 export interface ToolReplayResult {
   readonly total: number;
   readonly passed: number;
@@ -368,6 +509,15 @@ export async function runToolReplay(
     const db = makeDb();
     try {
       if (c.seedDocument !== undefined) db.createDocument(c.seedDocument);
+      for (const k of c.seedKnowledge ?? []) {
+        db.createKnowledgeDoc({
+          title: k.title,
+          sourceType: "text",
+          sourceId: null,
+          content: k.content,
+          chunks: chunkText(k.content),
+        });
+      }
       const exec = await executeChat(db, registry, planner, c.message, {
         context: c.context,
         artifactType: c.expected.artifactType,
@@ -411,6 +561,30 @@ export async function runToolReplay(
         const got = db.listSchedules().map((s) => s.title);
         if (JSON.stringify(got) !== JSON.stringify(c.expectState.schedules)) {
           problems.push(`schedules got ${JSON.stringify(got)} want ${JSON.stringify(c.expectState.schedules)}`);
+        }
+      }
+      if (c.expected.rag !== undefined) {
+        const want = c.expected.rag;
+        if (exec.rag?.noHit !== want.noHit) problems.push(`rag.noHit got ${exec.rag?.noHit} want ${want.noHit}`);
+        if ((exec.citations?.length ?? -1) !== want.citationCount) {
+          problems.push(`citations got ${exec.citations?.length ?? -1} want ${want.citationCount}`);
+        }
+        if (want.answerIncludes !== undefined && !exec.summary.includes(want.answerIncludes)) {
+          problems.push(`answer missing ${want.answerIncludes}: ${exec.summary}`);
+        }
+        if (want.noHit) {
+          if (!exec.summary.includes(RAG_NO_HIT_ANSWER)) problems.push("no-hit answer lacks honesty phrase");
+          if (exec.summary.includes("[1]")) problems.push("no-hit answer fabricated a citation");
+        } else {
+          for (const citation of exec.citations ?? []) {
+            const stored = db.getKnowledgeChunk(citation.chunkId);
+            if (stored === null || !stored.content.startsWith(citation.snippet)) {
+              problems.push(`citation ${citation.chunkId} not traceable to stored chunk`);
+            }
+            if (db.getKnowledgeDoc(citation.docId) === null) {
+              problems.push(`citation doc ${citation.docId} not found`);
+            }
+          }
         }
       }
       if (problems.length === 0) passed += 1;
