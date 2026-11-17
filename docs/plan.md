@@ -130,7 +130,8 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r8 | M4 第 1 片：文档块编辑器（单人版） | ✅已发版（首轮双通过；块操作 97/97 + 变异红相 2 组独立复现） | v0.0.12 | e2e 716 · audit 639 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r9 | M4 第 2 片：Markdown 导入导出 + AI 块级修订（mock） | ✅已发版（首轮双通过；会话中断后续做收官） | v0.0.13 | e2e 809 · audit 706 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r10 | M5 第 1 片：AI 工作台对话与工具调用框架 | ✅已发版（首轮双通过；8 工具真实 handler + 17 回放） | v0.0.14 | e2e 924 · audit 786 | 通过（waizhuan）+ UI 通过（阻断岗） |
-| r11 | M5 第 2 片：多轮上下文与产物生成（M5 收官） | 🔨研发中（待双 VERDICT / 发版） | — | e2e 1020 · audit 867 | 待复验 |
+| r11 | M5 第 2 片：多轮上下文与产物生成（M5 收官） | ✅已发版（初验 ui 打回 U1 缺图证→返工#1 补图→复审双通过） | v0.0.15 | e2e 1020 · audit 867 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r12 | M6 第 1 片：知识库入库与向量检索（本地 RAG） | 🔨研发中 | — | — | — |
 
 附加交付（r2 内 lead 直做，已入库 8e4fb9b）：
 - 一键启动：start.cmd 双击 / scripts\start.ps1 start|stop|status（三轮全链路验证；期间排掉「僵尸 api 抢 8787」环境坑，非脚本缺陷）
@@ -312,7 +313,25 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 - 前置：r10 已发版（v0.0.14）✅
 - 特别项：r9 UI 记账 U2（diff 无行内增删改高亮）本轮必修；r10 U2（会话流/产物面板错一轮、窄容器壳 8 药丸折行）本轮必修
 
-### r12（预占）· M6 第 1 片：知识库入库与向量检索（本地 RAG）
+### r12 · M6 第 1 片：知识库入库与检索（M6 起步）
+- 目标：知识库文档入库 + 检索（本地关键词/TF-IDF 检索，向量化留 v2 接口）——M6 起步轮，为 M6 收官 RAG 铺路
+- 交付清单：
+  1. schema v8→v9：knowledge_docs 表（id/title/source_type/source_id/content/chunk_count/created_at）、knowledge_chunks 表（id/doc_id/position/content/token_count）
+  2. 分块与检索引擎集中 packages/agent/：chunkText(text)（按段落/字数切分，重叠窗口）、searchChunks(query, chunks)（TF-IDF 余弦相似度，纯 TS 零依赖）——**检索实现全集中，api 层零算法分支**；embedding 接口留位（vector 列可空）
+  3. api：知识库 CRUD、POST /api/knowledge/ingest（从 documents 或纯文本入库，自动分块）、GET /api/knowledge/search?q=&limit=（返回带来源引用的命中）
+  4. 工具链扩：search_knowledge 从 r10 空占位改为**真检索**（返回带 doc_id/chunk_id 来源的引用）
+  5. web：「知识库」tab——文档列表 + 入库按钮（选源）+ 搜索框（结果带来源高亮）
+  6. 断言：e2e ≥+35（分块边界/重叠/TF-IDF 排序/空查询）、audit ≥+25（含 4xx：空内容/超长内容/非法 source_type）
+  7. 截图 ≥7：知识库空态/入库对话框/入库成功后/搜索结果/来源引用高亮/窄屏/错误态
+- 验收标准：
+  1. 全量绿：e2e ≥1055、audit ≥892，README 双节同步
+  2. 检索结果相关性与手算一致（waizhuan 会造 3 篇文档验证 TF-IDF 排序），来源引用可溯源到具体 chunk
+  3. 分块有重叠窗口且边界不丢字（有断言）；search_knowledge 工具真检索非空
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r11 已发版（待 CI）✅
+- 特别项：r10 UI 记账「窄容器壳折行」在 r11 已修，本轮保持
+
+### r13（预占）· M6 第 2 片：RAG 对话与引用溯源（M6 收官）
 
 ## 历史轮次（r1~r2 已收档，见下方记账区）
 
