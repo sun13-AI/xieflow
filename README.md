@@ -14,7 +14,7 @@ powershell -File scripts\start.ps1 stop    # 收服务
 # 开发模式：
 pnpm dev:api         # api 服务 http://127.0.0.1:8787
 pnpm dev:web         # web 界面 http://127.0.0.1:5173
-pnpm run test:all    # typecheck + e2e（1087 断言）+ HTTP 审计（923 断言）
+pnpm run test:all    # typecheck + e2e（1161 断言）+ HTTP 审计（966 断言）
 ```
 
 ### 打包（对齐 IKanBot 的 pack/dist 语义）
