@@ -2,6 +2,17 @@
 
 > 宪法见设计包 AGENTS.md；轮次规则见 RUNBOOK.md（均在 D:\work\好东西\xieflow-design\）。
 
+### 2026-11-17 · r10 研发（yanfa-r10 · M5 起步：AI 工作台对话与工具调用框架）
+- 交付：schema v7→v8（conversations / messages / artifacts 三表 + role CHECK + conversation_id ON DELETE CASCADE + `tool_calls_json` 逐条回执）；`recordChatExchange` 单事务落 user/tool/assistant/artifact；工具契约与脚本规划口径全集中 shared（TOOL_NAMES / STATE_CHANGING_TOOLS / 参数归一 / SCRIPTED_INTENTS / buildChatSummary）
+- packages/agent：`ToolRegistry` 8 工具 handler **全接真实 XieFlowDb**（search_knowledge 按任务单为 M6 前空占位并显式 placeholder=true）；`mock-planner.ts`（`mock-scripted-v1`）识别意图→执行→汇总；evals 从 r9 单步修订骨架扩为 **17 条多步工具轨迹录制回放**，含 7 条「实际创建」状态断言（宪法四条）
+- api：conversations CRUD、GET /api/tools 目录、POST `/api/conversations/:id/chat`（mock 规划执行 + 逐条 tool_call 落库 + 产物）、messages / artifacts / artifact 单篇读取；4xx：空/超长消息、未知工具、非法参数、空/超长标题、越权 id；换真实模型只换 planner 一处注入
+- web：新增第八个 tab「AI 工作台」——会话列表 + 对话流（用户蓝 / AI 灰 / tool-call 虚线气泡，可展开 arguments）+ 右侧产物预览 JSON 面板 + 窄屏三栏纵排；壳基线由七张扩为八张（`chat-tab-active.png` 同批重拍）
+- 「用户第一次用」全链路（headless CDP 真点，0 会话起步）：建会话 → 真发「新建待办+列文档」→ 3 次工具调用（create_todo 真建待办 #53）落库 → AI 汇总 → 产物 #10 预览 → HTTP 回查 roles/3 条 tool_call/产物/待办全在 → reload 不丢 → 删探针会话与待办，库内 0 会话、只剩 r3 既有待办「22」；服务收净
+- 断言规模：e2e 809 → **924（+115：数据层 33 + 工具契约 34 + 注册表 26 + 回放 9 + 编排 13）**· audit 706 → **786（+80：工具/会话/chat/产物/4xx/级联删除真 HTTP 装配）**· typecheck 5 包全绿；`pnpm run test:all` exit 0。**无一条断言被删**；随 v8 迁移只更新 6 条既有期望值与若干标签文字，CI smoke 正则同步为 `(2|3|4|5|6|7|8)`
+- **变异红相留痕（两组）**：① `ToolRegistry.execute` 跳过 handler 改假回执 → e2e 910-14 / audit 777-4（create_todo 未真写库、回放状态断言红）；② `recordChatExchange` tool 消息存空数组 → audit 783-3（逐条 tool_call 落库/工具名/arguments 全红）。两组均逐字节还原（SHA `6DB7092A…` / `F6738570…` 前后一致）、`MUTATION-PROBE` 零残留，重跑全绿
+- 截图矩阵：docs/ui/r10/ **7 张**（空态/会话列表/对话流/工具调用气泡/产物预览/窄屏/错误态）+ 壳基线 8 张；7/7 与 8/8 哈希互异，全库 104 PNG / 102 互异（仅 r4 已披露 2 组同态）；首轮 01 工具数矛盾 + 与壳 chat 同字节两处毛刺经全矩阵重拍修正，废片未入库；逐张 `read_image` 目验
+- 危险区：未 push / 未打 tag / 未发版 / 未改 CI release 配置；只走 user_version 迁移、未手改库文件；只删本轮自建探针会话与待办；PowerShell 新增段全 ASCII（shot.ps1 75998 B、非 ASCII 0、PS5.1 Parser 0 错误）；全程 headless、服务收净
+
 ### 2026-11-17 · r9 研发（yanfa-r9b · M4 收官轮：续做中断会话并收尾）
 - 交付：Markdown 双向转换引擎全集中 shared（`markdownToBlocks` / `blocksToMarkdown`：10 类型、空行分块、代码围栏、未知语法逐字降级 paragraph、marker 转义往返不丢；`computeNumberedOrdinals`、`buildDocumentMdFileName`）；导入零半态（`normalizeMarkdownImportPayload` → `planMarkdownImport` → `shouldCommitMarkdownImport` → db `importBlocks` 事务外整体校验 + 单事务整篇替换）；AI 修订契约（`RevisionProvider` / `assertValidRevisionInstruction` / `planRevisionApply`，**未采纳零写入**，api 一处注入 mock provider，M5 可换真实模型）
 - api：`POST /api/documents/:id/import.md/preview`（只解析不写库）、`POST /api/documents/:id/import.md`（全合法 200 / 部分失败 422 零半态）、`GET /api/documents/:id/export.md`（RFC 5987 中文名 + text/markdown）、`POST /api/documents/:id/blocks/:blockId/revise`（建议预览 / 采纳才 updateBlock；4xx：空/超长 instruction、不存在块 404、跨文档块 400）
@@ -108,7 +119,7 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r7 | M3 第 2 片：视图持久化与 CSV 导入（M3 收官） | ✅已发版（首轮双通过；零半态变异红相独立复现） | v0.0.11 | e2e 587 · audit 522 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r8 | M4 第 1 片：文档块编辑器（单人版） | ✅已发版（首轮双通过；块操作 97/97 + 变异红相 2 组独立复现） | v0.0.12 | e2e 716 · audit 639 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r9 | M4 第 2 片：Markdown 导入导出 + AI 块级修订（mock） | ✅已发版（首轮双通过；会话中断后续做收官） | v0.0.13 | e2e 809 · audit 706 | 通过（waizhuan）+ UI 通过（阻断岗） |
-| r10 | M5 第 1 片：AI 工作台对话与工具调用框架 | 🔨研发中 | — | — | — |
+| r10 | M5 第 1 片：AI 工作台对话与工具调用框架 | 🔨研发中（yanfa 交付完成，待双 VERDICT） | — | e2e 924 · audit 786 | — |
 
 附加交付（r2 内 lead 直做，已入库 8e4fb9b）：
 - 一键启动：start.cmd 双击 / scripts\start.ps1 start|stop|status（三轮全链路验证；期间排掉「僵尸 api 抢 8787」环境坑，非脚本缺陷）

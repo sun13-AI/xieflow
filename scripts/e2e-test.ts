@@ -127,6 +127,21 @@ import {
   type MarkdownBlockDraft,
   type MarkdownSourceBlock,
   type MarkdownImportRowError,
+  type Project,
+  type BaseTable,
+  type ToolCallRecord,
+  TOOL_NAMES,
+  STATE_CHANGING_TOOLS,
+  MAX_CONVERSATION_TITLE,
+  MAX_CHAT_MESSAGE,
+  assertValidToolName,
+  normalizeToolCallRequest,
+  assertValidConversationTitle,
+  assertValidChatMessage,
+  assertValidMessageRole,
+  assertValidArtifactType,
+  planScriptedChat,
+  buildChatSummary,
 } from "@xieflow/shared";
 import type { TodoStatus } from "@xieflow/shared";
 import {
@@ -134,6 +149,12 @@ import {
   MOCK_PROVIDER_ID,
   REVISE_EVAL_CASES,
   runReplay,
+  createDefaultToolRegistry,
+  mockPlanner,
+  MOCK_PLANNER_ID,
+  executeChat,
+  TOOL_EVAL_CASES,
+  runToolReplay,
 } from "@xieflow/agent";
 
 // ---------- 极简断言器 ----------
@@ -162,6 +183,11 @@ async function throws(fn: () => unknown | Promise<unknown>, label: string): Prom
   } catch {
     ok(true, label);
   }
+}
+
+/** r10：显式等待 Promise 拒绝（异步工具执行守卫断言用） */
+async function throwsAsync(fn: () => unknown | Promise<unknown>, label: string): Promise<void> {
+  await throws(fn, label);
 }
 
 function noThrow(fn: () => unknown, label: string): void {
@@ -227,6 +253,7 @@ try {
         { version: 6, name: "f", up: [] },
         { version: 7, name: "g", up: [] },
         { version: 8, name: "h", up: [] },
+        { version: 9, name: "i", up: [] },
       ]),
     "队列超出 SCHEMA_VERSION：一致性校验抛错",
   );
@@ -614,8 +641,8 @@ try {
     const v3Migrated = openDatabaseRaw({ path: v3Path });
     eq(
       v3Migrated.appliedMigrations,
-      [3, 4, 5, 6, 7],
-      "v2 旧库重开补跑 v3+v4+v5+v6+v7 迁移（真实 PRAGMA 升级路径，r8 起队列追加 v7）",
+      [3, 4, 5, 6, 7, 8],
+      "v2 旧库重开补跑 v3+v4+v5+v6+v7+v8 迁移（真实 PRAGMA 升级路径，r10 起队列追加 v8）",
     );
     const tables = v3Migrated.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -840,8 +867,8 @@ try {
     const v4Open = openDatabaseRaw({ path: v4Path });
     eq(
       v4Open.appliedMigrations,
-      [4, 5, 6, 7],
-      "v3 旧库重开只补跑 v4+v5+v6+v7 迁移（真实 PRAGMA 升级路径）",
+      [4, 5, 6, 7, 8],
+      "v3 旧库重开只补跑 v4+v5+v6+v7+v8 迁移（真实 PRAGMA 升级路径）",
     );
     const tables = v4Open.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -852,7 +879,7 @@ try {
     eq(
       (v4Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（7）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（8）",
     );
     const rawDb: SqliteDatabase = v4Open.raw;
     throws(
@@ -1499,7 +1526,7 @@ try {
     v4Open2.raw.exec("PRAGMA user_version = 4");
     v4Open2.raw.close();
     const v5Open = openDatabaseRaw({ path: v5Path });
-    eq(v5Open.appliedMigrations, [5, 6, 7], "v4 旧库重开只补跑 v5+v6+v7 迁移（真实 PRAGMA 升级路径）");
+    eq(v5Open.appliedMigrations, [5, 6, 7, 8], "v4 旧库重开只补跑 v5+v6+v7+v8 迁移（真实 PRAGMA 升级路径）");
     const tableNames = v5Open.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
       .map((r) => String((r as unknown as { name: unknown }).name));
@@ -1509,7 +1536,7 @@ try {
     eq(
       (v5Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（7）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（8）",
     );
     const rawDb5: SqliteDatabase = v5Open.raw;
     throws(
@@ -2218,7 +2245,7 @@ try {
     v5Open.raw.exec("PRAGMA user_version = 5");
     v5Open.raw.close();
     const v6Open = openDatabaseRaw({ path: v6Path });
-    eq(v6Open.appliedMigrations, [6, 7], "v5 旧库重开只补跑 v6+v7 迁移（真实 PRAGMA 升级路径）");
+    eq(v6Open.appliedMigrations, [6, 7, 8], "v5 旧库重开只补跑 v6+v7+v8 迁移（真实 PRAGMA 升级路径）");
     const tableNames = v6Open.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
       .map((r) => String((r as unknown as { name: unknown }).name));
@@ -2226,7 +2253,7 @@ try {
     eq(
       (v6Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（7）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（8）",
     );
     const rawDb6: SqliteDatabase = v6Open.raw;
     eq(
@@ -2365,7 +2392,7 @@ try {
     eq(
       (reopened.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "重启后 user_version 仍为 7",
+      "重启后 user_version 仍为 8",
     );
     eq(JSON.stringify(reopened.db.listViews(tbl.id)), beforeViews, "视图持久化：重启前后 spec 逐字节相等");
     eq(
@@ -2498,11 +2525,11 @@ try {
     oldOpen.raw.exec("PRAGMA user_version = 6");
     oldOpen.raw.close();
     const v7Open = openDatabaseRaw({ path: v7Path });
-    eq(v7Open.appliedMigrations, [7], "v6 旧库重开只补跑 v7 迁移（真实 PRAGMA 升级路径）");
+    eq(v7Open.appliedMigrations, [7, 8], "v6 旧库重开补跑 v7+v8 迁移（真实 PRAGMA 升级路径）");
     eq(
       (v7Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（7）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（8）",
     );
     const tables = (v7Open.raw.all(
       "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('documents','blocks') ORDER BY name",
@@ -2877,7 +2904,245 @@ try {
     db = null;
   }
 
-  // 30. HTTP 冒烟 /api/health
+  // 30. r10：schema v7→v8 迁移与对话数据层（先断言，后实现——TDD 红相入口）
+  section("schema v7→v8 迁移与对话数据层（conversations / messages / artifacts）");
+  {
+    mkdirSync("scripts/.tmp-e2e", { recursive: true });
+    const p10Path = `scripts/.tmp-e2e/r10-v8-${Date.now()}.db`;
+    const old10 = openDatabaseRaw({ path: p10Path });
+    old10.raw.exec("PRAGMA user_version = 7");
+    old10.raw.close();
+    const v8 = openDatabaseRaw({ path: p10Path });
+    eq(v8.appliedMigrations, [8], "v7 旧库重开只补跑 v8 迁移（真实 PRAGMA 升级路径）");
+    eq(
+      (v8.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
+      CURRENT_SCHEMA_VERSION,
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（8）",
+    );
+    const t10 = v8.raw
+      .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+      .map((r) => String((r as unknown as { name: unknown }).name));
+    ok(t10.includes("conversations"), "v8 迁移建出 conversations 表");
+    ok(t10.includes("messages"), "v8 迁移建出 messages 表");
+    ok(t10.includes("artifacts"), "v8 迁移建出 artifacts 表");
+    const convCols = (v8.raw.all("PRAGMA table_info(conversations)") as { name: string }[]).map((r) => r.name);
+    eq(convCols, ["id", "title", "created_at"], "conversations 三列逐字吻合任务单");
+    const msgCols = (v8.raw.all("PRAGMA table_info(messages)") as { name: string }[]).map((r) => r.name);
+    eq(
+      msgCols,
+      ["id", "conversation_id", "role", "content_json", "tool_calls_json", "created_at"],
+      "messages 六列含 tool_calls_json（逐条工具调用落库）",
+    );
+    const artCols = (v8.raw.all("PRAGMA table_info(artifacts)") as { name: string }[]).map((r) => r.name);
+    eq(artCols, ["id", "conversation_id", "type", "title", "content", "created_at"], "artifacts 六列逐字吻合任务单");
+    throws(
+      () => v8.raw.run("INSERT INTO conversations (title, created_at) VALUES ('', '')"),
+      "conversations.title 空串被服务层守卫拒绝（raw 写入由 api 前置校验）",
+    );
+    throws(
+      () => v8.raw.run("INSERT INTO messages (conversation_id, role, content_json, tool_calls_json, created_at) VALUES (1, 'robot', '{}', '[]', '')"),
+      "messages.role CHECK 拒绝非法角色（raw 直达 schema 约束）",
+    );
+    throws(
+      () => v8.raw.run("INSERT INTO messages (conversation_id, role, content_json, tool_calls_json, created_at) VALUES (999999, 'user', '{}', '[]', '')"),
+      "messages.conversation_id 外键拒绝孤儿消息",
+    );
+    const conv = v8.db.createConversation("r10 第一次用");
+    eq(conv.title, "r10 第一次用", "createConversation 真落库并读回标题");
+    ok(typeof conv.createdAt === "string" && conv.createdAt.length > 0, "createConversation 落 created_at");
+    eq(v8.db.listConversations().length, 1, "listConversations 真读回 1 条");
+    eq(v8.db.getConversation(conv.id)?.title, conv.title, "getConversation 按 id 读回");
+    eq(v8.db.getConversation(999999), null, "getConversation 不存在返回 null");
+    const mu = v8.db.addMessage(conv.id, "user", { text: "盘点待办和文档" }, []);
+    eq(mu.role, "user", "addMessage 落 user 角色");
+    eq((mu.content as { text: string }).text, "盘点待办和文档", "addMessage 落 content_json 文本");
+    eq(mu.toolCalls.length, 0, "user 消息 tool_calls_json 为空数组");
+    const toolCalls: ToolCallRecord[] = [
+      { id: "tc-1", name: "list_todos", arguments: {}, ok: true, summary: "待办 0 条", data: { count: 0 } },
+      { id: "tc-2", name: "list_documents", arguments: {}, ok: true, summary: "文档 0 篇", data: { count: 0 } },
+    ];
+    const mt = v8.db.addMessage(conv.id, "tool", { text: "工具回执" }, toolCalls);
+    eq(mt.role, "tool", "addMessage 落 tool 角色");
+    eq(mt.toolCalls.map((t) => t.name), ["list_todos", "list_documents"], "tool 消息逐条落两条工具调用（顺序保持）");
+    eq(mt.toolCalls[1]?.arguments, {}, "tool_calls_json 的 arguments 逐字段读回");
+    const ma = v8.db.addMessage(conv.id, "assistant", { text: "已完成盘点" }, []);
+    eq(v8.db.listMessages(conv.id).map((m) => m.role), ["user", "tool", "assistant"], "listMessages 按 created_at/id 升序回读三类消息");
+    const art = v8.db.createArtifact(conv.id, "chat-result", "盘点产物", JSON.stringify({ intent: "list" }));
+    eq(art.type, "chat-result", "createArtifact 落 type");
+    eq(art.title, "盘点产物", "createArtifact 落 title");
+    eq(JSON.parse(art.content).intent, "list", "createArtifact 落 content 原文（JSON 不丢）");
+    eq(v8.db.listArtifacts(conv.id).length, 1, "listArtifacts 真读回 1 条");
+    eq(v8.db.getArtifact(art.id)?.title, "盘点产物", "getArtifact 按 id 读回");
+    eq(v8.db.getArtifact(999999), null, "getArtifact 不存在返回 null");
+    const snap = JSON.stringify({ c: v8.db.listConversations(), m: v8.db.listMessages(conv.id), a: v8.db.listArtifacts(conv.id) });
+    v8.db.deleteConversation(conv.id);
+    eq(v8.db.listConversations().length, 0, "deleteConversation 真删会话");
+    eq(v8.db.listMessages(conv.id).length, 0, "删会话级联删消息（schema ON DELETE CASCADE）");
+    eq(v8.db.listArtifacts(conv.id).length, 0, "删会话级联删产物");
+    ok(snap.length > 100, "删除前完整快照非空（证明级联前确有数据）");
+    v8.raw.close();
+  }
+
+  // 31. r10：工具契约与脚本规划口径（全部集中 shared）
+  section("工具契约与脚本规划口径（TOOL_NAMES / 规划 / 汇总）");
+  {
+    eq(TOOL_NAMES.length, 8, "首批工具注册表恰 8 个工具");
+    eq(
+      [...TOOL_NAMES],
+      ["list_todos", "create_todo", "list_documents", "create_document", "list_projects", "list_cards", "list_tables", "search_knowledge"],
+      "8 个工具名逐字符合任务单",
+    );
+    eq([...STATE_CHANGING_TOOLS], ["create_todo", "create_document"], "状态变更类工具恰 2 个（需「实际创建」断言）");
+    noThrow(() => assertValidToolName("create_todo"), "合法工具名守卫放行");
+    throws(() => assertValidToolName("mystery_tool"), "未知工具名守卫抛错（4xx 根因）");
+    eq(normalizeToolCallRequest({ name: "list_todos" }).arguments, {}, "工具调用缺省参数归一为空对象");
+    eq(
+      normalizeToolCallRequest({ name: "create_todo", arguments: { title: "x" } }).name,
+      "create_todo",
+      "工具调用归一保留合法 name",
+    );
+    throws(() => normalizeToolCallRequest({ name: "mystery_tool" }), "未知工具调用归一抛 ValidationError");
+    throws(() => normalizeToolCallRequest({ name: "list_todos", arguments: "bad" }), "非法参数（非对象）归一抛错");
+    throws(() => normalizeToolCallRequest({ arguments: {} }), "缺 name 的工具调用归一抛错");
+    noThrow(() => assertValidConversationTitle("合法会话标题"), "合法会话标题守卫放行");
+    throws(() => assertValidConversationTitle("   "), "空白会话标题守卫抛错");
+    throws(() => assertValidConversationTitle("x".repeat(MAX_CONVERSATION_TITLE + 1)), "超长会话标题守卫抛错");
+    noThrow(() => assertValidChatMessage("盘点一下待办"), "合法聊天消息守卫放行");
+    throws(() => assertValidChatMessage("   "), "空消息守卫抛错（HTTP 400 根因）");
+    throws(() => assertValidChatMessage("x".repeat(MAX_CHAT_MESSAGE + 1)), "超长消息守卫抛错");
+    noThrow(() => assertValidMessageRole("tool"), "tool 角色守卫放行");
+    throws(() => assertValidMessageRole("robot"), "非法消息角色守卫抛错");
+    noThrow(() => assertValidArtifactType("chat-result"), "合法产物类型守卫放行");
+    throws(() => assertValidArtifactType("unknown"), "非法产物类型守卫抛错");
+    const p1 = planScriptedChat("帮我新建一个待办：写周报，然后列出待办和文档");
+    eq(p1.toolCalls.length, 3, "复合意图脚本产出 3 次工具调用（create + list_todos + list_documents）");
+    eq(p1.toolCalls.map((c) => c.name), ["create_todo", "list_todos", "list_documents"], "复合意图工具调用顺序确定");
+    eq(p1.toolCalls[0]?.arguments.title, "写周报", "create_todo 标题从「：」后真实抽取");
+    eq(p1.toolCalls[0]?.arguments.quadrant, "q2", "未指定象限时默认 q2");
+    ok(p1.intent.includes("create_todo") && p1.intent.includes("list_documents"), "intent 串含所有命中意图");
+    const p2 = planScriptedChat("列出项目、看板和表格");
+    eq(p2.toolCalls.map((c) => c.name), ["list_projects", "list_cards", "list_tables"], "列表复合意图产出 3 次只读调用");
+    const p3 = planScriptedChat("在知识库检索路线图");
+    eq(p3.toolCalls.length, 1, "知识检索意图产出 1 次调用");
+    eq(p3.toolCalls[0]?.name, "search_knowledge", "知识检索命中 search_knowledge");
+    eq(p3.toolCalls[0]?.arguments.query, "在知识库检索路线图", "search_knowledge.query 原样传入");
+    eq(planScriptedChat("你好").toolCalls.length, 0, "无意图消息产出 0 次工具调用");
+    eq(JSON.stringify(planScriptedChat("盘点待办和文档")), JSON.stringify(planScriptedChat("盘点待办和文档")), "同消息规划结果逐字节确定（零随机）");
+    eq(new Set(planScriptedChat("待办和文档任务").toolCalls.map((c) => c.name)).size, 2, "同义关键词命中去重但保留两类工具");
+    const sum = buildChatSummary("list_todos", [
+      { name: "list_todos", ok: true, summary: "待办 2 条", data: {} },
+      { name: "list_documents", ok: true, summary: "文档 1 篇", data: {} },
+    ]);
+    ok(sum.includes("2 次工具调用") && sum.includes("待办 2 条"), "汇总串含调用次数与逐条结果摘要");
+    ok(buildChatSummary("empty", []).includes("0 次工具调用"), "零调用汇总也确定可读");
+  }
+
+  // 32. r10：工具注册表——handler 全为真实服务层调用
+  section("工具注册表与真实服务层调用（ToolRegistry）");
+  {
+    const tdb = openDatabase({ path: ":memory:" });
+    const registry = createDefaultToolRegistry();
+    eq(registry.list().length, 8, "默认注册表恰 8 个工具");
+    eq(registry.list().map((d) => d.name), [...TOOL_NAMES], "注册表工具名与 shared 清单逐位相等");
+    ok(registry.list().every((d) => d.description.length > 0), "每个工具都有非空 description");
+    ok(registry.list().every((d) => d.parameters.type === "object"), "每个工具 parameters 都是 object schema");
+    eq(registry.get("create_todo")?.name, "create_todo", "get(name) 命中注册工具");
+    eq(registry.get("nope"), undefined, "get(未知) 返回 undefined");
+    const beforeTodos = tdb.listTodos().length;
+    const created = await registry.execute(tdb, "create_todo", { title: "r10 真实创建的待办", quadrant: "q2" });
+    eq(created.ok, true, "create_todo 执行成功");
+    eq(tdb.listTodos().length, beforeTodos + 1, "create_todo 真写库：待办数 +1（非 mock 数据）");
+    eq((created.data as { todo?: Todo } | null)?.todo?.title, "r10 真实创建的待办", "create_todo 回执含真实标题");
+    const listed = await registry.execute(tdb, "list_todos", {});
+    eq(listed.ok, true, "list_todos 执行成功");
+    ok(((listed.data as { todos?: Todo[] } | null)?.todos ?? []).some((t) => t.title === "r10 真实创建的待办"), "list_todos 真读回刚创建的待办");
+    const beforeDocs = tdb.listDocuments().length;
+    const docRes = await registry.execute(tdb, "create_document", { title: "r10 真实创建的文档" });
+    eq(docRes.ok, true, "create_document 执行成功");
+    eq(tdb.listDocuments().length, beforeDocs + 1, "create_document 真写库：文档数 +1");
+    const newDoc = (docRes.data as { document?: Document } | null)?.document;
+    eq(newDoc === undefined ? undefined : tdb.listBlocks(newDoc.id).length, 1, "create_document 真带默认首块（无零块死路）");
+    const docsRes = await registry.execute(tdb, "list_documents", {});
+    ok(((docsRes.data as { documents?: Document[] } | null)?.documents ?? []).some((d) => newDoc !== undefined && d.id === newDoc.id), "list_documents 真读回刚创建的文档");
+    const proj = tdb.createProject("r10 工具用项目");
+    const card = tdb.createBoardCard(proj.id, (tdb.listBoardColumns(proj.id)[0]!).id, "r10 卡片");
+    const cardsRes = await registry.execute(tdb, "list_cards", { projectId: proj.id });
+    eq(cardsRes.ok, true, "list_cards 执行成功");
+    eq((((cardsRes.data as { cards?: BoardCard[] } | null)?.cards ?? []).map((c) => c.id)), [card.id], "list_cards 真读回该项目卡片");
+    const projectsRes = await registry.execute(tdb, "list_projects", {});
+    ok(((projectsRes.data as { projects?: Project[] } | null)?.projects ?? []).some((p) => p.id === proj.id), "list_projects 真读回刚建项目");
+    tdb.createTable("r10 工具用表格");
+    const tablesRes = await registry.execute(tdb, "list_tables", {});
+    ok(((tablesRes.data as { tables?: BaseTable[] } | null)?.tables ?? []).some((t) => t.name === "r10 工具用表格"), "list_tables 真读回刚建表格");
+    const know = await registry.execute(tdb, "search_knowledge", { query: "路线图" });
+    eq(know.ok, true, "search_knowledge 空占位执行成功（M6 前约定）");
+    eq((know.data as { results?: unknown[] } | null)?.results ?? null, [], "search_knowledge 返回空结果数组");
+    eq((know.data as { placeholder?: boolean } | null)?.placeholder, true, "search_knowledge 明示 placeholder=true（非伪造命中）");
+    await throwsAsync(() => registry.execute(tdb, "mystery_tool", {}), "未知工具执行抛错（HTTP 400 根因）");
+    await throwsAsync(() => registry.execute(tdb, "create_todo", { title: 123 }), "非法参数（title 非字符串）执行抛错");
+    await throwsAsync(() => registry.execute(tdb, "create_todo", { title: "x", quadrant: "q9" }), "非法参数（象限越界）执行抛错");
+    throws(() => registry.register(registry.get("list_todos")!), "重复注册同名工具被拒绝");
+    tdb.close();
+  }
+
+  // 33. r10：mock-planner 与录制回放评测集（≥15 用例，工具调用行为锁定）
+  section("mock-planner 与工具调用录制回放（≥15 用例）");
+  {
+    eq(MOCK_PLANNER_ID, "mock-scripted-v1", "mock 规划器标识固定（零 token）");
+    const planned = await mockPlanner.plan("盘点待办和文档");
+    eq(planned.toolCalls.map((c) => c.name), ["list_todos", "list_documents"], "planner 脚本命中两条只读工具");
+    ok(TOOL_EVAL_CASES.length >= 15, `录制回放用例数 ${TOOL_EVAL_CASES.length} ≥ 15`);
+    eq(new Set(TOOL_EVAL_CASES.map((c) => c.name)).size, TOOL_EVAL_CASES.length, "录制用例名互不重复");
+    const replay = await runToolReplay(() => openDatabase({ path: ":memory:" }), createDefaultToolRegistry());
+    eq(replay.failures.length, 0, `回放全绿：${replay.passed}/${replay.total} 条通过`);
+    eq(replay.passed, TOOL_EVAL_CASES.length, "回放通过数 = 用例总数（无跳过）");
+    const bad = TOOL_EVAL_CASES.map((c, i) =>
+      i === 0 ? { ...c, expected: { ...c.expected, intent: "__WRONG__" } } : c,
+    );
+    const badReplay = await runToolReplay(() => openDatabase({ path: ":memory:" }), createDefaultToolRegistry(), bad);
+    ok(badReplay.failures.length >= 1, "故意写错期望 → 回放必须变红（评测集非恒真占位）");
+    const stateful = TOOL_EVAL_CASES.filter((c) => c.expectState && Object.keys(c.expectState).length > 0);
+    ok(stateful.length >= 2, `≥2 条回放用例带「实际创建」状态断言（实测 ${stateful.length}）`);
+    const replay2 = await runToolReplay(() => openDatabase({ path: ":memory:" }), createDefaultToolRegistry());
+    eq(JSON.stringify(replay2), JSON.stringify(replay), "两次回放结果逐字节相等（确定性）");
+  }
+
+  // 34. r10：对话编排——逐条工具调用落库与产物
+  section("对话编排与产物（executeChat）");
+  {
+    const cdb = openDatabase({ path: ":memory:" });
+    const reg = createDefaultToolRegistry();
+    const conv = cdb.createConversation("编排测试");
+    const exec = await executeChat(cdb, reg, mockPlanner, "盘点待办和文档");
+    eq(exec.intent, "list_todos+list_documents", "编排 intent 为两意图组合");
+    eq(exec.toolCalls.map((t) => t.name), ["list_todos", "list_documents"], "编排产出 2 条真实工具调用");
+    eq(exec.toolCalls.map((t) => t.id), ["tc-1", "tc-2"], "工具调用 id 确定性（tc-1/tc-2）");
+    ok(exec.summary.includes("2 次工具调用"), "汇总文案含调用次数");
+    eq(exec.artifact.type, "chat-result", "产物类型 chat-result");
+    eq(JSON.parse(exec.artifact.content).tools.length, 2, "产物内容含全部工具回执");
+    eq(JSON.parse(exec.artifact.content).intent, exec.intent, "产物 intent 与编排一致");
+    cdb.addMessage(conv.id, "tool", { text: "工具回执" }, exec.toolCalls);
+    eq(cdb.listMessages(conv.id)[0]?.toolCalls.length, 2, "编排回执可逐条落库并原样读回");
+    const before = cdb.listTodos().length;
+    const exec2 = await executeChat(cdb, reg, mockPlanner, "忽略", {
+      toolCalls: [
+        { name: "create_todo", arguments: { title: "显式调用创建的待办", quadrant: "q3" } },
+        { name: "list_todos", arguments: {} },
+      ],
+    });
+    eq(cdb.listTodos().length, before + 1, "显式工具调用模式真创建待办（状态变更有断言）");
+    eq(exec2.toolCalls.length, 2, "显式工具调用模式逐条执行 2 次");
+    eq(exec2.toolCalls[0]?.ok, true, "显式调用回执 ok=true");
+    const beforeBad = cdb.listTodos().length;
+    await throwsAsync(
+      () => executeChat(cdb, reg, mockPlanner, "忽略", { toolCalls: [{ name: "mystery_tool", arguments: {} }] }),
+      "显式未知工具 → 编排抛错（HTTP 400）",
+    );
+    eq(cdb.listTodos().length, beforeBad, "未知工具被拒时零写入（无半态）");
+    cdb.close();
+  }
+
+  // 35. HTTP 冒烟 /api/health
   section("HTTP 冒烟 /api/health");
   let httpOk = false;
   let httpNote = "api 服务未运行（pnpm dev:api 后再跑 pnpm test 可覆盖此节）";

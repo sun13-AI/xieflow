@@ -321,7 +321,7 @@ export function assembleRangeSchedules(
 }
 
 /** 数据库 schema 版本号，每轮迁移必须 +1（宪法：禁止手改库文件） */
-export const SCHEMA_VERSION: number = 7;
+export const SCHEMA_VERSION: number = 8;
 
 
 /** 迁移脚本类型：user_version 从 from 升到 to */
@@ -2322,4 +2322,217 @@ export function buildDocumentMdFileName(title: string, now: Date = new Date()): 
   const m = String(now.getMonth() + 1).padStart(2, "0");
   const d = String(now.getDate()).padStart(2, "0");
   return `xieflow-doc-${sanitizeFileNamePart(title)}-${y}${m}${d}.md`;
+}
+
+// ---- r10：AI 工作台对话与工具调用（M5 起步，全部契约/规则集中 shared） ----
+
+/** 会话标题与聊天消息上限（守卫在 shared，api 只映射 400） */
+export const MAX_CONVERSATION_TITLE = 200;
+export const MAX_CHAT_MESSAGE = 2000;
+
+export type MessageRole = "user" | "assistant" | "tool";
+export const MESSAGE_ROLES: readonly MessageRole[] = ["user", "assistant", "tool"];
+export const ARTIFACT_TYPES = ["chat-result"] as const;
+export type ArtifactType = (typeof ARTIFACT_TYPES)[number];
+
+export interface Conversation {
+  readonly id: number;
+  readonly title: string;
+  readonly createdAt: string;
+}
+
+/** 消息正文：纯 JSON 对象，至少带 text；工具回执消息额外挂 toolCalls */
+export interface MessageContent {
+  readonly text: string;
+  readonly [key: string]: unknown;
+}
+
+/** 一条落库的工具调用回执（tool_calls_json 的元素，逐条可查） */
+export interface ToolCallRecord {
+  readonly id: string;
+  readonly name: ToolName;
+  readonly arguments: Record<string, unknown>;
+  readonly ok: boolean;
+  readonly summary: string;
+  readonly data?: unknown;
+  readonly error?: string;
+}
+
+export interface Message {
+  readonly id: number;
+  readonly conversationId: number;
+  readonly role: MessageRole;
+  readonly content: MessageContent;
+  readonly toolCalls: readonly ToolCallRecord[];
+  readonly createdAt: string;
+}
+
+export interface Artifact {
+  readonly id: number;
+  readonly conversationId: number;
+  readonly type: ArtifactType;
+  readonly title: string;
+  readonly content: string;
+  readonly createdAt: string;
+}
+
+/** 首批 8 个工具名（集中清单，注册表/回放/UI 共用，禁止散落字面量） */
+export const TOOL_NAMES = [
+  "list_todos",
+  "create_todo",
+  "list_documents",
+  "create_document",
+  "list_projects",
+  "list_cards",
+  "list_tables",
+  "search_knowledge",
+] as const;
+export type ToolName = (typeof TOOL_NAMES)[number];
+
+/** 状态变更类工具（回放必须带「实际创建」断言；只读工具不需要） */
+export const STATE_CHANGING_TOOLS: readonly ToolName[] = ["create_todo", "create_document"];
+
+export function isToolName(value: unknown): value is ToolName {
+  return typeof value === "string" && (TOOL_NAMES as readonly string[]).includes(value);
+}
+
+export function assertValidToolName(value: unknown): asserts value is ToolName {
+  if (!isToolName(value)) {
+    throw new ValidationError(`未知工具：${String(value)}`);
+  }
+}
+
+export function assertValidMessageRole(value: unknown): asserts value is MessageRole {
+  if (typeof value !== "string" || !(MESSAGE_ROLES as readonly string[]).includes(value)) {
+    throw new ValidationError(`非法消息角色：${String(value)}`);
+  }
+}
+
+export function assertValidArtifactType(value: unknown): asserts value is ArtifactType {
+  if (typeof value !== "string" || !(ARTIFACT_TYPES as readonly string[]).includes(value)) {
+    throw new ValidationError(`非法产物类型：${String(value)}`);
+  }
+}
+
+export function assertValidConversationTitle(value: unknown): asserts value is string {
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new ValidationError("会话标题不能为空");
+  }
+  if (value.length > MAX_CONVERSATION_TITLE) {
+    throw new ValidationError(`会话标题过长：最多 ${MAX_CONVERSATION_TITLE} 字`);
+  }
+}
+
+export function assertValidChatMessage(value: unknown): asserts value is string {
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new ValidationError("消息内容不能为空");
+  }
+  if (value.length > MAX_CHAT_MESSAGE) {
+    throw new ValidationError(`消息内容过长：最多 ${MAX_CHAT_MESSAGE} 字`);
+  }
+}
+
+/** 工具调用入参（name + 对象参数）：归一与守卫唯一入口，未知工具/非法参数在此抛错 */
+export interface ToolCallRequest {
+  readonly name: ToolName;
+  readonly arguments: Record<string, unknown>;
+}
+
+export interface ToolDefinition {
+  readonly name: ToolName;
+  readonly description: string;
+  readonly parameters: {
+    readonly type: "object";
+    readonly properties: Record<
+      string,
+      { readonly type: string; readonly description?: string; readonly enum?: readonly string[] }
+    >;
+    readonly required: readonly string[];
+  };
+}
+
+export interface ToolResult {
+  readonly ok: boolean;
+  readonly name: ToolName;
+  readonly summary: string;
+  readonly data: unknown;
+  readonly error?: string;
+}
+
+export function normalizeToolCallRequest(raw: unknown): ToolCallRequest {
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
+    throw new ValidationError("工具调用必须是对象");
+  }
+  const obj = raw as Record<string, unknown>;
+  assertValidToolName(obj.name);
+  const args = obj.arguments ?? {};
+  if (args === null || typeof args !== "object" || Array.isArray(args)) {
+    throw new ValidationError(`工具 ${obj.name} 的参数必须是对象`);
+  }
+  return { name: obj.name, arguments: args as Record<string, unknown> };
+}
+
+/** 脚本化意图规则表：关键词命中 → 工具调用序列。M5 全用 mock，零 token 零随机。 */
+export interface ScriptedIntent {
+  readonly id: ToolName;
+  readonly keywords: readonly string[];
+  readonly summary: string;
+}
+
+export const SCRIPTED_INTENTS: readonly ScriptedIntent[] = [
+  { id: "create_todo", keywords: ["新建待办", "新建一个待办", "新建个待办", "创建一个待办", "创建待办", "添加待办", "加个待办", "建个待办", "新增待办"], summary: "新建待办" },
+  { id: "create_document", keywords: ["新建文档", "创建文档", "建个文档", "添加文档", "新增文档"], summary: "新建文档" },
+  { id: "list_todos", keywords: ["待办", "任务"], summary: "待办清单" },
+  { id: "list_documents", keywords: ["文档"], summary: "文档清单" },
+  { id: "list_projects", keywords: ["项目"], summary: "项目清单" },
+  { id: "list_cards", keywords: ["卡片", "看板"], summary: "看板卡片" },
+  { id: "list_tables", keywords: ["表格", "多维表"], summary: "多维表格" },
+  { id: "search_knowledge", keywords: ["知识库", "知识", "检索"], summary: "知识库检索" },
+];
+
+export interface PlannedChat {
+  readonly intent: string;
+  readonly toolCalls: readonly ToolCallRequest[];
+}
+
+/** 从脚本消息里抽标题：「：/:</quoted>」优先，否则整句截断，保证确定性 */
+function extractScriptedTitle(message: string): string {
+  const colon = message.match(/[:：]\s*([^，。；;]+)/);
+  if (colon?.[1]) return colon[1].trim().slice(0, MAX_TODO_TITLE);
+  const quoted = message.match(/[「"']([^」"']+)[」"']/);
+  if (quoted?.[1]) return quoted[1].trim().slice(0, MAX_TODO_TITLE);
+  return message.trim().slice(0, MAX_TODO_TITLE);
+}
+
+/** 脚本化规划：扫描所有命中意图，按规则表顺序去重产出工具调用序列 */
+export function planScriptedChat(message: string): PlannedChat {
+  const hit = SCRIPTED_INTENTS.filter((rule) => rule.keywords.some((k) => message.includes(k)));
+  const seen = new Set<ToolName>();
+  const toolCalls: ToolCallRequest[] = [];
+  for (const rule of hit) {
+    if (seen.has(rule.id)) continue;
+    seen.add(rule.id);
+    const args: Record<string, unknown> = {};
+    if (rule.id === "create_todo" || rule.id === "create_document") {
+      args.title = extractScriptedTitle(message);
+      if (rule.id === "create_todo") {
+        const q = message.match(/\bq([1-4])\b/i);
+        args.quadrant = q?.[1] ? `q${q[1]}` : "q2";
+      }
+    } else if (rule.id === "list_cards") {
+      const pid = message.match(/项目\s*(\d+)|projectId\s*[:：]?\s*(\d+)/i);
+      const n = Number(pid?.[1] ?? pid?.[2]);
+      if (Number.isInteger(n) && n > 0) args.projectId = n;
+    } else if (rule.id === "search_knowledge") {
+      args.query = message.trim().slice(0, MAX_CHAT_MESSAGE);
+    }
+    toolCalls.push({ name: rule.id, arguments: args });
+  }
+  return { intent: hit.map((r) => r.id).join("+") || "empty", toolCalls };
+}
+
+/** AI 汇总文案唯一口径：次数 + 逐条回执摘要（provider 无关） */
+export function buildChatSummary(intent: string, results: readonly ToolResult[]): string {
+  const lines = results.map((r, i) => `${i + 1}. ${r.name}：${r.summary}`);
+  return `已完成「${intent}」：共 ${results.length} 次工具调用。${lines.length > 0 ? `\n${lines.join("\n")}` : ""}`;
 }

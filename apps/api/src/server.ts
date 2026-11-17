@@ -41,12 +41,18 @@ import {
   buildDocumentMdFileName,
   assertValidRevisionInstruction,
   planRevisionApply,
+  assertValidChatMessage,
   type RevisionRequest,
   type Schedule,
   type FieldType,
   type ViewFilterCondition,
 } from "@xieflow/shared";
-import { createMockProvider } from "@xieflow/agent";
+import {
+  createMockProvider,
+  createDefaultToolRegistry,
+  mockPlanner,
+  executeChat,
+} from "@xieflow/agent";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = join(__dirname, "..", "..", "..", "data");
@@ -1583,6 +1589,134 @@ app.post("/api/documents/:id/blocks/:blockId/revise", async (req, reply) => {
         ? store.updateBlock(blockId, { ...block.content, text: apply.text })
         : block,
     };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+// ---- r10：AI 工作台工具目录 + 会话 / 聊天 / 产物（M5 起步） ----
+// 规则（意图 / 参数归一 / 汇总口径）全在 shared；此处只做装配与 400/404 映射。
+// 换真实模型只需把 planner 换成实现 Planner 接口的实例，下列路由一行不改。
+const toolRegistry = createDefaultToolRegistry();
+const chatPlanner = mockPlanner;
+
+/** GET 工具目录：UI 可展示「AI 能用哪些工具」，回放评测集消费同一清单 */
+app.get("/api/tools", async () => ({
+  tools: toolRegistry.list(),
+  planner: chatPlanner.id,
+}));
+
+/** GET 会话列表（最新在前） */
+app.get("/api/conversations", async () => ({ conversations: requireDb().listConversations() }));
+
+/** POST 建会话：空标题 / 超长由 shared 守卫 → 400 */
+app.post("/api/conversations", async (req, reply) => {
+  try {
+    const body = (req.body ?? {}) as { title?: unknown };
+    return reply.code(201).send(requireDb().createConversation(body.title));
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+function requireConversation(id: number, reply: FastifyReply): boolean {
+  if (requireDb().getConversation(id) === null) {
+    reply.code(404).send({ error: `会话不存在：${id}` });
+    return false;
+  }
+  return true;
+}
+
+app.get("/api/conversations/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    if (!requireConversation(id, reply)) return reply;
+    return requireDb().getConversation(id);
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.delete("/api/conversations/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    if (!requireConversation(id, reply)) return reply;
+    requireDb().deleteConversation(id);
+    return { deleted: true, id };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+/** GET 对话流：按 id 升序，tool 角色消息带 tool_calls_json 数组 */
+app.get("/api/conversations/:id/messages", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    if (!requireConversation(id, reply)) return reply;
+    return { conversationId: id, messages: requireDb().listMessages(id) };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+/** GET 会话产物列表（右侧预览面板数据源） */
+app.get("/api/conversations/:id/artifacts", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    if (!requireConversation(id, reply)) return reply;
+    return { conversationId: id, artifacts: requireDb().listArtifacts(id) };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+/** GET 单篇产物（深链预览） */
+app.get("/api/artifacts/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const artifact = requireDb().getArtifact(id);
+    if (!artifact) return reply.code(404).send({ error: `产物不存在：${id}` });
+    return artifact;
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+interface ChatBody {
+  message?: unknown;
+  /** 显式工具调用覆盖 mock 规划（供 4xx：未知工具 / 非法参数；正常用户对话不传） */
+  toolCalls?: unknown;
+}
+
+/**
+ * POST 对话：mock 规划 → 真实工具执行 → 逐条 tool_call 落库 → AI 汇总 → 产物。
+ * 400：空消息 / 超长消息 / 未知工具 / 非法参数；404：会话不存在。
+ * 事务在 db.recordChatExchange 内，执行失败时连 tool 消息都不会落库。
+ */
+app.post("/api/conversations/:id/chat", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    if (!requireConversation(id, reply)) return reply;
+    const body = (req.body ?? {}) as ChatBody;
+    assertValidChatMessage(body.message);
+    const options = body.toolCalls === undefined ? {} : { toolCalls: body.toolCalls };
+    const plan = await executeChat(requireDb(), toolRegistry, chatPlanner, body.message, options);
+    const saved = requireDb().recordChatExchange({
+      conversationId: id,
+      userText: body.message,
+      toolCalls: plan.toolCalls,
+      summary: plan.summary,
+      artifact: plan.artifact,
+    });
+    return reply.code(201).send({
+      conversationId: id,
+      intent: plan.intent,
+      summary: plan.summary,
+      planner: chatPlanner.id,
+      toolCalls: plan.toolCalls,
+      messages: saved.messages,
+      artifact: saved.artifact,
+    });
   } catch (err) {
     return toErrorReply(err, reply);
   }

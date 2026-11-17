@@ -19,6 +19,12 @@ import type {
   Document,
   DocumentBlock,
   BlockType,
+  Conversation,
+  Message,
+  MessageContent,
+  ToolCallRecord,
+  Artifact,
+  ArtifactType,
 } from "@xieflow/shared";
 import { isFieldType, isBlockType, normalizeBlockContent } from "@xieflow/shared";
 import { REPEATS_ORDER } from "./repeat-order.js";
@@ -239,5 +245,69 @@ export function mapRowToDocumentBlock(row: Row): DocumentBlock {
     parentId: row.parent_id === null ? null : Number(row.parent_id),
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
+  };
+}
+
+/** r10：conversations（会话元数据，快照字段 camelCase 唯一入口） */
+export function mapRowToConversation(row: Row): Conversation {
+  return {
+    id: Number(row.id),
+    title: String(row.title),
+    createdAt: String(row.created_at),
+  };
+}
+
+/** r10：messages.content_json 解析（坏 JSON 视为空文本，不让一行坏数据炸掉整个对话） */
+function parseMessageContent(raw: unknown): MessageContent {
+  if (typeof raw !== "string" || raw === "") return { text: "" };
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) {
+      const obj = parsed as Record<string, unknown>;
+      return { ...obj, text: typeof obj.text === "string" ? obj.text : String(obj.text ?? "") };
+    }
+  } catch {
+    /* 坏 JSON -> 空文本 */
+  }
+  return { text: "" };
+}
+
+/** r10：messages.tool_calls_json 解析为逐条工具回执数组 */
+function parseToolCalls(raw: unknown): ToolCallRecord[] {
+  if (typeof raw !== "string" || raw === "") return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return parsed.filter(
+        (x): x is ToolCallRecord =>
+          x !== null && typeof x === "object" && typeof (x as ToolCallRecord).name === "string",
+      );
+    }
+  } catch {
+    /* 坏 JSON -> 空数组 */
+  }
+  return [];
+}
+
+export function mapRowToMessage(row: Row): Message {
+  return {
+    id: Number(row.id),
+    conversationId: Number(row.conversation_id),
+    role: String(row.role) as Message["role"],
+    content: parseMessageContent(row.content_json),
+    toolCalls: parseToolCalls(row.tool_calls_json),
+    createdAt: String(row.created_at),
+  };
+}
+
+/** r10：artifacts（产物正文按原文存，UI 直接读 content 展示） */
+export function mapRowToArtifact(row: Row): Artifact {
+  return {
+    id: Number(row.id),
+    conversationId: Number(row.conversation_id),
+    type: String(row.type) as ArtifactType,
+    title: String(row.title),
+    content: String(row.content),
+    createdAt: String(row.created_at),
   };
 }

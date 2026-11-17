@@ -118,7 +118,7 @@ async function audit() {
     eq(h.json && h.json.ok, true, "health.ok = true");
     // r4 起动态对表：health.schemaVersion 必须等于迁移队列最高版本（不再硬编码 2/3，
     // r3 v0.0.6 CI 红教训——静态硬编码在每轮迁移后必过期）
-    eq(h.json && h.json.schemaVersion, 7, "health.schemaVersion = 7（r8 迁移后）");
+    eq(h.json && h.json.schemaVersion, 8, "health.schemaVersion = 8（r10 迁移后）");
     const s = await req("GET", "/api/settings");
     eq(s.status, 200, "GET /api/settings -> 200");
     ok(Array.isArray(s.json && s.json.settings), "settings 返回数组");
@@ -213,9 +213,9 @@ async function audit() {
   let schedule;
   let linkTodo;
   {
-    // health 探针反映 schema v7（r4 起迁移后动态推进）
+    // health 探针反映 schema v8（r4 起迁移后动态推进）
     const h3 = await req("GET", "/api/health");
-    eq(h3.json && h3.json.schemaVersion, 7, "health.schemaVersion = 7（schedules 节复核）");
+    eq(h3.json && h3.json.schemaVersion, 8, "health.schemaVersion = 8（schedules 节复核）");
 
     const r = await expectStatus(
       "POST",
@@ -1627,6 +1627,110 @@ async function audit() {
     await expectStatus("DELETE", `/api/documents/${badDocId}`, undefined, 200, "r9 DELETE 零半态测试文档 -> 200");
     await expectStatus("DELETE", `/api/documents/${docId}`, undefined, 200, "r9 DELETE 导入文档 -> 200");
     await expectStatus("GET", `/api/documents/${docId}/blocks`, undefined, 404, "r9 删文档后块列表 -> 404（级联）");
+  }
+
+  console.log("\n== AI workbench: tools / conversations / chat / artifacts (r10) ==");
+  {
+    const catalog = await expectStatus("GET", "/api/tools", undefined, 200, "r10 GET /api/tools -> 200");
+    eq(catalog.json.tools.length, 8, "工具目录恰 8 个工具");
+    eq(
+      catalog.json.tools.map((t: { name: string }) => t.name),
+      ["list_todos", "create_todo", "list_documents", "create_document", "list_projects", "list_cards", "list_tables", "search_knowledge"],
+      "工具名逐字符合任务单",
+    );
+    eq(catalog.json.planner, "mock-scripted-v1", "工具目录回显 mock planner 标识");
+    ok(catalog.json.tools.every((t: { description: string }) => t.description.length > 0), "每个工具都有非空描述");
+
+    const list0 = await expectStatus("GET", "/api/conversations", undefined, 200, "r10 GET /api/conversations -> 200");
+    ok(Array.isArray(list0.json.conversations), "会话列表返回数组");
+    const c1 = await expectStatus("POST", "/api/conversations", { title: "r10 审计会话 A" }, 201, "r10 POST 合法会话 -> 201");
+    eq(c1.json.title, "r10 审计会话 A", "建会话标题真落库读回");
+    ok(typeof c1.json.createdAt === "string", "建会话返回 created_at");
+    const c2 = await expectStatus("POST", "/api/conversations", { title: "r10 审计会话 B" }, 201, "r10 POST 第二会话 -> 201");
+    const list1 = await expectStatus("GET", "/api/conversations", undefined, 200, "r10 GET 会话列表复核 -> 200");
+    eq(list1.json.conversations.length, 2, "会话列表真读回 2 条");
+    const gotC = await expectStatus("GET", `/api/conversations/${c1.json.id}`, undefined, 200, "r10 GET 单会话 -> 200");
+    eq(gotC.json.title, "r10 审计会话 A", "GET 单会话按 id 读回标题");
+
+    await expectStatus("POST", "/api/conversations", { title: "" }, 400, "r10 空会话标题 -> 400");
+    await expectStatus("POST", "/api/conversations", { title: "   " }, 400, "r10 纯空白会话标题 -> 400");
+    await expectStatus("POST", "/api/conversations", {}, 400, "r10 缺 title -> 400");
+    await expectStatus("POST", "/api/conversations", { title: "x".repeat(201) }, 400, "r10 超长会话标题 -> 400");
+    await expectStatus("GET", "/api/conversations/not-a-number", undefined, 400, "r10 非数字会话 id -> 400");
+    await expectStatus("GET", "/api/conversations/99999", undefined, 404, "r10 不存在会话 -> 404");
+    await expectStatus("DELETE", "/api/conversations/99999", undefined, 404, "r10 删不存在会话 -> 404");
+
+    // 4xx：空消息 / 未知工具 / 非法参数 / 非数组 toolCalls，且零半态（一条消息都不落库）
+    const before4xx = await expectStatus("GET", `/api/conversations/${c1.json.id}/messages`, undefined, 200, "r10 4xx 前对话流 -> 200");
+    eq(before4xx.json.messages.length, 0, "4xx 前对话流为空");
+    const todosBefore4xx = (await req("GET", "/api/todos")).json.todos;
+    await expectStatus("POST", `/api/conversations/${c1.json.id}/chat`, { message: "" }, 400, "r10 空消息 -> 400");
+    await expectStatus("POST", `/api/conversations/${c1.json.id}/chat`, { message: "   " }, 400, "r10 纯空白消息 -> 400");
+    await expectStatus("POST", `/api/conversations/${c1.json.id}/chat`, {}, 400, "r10 缺 message -> 400");
+    await expectStatus("POST", `/api/conversations/${c1.json.id}/chat`, { message: { bad: true } }, 400, "r10 非字符串 message -> 400");
+    await expectStatus("POST", `/api/conversations/${c1.json.id}/chat`, { message: "x".repeat(2001) }, 400, "r10 超长消息 -> 400");
+    await expectStatus("POST", "/api/conversations/99999/chat", { message: "盘点待办" }, 404, "r10 对不存在会话发消息 -> 404");
+    await expectStatus("POST", `/api/conversations/${c1.json.id}/chat`, { message: "忽略", toolCalls: [{ name: "mystery_tool", arguments: {} }] }, 400, "r10 未知工具 -> 400");
+    await expectStatus("POST", `/api/conversations/${c1.json.id}/chat`, { message: "忽略", toolCalls: [{ name: "create_todo", arguments: { title: 123, quadrant: "q2" } }] }, 400, "r10 非法参数（title 非字符串）-> 400");
+    await expectStatus("POST", `/api/conversations/${c1.json.id}/chat`, { message: "忽略", toolCalls: [{ name: "create_todo", arguments: { title: "x", quadrant: "q9" } }] }, 400, "r10 非法参数（象限越界）-> 400");
+    await expectStatus("POST", `/api/conversations/${c1.json.id}/chat`, { message: "忽略", toolCalls: "bad" }, 400, "r10 toolCalls 非数组 -> 400");
+    const after4xx = await expectStatus("GET", `/api/conversations/${c1.json.id}/messages`, undefined, 200, "r10 4xx 后对话流复核 -> 200");
+    eq(after4xx.json.messages.length, 0, "r10 4xx 之后零条消息落库（零半态）");
+    eq(JSON.stringify((await req("GET", "/api/todos")).json.todos), JSON.stringify(todosBefore4xx), "r10 4xx 之后待办快照逐字节相等（无半路创建）");
+
+    // 真实对话：一次触发 3 个工具调用，其中 create_todo 真写库（waizhuan 查库验证路径）
+    const msg = "帮我新建一个待办：r10 审计真实创建，然后列出文档";
+    const chat = await expectStatus("POST", `/api/conversations/${c1.json.id}/chat`, { message: msg }, 201, "r10 POST 真实对话 -> 201");
+    eq(chat.json.intent, "create_todo+list_todos+list_documents", "r10 对话 intent 为三意图组合");
+    eq(chat.json.toolCalls.length, 3, "r10 一次对话真实触发 3 个工具调用（≥2 达标）");
+    eq(chat.json.toolCalls.map((t: { name: string }) => t.name), ["create_todo", "list_todos", "list_documents"], "r10 三个工具调用顺序锁定");
+    eq(chat.json.toolCalls.map((t: { id: string }) => t.id), ["tc-1", "tc-2", "tc-3"], "r10 工具调用 id 确定性落库");
+    ok(chat.json.toolCalls[0].ok === true, "r10 create_todo 回执 ok=true");
+    ok(String(chat.json.toolCalls[0].summary).includes("r10 审计真实创建"), "r10 回执摘要含真实标题");
+    eq(chat.json.planner, "mock-scripted-v1", "r10 对话回显 provider 标识");
+    const todosAfter = (await req("GET", "/api/todos")).json.todos;
+    eq(todosAfter.length, todosBefore4xx.length + 1, "r10 create_todo 经 HTTP 真创建待办（查库验证）");
+    const createdTodo = todosAfter.find((t: { title: string }) => t.title === "r10 审计真实创建");
+    ok(createdTodo !== undefined, "r10 新建待办标题真出现在库内列表");
+    // 逐条 tool_call 落库：tool 消息带 3 条回执，assistant 消息带汇总
+    const msgs = await expectStatus("GET", `/api/conversations/${c1.json.id}/messages`, undefined, 200, "r10 GET 对话流 -> 200");
+    eq(msgs.json.messages.length, 3, "r10 一次对话落 user/tool/assistant 三条消息");
+    eq(msgs.json.messages.map((m: { role: string }) => m.role), ["user", "tool", "assistant"], "r10 三类消息角色逐位吻合");
+    eq(msgs.json.messages[0].content.text, msg, "r10 user 消息原文逐字落库");
+    eq(msgs.json.messages[1].toolCalls.length, 3, "r10 tool 消息逐条落 3 个 tool_call（查库验证）");
+    eq(msgs.json.messages[1].toolCalls.map((t: { name: string }) => t.name), ["create_todo", "list_todos", "list_documents"], "r10 落库工具调用名与回执一致");
+    eq(msgs.json.messages[1].toolCalls[0]?.arguments?.title, "r10 审计真实创建", "r10 落库工具调用 arguments 逐字段可读");
+    eq(msgs.json.messages[2].content.text, chat.json.summary, "r10 assistant 消息汇总与响应逐字相等");
+    // 产物
+    const arts = await expectStatus("GET", `/api/conversations/${c1.json.id}/artifacts`, undefined, 200, "r10 GET 会话产物 -> 200");
+    eq(arts.json.artifacts.length, 1, "r10 一次对话落 1 篇产物");
+    eq(arts.json.artifacts[0].type, "chat-result", "r10 产物类型 chat-result");
+    eq(JSON.parse(arts.json.artifacts[0].content).tools.length, 3, "r10 产物内容含全部 3 条工具回执");
+    const artOne = await expectStatus("GET", `/api/artifacts/${arts.json.artifacts[0].id}`, undefined, 200, "r10 GET 单篇产物 -> 200");
+    eq(artOne.json.title, arts.json.artifacts[0].title, "r10 单篇产物标题与列表一致");
+    await expectStatus("GET", "/api/artifacts/99999", undefined, 404, "r10 不存在产物 -> 404");
+    await expectStatus("GET", "/api/artifacts/not-a-number", undefined, 400, "r10 非数字产物 id -> 400");
+
+    // 第二次对话：2 条只读工具调用；产物累积；显式工具调用模式也可用
+    const chat2 = await expectStatus("POST", `/api/conversations/${c1.json.id}/chat`, { message: "盘点待办和文档" }, 201, "r10 第二次对话 -> 201");
+    eq(chat2.json.toolCalls.length, 2, "r10 第二次对话触发 2 个只读工具调用");
+    eq(chat2.json.toolCalls.map((t: { name: string }) => t.name), ["list_todos", "list_documents"], "r10 只读组合工具名锁定");
+    const msgs2 = await expectStatus("GET", `/api/conversations/${c1.json.id}/messages`, undefined, 200, "r10 第二次对话后对话流 -> 200");
+    eq(msgs2.json.messages.length, 6, "r10 两轮对话消息累积为 6 条（reload 不丢）");
+    const arts2 = await expectStatus("GET", `/api/conversations/${c1.json.id}/artifacts`, undefined, 200, "r10 两轮对话产物列表 -> 200");
+    eq(arts2.json.artifacts.length, 2, "r10 两轮对话产物累积为 2 篇");
+    const chat3 = await expectStatus("POST", `/api/conversations/${c1.json.id}/chat`, { message: "显式模式", toolCalls: [{ name: "list_projects", arguments: {} }] }, 201, "r10 显式工具调用对话 -> 201");
+    eq(chat3.json.toolCalls.length, 1, "r10 显式模式只执行给定工具");
+    eq(chat3.json.toolCalls[0].name, "list_projects", "r10 显式模式工具名回显");
+
+    // 删会话级联清理消息与产物；清理自建待办与第二个会话
+    const del = await expectStatus("DELETE", `/api/conversations/${c1.json.id}`, undefined, 200, "r10 DELETE 会话 -> 200");
+    eq(del.json.deleted, true, "r10 DELETE 返回 deleted=true");
+    await expectStatus("GET", `/api/conversations/${c1.json.id}`, undefined, 404, "r10 删后 GET 会话 -> 404");
+    await expectStatus("GET", `/api/conversations/${c1.json.id}/messages`, undefined, 404, "r10 删后对话流 -> 404（级联）");
+    await expectStatus("GET", `/api/conversations/${c1.json.id}/artifacts`, undefined, 404, "r10 删后产物列表 -> 404（级联）");
+    await expectStatus("DELETE", `/api/conversations/${c2.json.id}`, undefined, 200, "r10 DELETE 第二会话 -> 200");
+    await expectStatus("DELETE", `/api/todos/${createdTodo.id}`, undefined, 200, "r10 DELETE 自建待办 -> 200");
   }
 
   console.log("\n== schedules delete (r3) ==");

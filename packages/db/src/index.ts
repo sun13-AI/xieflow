@@ -22,6 +22,9 @@ import {
   mapRowToTableView,
   mapRowToDocument,
   mapRowToDocumentBlock,
+  mapRowToConversation,
+  mapRowToMessage,
+  mapRowToArtifact,
 } from "./mappers.js";
 import type {
   AppSetting,
@@ -41,6 +44,13 @@ import type {
   DocumentBlock,
   BlockType,
   MarkdownBlockDraft,
+  Conversation,
+  Message,
+  MessageContent,
+  MessageRole,
+  ToolCallRecord,
+  Artifact,
+  ArtifactType,
 } from "@xieflow/shared";
 import {
   canTransitionTodo,
@@ -76,6 +86,10 @@ import {
   assembleDocumentText,
   DEFAULT_DOCUMENT_FIRST_BLOCK,
   MARKDOWN_IMPORT_MAX_BLOCKS,
+  assertValidConversationTitle,
+  assertValidChatMessage,
+  assertValidMessageRole,
+  assertValidArtifactType,
   ValidationError,
 } from "@xieflow/shared";
 import { REPEATS_ORDER } from "./repeat-order.js";
@@ -1444,5 +1458,125 @@ export class XieFlowDb {
       text: assembleDocumentText(blocks),
       blocks,
     };
+  }
+
+  // ---- r10：AI 工作台对话数据层（conversations / messages / artifacts） ----
+
+  /** 建会话：标题守卫集中 shared；created_at 服务端生成，不做客户端信任。 */
+  createConversation(title: unknown): Conversation {
+    assertValidConversationTitle(title);
+    const now = new Date().toISOString();
+    const res = this.db.run("INSERT INTO conversations (title, created_at) VALUES (?, ?)", [title, now]);
+    const row = this.db.get("SELECT * FROM conversations WHERE id = ?", [res.lastInsertRowid]);
+    if (!row) throw new Error("会话写入后读回失败");
+    return mapRowToConversation(row);
+  }
+
+  getConversation(id: number): Conversation | null {
+    const row = this.db.get("SELECT * FROM conversations WHERE id = ?", [id]);
+    return row ? mapRowToConversation(row) : null;
+  }
+
+  listConversations(): Conversation[] {
+    return this.db
+      .all("SELECT * FROM conversations ORDER BY id DESC")
+      .map(mapRowToConversation);
+  }
+
+  /** 删会话：消息与产物由 schema ON DELETE CASCADE 级联清理（无孤儿数据）。 */
+  deleteConversation(id: number): boolean {
+    const res = this.db.run("DELETE FROM conversations WHERE id = ?", [id]);
+    return res.changes > 0;
+  }
+
+  /**
+   * 追加消息：tool_calls_json 存整条工具调用回执数组，
+   * 逐条落库、逐条可按 role='tool' 查回（waizhuan 查库验证的落点）。
+   */
+  addMessage(
+    conversationId: number,
+    role: unknown,
+    content: MessageContent,
+    toolCalls: readonly ToolCallRecord[] = [],
+  ): Message {
+    if (this.getConversation(conversationId) === null) {
+      throw new Error(`会话不存在：${conversationId}`);
+    }
+    assertValidMessageRole(role);
+    assertValidChatMessage(content.text);
+    const now = new Date().toISOString();
+    const res = this.db.run(
+      "INSERT INTO messages (conversation_id, role, content_json, tool_calls_json, created_at) VALUES (?, ?, ?, ?, ?)",
+      [conversationId, role, JSON.stringify(content), JSON.stringify(toolCalls), now],
+    );
+    const row = this.db.get("SELECT * FROM messages WHERE id = ?", [res.lastInsertRowid]);
+    if (!row) throw new Error("消息写入后读回失败");
+    return mapRowToMessage(row);
+  }
+
+  listMessages(conversationId: number): Message[] {
+    return this.db
+      .all("SELECT * FROM messages WHERE conversation_id = ? ORDER BY id", [conversationId])
+      .map(mapRowToMessage);
+  }
+
+  /** 产物落库：type 由 shared 守卫，content 按原文存（JSON 字符串不被二次转义）。 */
+  createArtifact(conversationId: number, type: unknown, title: unknown, content: unknown): Artifact {
+    if (this.getConversation(conversationId) === null) {
+      throw new Error(`会话不存在：${conversationId}`);
+    }
+    assertValidArtifactType(type);
+    assertValidConversationTitle(title);
+    if (typeof content !== "string") throw new ValidationError("产物正文必须是字符串");
+    const now = new Date().toISOString();
+    const res = this.db.run(
+      "INSERT INTO artifacts (conversation_id, type, title, content, created_at) VALUES (?, ?, ?, ?, ?)",
+      [conversationId, type, title, content, now],
+    );
+    const row = this.db.get("SELECT * FROM artifacts WHERE id = ?", [res.lastInsertRowid]);
+    if (!row) throw new Error("产物写入后读回失败");
+    return mapRowToArtifact(row);
+  }
+
+  getArtifact(id: number): Artifact | null {
+    const row = this.db.get("SELECT * FROM artifacts WHERE id = ?", [id]);
+    return row ? mapRowToArtifact(row) : null;
+  }
+
+  listArtifacts(conversationId: number): Artifact[] {
+    return this.db
+      .all("SELECT * FROM artifacts WHERE conversation_id = ? ORDER BY id", [conversationId])
+      .map(mapRowToArtifact);
+  }
+
+  /**
+   * 一次对话整批落库：user → tool（逐条回执）→ assistant → artifact，一个 SQLite 事务。
+   * 中途任一异常 ROLLBACK，绝不留下「工具有回执但消息没落库」的半态。
+   */
+  recordChatExchange(input: {
+    readonly conversationId: number;
+    readonly userText: string;
+    readonly toolCalls: readonly ToolCallRecord[];
+    readonly summary: string;
+    readonly artifact: { readonly type: ArtifactType; readonly title: string; readonly content: string };
+  }): { messages: Message[]; artifact: Artifact } {
+    if (this.getConversation(input.conversationId) === null) {
+      throw new Error(`会话不存在：${input.conversationId}`);
+    }
+    return this.withTransaction(() => {
+      const user = this.addMessage(input.conversationId, "user", { text: input.userText }, []);
+      const tool = this.addMessage(input.conversationId, "tool", { text: "工具调用回执" }, input.toolCalls);
+      const assistant = this.addMessage(input.conversationId, "assistant", { text: input.summary }, []);
+      const artifact = this.createArtifact(
+        input.conversationId,
+        input.artifact.type,
+        input.artifact.title,
+        input.artifact.content,
+      );
+      return {
+        messages: [user, tool, assistant],
+        artifact,
+      };
+    });
   }
 }

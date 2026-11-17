@@ -79,6 +79,9 @@ importers:
 
   packages/agent:
     dependencies:
+      '@xieflow/db':
+        specifier: workspace:*
+        version: link:../db
       '@xieflow/shared':
         specifier: workspace:*
         version: link:../shared

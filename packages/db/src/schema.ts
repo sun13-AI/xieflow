@@ -163,6 +163,35 @@ export const MIGRATIONS: Migration[] = [
       `CREATE INDEX IF NOT EXISTS idx_blocks_parent ON blocks (parent_id)`,
     ],
   },
+  {
+    version: 8,
+    name: "r9 · conversations / messages / artifacts 表（M5 AI 工作台对话与工具调用框架）",
+    up: [
+      `CREATE TABLE IF NOT EXISTS conversations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL CHECK (length(title) > 0),
+        created_at TEXT NOT NULL
+      )`,
+      `CREATE TABLE IF NOT EXISTS messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        conversation_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+        role TEXT NOT NULL CHECK (role IN ('user','assistant','tool')),
+        content_json TEXT NOT NULL DEFAULT '{}',
+        tool_calls_json TEXT NOT NULL DEFAULT '[]',
+        created_at TEXT NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages (conversation_id)`,
+      `CREATE TABLE IF NOT EXISTS artifacts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        conversation_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+        type TEXT NOT NULL,
+        title TEXT NOT NULL,
+        content TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_artifacts_conversation ON artifacts (conversation_id)`,
+    ],
+  },
 ];
 
 /** 当前 schema 版本（与 shared 的 SCHEMA_VERSION 保持一致，e2e 会断言二者相等） */

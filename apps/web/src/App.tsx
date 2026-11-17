@@ -3,6 +3,7 @@
 // r4 起：+ 项目页 / 看板页（M2 第 1 片）。
 // r8 起：+ 文档页（M4 第 1 片：块级文档编辑器），壳基线随之扩为七 tab。
 // r9：文档页加 Markdown 导入导出与 AI 块级修订；壳徽章随轮次更新。
+// r10：+ AI 工作台页（M5 第 1 片：对话 / 工具调用 / 产物预览），壳基线扩为八 tab。
 // 截图状态真实存在：加载中 / 空数据 / 正常 / 错误 / 窄屏（?narrow=1 显式钉态）
 import { useEffect, useState } from "react";
 import type { AppSetting, Schedule, Todo } from "@xieflow/shared";
@@ -12,13 +13,14 @@ import ProjectsPage from "./ProjectsPage";
 import BoardPage from "./BoardPage";
 import BasesPage from "./BasesPage";
 import DocsPage from "./DocsPage";
+import ChatPage from "./ChatPage";
 
 type LoadState =
   | { phase: "loading" }
   | { phase: "error"; message: string }
   | { phase: "ready"; settings: AppSetting[]; schemaVersion: number; todaySchedules: Schedule[]; todos: Todo[] };
 
-type PageTab = "home" | "todos" | "schedules" | "projects" | "board" | "bases" | "docs";
+type PageTab = "home" | "todos" | "schedules" | "projects" | "board" | "bases" | "docs" | "chat";
 
 /** 健康检查 + 今日日程（工作台卡片数据源；日程查询失败不阻塞工作台） */
 async function fetchHealth(): Promise<{
@@ -85,7 +87,9 @@ export default function App() {
               ? "bases"
               : page === "docs"
                 ? "docs"
-                : "home";
+                : page === "chat"
+                  ? "chat"
+                  : "home";
   });
   const [state, setState] = useState<LoadState>(() => {
     // 截图脚本用 ?shot= 钉住特定状态（真实状态都存在，参数只为确定性捕获）
@@ -100,7 +104,7 @@ export default function App() {
       return {
         phase: "ready",
         settings: [{ key: "company.name", value: "协流示例公司", updatedAt: now.toISOString() }],
-        schemaVersion: 7,
+        schemaVersion: 8,
         todaySchedules: workbenchTodaySeed(now),
         todos: [],
       };
@@ -132,7 +136,7 @@ export default function App() {
   const todoById = new Map(state.phase === "ready" ? state.todos.map((t) => [t.id, t]) : []);
 
   return (
-    <main className={tab === "bases" || tab === "docs" ? "shell shell-wide" : "shell"}>
+    <main className={tab === "bases" || tab === "docs" || tab === "chat" ? "shell shell-wide" : "shell"}>
       <header className="topbar">
         <span className="logo">协流 XieFlow</span>
         <nav className="tabs" data-state="tabs">
@@ -192,8 +196,16 @@ export default function App() {
           >
             文档
           </button>
+          <button
+            type="button"
+            className={`tab ${tab === "chat" ? "tab-active" : ""}`}
+            data-tab="chat"
+            onClick={() => setTab("chat")}
+          >
+            AI 工作台
+          </button>
         </nav>
-        <span className="badge">r9 · Markdown 导入导出与 AI 修订（M4 收官）</span>
+        <span className="badge">r10 · AI 工作台对话与工具调用（M5 起步）</span>
       </header>
 
       {tab === "todos" ? (
@@ -208,6 +220,8 @@ export default function App() {
         <BasesPage />
       ) : tab === "docs" ? (
         <DocsPage />
+      ) : tab === "chat" ? (
+        <ChatPage />
       ) : (
         <>
           {state.phase === "loading" && (
@@ -270,7 +284,7 @@ export default function App() {
                   <dt>schema 版本</dt>
                   <dd>v{state.schemaVersion}</dd>
                   <dt>里程碑</dt>
-                  <dd>M4 文档（进行中）</dd>
+                  <dd>M5 AI 工作台（进行中）</dd>
                 </dl>
               </section>
             </>

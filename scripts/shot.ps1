@@ -7,6 +7,8 @@
 #   powershell -File scripts\shot.ps1 shots -Round r6 # capture r6 bases grid states
 #   powershell -File scripts\shot.ps1 shots -Round r7 # capture r7 views + CSV import states
 #   powershell -File scripts\shot.ps1 shots -Round r8 # capture r8 document block editor states
+#   powershell -File scripts\shot.ps1 shots -Round r9 # capture r9 document import/export/revise states
+#   powershell -File scripts\shot.ps1 shots -Round r10 # capture r10 AI workbench chat/tool/artifact states
 #   powershell -File scripts\shot.ps1 down            # stop servers
 #   powershell -File scripts\shot.ps1 status          # show port status
 #   powershell -File scripts\shot.ps1 all             # up + shots + down
@@ -19,11 +21,12 @@
 # r6: a sixth tab (bases) was added -> six active states.
 # r8: a SEVENTH tab (docs) was added -> the baseline now captures seven active states.
 # r9: Markdown import/export + AI revise states (real HTTP between captures).
+# r10: an EIGHTH tab (AI workbench) was added -> the baseline now captures eight active states.
 param(
   [Parameter(Position = 0)]
   [ValidateSet("up", "shots", "down", "status", "all")]
   [string]$Action = "status",
-  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9")]
+  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10")]
   [string]$Round = "r1"
 )
 
@@ -112,6 +115,7 @@ function Find-Browser {
 # every r4+ shots run so a shell change can never leave inherited pages without
 # evidence again (r2/r3/r4 three-round U1-1 lesson). Landing dir: docs\ui\shell\.
 # r8: the SEVENTH tab (docs) was added -> all seven active states are re-shot.
+# r10: the EIGHTH tab (chat / AI workbench) was added -> eight active states in one batch.
 function Invoke-ShellBaseline {
   param([string]$BrowserPath)
   $shellDir = Join-Path $Root "docs\ui\shell"
@@ -124,7 +128,8 @@ function Invoke-ShellBaseline {
     @{ page = "projects";  file = "projects-tab-active" },
     @{ page = "board";     file = "board-tab-active" },
     @{ page = "bases";     file = "bases-tab-active" },
-    @{ page = "docs";      file = "docs-tab-active" }
+    @{ page = "docs";      file = "docs-tab-active" },
+    @{ page = "chat";      file = "chat-tab-active" }
   )
   foreach ($t in $tabs) {
     $url = "http://127.0.0.1:$WebPort/"
@@ -485,6 +490,32 @@ function Invoke-Shots {
     }
   }
 
+  # r10: two REAL conversations. A carries three real chats (create_todo + list +
+  # list boards), B stays empty for the conversation-list state. One real todo is
+  # created by the first chat and removed in cleanup; all text uses \uXXXX escapes.
+  $r10ConvAId = $null
+  $r10ConvBId = $null
+  $r10CreatedTodoId = $null
+  if ($Round -eq "r10") {
+    try {
+      $r10ConvA = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/conversations" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes(
+        '{"title":"r10 \u5bf9\u8bdd\u6f14\u793a"}'))
+      $r10ConvB = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/conversations" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes(
+        '{"title":"r10 \u7a7a\u4f1a\u8bdd"}'))
+      $r10ConvAId = $r10ConvA.id
+      $r10ConvBId = $r10ConvB.id
+      $r10Chat1 = '{"message":"\u5e2e\u6211\u65b0\u5efa\u4e00\u4e2a\u5f85\u529e\uff1ar10 \u622a\u56fe\u6f14\u793a\uff0c\u7136\u540e\u5217\u51fa\u6587\u6863"}'
+      $r10First = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/conversations/$r10ConvAId/chat" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes($r10Chat1))
+      $r10CreatedTodoId = $r10First.toolCalls[0].data.todo.id
+      Write-Output "seeded r10 conversations A=$r10ConvAId B=$r10ConvBId first-chat-tools=$($r10First.toolCalls.Count) todo=$r10CreatedTodoId"
+    } catch {
+      Write-Output "warn: r10 seed failed ($($_.Exception.Message)) - live shots may show empty chats"
+    }
+  }
+
   # r9: three REAL documents. Doc A demonstrates import/export (import happens
   # between shots 01/02); doc B demonstrates discard (never written); doc C
   # demonstrates adoption (a REAL revise adopt=true happens between 04/05).
@@ -580,7 +611,24 @@ function Invoke-Shots {
     }
   }
 
-  if ($Round -eq "r9") {
+  if ($Round -eq "r10") {
+    # 01 = pinned empty state (before any conversation is selected/created in the UI);
+    # 02 = two REAL conversations, B selected (empty stream) -> list state;
+    # 03 = conversation A with a REAL 3-tool-call chat stream;
+    # 04 = tool-call bubbles expanded (shot=chat-tools), after a REAL second chat;
+    # 05 = artifact preview expanded (shot=chat-artifact), after a REAL third chat;
+    # 06 = narrow 488x900; 07 = pinned error state.
+    $r10Base = "http://127.0.0.1:$WebPort/?page=chat"
+    $shots = @(
+      @{ name = "01-chat-empty";        url = "$r10Base&shot=chat-empty"; width = 1280; height = 800 },
+      @{ name = "02-conversation-list"; url = "$r10Base&convId=$r10ConvBId"; width = 1280; height = 800 },
+      @{ name = "03-chat-stream";       url = "$r10Base&convId=$r10ConvAId"; width = 1280; height = 800 },
+      @{ name = "04-tool-call-bubbles"; url = "$r10Base&convId=$r10ConvAId&shot=chat-tools"; width = 1280; height = 800 },
+      @{ name = "05-artifact-preview";  url = "$r10Base&convId=$r10ConvAId&shot=chat-artifact"; width = 1280; height = 800 },
+      @{ name = "06-narrow";            url = "$r10Base&convId=$r10ConvAId&narrow=1"; width = 488; height = 900 },
+      @{ name = "07-error";             url = "$r10Base&shot=chat-error"; width = 1280; height = 800 }
+    )
+  } elseif ($Round -eq "r9") {
     # 01 = import preview dialog (REAL preview endpoint, document unchanged);
     # 02 = after a REAL import.md commit between 01/02 (blocks replaced);
     # 03 = export snapshot + a real .md file downloaded by Invoke-WebRequest;
@@ -818,6 +866,34 @@ function Invoke-Shots {
       }
     }
 
+    # r10 (r3 B lesson): real HTTP between captures so 03/04/05 are different states.
+    # 03 -> 04: a REAL second chat with three read-only tool calls (boards/tables).
+    if ($Round -eq "r10" -and $s.name -eq "03-chat-stream") {
+      if ($r10ConvAId) {
+        try {
+          $r10Chat2 = '{"message":"\u5217\u51fa\u9879\u76ee\u3001\u770b\u677f\u548c\u8868\u683c"}'
+          $r10Second = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/conversations/$r10ConvAId/chat" -Method Post `
+            -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes($r10Chat2))
+          Write-Output "r10 real second chat: tools=$($r10Second.toolCalls.Count) intent=$($r10Second.intent)"
+        } catch {
+          Write-Output "warn: r10 second chat between 03/04 failed ($($_.Exception.Message))"
+        }
+      }
+    }
+    # 04 -> 05: a REAL third chat with two read-only tool calls (new artifact).
+    if ($Round -eq "r10" -and $s.name -eq "04-tool-call-bubbles") {
+      if ($r10ConvAId) {
+        try {
+          $r10Chat3 = '{"message":"\u76d8\u70b9\u5f85\u529e\u548c\u6587\u6863"}'
+          $r10Third = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/conversations/$r10ConvAId/chat" -Method Post `
+            -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes($r10Chat3))
+          Write-Output "r10 real third chat: tools=$($r10Third.toolCalls.Count) intent=$($r10Third.intent)"
+        } catch {
+          Write-Output "warn: r10 third chat between 04/05 failed ($($_.Exception.Message))"
+        }
+      }
+    }
+
     # r9 (r3 B lesson): real HTTP side effects between capture points.
     # 01 -> 02: Markdown import commit (zero half state); record block id for revise.
     if ($Round -eq "r9" -and $s.name -eq "01-import-preview") {
@@ -949,7 +1025,23 @@ function Invoke-Shots {
   # seed todo, so repeat runs stay deterministic.
   # r5: delete both seeded projects (by id - the script stays ASCII) and the two
   # seeded todos.
-  if ($Round -eq "r9") {
+  if ($Round -eq "r10") {
+    # r10: delete the two seeded conversations (messages + artifacts cascade) and the
+    # todo really created by the first chat so repeat runs stay deterministic.
+    try {
+      foreach ($cid10 in @($r10ConvAId, $r10ConvBId)) {
+        if ($cid10) {
+          Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/conversations/$cid10" -Method Delete | Out-Null
+        }
+      }
+      if ($r10CreatedTodoId) {
+        Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/todos/$r10CreatedTodoId" -Method Delete | Out-Null
+      }
+      Write-Output "cleaned seeded r10 conversations and created todo"
+    } catch {
+      Write-Output "warn: r10 cleanup failed ($($_.Exception.Message))"
+    }
+  } elseif ($Round -eq "r9") {
     # r9: delete the three seeded documents so repeat runs stay deterministic and
     # the shell baseline still shows the first-use empty docs state.
     try {
