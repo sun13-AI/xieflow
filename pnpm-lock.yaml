@@ -11,6 +11,9 @@ importers:
       '@types/node':
         specifier: ^24.0.0
         version: 24.19.2
+      '@xieflow/agent':
+        specifier: workspace:*
+        version: link:packages/agent
       '@xieflow/db':
         specifier: workspace:*
         version: link:packages/db
@@ -26,6 +29,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@xieflow/agent':
+        specifier: workspace:*
+        version: link:../../packages/agent
       '@xieflow/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -70,6 +76,16 @@ importers:
       vite:
         specifier: ^7.1.0
         version: 7.3.8(@types/node@24.19.2)(tsx@4.23.15)
+
+  packages/agent:
+    dependencies:
+      '@xieflow/shared':
+        specifier: workspace:*
+        version: link:../shared
+    devDependencies:
+      typescript:
+        specifier: ^5.9.0
+        version: 5.9.3
 
   packages/db:
     dependencies:

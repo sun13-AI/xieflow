@@ -34,10 +34,19 @@ import {
   planCsvImport,
   shouldCommitImport,
   assertValidDocumentTitle,
+  normalizeMarkdownImportPayload,
+  planMarkdownImport,
+  shouldCommitMarkdownImport,
+  blocksToMarkdown,
+  buildDocumentMdFileName,
+  assertValidRevisionInstruction,
+  planRevisionApply,
+  type RevisionRequest,
   type Schedule,
   type FieldType,
   type ViewFilterCondition,
 } from "@xieflow/shared";
+import { createMockProvider } from "@xieflow/agent";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = join(__dirname, "..", "..", "..", "data");
@@ -1461,6 +1470,119 @@ app.post("/api/blocks/:id/move", async (req, reply) => {
     const store = requireDb();
     if (store.getBlock(id) === null) return reply.code(404).send({ error: `块不存在：${id}` });
     return { blocks: store.moveBlock(id, body.position) };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+// ---- r9：Markdown 导入导出 + AI 块级修订（M4 收官） ----
+// 转换 / 导入零半态 / 修订采纳判定全部集中在 shared；provider 由这一处注入，
+// M5 接真实模型只需替换 revisionProvider 实现，下面路由一行不改。
+const revisionProvider = createMockProvider();
+
+interface ReviseBlockBody {
+  instruction?: unknown;
+  adopt?: unknown;
+}
+
+/** POST 导入预览：只解析与校验，绝不写库（与 r7 CSV preview 同款两阶段） */
+app.post("/api/documents/:id/import.md/preview", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    if (!requireDocument(id, reply)) return reply;
+    const plan = planMarkdownImport(normalizeMarkdownImportPayload(req.body));
+    return {
+      documentId: id,
+      total: plan.total,
+      preview: plan.preview,
+      errors: plan.errors,
+      committable: shouldCommitMarkdownImport(plan),
+    };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+/** POST 导入提交：整体校验 → 单事务整篇替换；任一块非法 → 422 且一块不写（零半态） */
+app.post("/api/documents/:id/import.md", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    if (!requireDocument(id, reply)) return reply;
+    const plan = planMarkdownImport(normalizeMarkdownImportPayload(req.body));
+    if (!shouldCommitMarkdownImport(plan)) {
+      return reply.code(422).send({
+        error: `Markdown 有 ${plan.errors.length} 块不合法，未导入任何块（零半态）`,
+        imported: 0,
+        total: plan.total,
+        errors: plan.errors,
+      });
+    }
+    const blocks = requireDb().importBlocks(id, plan.rows);
+    return { imported: blocks.length, total: plan.total, blocks };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+/** GET 导出 .md：唯一装配入口 = shared blocksToMarkdown；中文名走 RFC 5987 下发 */
+app.get("/api/documents/:id/export.md", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const store = requireDb();
+    const doc = store.getDocument(id);
+    if (!doc) return reply.code(404).send({ error: `文档不存在：${id}` });
+    const md = blocksToMarkdown(store.listBlocks(id));
+    const fileName = buildDocumentMdFileName(doc.title);
+    const asciiFallback = fileName.replace(/[^\x20-\x7e]/g, "_");
+    return reply
+      .header("content-type", "text/markdown; charset=utf-8")
+      .header(
+        "content-disposition",
+        `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encodeURIComponent(fileName)}`,
+      )
+      .send(md);
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+/**
+ * POST 块级 AI 修订：先出建议（adopt 缺失/false → 只读、绝不写库），
+ * 采纳才由 shared planRevisionApply 给出替换文本并走服务层更新块。
+ * 块归属文档不一致 → 400；块不存在 → 404；instruction 空 / 超长 → 400。
+ */
+app.post("/api/documents/:id/blocks/:blockId/revise", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const blockId = parseId((req.params as { blockId: string }).blockId);
+    const store = requireDb();
+    if (!requireDocument(id, reply)) return reply;
+    const block = store.getBlock(blockId);
+    if (!block) return reply.code(404).send({ error: `块不存在：${blockId}` });
+    if (block.documentId !== id) {
+      return reply.code(400).send({ error: `越权 block_id：${blockId} 不属于文档 ${id}` });
+    }
+    const body = (req.body ?? {}) as ReviseBlockBody;
+    assertValidRevisionInstruction(body.instruction);
+    const request: RevisionRequest = {
+      instruction: body.instruction,
+      blockType: block.type,
+      originalText: block.content.text,
+    };
+    const suggestion = await revisionProvider.propose(request);
+    const apply = planRevisionApply(block.content.text, suggestion.suggestedText, body.adopt);
+    return {
+      documentId: id,
+      blockId,
+      provider: suggestion.provider,
+      rationale: suggestion.rationale,
+      originalText: block.content.text,
+      suggestedText: suggestion.suggestedText,
+      applied: apply.applied,
+      block: apply.applied
+        ? store.updateBlock(blockId, { ...block.content, text: apply.text })
+        : block,
+    };
   } catch (err) {
     return toErrorReply(err, reply);
   }

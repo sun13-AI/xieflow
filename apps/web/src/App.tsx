@@ -2,6 +2,7 @@
 // r3 起：工作台（设置项 + schema 卡 + 今日日程卡）/ 待办页 / 日程页三个 tab。
 // r4 起：+ 项目页 / 看板页（M2 第 1 片）。
 // r8 起：+ 文档页（M4 第 1 片：块级文档编辑器），壳基线随之扩为七 tab。
+// r9：文档页加 Markdown 导入导出与 AI 块级修订；壳徽章随轮次更新。
 // 截图状态真实存在：加载中 / 空数据 / 正常 / 错误 / 窄屏（?narrow=1 显式钉态）
 import { useEffect, useState } from "react";
 import type { AppSetting, Schedule, Todo } from "@xieflow/shared";
@@ -192,7 +193,7 @@ export default function App() {
             文档
           </button>
         </nav>
-        <span className="badge">r8 · 文档块编辑器（M4 起步）</span>
+        <span className="badge">r9 · Markdown 导入导出与 AI 修订（M4 收官）</span>
       </header>
 
       {tab === "todos" ? (

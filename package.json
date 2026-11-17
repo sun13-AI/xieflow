@@ -23,6 +23,7 @@
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
+    "@xieflow/agent": "workspace:*",
     "@xieflow/db": "workspace:*",
     "@xieflow/shared": "workspace:*",
     "tsx": "^4.20.0",

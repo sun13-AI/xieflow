@@ -2016,3 +2016,310 @@ export function assembleDocumentText(blocks: readonly AssemblableBlock[]): strin
   }
   return lines.join("\n");
 }
+
+// ---- r9：Markdown 导入导出与 AI 块级修订（转换引擎 / 零半态 / 采纳语义全部集中 shared） ----
+// 规则集中（宪法第七条）：Markdown 方言、导入逐块校验、修订「采纳才改」判定只住在这里，
+// api / db / web 三层零块类型分支、零口径分叉。M5 接真实模型只需换 RevisionProvider 实现。
+
+/** 单次导入的 Markdown 文本长度上限（防超大文本打爆内存） */
+export const MAX_MARKDOWN_LENGTH = 200000;
+/** 导入预览展示的块数 */
+export const MARKDOWN_IMPORT_PREVIEW_ROWS = 5;
+/** 单次导入的最大块数 */
+export const MARKDOWN_IMPORT_MAX_BLOCKS = 1000;
+/** 修订指令长度上限 */
+export const MAX_REVISION_INSTRUCTION = 500;
+
+/** Markdown 解析产出的块草稿（已按类型归一，未落库、无 id / position） */
+export interface MarkdownBlockDraft {
+  type: BlockType;
+  content: BlockContent;
+}
+
+/** blocksToMarkdown 的宽松输入（真实 DocumentBlock / 草稿都可；position、id 可选） */
+export interface MarkdownSourceBlock {
+  type: unknown;
+  content: unknown;
+  position?: number;
+  id?: number;
+}
+
+/** 有序列表编号：连续 numbered 从 1 计数，遇其它类型归零（打印 / 编辑态 / 导出共用） */
+export function computeNumberedOrdinals(blocks: readonly { type: unknown }[]): number[] {
+  let ordinal = 0;
+  return blocks.map((b) => {
+    if (b.type === "numbered") {
+      ordinal += 1;
+      return ordinal;
+    }
+    ordinal = 0;
+    return 0;
+  });
+}
+
+/** paragraph 首行是否需要「引用转义」（会被误判成标记块 / 含空行 / 空文本） */
+function mdNeedsQuote(text: string): boolean {
+  if (text === "" || text.indexOf("\n\n") >= 0) return true;
+  const first = text.split("\n")[0] ?? "";
+  return /^(?:#{1,3} |- |-{3,}\s*$|\d+\.\s|-\s*\[|>|`{3,}|\\)/.test(first);
+}
+
+/** 引用转义：每行前加一个反斜杠，解析时逐行剥掉一个，保证任意文本逐字往返 */
+function quoteMdParagraph(text: string): string {
+  return text.split("\n").map((line) => `\\${line}`).join("\n");
+}
+
+/** 代码围栏长度：内容里出现 N 个前导反斜引号时围栏升到 N+1，避免内容里的 ``` 截断代码块 */
+function mdFenceFor(text: string): string {
+  let width = 3;
+  for (const line of text.split("\n")) {
+    const m = /^`+/.exec(line);
+    if (m) width = Math.max(width, m[0].length + 1);
+  }
+  return "`".repeat(width);
+}
+
+/**
+ * 块 → Markdown（r9 唯一导出装配入口）：
+ * ① 先按 (position, id) 排序（与 assembleDocumentText 同口径）；缺 position 时保持输入顺序；
+ * ② 每块渲染成一个「段」，段间空行分隔；连续 numbered 用 computeNumberedOrdinals 递增编号；
+ * ③ paragraph 文本若会被误判成标记块（# / - / 1. / > / --- / ``` / 反斜杠开头）或含空行，
+ *    用逐行前置反斜杠的引用转义，保证 markdownToBlocks 往返逐字不丢内容；
+ * ④ code 用 ```lang 围栏，围栏宽度随内容自适应。
+ */
+export function blocksToMarkdown(blocks: readonly MarkdownSourceBlock[]): string {
+  const indexed = blocks.map((b, idx) => ({ b, idx }));
+  indexed.sort((x, y) => {
+    const px = x.b.position ?? x.idx;
+    const py = y.b.position ?? y.idx;
+    if (px !== py) return px - py;
+    const ix = x.b.id ?? x.idx;
+    const iy = y.b.id ?? y.idx;
+    if (ix !== iy) return ix - iy;
+    return x.idx - y.idx;
+  });
+  const ordinals = computeNumberedOrdinals(indexed.map((e) => e.b));
+  const chunks: string[] = [];
+  for (let k = 0; k < indexed.length; k += 1) {
+    const b = indexed[k]!.b;
+    assertValidBlockType(b.type);
+    const content = normalizeBlockContent(b.type, b.content);
+    const text = content.text;
+    switch (b.type) {
+      case "heading1": chunks.push(`# ${text}`); break;
+      case "heading2": chunks.push(`## ${text}`); break;
+      case "heading3": chunks.push(`### ${text}`); break;
+      case "bullet": chunks.push(`- ${text}`); break;
+      case "numbered": chunks.push(`${ordinals[k]}. ${text}`); break;
+      case "todo": chunks.push(`- [${content.checked ? "x" : " "}] ${text}`); break;
+      case "quote": chunks.push(`> ${text}`); break;
+      case "divider": chunks.push("---"); break;
+      case "code": {
+        const fence = mdFenceFor(text);
+        chunks.push(`${fence}${content.language ?? ""}\n${text}\n${fence}`);
+        break;
+      }
+      case "paragraph":
+        chunks.push(mdNeedsQuote(text) ? quoteMdParagraph(text) : text);
+        break;
+    }
+  }
+  return chunks.join("\n\n");
+}
+
+/**
+ * Markdown → 块（r9 唯一解析入口，10 种块类型双向）：
+ * - 空行作段分隔；``` 围栏进入 code 状态机（内部空行也算内容）；
+ * - 段首行以反斜杠开头 → 引用转义的 paragraph，逐行剥掉一个反斜杠后按 \n 拼回；
+ * - 段首行命中 # / ## / ### / - [x] / - / 数字. / > / --- 则按类型渲染，
+ *   后续行以 \n 拼进该块文本（多行文本不丢）；
+ * - 其它语法（#### / **加粗** / 表格 / HTML / 圆括号序号 / + 列表…）一律降级为 paragraph，
+ *   **整段逐字保留**，不丢内容。
+ */
+export function markdownToBlocks(md: string): MarkdownBlockDraft[] {
+  if (typeof md !== "string") throw new ValidationError("Markdown 必须是字符串");
+  const src = md.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const lines = src.split("\n");
+  const out: MarkdownBlockDraft[] = [];
+  const push = (type: BlockType, text: string, extra?: { checked?: boolean; language?: string }): void => {
+    out.push({ type, content: normalizeBlockContent(type, { text, ...extra }) });
+  };
+  let i = 0;
+  while (i < lines.length) {
+    const head = lines[i]!;
+    if (head.trim() === "") { i += 1; continue; }
+    // —— 代码围栏状态机 ——
+    const open = /^(`{3,})(.*)$/.exec(head);
+    if (open) {
+      const fence = open[1]!;
+      const language = (open[2] ?? "").trim();
+      const body: string[] = [];
+      i += 1;
+      while (i < lines.length && lines[i]!.trim() !== fence) {
+        body.push(lines[i]!);
+        i += 1;
+      }
+      if (i < lines.length) i += 1; // 吃掉闭合围栏
+      push("code", body.join("\n"), { language });
+      continue;
+    }
+    // —— 收集一个段：连续非空行 ——
+    const chunk: string[] = [];
+    while (i < lines.length && lines[i]!.trim() !== "") {
+      chunk.push(lines[i]!);
+      i += 1;
+    }
+    const first = chunk[0]!;
+    const rest = chunk.slice(1);
+    if (first.startsWith("\\")) {
+      push("paragraph", chunk.map((l) => (l.startsWith("\\") ? l.slice(1) : l)).join("\n"));
+      continue;
+    }
+    const tail = (lead: string): string => [lead, ...rest].join("\n");
+    let m: RegExpExecArray | null;
+    if ((m = /^### (.*)$/.exec(first))) { push("heading3", tail(m[1]!)); continue; }
+    if ((m = /^## (.*)$/.exec(first))) { push("heading2", tail(m[1]!)); continue; }
+    if ((m = /^# (.*)$/.exec(first))) { push("heading1", tail(m[1]!)); continue; }
+    if ((m = /^-\s+\[([ xX])\]\s?(.*)$/.exec(first))) { push("todo", tail(m[2]!), { checked: m[1]!.toLowerCase() === "x" }); continue; }
+    if (/^-{3,}\s*$/.test(first) && rest.length === 0) { push("divider", ""); continue; }
+    if ((m = /^- (.*)$/.exec(first))) { push("bullet", tail(m[1]!)); continue; }
+    if ((m = /^\d+\.\s(.*)$/.exec(first))) { push("numbered", tail(m[1]!)); continue; }
+    if ((m = /^>\s?(.*)$/.exec(first))) { push("quote", tail(m[1]!)); continue; }
+    push("paragraph", chunk.join("\n")); // 未知语法降级：逐字保留
+  }
+  return out;
+}
+
+/** 导入错误行（行号 1 起，指第 N 个块；reason 为可直接展示的中文原因） */
+export interface MarkdownImportRowError {
+  row: number;
+  reason: string;
+}
+
+/** 导入计划（preview 与 commit 共用同一份口径，与 r7 planCsvImport 同款） */
+export interface MarkdownImportPlan {
+  total: number;
+  rows: MarkdownBlockDraft[];
+  errors: MarkdownImportRowError[];
+  preview: MarkdownBlockDraft[];
+}
+
+/** 导入请求体归一：Markdown 文本 / { markdown } / { blocks } 三种形态 → 源块数组 */
+export function normalizeMarkdownImportPayload(raw: unknown): MarkdownSourceBlock[] {
+  let drafts: MarkdownSourceBlock[];
+  if (typeof raw === "string") {
+    if (raw.length > MAX_MARKDOWN_LENGTH) throw new ValidationError(`Markdown 过长：最多 ${MAX_MARKDOWN_LENGTH} 字`);
+    drafts = markdownToBlocks(raw);
+  } else if (isPlainObject(raw)) {
+    if (raw["markdown"] !== undefined) {
+      const md = raw["markdown"];
+      if (typeof md !== "string") throw new ValidationError("markdown 必须是字符串");
+      if (md.trim() === "") throw new ValidationError("Markdown 内容不能为空");
+      if (md.length > MAX_MARKDOWN_LENGTH) {
+        throw new ValidationError(`Markdown 过长：最多 ${MAX_MARKDOWN_LENGTH} 字`);
+      }
+      drafts = markdownToBlocks(md);
+    } else if (raw["blocks"] !== undefined) {
+      const blocks = raw["blocks"];
+      if (!Array.isArray(blocks)) throw new ValidationError("blocks 必须是数组");
+      if (blocks.length === 0) throw new ValidationError("blocks 不能为空数组");
+      drafts = blocks.map((b) =>
+        isPlainObject(b) ? { type: b["type"], content: b["content"] } : { type: b, content: undefined },
+      );
+    } else {
+      throw new ValidationError("导入体必须是 { markdown } 或 { blocks }");
+    }
+  } else {
+    throw new ValidationError("导入体必须是 Markdown 文本 / { markdown } / { blocks }");
+  }
+  if (drafts.length === 0) throw new ValidationError("Markdown 没有任何可导入的块");
+  return drafts;
+}
+
+/**
+ * 导入计划（r9 唯一口径，与 r7 planCsvImport 同款）：
+ * 逐块走 shared normalizeBlockContent（含 assertValidBlockType 与文本 / 语言 / checked 校验），
+ * 非法块**不阻断**整批：收集到 errors（块号 + 中文原因），合法块进 rows；
+ * preview 取前 MARKDOWN_IMPORT_PREVIEW_ROWS 个合法块。
+ */
+export function planMarkdownImport(rows: readonly MarkdownSourceBlock[]): MarkdownImportPlan {
+  const valid: MarkdownBlockDraft[] = [];
+  const errors: MarkdownImportRowError[] = [];
+  rows.forEach((row, idx) => {
+    try {
+      assertValidBlockType(row.type);
+      valid.push({ type: row.type, content: normalizeBlockContent(row.type, row.content) });
+    } catch (err: unknown) {
+      errors.push({ row: idx + 1, reason: err instanceof Error ? err.message : String(err) });
+    }
+  });
+  return {
+    total: rows.length,
+    rows: valid,
+    errors,
+    preview: valid.slice(0, MARKDOWN_IMPORT_PREVIEW_ROWS),
+  };
+}
+
+/**
+ * 导入提交判定（零半态口径，集中在 shared）：
+ * **任一块非法 → 一块都不落库**（全成功或全不落，没有中间态）。
+ */
+export function shouldCommitMarkdownImport(plan: MarkdownImportPlan): boolean {
+  return plan.errors.length === 0 && plan.rows.length > 0;
+}
+
+// ---- r9：AI 块级修订（provider 无关契约 + 「采纳才改库」判定，全部集中 shared） ----
+
+/** 修订请求：给 provider 的入参（instruction + 块内容，不依赖任何具体模型 SDK） */
+export interface RevisionRequest {
+  instruction: string;
+  blockType: BlockType;
+  originalText: string;
+}
+
+/** 修订建议：provider 的回参（provider 无关，M5 换成真实模型也返回同一形状） */
+export interface RevisionSuggestion {
+  suggestedText: string;
+  rationale: string;
+  provider: string;
+}
+
+/** 修订 provider 契约（M5 接真实模型只需实现此接口并注入，api 层不改） */
+export interface RevisionProvider {
+  readonly id: string;
+  propose(request: RevisionRequest): Promise<RevisionSuggestion> | RevisionSuggestion;
+}
+
+export function assertValidRevisionInstruction(value: unknown): asserts value is string {
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new ValidationError("修订指令 instruction 不能为空");
+  }
+  if (value.length > MAX_REVISION_INSTRUCTION) {
+    throw new ValidationError(`修订指令过长：最多 ${MAX_REVISION_INSTRUCTION} 字`);
+  }
+}
+
+/** 采纳判定：未采纳（adopt 非 true）时 applied=false 且 text 保持原文，api 据此不写库 */
+export interface RevisionApplyPlan {
+  applied: boolean;
+  text: string;
+}
+
+export function planRevisionApply(
+  originalText: string,
+  suggestedText: string,
+  adopt: unknown,
+): RevisionApplyPlan {
+  return adopt === true
+    ? { applied: true, text: suggestedText }
+    : { applied: false, text: originalText };
+}
+
+/** 文档导出文件名：xieflow-doc-<文档名>-<YYYYMMDD>.md（复用 sanitizeFileNamePart 口径） */
+export function buildDocumentMdFileName(title: string, now: Date = new Date()): string {
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `xieflow-doc-${sanitizeFileNamePart(title)}-${y}${m}${d}.md`;
+}

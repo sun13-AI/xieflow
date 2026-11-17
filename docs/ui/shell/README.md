@@ -11,6 +11,8 @@
 > 旧六张一并重拍（壳换新 → 旧页激活态也必须带本轮壳），与 r7 基线哈希全异。
 > r7 未新增 tab，但徽章改 r7、工作台 schema 卡推进到 v6，机制仍自动重拍六张；r8 徽章改
 > 「r8 · 文档块编辑器（M4 起步）」、schema 卡推进到 **v7**、里程碑改「M4 文档（进行中）」。
+> **r9 未新增 tab**，但壳徽章改为「r9 · Markdown 导入导出与 AI 修订（M4 收官）」，
+> `shots/all -Round r9` 自动同批重拍七张，与 r8 基线逐位全异。
 
 | 文件 | 形态 | 对应断言 |
 |---|---|---|
@@ -19,16 +21,16 @@
 | schedules-tab-active.png | 日程激活（?page=schedules；月视图 + 今天高亮） | e2e「新库 schedules 为空」；audit「GET 空区间 -> 200」 |
 | projects-tab-active.png | 项目激活（?page=projects；空态 + 新建入口） | audit「GET /api/projects -> 200」空列表形态 |
 | board-tab-active.png | 看板激活（?page=board；无项目空态引导） | audit「GET /api/projects -> 200」空列表形态的看板侧消费 |
-| bases-tab-active.png | 表格激活（?page=bases；**一张表都没有的首次使用空态** + 「＋ 新建表」入口；七药丸壳 + r8 徽章） | audit「GET /api/tables -> 200」空列表形态；e2e「createTable 自动创建默认字段（7 种类型齐备）」 |
-| docs-tab-active.png | **文档激活（r8 新增）**（?page=docs；**一篇文档都没有的首次使用空态** + 「＋ 新建文档」/ 打印预览；七药丸壳 + r8 徽章） | audit「r8 GET 文档列表 -> 200」空列表形态；e2e「建文档默认首块自动在场（不是零块死路）」 |
+| bases-tab-active.png | 表格激活（?page=bases；**一张表都没有的首次使用空态** + 「＋ 新建表」入口；七药丸壳 + r9 徽章） | audit「GET /api/tables -> 200」空列表形态；e2e「createTable 自动创建默认字段（7 种类型齐备）」 |
+| docs-tab-active.png | **文档激活（r8 新增，r9 重拍）**（?page=docs；**一篇文档都没有的首次使用空态** + 「＋ 新建文档」/ 导入 / 导出 / 打印预览；七药丸壳 + r9 徽章） | audit「r9 GET 文档列表 -> 200」空列表形态；e2e「建文档默认首块自动在场（不是零块死路）」 |
 
-## r8 哈希自查（七张互异，与 r7 基线逐位全异）
+## r9 哈希自查（七张互异，与 r8 基线逐位全异）
 
-`workbench=3DF3CE41` · `todos=07C85BF7` · `schedules=2C7B6350` ·
-`projects=775FC85C` · `board=C29866EE` · `bases=98D9FB4C` · `docs=A8EC5C84`。
+`workbench=7585AF58` · `todos=BC5F5C92` · `schedules=499EEE27` ·
+`projects=41F34A28` · `board=EF7AAF78` · `bases=53BE476B` · `docs=1A6D435E`。
 
-r7 基线为 `E8068322 / 95DD13BD / 3B27912D / 3BC1FF32 / 814CEB4D / 6AD06FCF`（六张），
-r8 六张旧页全部重拍且哈希全异（壳徽章 / tab 数 / schema 卡变化），并新增第七张 `docs-tab-active`。
+r8 基线为 `3DF3CE41 / 07C85BF7 / 2C7B6350 / 775FC85C / C29866EE / 98D9FB4C / A8EC5C84`（七张），
+r9 七张全部同批重拍且逐位全异（唯一变化是壳徽章推进到 r9，机制仍生效）。
 
 ## 机制说明
 

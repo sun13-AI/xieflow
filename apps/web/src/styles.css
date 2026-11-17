@@ -1614,6 +1614,27 @@ body {
   min-width: 0;
 }
 
+/* r8 U2 修复：编辑态列表块也有可见 marker；输入框按内容自动撑高，窄屏长文本不再被裁 */
+.docs-block-input-wrap {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+
+.docs-edit-marker {
+  flex: 0 0 22px;
+  padding-top: 5px;
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+.docs-has-marker .docs-block-input {
+  padding-left: 2px;
+}
+
 .docs-block-input {
   width: 100%;
   box-sizing: border-box;
@@ -1626,6 +1647,8 @@ body {
   color: var(--ink);
   background: transparent;
   resize: none;
+  overflow: hidden;
+  min-height: 34px;
 }
 
 .docs-block-input:hover {
@@ -1641,7 +1664,7 @@ body {
 .docs-input-heading1 { font-size: 22px; font-weight: 700; }
 .docs-input-heading2 { font-size: 18px; font-weight: 700; }
 .docs-input-heading3 { font-size: 16px; font-weight: 700; }
-.docs-input-bullet, .docs-input-numbered, .docs-input-todo { padding-left: 18px; }
+.docs-input-todo { padding-left: 18px; }
 .docs-input-quote {
   border-left: 3px solid var(--accent);
   background: #f7f9ff;
@@ -1887,6 +1910,138 @@ pre.docs-print-block.docs-code {
 
 .force-narrow .docs-block-controls {
   grid-column: 2;
+}
+
+/* ---- r9：导入预览 / 导出佐证 / AI 修订 diff ---- */
+.docs-toolbar-actions {
+  flex-wrap: wrap;
+}
+
+.docs-revise-note {
+  border-color: #cbd8ff;
+  background: #f4f7ff;
+  color: #27489b;
+}
+
+.docs-import-card,
+.docs-revise-card {
+  width: min(760px, 94vw);
+  max-height: 92vh;
+  overflow: auto;
+}
+
+.docs-import-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  resize: vertical;
+}
+
+.docs-import-actions {
+  margin: 8px 0;
+}
+
+.docs-import-result {
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fbfcfe;
+}
+
+.docs-preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.docs-preview-table th,
+.docs-preview-table td {
+  border-bottom: 1px solid var(--border);
+  padding: 5px 6px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.docs-preview-table th {
+  color: var(--ink-2);
+  font-weight: 600;
+}
+
+.docs-import-errors {
+  margin: 8px 0;
+  padding-left: 20px;
+  color: #a23b3b;
+  font-size: 13px;
+}
+
+.docs-revise-diff {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.docs-diff-col {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+  background: #fbfcfe;
+}
+
+.docs-diff-suggested {
+  border-color: #9fbcf5;
+  background: #f2f6ff;
+}
+
+.docs-diff-col h3 {
+  margin: 0 0 6px;
+  font-size: 13px;
+}
+
+.docs-diff-col pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.docs-export-snapshot {
+  position: relative;
+  margin: 10px 0;
+  padding: 14px;
+  border: 1px solid #9fbcf5;
+  border-radius: 10px;
+  background: #f2f6ff;
+}
+
+.docs-export-snapshot h3 {
+  margin: 0 0 6px;
+  font-size: 15px;
+}
+
+.docs-export-snapshot pre {
+  max-height: 340px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.force-narrow .docs-toolbar-actions {
+  flex-wrap: wrap;
+}
+
+.force-narrow .docs-revise-diff {
+  grid-template-columns: 1fr;
 }
 
 /* 打印样式表：window.print() 只输出文档纸面，壳 / 工具条 / 块操作全部隐藏 */

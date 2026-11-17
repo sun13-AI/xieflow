@@ -2,6 +2,18 @@
 
 > 宪法见设计包 AGENTS.md；轮次规则见 RUNBOOK.md（均在 D:\work\好东西\xieflow-design\）。
 
+### 2026-11-17 · r9 研发（yanfa-r9b · M4 收官轮：续做中断会话并收尾）
+- 交付：Markdown 双向转换引擎全集中 shared（`markdownToBlocks` / `blocksToMarkdown`：10 类型、空行分块、代码围栏、未知语法逐字降级 paragraph、marker 转义往返不丢；`computeNumberedOrdinals`、`buildDocumentMdFileName`）；导入零半态（`normalizeMarkdownImportPayload` → `planMarkdownImport` → `shouldCommitMarkdownImport` → db `importBlocks` 事务外整体校验 + 单事务整篇替换）；AI 修订契约（`RevisionProvider` / `assertValidRevisionInstruction` / `planRevisionApply`，**未采纳零写入**，api 一处注入 mock provider，M5 可换真实模型）
+- api：`POST /api/documents/:id/import.md/preview`（只解析不写库）、`POST /api/documents/:id/import.md`（全合法 200 / 部分失败 422 零半态）、`GET /api/documents/:id/export.md`（RFC 5987 中文名 + text/markdown）、`POST /api/documents/:id/blocks/:blockId/revise`（建议预览 / 采纳才 updateBlock；4xx：空/超长 instruction、不存在块 404、跨文档块 400）
+- web：文档页加「导入 Markdown」（预览表 + 错误清单 + 后果提示 + 确认）、「导出 .md」（按字节下载）、块级「AI 修订」面板（原文/建议 diff + 理由 + 采纳/放弃）；顺手修 r8 U2 两项必修：窄屏长文本 textarea 自动撑高（不再 1px 裁切渣）、编辑态列表块补 `•` / `1.` marker
+- packages/agent：mock 脚本 provider（精简/扩写/要点/正式/默认，零 token 零随机）+ evals 录制回放骨架（`RecordedCall` / `runReplay`，错误期望必须被检出）；api / 根 package / pack.js 依赖同步
+- 「用户第一次用」全链路（headless CDP 真点）：0 文档 → 建文档（默认首块）→ 导入 5 块 → 修订建议（HTTP 快照 SHA `12ED9D9F…` 前后相等，零写入）→ 采纳（块文本真替换）→ 另一块放弃（快照 `6ADD6D93…` 相等）→ 导出 153 字节 → reload 5 块全在 → 导出 md 再导入新文档逐字段相等 → 删探针文档，库内 0 篇、端口收净
+- 断言规模：e2e 716 → **809（+93：双向引擎 36 + 导入计划 25 + 修订语义 20 + 导入数据层 12）**· audit 639 → **706（+67：r9 真 HTTP 装配节，含 4xx 与零半态）**· typecheck **5 包**（新增 agent）全绿；`pnpm run test:all` exit 0。无断言被删；本轮无 schema 迁移，CI smoke 正则保持 `(2|3|4|5|6|7)`
+- **变异红相留痕（两组）**：① `planRevisionApply` 改「总是应用」→ e2e 2 红 / audit 4 红（含「未采纳不改库」快照被改）；② `shouldCommitMarkdownImport` 改「忽略错误行」→ e2e 1 红 / audit 2 红 + 1 崩溃（部分失败 200 got、imported=1）。两组均逐字节还原，`packages/shared/src/index.ts` SHA256 `EDCBFD5F…13CC1BF6` 前后完全相同，重跑全绿
+- 截图矩阵：docs/ui/r9/ 共 **8 张**（导入预览 / 导入成功后 / 导出落盘 / 修订 diff / 采纳后 / 放弃后 / 窄屏 U2 修复 / 窄屏导入）+ 1 份真实导出 .md 字节证据；逐张 `read_image` 目验，8/8 SHA256 互异，全库 96 PNG / 94 互异（仅 r4 已披露 2 组）；首轮 01/04/08 钉态因 `useEffect` 闭包 state 未提交而缺预览/diff，定位后显式传 `data.doc` 并**全矩阵重拍**（废片未入库）；七 tab 壳基线自动重拍、徽章推进 r9，与 r8 逐位全异
+- 危险区：未 push / 未打 tag / 未发版 / 未改 CI release 配置；无 schema 迁移、未手改库文件；只删本轮自建探针文档；PowerShell 新增段全 ASCII（shot.ps1 0 非 ASCII 字节 / PS5.1 Parser 0 错误），全程 headless、服务收净
+- 续做说明：前任 yanfa-r9 会话中断，留下工作树 609 行半成品（shared/db/e2e/agent 骨架）且 `test:all` 红（e2e TS2322×3）；本轮先修绿（先修断言类型，e2e 809 全绿）再在其基础上续做 api/web/audit/截图/文档，未推倒重写
+
 ### 2026-11-15 · r8 研发（yanfa · M4 起步轮）
 - 交付：schema v6→v7（`documents` 表 id/title/created_at/updated_at + `blocks` 表 id/document_id/type/position/content JSON/parent_id 可空 + type CHECK + 2 索引 + ON DELETE CASCADE）+ shared 块类型引擎（10 种：paragraph / heading1-3 / bullet / numbered / todo / quote / code / divider；`normalizeBlockContent` / `canConvertBlockType` / `convertBlockContent` / `planBlockSplit` / `mergeBlockContent` / `planBlockReorder` / `assembleDocumentText`，**api 层零类型分支**）+ api（documents CRUD、blocks CRUD、全文读、拆 / 合 / 移动 / 批重排 / 类型转换，4xx：非法块类型 / 越权 document_id / 非法 position / 非法转换 / 重复或越权重排 id）+ db（拆合移动单事务、position 连号收拢、持久化重开不丢）+ web（「文档」tab：文档列表 + 编辑器多类型渲染 + 回车拆块 / 退格合块 / 上移下移 / 类型切换下拉 + 打印预览 `window.print()` + `@media print` 样式表）
 - 「用户第一次用」全链路（r4 教训）headless CDP 真点：**建文档 → 默认首块自动在场（非死路）→ 输入 → 回车拆块 → 类型切换 → 上移 → 保存 → reload 重开不丢**，并 `GET /api/documents/:id/text` 回查 `blockCount=2` / 全文逐字相等；验后 DELETE 清理（0 篇）。另有 HTTP 层全链路断言与 e2e 关库重开 `JSON.stringify` 逐字节相等断言锁定拆 / 合 / 移动 / 重排后的块顺序。
@@ -95,7 +107,7 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r6 | M3 第 1 片：多维表格字段引擎 + 网格视图 | ✅已发版（首轮双通过；187 条真实 HTTP 断言 + 67 张哈希亲算） | v0.0.10 | e2e 449 · audit 403 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r7 | M3 第 2 片：视图持久化与 CSV 导入（M3 收官） | ✅已发版（首轮双通过；零半态变异红相独立复现） | v0.0.11 | e2e 587 · audit 522 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r8 | M4 第 1 片：文档块编辑器（单人版） | ✅已发版（首轮双通过；块操作 97/97 + 变异红相 2 组独立复现） | v0.0.12 | e2e 716 · audit 639 | 通过（waizhuan）+ UI 通过（阻断岗） |
-| r9 | M4 第 2 片：Markdown 导入导出 + AI 块级修订（mock） | 🔨研发中 | — | — | — |
+| r9 | M4 第 2 片：Markdown 导入导出 + AI 块级修订（mock） | 🔨研发完成待复验 | — | e2e 809 · audit 706 | — |
 
 附加交付（r2 内 lead 直做，已入库 8e4fb9b）：
 - 一键启动：start.cmd 双击 / scripts\start.ps1 start|stop|status（三轮全链路验证；期间排掉「僵尸 api 抢 8787」环境坑，非脚本缺陷）

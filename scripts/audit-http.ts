@@ -15,7 +15,14 @@
 
 export {}; // top-level await needs module scope
 
-import { buildBoardCsvFileName, assembleDocumentText } from "@xieflow/shared";
+import {
+  buildBoardCsvFileName,
+  assembleDocumentText,
+  markdownToBlocks,
+  blocksToMarkdown,
+  buildDocumentMdFileName,
+} from "@xieflow/shared";
+import { createMockProvider, MOCK_PROVIDER_ID } from "@xieflow/agent";
 
 const PORT = Number(process.env.XIEFLOW_API_PORT ?? 8788);
 const BASE = `http://127.0.0.1:${PORT}`;
@@ -1513,6 +1520,113 @@ async function audit() {
     eq(delDoc.json.deleted, true, "r8 删文档：deleted=true");
     await expectStatus("GET", `/api/documents/${docId}/blocks`, undefined, 404, "r8 删文档后块列表 -> 404（级联）");
     await expectStatus("GET", "/api/documents", undefined, 200, "r8 清理后 GET 文档列表 -> 200");
+  }
+
+  console.log("\n== Markdown import/export + AI revise (r9) ==");
+  {
+    const mdSource = [
+      "# 导入标题",
+      "",
+      "正文段落",
+      "",
+      "- [x] 已完成事项",
+      "",
+      "> 引用一句话",
+      "",
+      "```ts",
+      "let x = 1;",
+      "```",
+      "",
+      "---",
+    ].join("\n");
+
+    // 用户第一次用：建文档 → 预览（不写库）→ 确认导入 → 真实块落库
+    const doc = await expectStatus("POST", "/api/documents", { title: "r9 导入导出与修订" }, 201, "r9 POST 文档 -> 201");
+    const docId = doc.json.id as number;
+    const beforePreview = JSON.stringify((await req("GET", `/api/documents/${docId}/blocks`)).json.blocks);
+    const preview = await expectStatus("POST", `/api/documents/${docId}/import.md/preview`, { markdown: mdSource }, 200, "r9 POST 导入预览 -> 200");
+    eq(preview.json.documentId, docId, "r9 预览：回显文档 id");
+    eq(preview.json.total, 6, "r9 预览：源块总数 6");
+    eq(preview.json.preview.length, 5, "r9 预览：6 块只展示前 5 块（MARKDOWN_IMPORT_PREVIEW_ROWS）");
+    eq(preview.json.preview[0].type, "heading1", "r9 预览：首块 heading1");
+    eq(preview.json.preview[2].content, { text: "已完成事项", checked: true }, "r9 预览：todo checked 归一");
+    eq(preview.json.errors, [], "r9 预览：全合法零错误");
+    eq(preview.json.committable, true, "r9 预览：committable=true");
+    eq(JSON.stringify((await req("GET", `/api/documents/${docId}/blocks`)).json.blocks), beforePreview, "r9 预览：绝不写库（预览前后块快照逐字节相等）");
+
+    const imported = await expectStatus("POST", `/api/documents/${docId}/import.md`, { markdown: mdSource }, 200, "r9 POST 导入提交 -> 200");
+    eq(imported.json.imported, 6, "r9 导入：imported=6（默认空首块被整篇替换）");
+    eq(imported.json.total, 6, "r9 导入：total=6");
+    eq(imported.json.blocks.map((b: { type: string }) => b.type), ["heading1", "paragraph", "todo", "quote", "code", "divider"], "r9 导入：10 类型中的 6 类落库顺序一致");
+    const listed = await expectStatus("GET", `/api/documents/${docId}/blocks`, undefined, 200, "r9 GET 导入后块列表 -> 200");
+    eq(listed.json.blocks.length, 6, "r9 导入：HTTP 真读回 6 块");
+    eq(listed.json.blocks.map((b: { position: number }) => b.position), [0,1,2,3,4,5], "r9 导入：position 连号 0..5");
+    eq(listed.json.blocks[2].content, { text: "已完成事项", checked: true }, "r9 导入：todo 内容逐字落库");
+    eq(listed.json.blocks[4].content, { text: "let x = 1;", language: "ts" }, "r9 导入：code 语言逐字落库");
+
+    // 导出：真实字节文本 + 文件名头 + 与 shared 装配逐字相等 + 往返不丢内容
+    const exported = await reqText(`/api/documents/${docId}/export.md`);
+    eq(exported.status, 200, "r9 GET 导出 .md -> 200");
+    ok(exported.headers.get("content-type")?.includes("text/markdown") ?? false, "r9 导出：Content-Type=text/markdown");
+    const disposition = exported.headers.get("content-disposition") ?? "";
+    ok(disposition.includes("filename*=UTF-8''") && disposition.includes("xieflow-doc-"), "r9 导出：中文名 RFC 5987 头下发");
+    eq(exported.text, blocksToMarkdown(listed.json.blocks), "r9 导出：响应文本与 shared blocksToMarkdown 逐字相等");
+    eq(JSON.stringify(markdownToBlocks(exported.text)), JSON.stringify(imported.json.blocks.map((b: { type: string; content: unknown }) => ({ type: b.type, content: b.content }))), "r9 往返：md → blocks 与落库块逐字节相等");
+    ok(exported.text.includes("# 导入标题") && exported.text.includes("- [x] 已完成事项") && exported.text.includes("```ts"), "r9 导出：标题 / 待办 / 代码围栏均在文本内");
+
+    // AI 修订：未采纳只读不改库；固定脚本回复可重放；采纳才替换块内容
+    const target = listed.json.blocks[1];
+    const targetId = target.id as number;
+    const snapshotBeforeRevise = JSON.stringify((await req("GET", `/api/documents/${docId}/blocks`)).json.blocks);
+    const suggest1 = await expectStatus("POST", `/api/documents/${docId}/blocks/${targetId}/revise`, { instruction: "精简" }, 200, "r9 POST 修订（未带 adopt）-> 200");
+    eq(suggest1.json.applied, false, "r9 修订：未采纳 applied=false");
+    eq(suggest1.json.provider, MOCK_PROVIDER_ID, "r9 修订：mock provider 标识回显");
+    eq(suggest1.json.originalText, "正文段落", "r9 修订：原文回显");
+    ok(suggest1.json.suggestedText.includes("精简稿"), "r9 修订：脚本规则给出精简建议");
+    ok(typeof suggest1.json.rationale === "string" && suggest1.json.rationale.length > 0, "r9 修订：返回可读理由");
+    const suggest2 = await expectStatus("POST", `/api/documents/${docId}/blocks/${targetId}/revise`, { instruction: "精简", adopt: false }, 200, "r9 POST 修订（adopt=false）-> 200");
+    eq(suggest2.json.suggestedText, suggest1.json.suggestedText, "r9 修订：同输入固定脚本回复（零 token 可重放）");
+    eq(suggest2.json.applied, false, "r9 修订：显式 adopt=false 仍不写库");
+    eq(JSON.stringify((await req("GET", `/api/documents/${docId}/blocks`)).json.blocks), snapshotBeforeRevise, "r9 未采纳不改库：修订前后块快照逐字节相等");
+    const adopted = await expectStatus("POST", `/api/documents/${docId}/blocks/${targetId}/revise`, { instruction: "精简", adopt: true }, 200, "r9 POST 修订（adopt=true）-> 200");
+    eq(adopted.json.applied, true, "r9 修订：采纳 applied=true");
+    const afterAdopt = (await req("GET", `/api/documents/${docId}/blocks`)).json.blocks;
+    eq(afterAdopt[1].content.text, adopted.json.suggestedText, "r9 采纳：HTTP 真读回块文本已替换为建议");
+    eq(afterAdopt.length, 6, "r9 采纳：块数不变（只替换一块）");
+    ok(JSON.stringify(afterAdopt.filter((b: { id: number }) => b.id !== targetId)) === JSON.stringify(JSON.parse(snapshotBeforeRevise).filter((b: { id: number }) => b.id !== targetId)), "r9 采纳：其余 5 块逐字节不受影响");
+    ok((await reqText(`/api/documents/${docId}/export.md`)).text.includes(adopted.json.suggestedText), "r9 采纳后：导出 Markdown 立刻反映新文本");
+
+    // 4xx + 零半态：预览/提交非法输入、部分失败、修订越权与空指令
+    await expectStatus("POST", `/api/documents/${docId}/import.md/preview`, { markdown: 42 }, 400, "r9 预览：markdown 非字符串 -> 400");
+    await expectStatus("POST", `/api/documents/${docId}/import.md`, { markdown: "   \n" }, 400, "r9 导入：空 Markdown -> 400");
+    await expectStatus("POST", `/api/documents/${docId}/import.md`, { markdown: "x".repeat(200001) }, 400, "r9 导入：超长 Markdown -> 400");
+    await expectStatus("POST", "/api/documents/99999/import.md", { markdown: "# 幽灵" }, 404, "r9 导入到不存在文档 -> 404");
+    await expectStatus("POST", "/api/documents/not-a-number/import.md", { markdown: "# 非法 id" }, 400, "r9 导入：非数字文档 id -> 400");
+    await expectStatus("GET", "/api/documents/99999/export.md", undefined, 404, "r9 导出不存在文档 -> 404");
+    const badDoc = await expectStatus("POST", "/api/documents", { title: "r9 零半态文档" }, 201, "r9 建零半态测试文档 -> 201");
+    const badDocId = badDoc.json.id as number;
+    await expectStatus("POST", `/api/documents/${badDocId}/import.md`, { markdown: "# 合法" }, 200, "r9 零半态：先成功导入一次 -> 200");
+    const badSnapshot = JSON.stringify((await req("GET", `/api/documents/${badDocId}/blocks`)).json.blocks);
+    const rejected = await expectStatus("POST", `/api/documents/${badDocId}/import.md`, { blocks: [{ type: "heading1", content: "合法" }, { type: "mystery", content: "非法" }] }, 422, "r9 部分失败 -> 422");
+    eq(rejected.json.imported, 0, "r9 部分失败：imported=0");
+    eq(rejected.json.errors.length, 1, "r9 部分失败：错误块清单精确 1 条");
+    eq(rejected.json.errors[0].row, 2, "r9 部分失败：错误块号为第 2 块");
+    eq(JSON.stringify((await req("GET", `/api/documents/${badDocId}/blocks`)).json.blocks), badSnapshot, "r9 零半态：部分失败前后块快照逐字节相等");
+    await expectStatus("POST", `/api/documents/${badDocId}/import.md`, { blocks: [] }, 400, "r9 导入：空块数组 -> 400");
+    await expectStatus("POST", `/api/documents/${docId}/import.md`, { blocks: "not-array" }, 400, "r9 导入：blocks 非数组 -> 400");
+    await expectStatus("POST", `/api/documents/${docId}/blocks/${targetId}/revise`, { instruction: "" }, 400, "r9 修订：空 instruction -> 400");
+    await expectStatus("POST", `/api/documents/${docId}/blocks/${targetId}/revise`, { instruction: "   " }, 400, "r9 修订：纯空白 instruction -> 400");
+    await expectStatus("POST", `/api/documents/${docId}/blocks/${targetId}/revise`, { instruction: "x".repeat(501) }, 400, "r9 修订：超长 instruction -> 400");
+    await expectStatus("POST", `/api/documents/${docId}/blocks/99999/revise`, { instruction: "精简" }, 404, "r9 修订：不存在块 -> 404");
+    const crossDoc = (await req("GET", `/api/documents/${badDocId}/blocks`)).json.blocks[0].id as number;
+    await expectStatus("POST", `/api/documents/${docId}/blocks/${crossDoc}/revise`, { instruction: "精简" }, 400, "r9 修订：跨文档块 -> 400");
+    await expectStatus("POST", `/api/documents/99999/blocks/${targetId}/revise`, { instruction: "精简" }, 404, "r9 修订：不存在文档 -> 404");
+    await expectStatus("POST", `/api/documents/not-a-number/blocks/${targetId}/revise`, { instruction: "精简" }, 400, "r9 修订：非数字文档 id -> 400");
+    eq(JSON.stringify((await req("GET", `/api/documents/${docId}/blocks`)).json.blocks), JSON.stringify(afterAdopt), "r9 4xx 之后：文档块状态未被任何非法请求改动");
+
+    await expectStatus("DELETE", `/api/documents/${badDocId}`, undefined, 200, "r9 DELETE 零半态测试文档 -> 200");
+    await expectStatus("DELETE", `/api/documents/${docId}`, undefined, 200, "r9 DELETE 导入文档 -> 200");
+    await expectStatus("GET", `/api/documents/${docId}/blocks`, undefined, 404, "r9 删文档后块列表 -> 404（级联）");
   }
 
   console.log("\n== schedules delete (r3) ==");

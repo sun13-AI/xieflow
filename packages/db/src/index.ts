@@ -40,6 +40,7 @@ import type {
   Document,
   DocumentBlock,
   BlockType,
+  MarkdownBlockDraft,
 } from "@xieflow/shared";
 import {
   canTransitionTodo,
@@ -74,6 +75,7 @@ import {
   planBlockReorder,
   assembleDocumentText,
   DEFAULT_DOCUMENT_FIRST_BLOCK,
+  MARKDOWN_IMPORT_MAX_BLOCKS,
   ValidationError,
 } from "@xieflow/shared";
 import { REPEATS_ORDER } from "./repeat-order.js";
@@ -1380,6 +1382,47 @@ export class XieFlowDb {
       const res = this.db.run("DELETE FROM blocks WHERE id = ?", [id]);
       this.renumberBlocks(current.documentId);
       return res.changes > 0;
+    });
+  }
+
+  /**
+   * Markdown 导入落库（r9 零半态的服务层保证，复用 r7 importRecords 手法）：
+   * ① 全部块先在事务外整体归一 + 校验——**任一块非法则一块都不写**（校验失败直接抛错）；
+   * ② 数量上限守卫（MARKDOWN_IMPORT_MAX_BLOCKS）也在事务外，避免半途写入；
+   * ③ 「整篇替换」先 DELETE 该文档全部块、再按 position 0..n-1 插入，包在一个
+   *    SQLite 事务里：中途任何异常 → ROLLBACK，绝不留下「删了旧块没插新块」的半态；
+   * ④ 返回插入后的块（读回真实 id 与归一后的内容）。
+   * 调用方（api）先用 shared planMarkdownImport / shouldCommitMarkdownImport 判定，
+   * 这里是第二道防线——即便绕过计划直接调用，零半态依旧成立。
+   */
+  importBlocks(documentId: number, rows: readonly MarkdownBlockDraft[]): DocumentBlock[] {
+    if (this.getDocument(documentId) === null) {
+      throw new Error(`文档不存在：${documentId}`);
+    }
+    if (rows.length === 0) {
+      throw new ValidationError("导入块数组不能为空");
+    }
+    if (rows.length > MARKDOWN_IMPORT_MAX_BLOCKS) {
+      throw new ValidationError(`导入块数超过上限 ${MARKDOWN_IMPORT_MAX_BLOCKS}`);
+    }
+    // 事务外整体校验：任何一块非法都在这里抛错，绝不进入删除/插入
+    const normalized = rows.map((row) => {
+      assertValidBlockType(row.type);
+      return { type: row.type, content: normalizeBlockContent(row.type, row.content) };
+    });
+    return this.withTransaction(() => {
+      this.db.run("DELETE FROM blocks WHERE document_id = ?", [documentId]);
+      const now = new Date().toISOString();
+      for (let i = 0; i < normalized.length; i += 1) {
+        const item = normalized[i]!;
+        this.db.run(
+          "INSERT INTO blocks (document_id, type, position, content, parent_id, created_at, updated_at) " +
+            "VALUES (?, ?, ?, ?, NULL, ?, ?)",
+          [documentId, item.type, i, JSON.stringify(item.content), now, now],
+        );
+      }
+      this.touchDocument(documentId);
+      return this.listBlocks(documentId);
     });
   }
 

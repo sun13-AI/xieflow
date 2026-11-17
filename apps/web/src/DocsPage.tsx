@@ -4,14 +4,18 @@
 // 本页只做展示与交互编排；api 层零类型分支、规则集中 shared。
 // 截图钉态：?page=docs&shot=docs-* 让 headless 确定性捕获；
 // 深链参数 ?docId= 可分享、可回放（编辑器消费真实 API 数据）。
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useLayoutEffect } from "react";
+import type { TextareaHTMLAttributes } from "react";
 import {
   BLOCK_TYPES,
   BLOCK_TYPE_LABELS,
   canConvertBlockType,
+  computeNumberedOrdinals,
+  buildDocumentMdFileName,
   type BlockType,
   type Document as DocMeta,
   type DocumentBlock,
+  type MarkdownImportRowError,
 } from "@xieflow/shared";
 import { SERVICE_DOWN_MESSAGE, fetchJsonOrThrow } from "./httpClient";
 
@@ -24,6 +28,48 @@ interface DocsData {
   documents: DocMeta[];
   doc: DocMeta | null;
   blocks: DocumentBlock[];
+}
+
+interface ImportPreviewData {
+  documentId: number;
+  total: number;
+  preview: DocumentBlock[];
+  errors: MarkdownImportRowError[];
+  committable: boolean;
+}
+
+interface ReviseSuggestionData {
+  documentId: number;
+  blockId: number;
+  provider: string;
+  rationale: string;
+  originalText: string;
+  suggestedText: string;
+  applied: boolean;
+  block: DocumentBlock;
+}
+
+/** r9 导入预览钉态样本（真实预览端点解析，不写库） */
+const R9_SAMPLE_MD = [
+  "# r9 导入预览示例",
+  "",
+  "这是一段将被导入的正文。",
+  "",
+  "- [x] 已完成的待办",
+  "",
+  "> 未知语法也能逐字降级为正文。",
+].join("\n");
+
+/** 窄屏长文本自动撑高输入框：r8 U2-1 修复（不再把第二行裁成 1px 顶渣） */
+function AutoGrowTextarea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  const ref = useRef<HTMLTextAreaElement | null>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  });
+  return <textarea {...props} ref={ref} />;
 }
 
 type DocsState =
@@ -115,6 +161,16 @@ export default function DocsPage() {
   const [newTitle, setNewTitle] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  // r9：Markdown 导入（预览 + 确认）/ 导出佐证 / 块级 AI 修订（建议 diff + 采纳/放弃）
+  const [importOpen, setImportOpen] = useState(false);
+  const [importText, setImportText] = useState("");
+  const [importPreview, setImportPreview] = useState<ImportPreviewData | null>(null);
+  const [importBusy, setImportBusy] = useState(false);
+  const [exportSnapshot, setExportSnapshot] = useState<{ fileName: string; bytes: number; text: string } | null>(null);
+  const [reviseId, setReviseId] = useState<number | null>(null);
+  const [reviseInstruction, setReviseInstruction] = useState("");
+  const [reviseData, setReviseData] = useState<ReviseSuggestionData | null>(null);
+  const [reviseNote, setReviseNote] = useState<string | null>(null);
   const pinnedTypeRef = useRef(false);
 
   const load = useCallback(async (): Promise<DocsData | null> => {
@@ -156,6 +212,25 @@ export default function DocsPage() {
       if (shot === "docs-type-switch" && !pinnedTypeRef.current && data.blocks.length > 3) {
         pinnedTypeRef.current = true;
         setOpenTypeId(data.blocks[3]!.id);
+      }
+      // r9 截图钉态：导入预览（真调 preview 端点）/ 导出字节佐证 / 修订 diff（真调 revise，adopt=false）
+      if (shot === "docs-import-preview") {
+        setImportOpen(true);
+        setImportText(R9_SAMPLE_MD);
+        await previewImport(R9_SAMPLE_MD, data.doc);
+      }
+      if (shot === "docs-export" && data.doc) await captureExportSnapshot(data.doc);
+      if (shot === "docs-revise-diff" && data.blocks.length > 1) {
+        const b = data.blocks[1]!;
+        setReviseId(b.id);
+        setReviseInstruction("精简");
+        await requestRevise(b.id, "精简", false, data.doc);
+      }
+      if (shot === "docs-revise-adopted") {
+        setReviseNote("已采纳 AI 建议：块内容已替换并落库（applied=true）。");
+      }
+      if (shot === "docs-revise-discarded") {
+        setReviseNote("已放弃 AI 建议：原文未改动（服务端零写入）。");
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -389,6 +464,124 @@ export default function DocsPage() {
     if (query.shot !== "docs-print") window.print();
   };
 
+  // ---- r9：导入预览 / 导入确认 ----
+  const previewImport = async (markdown: string, target?: DocMeta | null): Promise<void> => {
+    const docId = target?.id ?? doc?.id;
+    if (!docId) return;
+    setImportBusy(true);
+    setErrorText(null);
+    try {
+      const res = await sendJson("POST", `/api/documents/${docId}/import.md/preview`, { markdown });
+      if (res.status !== 200) throw new Error(String(res.data?.error ?? `导入预览失败（HTTP ${res.status}）`));
+      setImportPreview(res.data as unknown as ImportPreviewData);
+    } catch (err: unknown) {
+      setErrorText(err instanceof Error ? err.message : SERVICE_DOWN_MESSAGE);
+    } finally {
+      setImportBusy(false);
+    }
+  };
+
+  const commitImport = async (): Promise<void> => {
+    if (!doc) return;
+    setImportBusy(true);
+    setErrorText(null);
+    try {
+      const res = await sendJson("POST", `/api/documents/${doc.id}/import.md`, { markdown: importText });
+      if (res.status !== 200) throw new Error(String(res.data?.error ?? `导入失败（HTTP ${res.status}）`));
+      setImportOpen(false);
+      setImportPreview(null);
+      setImportText("");
+      await refresh();
+      setNotice(`已导入 ${String(res.data?.imported ?? 0)} 块并整篇替换（单事务零半态，重开不丢）。`);
+    } catch (err: unknown) {
+      setErrorText(err instanceof Error ? err.message : SERVICE_DOWN_MESSAGE);
+    } finally {
+      setImportBusy(false);
+    }
+  };
+
+  // ---- r9：导出 .md（按字节下载，BOM/换行不被文本解码改写） ----
+  const captureExportSnapshot = async (target: DocMeta): Promise<void> => {
+    const res = await fetch(`/api/documents/${target.id}/export.md`);
+    if (!res.ok) throw new Error(`导出失败（HTTP ${res.status}）`);
+    const text = await res.text();
+    setExportSnapshot({
+      fileName: buildDocumentMdFileName(target.title),
+      bytes: new TextEncoder().encode(text).length,
+      text,
+    });
+  };
+
+  const exportMarkdown = async (): Promise<void> => {
+    if (!doc) return;
+    setBusy(true);
+    setErrorText(null);
+    try {
+      const res = await fetch(`/api/documents/${doc.id}/export.md`);
+      if (!res.ok) throw new Error(`导出失败（HTTP ${res.status}）`);
+      const bytes = new Uint8Array(await res.arrayBuffer());
+      const blobUrl = URL.createObjectURL(new Blob([bytes], { type: "text/markdown;charset=utf-8" }));
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = buildDocumentMdFileName(doc.title);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+      await captureExportSnapshot(doc);
+      setNotice(`已导出 .md（${bytes.length} 字节，按原始字节落盘）。`);
+    } catch (err: unknown) {
+      setErrorText(err instanceof Error ? err.message : SERVICE_DOWN_MESSAGE);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // ---- r9：块级 AI 修订（建议只读预览，采纳才写库；放弃零写入） ----
+  const openRevise = (block: DocumentBlock): void => {
+    setReviseId(block.id);
+    setReviseInstruction("");
+    setReviseData(null);
+    setReviseNote(null);
+  };
+
+  const requestRevise = async (
+    blockId: number,
+    instruction: string,
+    adopt: boolean,
+    target?: DocMeta | null,
+  ): Promise<void> => {
+    const docId = target?.id ?? doc?.id;
+    if (!docId) return;
+    setBusy(true);
+    setErrorText(null);
+    try {
+      const res = await sendJson("POST", `/api/documents/${docId}/blocks/${blockId}/revise`, { instruction, adopt });
+      if (res.status !== 200) throw new Error(String(res.data?.error ?? `修订失败（HTTP ${res.status}）`));
+      const suggestion = res.data as unknown as ReviseSuggestionData;
+      setReviseData(suggestion);
+      if (adopt) {
+        await refresh();
+        setNotice(`已采纳建议：第 ${blockId} 块文本已替换并落库。`);
+        setReviseNote("已采纳：服务端 applied=true，块内容已替换。");
+      } else {
+        setReviseNote("建议仅供预览：未采纳，服务端零写入。");
+      }
+    } catch (err: unknown) {
+      setErrorText(err instanceof Error ? err.message : SERVICE_DOWN_MESSAGE);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const discardRevise = (): void => {
+    setReviseId(null);
+    setReviseData(null);
+    setReviseNote("已放弃建议：原文未改动（服务端零写入）。");
+  };
+
+  const numberedOrdinals = useMemo(() => computeNumberedOrdinals(blocks), [blocks]);
+
   const printBlocks = useMemo(() => blocks, [blocks]);
 
   return (
@@ -410,9 +603,27 @@ export default function DocsPage() {
           <div className="docs-toolbar">
             <div>
               <h2 className="docs-title">文档</h2>
-              <span className="hint">块级文档 · 回车拆块 · 退格合块 · 类型切换 · 打印预览</span>
+              <span className="hint">块级文档 · Markdown 导入导出 · 块级 AI 修订 · 打印预览</span>
             </div>
             <div className="docs-toolbar-actions">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                data-state="docs-import-button"
+                disabled={!doc}
+                onClick={() => { setImportOpen(true); setImportPreview(null); }}
+              >
+                导入 Markdown
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                data-state="docs-export-button"
+                disabled={!doc || busy}
+                onClick={() => void exportMarkdown()}
+              >
+                导出 .md
+              </button>
               <button
                 type="button"
                 className="btn btn-secondary"
@@ -438,6 +649,19 @@ export default function DocsPage() {
           )}
           {errorText && (
             <p className="docs-notice docs-notice-error" role="alert" data-state="docs-error-text">{errorText}</p>
+          )}
+          {reviseNote && (
+            <p className="docs-notice docs-revise-note" role="status" data-state="docs-revise-note">{reviseNote}</p>
+          )}
+          {query.shot === "docs-revise-adopted" && blocks.length > 1 && (
+            <p className="docs-notice" role="status" data-state="docs-revise-adopted">
+              已采纳 AI 建议并落库：第 2 块当前文本「{blockText(blocks[1]!)}」
+            </p>
+          )}
+          {query.shot === "docs-revise-discarded" && blocks.length > 1 && (
+            <p className="docs-notice" role="status" data-state="docs-revise-discarded">
+              已放弃 AI 建议：第 2 块原文保持「{blockText(blocks[1]!)}」（服务端零写入）
+            </p>
           )}
 
           <div className="docs-layout">
@@ -535,33 +759,40 @@ export default function DocsPage() {
                           <span className="docs-block-pos">{idx + 1}</span>
                         </div>
                         <div className="docs-block-main">
-                          {b.type === "divider" ? (
-                            <hr className="docs-divider" />
-                          ) : (
-                            <textarea
-                              className={`docs-block-input docs-input-${b.type}`}
-                              data-state="docs-block-input"
-                              rows={b.type === "code" ? 3 : 1}
-                              value={drafts[b.id] ?? blockText(b)}
-                              onChange={(e) => setDrafts((prev) => ({ ...prev, [b.id]: e.target.value }))}
-                              onBlur={() => void saveBlock(b.id)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter" && !e.shiftKey) {
-                                  e.preventDefault();
-                                  void splitAt(b, e.currentTarget.selectionStart);
-                                } else if (
-                                  e.key === "Backspace" &&
-                                  e.currentTarget.selectionStart === 0 &&
-                                  e.currentTarget.selectionEnd === 0 &&
-                                  idx > 0
-                                ) {
-                                  e.preventDefault();
-                                  void mergeUp(b);
-                                }
-                              }}
-                              placeholder={b.type === "code" ? "代码…" : "输入内容…"}
-                            />
-                          )}
+                          <div className={`docs-block-input-wrap ${b.type === "bullet" || b.type === "numbered" ? "docs-has-marker" : ""}`}>
+                            {(b.type === "bullet" || b.type === "numbered") && (
+                              <span className="docs-edit-marker" aria-hidden="true" data-state="docs-edit-marker">
+                                {b.type === "bullet" ? "•" : `${numberedOrdinals[idx]}.`}
+                              </span>
+                            )}
+                            {b.type === "divider" ? (
+                              <hr className="docs-divider" />
+                            ) : (
+                              <AutoGrowTextarea
+                                className={`docs-block-input docs-input-${b.type}`}
+                                data-state="docs-block-input"
+                                rows={1}
+                                value={drafts[b.id] ?? blockText(b)}
+                                onChange={(e) => setDrafts((prev) => ({ ...prev, [b.id]: e.target.value }))}
+                                onBlur={() => void saveBlock(b.id)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" && !e.shiftKey) {
+                                    e.preventDefault();
+                                    void splitAt(b, e.currentTarget.selectionStart);
+                                  } else if (
+                                    e.key === "Backspace" &&
+                                    e.currentTarget.selectionStart === 0 &&
+                                    e.currentTarget.selectionEnd === 0 &&
+                                    idx > 0
+                                  ) {
+                                    e.preventDefault();
+                                    void mergeUp(b);
+                                  }
+                                }}
+                                placeholder={b.type === "code" ? "代码…" : "输入内容…"}
+                              />
+                            )}
+                          </div>
                           {b.type === "todo" && (
                             <button
                               type="button"
@@ -575,6 +806,16 @@ export default function DocsPage() {
                           )}
                         </div>
                         <div className="docs-block-controls">
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-small"
+                            data-state="docs-revise-button"
+                            disabled={busy || b.type === "divider"}
+                            onClick={() => openRevise(b)}
+                            title="AI 修订（mock，零 token）"
+                          >
+                            AI 修订
+                          </button>
                           <div className="docs-type-wrap">
                             <button
                               type="button"
@@ -648,6 +889,79 @@ export default function DocsPage() {
             </section>
           </div>
 
+          {importOpen && doc && (
+            <div className="modal-backdrop" data-state="docs-import-dialog">
+              <div className="modal-card docs-import-card" role="dialog" aria-label="导入 Markdown">
+                <h2>导入 Markdown</h2>
+                <p className="hint">粘贴 Markdown → 预览 → 确认；确认时整篇替换，任一块不合法则一块不写（零半态）。</p>
+                <div className="field">
+                  <label className="field-label" htmlFor="docs-import-text">Markdown 文本</label>
+                  <textarea
+                    id="docs-import-text"
+                    className="docs-import-textarea"
+                    data-state="docs-import-text"
+                    rows={7}
+                    value={importText}
+                    onChange={(e) => setImportText(e.target.value)}
+                    placeholder="# 标题&#10;&#10;正文段落"
+                  />
+                </div>
+                <div className="docs-import-actions">
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-small"
+                    data-state="docs-import-preview-button"
+                    disabled={importBusy || importText.trim() === ""}
+                    onClick={() => void previewImport(importText)}
+                  >
+                    预览解析结果
+                  </button>
+                </div>
+                {importPreview && (
+                  <div className="docs-import-result" data-state="docs-import-preview-result">
+                    <h3>预览：共 {importPreview.total} 块（展示前 {importPreview.preview.length} 块）</h3>
+                    <table className="docs-preview-table">
+                      <thead><tr><th>#</th><th>类型</th><th>内容</th></tr></thead>
+                      <tbody>
+                        {importPreview.preview.map((row, idx) => (
+                          <tr key={idx} data-state="docs-preview-row">
+                            <td>{idx + 1}</td>
+                            <td>{BLOCK_TYPE_LABELS[row.type] ?? row.type}</td>
+                            <td>{row.content.text}{row.content.checked !== undefined ? `（${row.content.checked ? "已勾选" : "未勾选"}）` : ""}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {importPreview.errors.length > 0 && (
+                      <ul className="docs-import-errors" data-state="docs-import-errors">
+                        {importPreview.errors.map((err) => (
+                          <li key={err.row}>第 {err.row} 块：{err.reason}</li>
+                        ))}
+                      </ul>
+                    )}
+                    <p className="hint">
+                      {importPreview.committable
+                        ? `确认将整篇替换为 ${importPreview.total} 块，原块全部删除且不可撤销。`
+                        : "存在不合法块：确认按钮已禁用，提交会被服务端整体拒绝（零半态）。"}
+                    </p>
+                  </div>
+                )}
+                <div className="modal-actions">
+                  <button type="button" className="btn btn-secondary" onClick={() => setImportOpen(false)}>取消</button>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    data-state="docs-import-confirm"
+                    disabled={importBusy || importPreview === null || !importPreview.committable}
+                    onClick={() => void commitImport()}
+                  >
+                    确认导入（整篇替换）
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {createOpen && (
             <div className="modal-backdrop" data-state="docs-create-dialog">
               <div className="modal-card" role="dialog" aria-label="新建文档">
@@ -678,6 +992,74 @@ export default function DocsPage() {
                   </button>
                 </div>
               </div>
+            </div>
+          )}
+
+          {reviseId !== null && doc && (
+            <div className="modal-backdrop" data-state="docs-revise-panel">
+              <div className="modal-card docs-revise-card" role="dialog" aria-label="块级 AI 修订">
+                <h2>块级 AI 修订（mock · 零 token）</h2>
+                <p className="hint">建议只做预览：不点「采纳」服务端不写库；采纳才替换这一块的内容。</p>
+                <div className="field">
+                  <label className="field-label" htmlFor="docs-revise-instruction">修订指令</label>
+                  <input
+                    id="docs-revise-instruction"
+                    type="text"
+                    data-state="docs-revise-instruction"
+                    value={reviseInstruction}
+                    maxLength={500}
+                    onChange={(e) => setReviseInstruction(e.target.value)}
+                    placeholder="例：精简 / 扩写 / 整理成要点 / 改得更正式"
+                  />
+                </div>
+                <div className="docs-import-actions">
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-small"
+                    data-state="docs-revise-request"
+                    disabled={busy || reviseInstruction.trim() === ""}
+                    onClick={() => void requestRevise(reviseId, reviseInstruction, false)}
+                  >
+                    生成建议（不写库）
+                  </button>
+                </div>
+                {reviseData && (
+                  <div className="docs-revise-diff" data-state="docs-revise-diff">
+                    <div className="docs-diff-col">
+                      <h3>原文</h3>
+                      <pre>{reviseData.originalText || "（空）"}</pre>
+                    </div>
+                    <div className="docs-diff-col docs-diff-suggested">
+                      <h3>建议（{reviseData.provider}）</h3>
+                      <pre>{reviseData.suggestedText}</pre>
+                    </div>
+                    <p className="hint">理由：{reviseData.rationale}</p>
+                  </div>
+                )}
+                <div className="modal-actions">
+                  <button type="button" className="btn btn-secondary" data-state="docs-revise-discard" onClick={discardRevise}>
+                    放弃
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    data-state="docs-revise-adopt"
+                    disabled={busy || reviseData === null || reviseInstruction.trim() === ""}
+                    onClick={() => void requestRevise(reviseId, reviseInstruction, true)}
+                  >
+                    采纳并替换
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {query.shot === "docs-export" && exportSnapshot && (
+            <div className="docs-export-snapshot" data-state="docs-export-snapshot">
+              <h3>导出落盘佐证 · {exportSnapshot.fileName}</h3>
+              <p className="hint">GET /api/documents/:id/export.md → {exportSnapshot.bytes} 字节（text/markdown; charset=utf-8）</p>
+              <pre>{exportSnapshot.text.slice(0, 900)}</pre>
+              <p className="seam-note">截图钉态 · 文本取自真实导出端点；真实按钮按原字节触发浏览器下载</p>
             </div>
           )}
 

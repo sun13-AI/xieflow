@@ -64,7 +64,7 @@ copyDir(join(root, "apps", "web", "dist"), join(portableDir, "web"));
 copyDir(join(root, "apps", "api", "src"), join(portableDir, "api", "src"));
 copyDir(join(root, "packages"), join(portableDir, "packages"));
 // packages/*/node_modules are workspace symlinks; they must not ship
-for (const sub of ["db", "shared"]) {
+for (const sub of ["agent", "db", "shared"]) {
   const nm = join(portableDir, "packages", sub, "node_modules");
   if (existsSync(nm)) rmSync(nm, { recursive: true, force: true });
 }
@@ -83,6 +83,7 @@ writeFileSync(
       type: "module",
       scripts: { start: "node scripts/portable-serve.mjs" },
       dependencies: {
+        "@xieflow/agent": "workspace:*",
         "@xieflow/db": "workspace:*",
         "@xieflow/shared": "workspace:*",
         fastify: apiPkg.dependencies.fastify,

@@ -18,11 +18,12 @@
 # with App.tsx PageTab.
 # r6: a sixth tab (bases) was added -> six active states.
 # r8: a SEVENTH tab (docs) was added -> the baseline now captures seven active states.
+# r9: Markdown import/export + AI revise states (real HTTP between captures).
 param(
   [Parameter(Position = 0)]
   [ValidateSet("up", "shots", "down", "status", "all")]
   [string]$Action = "status",
-  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8")]
+  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9")]
   [string]$Round = "r1"
 )
 
@@ -484,6 +485,45 @@ function Invoke-Shots {
     }
   }
 
+  # r9: three REAL documents. Doc A demonstrates import/export (import happens
+  # between shots 01/02); doc B demonstrates discard (never written); doc C
+  # demonstrates adoption (a REAL revise adopt=true happens between 04/05).
+  # All Chinese is \uXXXX escaped; this file stays pure ASCII for PS 5.1.
+  $r9DocAId = $null
+  $r9DocBId = $null
+  $r9DocCId = $null
+  $r9BlockAId = $null
+  $r9BlockBId = $null
+  $r9BlockCId = $null
+  $r9MdJson = '{"markdown":"# r9 \u5bfc\u5165\u6807\u9898\n\n\u8fd9\u662f\u4e00\u6bb5\u5f88\u957f\u7684\u6b63\u6587\u5185\u5bb9\uff0c\u7528\u6765\u9a8c\u8bc1\u7a84\u5c4f\u957f\u6587\u672c\u81ea\u52a8\u6491\u9ad8\u4e0d\u88ab\u88c1\u5207\u3002\u540e\u9762\u8fd8\u6709\u4e00\u53e5\u5197\u4f59\u8bf4\u660e\u3002\n\n- \u65e0\u5e8f\u8981\u70b9\u7532\n\n1. \u6709\u5e8f\u8981\u70b9\u4e00\n\n- [x] \u5df2\u5b8c\u6210\u7684\u5f85\u529e\n\n> \u5f15\u7528\u4e00\u53e5\u8bdd\n\n```ts\nlet x = 1;\n```\n\n---"}'
+  if ($Round -eq "r9") {
+    try {
+      $r9DocA = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/documents" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes(
+        '{"title":"r9 \u5bfc\u5165\u5bfc\u51fa\u6f14\u793a"}'))
+      $r9DocB = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/documents" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes(
+        '{"title":"r9 \u653e\u5f03\u4fee\u8ba2\u6f14\u793a"}'))
+      $r9DocC = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/documents" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes(
+        '{"title":"r9 \u91c7\u7eb3\u4fee\u8ba2\u6f14\u793a"}'))
+      $r9DocAId = $r9DocA.id
+      $r9DocBId = $r9DocB.id
+      $r9DocCId = $r9DocC.id
+      # B and C are imported at seed time; A stays at its default first block
+      # until shot 01 is captured (so 01 preview never writes to that document).
+      foreach ($r9DocId in @($r9DocBId, $r9DocCId)) {
+        Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/documents/$r9DocId/import.md" -Method Post `
+          -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes($r9MdJson)) | Out-Null
+      }
+      $r9BlockBId = (Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/documents/$r9DocBId/blocks" -Method Get).blocks[1].id
+      $r9BlockCId = (Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/documents/$r9DocCId/blocks" -Method Get).blocks[1].id
+      Write-Output "seeded r9 docs A=$r9DocAId B=$r9DocBId(block=$r9BlockBId) C=$r9DocCId(block=$r9BlockCId)"
+    } catch {
+      Write-Output "warn: r9 seed failed ($($_.Exception.Message)) - live shots may show empty docs"
+    }
+  }
+
   if ($Round -eq "r6") {
     # r6: seed a multi-dim table with the seven field types and three records so
     # the grid view, the field panel and the filtered/sorted view all show REAL
@@ -540,7 +580,27 @@ function Invoke-Shots {
     }
   }
 
-  if ($Round -eq "r8") {
+  if ($Round -eq "r9") {
+    # 01 = import preview dialog (REAL preview endpoint, document unchanged);
+    # 02 = after a REAL import.md commit between 01/02 (blocks replaced);
+    # 03 = export snapshot + a real .md file downloaded by Invoke-WebRequest;
+    # 04 = AI revise diff (REAL revise endpoint, adopt=false, zero writes);
+    # 05 = after a REAL revise adopt=true between 04/05 on document C;
+    # 06 = discard state on document B (never written);
+    # 07 = narrow 488x900 (r8 U2-1 auto-height + list markers fixed);
+    # 08 = narrow import dialog (preview-only, no writes).
+    $r9Base = "http://127.0.0.1:$WebPort/?page=docs"
+    $shots = @(
+      @{ name = "01-import-preview";   url = "$r9Base&docId=$r9DocAId&shot=docs-import-preview"; width = 1280; height = 800 },
+      @{ name = "02-import-success";   url = "$r9Base&docId=$r9DocAId"; width = 1280; height = 800 },
+      @{ name = "03-export-download";  url = "$r9Base&docId=$r9DocAId&shot=docs-export"; width = 1280; height = 800 },
+      @{ name = "04-revise-diff";      url = "$r9Base&docId=$r9DocBId&shot=docs-revise-diff"; width = 1280; height = 800 },
+      @{ name = "05-revise-adopted";   url = "$r9Base&docId=$r9DocCId&shot=docs-revise-adopted"; width = 1280; height = 800 },
+      @{ name = "06-revise-discarded"; url = "$r9Base&docId=$r9DocBId&shot=docs-revise-discarded"; width = 1280; height = 800 },
+      @{ name = "07-narrow-u2-fixes";  url = "$r9Base&docId=$r9DocAId&narrow=1"; width = 488; height = 900 },
+      @{ name = "08-import-narrow";    url = "$r9Base&docId=$r9DocAId&narrow=1&shot=docs-import-preview"; width = 488; height = 900 }
+    )
+  } elseif ($Round -eq "r8") {
     # r8: document block editor states (all real api data; only empty/loading/error
     # and the type-switch / print overlays are pinned seams).
     # 01 = document empty state (pinned first-use guidance);
@@ -758,6 +818,46 @@ function Invoke-Shots {
       }
     }
 
+    # r9 (r3 B lesson): real HTTP side effects between capture points.
+    # 01 -> 02: Markdown import commit (zero half state); record block id for revise.
+    if ($Round -eq "r9" -and $s.name -eq "01-import-preview") {
+      if ($r9DocAId) {
+        try {
+          $r9Imported = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/documents/$r9DocAId/import.md" -Method Post `
+            -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes($r9MdJson))
+          $r9BlockAId = $r9Imported.blocks[1].id
+          Write-Output "r9 real import: imported=$($r9Imported.imported) doc=$r9DocAId block=$r9BlockAId"
+        } catch {
+          Write-Output "warn: r9 import between 01/02 failed ($($_.Exception.Message))"
+        }
+      }
+    }
+    # 02 -> 03: download the real .md bytes to docs/ui/r9/ as landing evidence.
+    if ($Round -eq "r9" -and $s.name -eq "02-import-success") {
+      if ($r9DocAId) {
+        try {
+          $r9MdPath = Join-Path $UiDir "r9-export-evidence.md"
+          Invoke-WebRequest -Uri "http://127.0.0.1:$ApiPort/api/documents/$r9DocAId/export.md" -OutFile $r9MdPath
+          Write-Output "r9 real export: $((Get-Item $r9MdPath).Length) bytes -> r9-export-evidence.md"
+        } catch {
+          Write-Output "warn: r9 export download failed ($($_.Exception.Message))"
+        }
+      }
+    }
+    # 04 -> 05: real AI revision ADOPT on document C; doc B stays untouched (discard path).
+    if ($Round -eq "r9" -and $s.name -eq "04-revise-diff") {
+      if ($r9DocCId -and $r9BlockCId) {
+        try {
+          $r9ReviseBody = '{"instruction":"\u7cbe\u7b80","adopt":true}'
+          $r9RevRes = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/documents/$r9DocCId/blocks/$r9BlockCId/revise" -Method Post `
+            -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes($r9ReviseBody))
+          Write-Output "r9 real revise: applied=$($r9RevRes.applied) provider=$($r9RevRes.provider) block=$r9BlockCId"
+        } catch {
+          Write-Output "warn: r9 adopt between 04/05 failed ($($_.Exception.Message))"
+        }
+      }
+    }
+
     # r3 rework#1 (B): between 06 (before) and 10 (after) the MOVE really happens
     # over the link route: seeded todo dueDate today -> today+3, its auto schedule
     # follows. 06 therefore shows the today-only live grid; 10 shows the moved one.
@@ -849,7 +949,20 @@ function Invoke-Shots {
   # seed todo, so repeat runs stay deterministic.
   # r5: delete both seeded projects (by id - the script stays ASCII) and the two
   # seeded todos.
-  if ($Round -eq "r8") {
+  if ($Round -eq "r9") {
+    # r9: delete the three seeded documents so repeat runs stay deterministic and
+    # the shell baseline still shows the first-use empty docs state.
+    try {
+      foreach ($did9 in @($r9DocAId, $r9DocBId, $r9DocCId)) {
+        if ($did9) {
+          Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/documents/$did9" -Method Delete | Out-Null
+        }
+      }
+      Write-Output "cleaned seeded r9 documents"
+    } catch {
+      Write-Output "warn: r9 cleanup failed ($($_.Exception.Message))"
+    }
+  } elseif ($Round -eq "r8") {
     # r8: delete the seeded documents + table so repeat runs stay deterministic
     # and the shell baseline still shows the first-use empty docs state.
     try {

@@ -107,12 +107,34 @@ import {
   DEFAULT_DOCUMENT_FIRST_BLOCK,
   MAX_BLOCK_TEXT,
   MAX_DOCUMENT_TITLE,
+  markdownToBlocks,
+  blocksToMarkdown,
+  computeNumberedOrdinals,
+  normalizeMarkdownImportPayload,
+  planMarkdownImport,
+  shouldCommitMarkdownImport,
+  MARKDOWN_IMPORT_PREVIEW_ROWS,
+  MARKDOWN_IMPORT_MAX_BLOCKS,
+  MAX_MARKDOWN_LENGTH,
+  assertValidRevisionInstruction,
+  planRevisionApply,
+  MAX_REVISION_INSTRUCTION,
+  buildDocumentMdFileName,
   type BlockType,
   type BlockContent,
   type Document,
   type DocumentBlock,
+  type MarkdownBlockDraft,
+  type MarkdownSourceBlock,
+  type MarkdownImportRowError,
 } from "@xieflow/shared";
 import type { TodoStatus } from "@xieflow/shared";
+import {
+  createMockProvider,
+  MOCK_PROVIDER_ID,
+  REVISE_EVAL_CASES,
+  runReplay,
+} from "@xieflow/agent";
 
 // ---------- 极简断言器 ----------
 let passed = 0;
@@ -2641,7 +2663,221 @@ try {
     db = null;
   }
 
-  // 26. HTTP 冒烟 /api/health
+  // 26. r9：Markdown 双向转换引擎（10 种块类型 / 未知语法降级 / 转义往返）
+  section("Markdown 双向引擎（markdownToBlocks / blocksToMarkdown / 未知语法降级）");
+  {
+    const md10 =
+      "# 一级标题\n\n" +
+      "## 二级标题\n\n" +
+      "### 三级标题\n\n" +
+      "正文段落\n\n" +
+      "- 无序甲\n\n" +
+      "1. 有序一\n\n" +
+      "2. 有序二\n\n" +
+      "- [ ] 待办甲\n\n" +
+      "- [x] 待办乙\n\n" +
+      "> 引用句\n\n" +
+      "```ts\nconst a = 1;\n```\n\n" +
+      "---";
+    const parsed = markdownToBlocks(md10);
+    eq(parsed.length, 12, "Markdown 解析：10 种类型覆盖样本共 12 块");
+    eq(parsed.map((b) => b.type), [
+      "heading1", "heading2", "heading3", "paragraph", "bullet",
+      "numbered", "numbered", "todo", "todo", "quote", "code", "divider",
+    ], "Markdown 解析：块类型序列与 10 种类型一致");
+    eq(parsed[0]!.content, { text: "一级标题" }, "Markdown 解析：# → heading1");
+    eq(parsed[1]!.content, { text: "二级标题" }, "Markdown 解析：## → heading2");
+    eq(parsed[2]!.content, { text: "三级标题" }, "Markdown 解析：### → heading3");
+    eq(parsed[3]!.content, { text: "正文段落" }, "Markdown 解析：普通行 → paragraph");
+    eq(parsed[4]!.content, { text: "无序甲" }, "Markdown 解析：- → bullet");
+    eq(parsed[5]!.content, { text: "有序一" }, "Markdown 解析：1. → numbered");
+    eq(parsed[6]!.content, { text: "有序二" }, "Markdown 解析：2. → numbered（序号不进内容）");
+    eq(parsed[7]!.content, { text: "待办甲", checked: false }, "Markdown 解析：- [ ] → todo 未勾选");
+    eq(parsed[8]!.content, { text: "待办乙", checked: true }, "Markdown 解析：- [x] → todo 已勾选");
+    eq(parsed[9]!.content, { text: "引用句" }, "Markdown 解析：> → quote");
+    eq(parsed[10]!.content, { text: "const a = 1;", language: "ts" }, "Markdown 解析：```ts 围栏 → code 带语言");
+    eq(parsed[11]!.content, { text: "" }, "Markdown 解析：--- → divider 恒空文本");
+    eq(computeNumberedOrdinals(parsed), [0, 0, 0, 0, 0, 1, 2, 0, 0, 0, 0, 0], "有序编号：连续 numbered 计数、遇其它类型归零");
+
+    // 未知语法降级为 paragraph，逐字保留、不丢内容
+    const unknown = markdownToBlocks(
+      "#### 四级标题\n\n**加粗** 与 *斜体*\n\n| 表格 | 列 |\n\n1) 圆括号序号\n\n+ 加号列表\n\n~~删除线~~\n\n<div>原始 HTML</div>",
+    );
+    eq(unknown.length, 7, "未知语法降级：7 行各成 1 块，零丢弃");
+    eq(unknown.every((b) => b.type === "paragraph"), true, "未知语法降级：全部为 paragraph");
+    eq(unknown[0]!.content.text, "#### 四级标题", "未知语法降级：#### 逐字保留（不是 heading）");
+    eq(unknown[1]!.content.text, "**加粗** 与 *斜体*", "未知语法降级：行内加粗/斜体逐字保留");
+    eq(unknown[2]!.content.text, "| 表格 | 列 |", "未知语法降级：表格行逐字保留");
+    eq(unknown[3]!.content.text, "1) 圆括号序号", "未知语法降级：圆括号序号逐字保留");
+    eq(unknown[4]!.content.text, "+ 加号列表", "未知语法降级：+ 列表逐字保留");
+    eq(unknown[5]!.content.text, "~~删除线~~", "未知语法降级：删除线逐字保留");
+    eq(unknown[6]!.content.text, "<div>原始 HTML</div>", "未知语法降级：HTML 逐字保留");
+
+    // 转义：paragraph 里带 marker/围栏/空行形态仍逐字往返
+    const tricky: MarkdownBlockDraft[] = [
+      { type: "paragraph", content: { text: "# 这不是标题" } },
+      { type: "paragraph", content: { text: "- 这不是列表" } },
+      { type: "paragraph", content: { text: "1. 这不是有序" } },
+      { type: "paragraph", content: { text: "---" } },
+      { type: "paragraph", content: { text: "" } },
+      { type: "paragraph", content: { text: "第一行\n第二行" } },
+      { type: "heading1", content: { text: "标题带 \\ 反斜杠" } },
+      { type: "code", content: { text: "```js\nlet x = 1;\n```", language: "" } },
+    ];
+    const trickyMd = blocksToMarkdown(tricky);
+    eq(JSON.stringify(markdownToBlocks(trickyMd)), JSON.stringify(tricky), "往返：blocks → md → blocks 逐字节相等（含 marker 转义 / 空段 / 多行 / 代码内围栏）");
+    const codeFence = blocksToMarkdown([{ type: "code", content: { text: "含 ``` 三反引号", language: "ts" } }]);
+    eq(markdownToBlocks(codeFence)[0]!.content.text, "含 ``` 三反引号", "代码围栏：内容含三反引号自动升为 4 反引号，不截断");
+
+    // BOM / CRLF / 空输入 / 排序
+    eq(markdownToBlocks("\uFEFF# 标题\r\n\r\n正文\r\n")[0]!.content.text, "标题", "BOM 与 CRLF 归一：首块 heading1 文本正确");
+    eq(markdownToBlocks(""), [], "空 Markdown → 空块数组");
+    eq(markdownToBlocks("   \n\n"), [], "纯空白 Markdown → 空块数组");
+    eq(blocksToMarkdown([]), "", "空块数组 → 空 Markdown");
+    eq(
+      blocksToMarkdown([
+        { id: 2, position: 1, type: "paragraph", content: { text: "后" } },
+        { id: 1, position: 0, type: "paragraph", content: { text: "先" } },
+      ]),
+      "先\n\n后",
+      "blocksToMarkdown：按 (position, id) 排序后装配",
+    );
+    eq(computeNumberedOrdinals([{ type: "numbered" }, { type: "numbered" }, { type: "paragraph" }, { type: "numbered" }]), [1, 2, 0, 1], "有序编号：中断后重新从 1 计数");
+    eq(MAX_MARKDOWN_LENGTH > MAX_BLOCK_TEXT, true, "Markdown 长度上限大于单块文本上限");
+    eq(MARKDOWN_IMPORT_PREVIEW_ROWS, 5, "导入预览行数常量 = 5");
+    eq(buildDocumentMdFileName("项目周报", new Date(2026, 10, 15)), "xieflow-doc-项目周报-20261115.md", "导出文件名：含中文文档名 + 日期 + .md");
+    eq(buildDocumentMdFileName("  a/b:c  ", new Date(2026, 0, 2)), "xieflow-doc-a-b-c-20260102.md", "导出文件名：非法字符折叠为 -");
+  }
+
+  // 27. r9：Markdown 导入计划与零半态（复用 r7 planCsvImport 思路）
+  section("Markdown 导入计划（normalizeMarkdownImportPayload / planMarkdownImport / 零半态）");
+  {
+    const fromText = normalizeMarkdownImportPayload({ markdown: "# 标题\n\n正文\n" });
+    eq(fromText.length, 2, "导入体归一：{ markdown } 文本解析为 2 个源块");
+    eq(fromText[0]!.type, "heading1", "导入体归一：首块 heading1");
+    const fromRawString = normalizeMarkdownImportPayload("- [x] 完成\n");
+    eq(fromRawString.length, 1, "导入体归一：裸字符串也按 Markdown 文本解析");
+    eq(fromRawString[0]!.type, "todo", "导入体归一：裸字符串中的 todo 正确识别");
+    const fromBlocks = normalizeMarkdownImportPayload({ blocks: [{ type: "paragraph", content: "甲" }, { type: "quote", content: "乙" }] });
+    eq(fromBlocks.length, 2, "导入体归一：{ blocks } 显式块数组原样透传");
+    throws(() => normalizeMarkdownImportPayload({}), "导入体归一：空对象抛错（缺 markdown / blocks）");
+    throws(() => normalizeMarkdownImportPayload({ markdown: 42 }), "导入体归一：markdown 非字符串抛错");
+    throws(() => normalizeMarkdownImportPayload({ blocks: "x" }), "导入体归一：blocks 非数组抛错");
+    throws(() => normalizeMarkdownImportPayload({ blocks: [] }), "导入体归一：空块数组抛错");
+    throws(() => normalizeMarkdownImportPayload({ markdown: "x".repeat(MAX_MARKDOWN_LENGTH + 1) }), "导入体归一：超长 Markdown 抛错");
+
+    const clean = planMarkdownImport([
+      { type: "heading1", content: { text: "标题" } },
+      { type: "todo", content: { text: "买菜", checked: "true" } },
+    ]);
+    eq(clean.total, 2, "导入计划：total 为源块数");
+    eq(clean.errors.length, 0, "导入计划：全合法时零错误行");
+    eq(clean.rows.length, 2, "导入计划：全合法时 2 个归一后块");
+    eq(clean.rows[1]!.content, { text: "买菜", checked: true }, "导入计划：逐块走 normalizeBlockContent（字符串 true → 布尔）");
+    eq(clean.preview.length, 2, "导入计划：预览取全部（不足 5 行）");
+    eq(shouldCommitMarkdownImport(clean), true, "零半态判定：全合法 → 可提交");
+
+    const mixed = planMarkdownImport([
+      { type: "paragraph", content: "合法甲" },
+      { type: "mystery", content: "非法类型" },
+      { type: "paragraph", content: { text: 42 } },
+      { type: "paragraph", content: "合法乙" },
+      { type: "code", content: { text: "x", language: 5 } },
+    ]);
+    eq(mixed.total, 5, "导入计划：部分失败 total 仍为 5");
+    eq(mixed.errors.length, 3, "导入计划：3 个非法块聚合为错误行");
+    eq(mixed.errors.map((e) => e.row), [2, 3, 5], "导入计划：错误行号精确为第 2 / 3 / 5 块");
+    eq(mixed.rows.length, 2, "导入计划：合法行 2 块仍进 rows（但零半态不提交）");
+    eq(shouldCommitMarkdownImport(mixed), false, "零半态判定：任一块非法 → 一行都不落库");
+    ok(mixed.errors[0]!.reason.includes("非法块类型"), "导入计划：错误原因含中文「非法块类型」");
+    const over = planMarkdownImport(Array.from({ length: MARKDOWN_IMPORT_MAX_BLOCKS + 1 }, () => ({ type: "paragraph", content: "x" })));
+    eq(shouldCommitMarkdownImport(over), true, "边界：数量上限由 db 层守卫，plan 不臆断丢弃");
+    eq(planMarkdownImport([]).total, 0, "导入计划：空源块 total=0");
+    eq(shouldCommitMarkdownImport(planMarkdownImport([])), false, "零半态判定：零块 → 不提交");
+  }
+
+  // 28. r9：AI 块级修订语义（未采纳不改库 / provider 无关契约 / mock 评测集录制回放）
+  section("AI 块级修订语义（assertValidRevisionInstruction / planRevisionApply / mock 录制回放）");
+  {
+    noThrow(() => assertValidRevisionInstruction("把这段改得更简洁"), "修订指令守卫：合法中文指令通过");
+    throws(() => assertValidRevisionInstruction(""), "修订指令守卫：空指令抛错");
+    throws(() => assertValidRevisionInstruction("   "), "修订指令守卫：纯空白指令抛错");
+    throws(() => assertValidRevisionInstruction(42), "修订指令守卫：非字符串抛错");
+    throws(() => assertValidRevisionInstruction("x".repeat(MAX_REVISION_INSTRUCTION + 1)), "修订指令守卫：超长指令抛错");
+    eq(planRevisionApply("原文", "建议文本", false), { applied: false, text: "原文" }, "修订计划：未采纳 → applied=false 且文本保持原文");
+    eq(planRevisionApply("原文", "建议文本", true), { applied: true, text: "建议文本" }, "修订计划：采纳 → applied=true 且文本替换为建议");
+    eq(planRevisionApply("原文", "建议文本", undefined).applied, false, "修订计划：adopt 缺失按未采纳处理");
+
+    const provider = createMockProvider();
+    eq(provider.id, MOCK_PROVIDER_ID, "mock provider：id 与常量一致");
+    eq(MOCK_PROVIDER_ID, "mock-scripted-v1", "mock provider：固定脚本化版本标识");
+    const s1 = await provider.propose({ instruction: "精简", blockType: "paragraph", originalText: "这是一段很长的文字需要压缩" });
+    eq(typeof s1.suggestedText, "string", "mock provider：返回建议文本");
+    eq(s1.provider, MOCK_PROVIDER_ID, "mock provider：建议携带 provider 标识");
+    eq(s1.rationale.length > 0, true, "mock provider：返回可读理由");
+    const s2 = await provider.propose({ instruction: "精简", blockType: "paragraph", originalText: "这是一段很长的文字需要压缩" });
+    eq(JSON.stringify(s2), JSON.stringify(s1), "mock provider：同输入固定脚本化回复（零 token / 可重放）");
+    ok(REVISE_EVAL_CASES.length >= 4, "评测集骨架：至少 4 条录制用例");
+    const replay = await runReplay(provider, REVISE_EVAL_CASES);
+    eq(replay.total, REVISE_EVAL_CASES.length, "评测集回放：用例数一致");
+    eq(replay.passed, replay.total, "评测集回放：全部录制期望命中");
+    eq(replay.failures.length, 0, "评测集回放：零失败");
+    const wrongCase = { ...REVISE_EVAL_CASES[0]!, expected: { ...REVISE_EVAL_CASES[0]!.expected, suggestedText: "故意写错的期望" } };
+    const badReplay = await runReplay(provider, [wrongCase]);
+    eq(badReplay.passed, 0, "评测集回放：错误期望被检出（非恒真占位）");
+    eq(badReplay.failures.length, 1, "评测集回放：失败清单精确 1 条");
+  }
+
+  // 29. r9：db 导入数据层（单事务整体替换 / 零半态 / 重开不丢 / 导出往返）
+  section("导入数据层（importBlocks 单事务整体替换 / 零半态 / 持久化 / 导出往返）");
+  {
+    const r9db = openDatabase({ path: ":memory:" });
+    const r9doc = r9db.createDocument("r9 导入文档");
+    eq(r9db.listBlocks(r9doc.id).length, 1, "导入前：建文档默认空首块在场");
+    const rows: MarkdownBlockDraft[] = [
+      { type: "heading1", content: { text: "导出标题" } },
+      { type: "paragraph", content: { text: "第一段" } },
+      { type: "todo", content: { text: "待办", checked: true } },
+      { type: "code", content: { text: "let x=1;", language: "ts" } },
+      { type: "divider", content: { text: "" } },
+    ];
+    const imported = r9db.importBlocks(r9doc.id, rows);
+    eq(imported.length, 5, "importBlocks：整篇替换为 5 块（默认首块不残留）");
+    eq(imported.map((b) => b.position), [0, 1, 2, 3, 4], "importBlocks：position 连号 0..4");
+    eq(imported.map((b) => b.type), rows.map((r) => r.type), "importBlocks：类型序列与源块一致");
+    eq(JSON.stringify(imported.map((b) => b.content)), JSON.stringify(rows.map((r) => r.content)), "importBlocks：归一后内容逐字节相等");
+    const snapshot = JSON.stringify(r9db.listBlocks(r9doc.id));
+    throws(
+      () => r9db.importBlocks(r9doc.id, [
+        { type: "paragraph", content: "合法" },
+        { type: "mystery", content: "非法" },
+      ] as unknown as MarkdownBlockDraft[]),
+      "importBlocks：先合法后非法 → 整体抛错",
+    );
+    eq(JSON.stringify(r9db.listBlocks(r9doc.id)), snapshot, "零半态：部分失败前后块快照逐字节相等（一行不落库）");
+    throws(() => r9db.importBlocks(999999, rows), "importBlocks：文档不存在抛错");
+    const roundTripMd = blocksToMarkdown(r9db.listBlocks(r9doc.id));
+    eq(JSON.stringify(markdownToBlocks(roundTripMd)), JSON.stringify(rows), "导出往返：blocks → md → blocks 逐字节相等");
+    r9db.close();
+
+    // 关库重开：导入结果持久化
+    mkdirSync("scripts/.tmp-e2e", { recursive: true });
+    const p9Path = `scripts/.tmp-e2e/r9-persist-${Date.now()}.db`;
+    const p9 = openDatabase({ path: p9Path });
+    const p9doc = p9.createDocument("持久化导入");
+    p9.importBlocks(p9doc.id, [{ type: "heading2", content: { text: "重开小标题" } }, { type: "paragraph", content: { text: "重开正文" } }]);
+    const p9Before = JSON.stringify(p9.listBlocks(p9doc.id));
+    const p9Text = blocksToMarkdown(p9.listBlocks(p9doc.id));
+    p9.close();
+    const p9Reopen = openDatabaseRaw({ path: p9Path });
+    eq(p9Reopen.appliedMigrations, [], "重开不重复迁移（幂等）");
+    eq(JSON.stringify(p9Reopen.db.listBlocks(p9doc.id)), p9Before, "导入结果持久化：重开后块逐字节相等");
+    eq(blocksToMarkdown(p9Reopen.db.listBlocks(p9doc.id)), p9Text, "导入结果持久化：重开后导出 Markdown 逐字节相等");
+    p9Reopen.raw.close();
+    db = null;
+  }
+
+  // 30. HTTP 冒烟 /api/health
   section("HTTP 冒烟 /api/health");
   let httpOk = false;
   let httpNote = "api 服务未运行（pnpm dev:api 后再跑 pnpm test 可覆盖此节）";

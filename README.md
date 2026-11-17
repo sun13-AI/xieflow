@@ -14,7 +14,7 @@ powershell -File scripts\start.ps1 stop    # 收服务
 # 开发模式：
 pnpm dev:api         # api 服务 http://127.0.0.1:8787
 pnpm dev:web         # web 界面 http://127.0.0.1:5173
-pnpm run test:all    # typecheck + e2e（716 断言）+ HTTP 审计（639 断言）
+pnpm run test:all    # typecheck + e2e（809 断言）+ HTTP 审计（706 断言）
 ```
 
 ### 打包（对齐 IKanBot 的 pack/dist 语义）
@@ -76,7 +76,20 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 
 ## 界面与测试对照
 
-按 AGENTS.md 立项规则：**界面更新必须带截图证据（每次，无例外）**，截图与实现同一提交。逐图索引（r1/r2/r3/r4/r5/r6/r7/r8 矩阵全量、逐张对照断言）：
+按 AGENTS.md 立项规则：**界面更新必须带截图证据（每次，无例外）**，截图与实现同一提交。逐图索引（r1/r2/r3/r4/r5/r6/r7/r8/r9 矩阵全量、逐张对照断言）：
+
+### r9 矩阵：[docs/ui/r9/](docs/ui/r9/README.md) —— Markdown 导入导出与 AI 块级修订（M4 收官，共 8 张 + 1 份真实 .md 字节证据）：
+
+| 截图 | 形态 | 对应断言 |
+|---|---|---|
+| [01-import-preview.png](docs/ui/r9/01-import-preview.png) | **真实链路·导入预览**（对话框 + 4 块预览表：标题/正文/待办已勾选/引用 + 「整篇替换不可撤销」后果提示，`?shot=docs-import-preview` 真调 preview 端点不写库） | audit「r9 预览：committable=true」「r9 预览：绝不写库」；e2e「导入计划：预览取全部（不足 5 行）」 |
+| [02-import-success.png](docs/ui/r9/02-import-success.png) | **真实链路·导入成功后**（01↔02 间真发 `POST /api/documents/:id/import.md`，8 块真实读回；编辑态列表有 `•` / `1.` marker） | audit「r9 导入：imported=6」「r9 导入：HTTP 真读回 6 块」；e2e「importBlocks：整篇替换为 5 块」 |
+| [03-export-download.png](docs/ui/r9/03-export-download.png) | **真实链路·导出落盘佐证**（中文文件名 + `253 字节` + 真实 Markdown 文本；另存字节文件 [r9-export-evidence.md](docs/ui/r9/r9-export-evidence.md)） | audit「r9 导出：响应文本与 shared blocksToMarkdown 逐字相等」「r9 往返：md → blocks 逐字节相等」 |
+| [04-revise-diff.png](docs/ui/r9/04-revise-diff.png) | **真实链路·AI 修订 diff**（原文 vs 建议左右对照 + `mock-scripted-v1` + 中文理由；adopt 缺省零写入） | audit「r9 修订：未采纳 applied=false」「r9 未采纳不改库：块快照逐字节相等」；e2e「修订计划：未采纳 → applied=false」 |
+| [05-revise-adopted.png](docs/ui/r9/05-revise-adopted.png) | **真实链路·采纳后**（04↔05 间真发 `adopt:true`，第 2 块文本变「…（精简稿）」并落库） | audit「r9 采纳：HTTP 真读回块文本已替换为建议」「r9 采纳后：导出立即反映」 |
+| [06-revise-discarded.png](docs/ui/r9/06-revise-discarded.png) | 放弃后（另一篇文档原文保持完整，提示「服务端零写入」；与 05 逐字不同） | audit「r9 显式 adopt=false 仍不写库」；e2e「修订计划：adopt 缺失按未采纳处理」 |
+| [07-narrow-u2-fixes.png](docs/ui/r9/07-narrow-u2-fixes.png) | 窄屏 488×900：**r8 U2-1 修复**（长文本两行完整、无 1px 裁切）+ **U2-2 修复**（编辑态列表 marker） | 无独立数字断言（CSS/布局钉态，逐张目验；文本落库由 audit 锁定） |
+| [08-import-narrow.png](docs/ui/r9/08-import-narrow.png) | 窄屏导入对话框 + 4 块预览表完整可见、无横向溢出（真调 preview，零写入） | audit「r9 预览：绝不写库」 |
 
 ### r8 矩阵：[docs/ui/r8/](docs/ui/r8/README.md) —— 文档块编辑器（M4 起步，共 11 张）：
 
@@ -159,7 +172,7 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 | [18-board-switched-project.png](docs/ui/r4/18-board-switched-project.png) | **返工 #1·D 证据**：项目切换深链 → 第二项目看板（下拉选中态） | audit「GET /api/projects -> 200」多项目读回 UI 形态 |
 | [19-board-card-moved-ui.png](docs/ui/r4/19-board-card-moved-ui.png) | **返工 #1·A4 全路径②**：建卡 → 真实移动 → 两侧列重排 | audit「PATCH 卡跨列移动 -> 200」+ 两侧重排 UI 形态 |
 
-### 壳基线：[docs/ui/shell/](docs/ui/shell/README.md) —— **七 tab** 激活态（r4 返工 #1 B 固化，shot.ps1 自动拍摄；r6 新增「表格」tab → 六张；**r8 新增「文档」tab → 基线扩为七张**，补 `docs-tab-active.png` 并同批重拍旧六张，与 r7 基线哈希全异）：工作台 / 待办 / 日程 / 项目 / 看板 / 表格 / 文档各 1 张（r2/r3/r4 U1-1 三轮连漏的流程性终结）。
+### 壳基线：[docs/ui/shell/](docs/ui/shell/README.md) —— **七 tab** 激活态（r4 返工 #1 B 固化，shot.ps1 自动拍摄；r6 新增「表格」tab → 六张；**r8 新增「文档」tab → 基线扩为七张**，补 `docs-tab-active.png` 并同批重拍旧六张，与 r7 基线哈希全异；**r9 未新增 tab，徽章推进 r9，七张同批重拍且与 r8 逐位全异**）：工作台 / 待办 / 日程 / 项目 / 看板 / 表格 / 文档各 1 张（r2/r3/r4 U1-1 三轮连漏的流程性终结）。
 
 ### r3 矩阵：[docs/ui/r3/](docs/ui/r3/README.md) —— 日程页月视图 + 联动徽标 + 工作台今日日程（共 11 张，返工 #1 修正 06/10 + 补 11）：
 
@@ -198,15 +211,16 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 
 ### 断言规模（每轮更新，下降 = 回归 = 冻结发版）
 
-- e2e **716** 项（服务离线口径 716，api 在线时 HTTP 冒烟节 +1 = 717）：迁移一致性 7 · settings 9 · todo CRUD 15 · 输入校验 13 · 状态机 10 · 汇总计数 7 · raw schema 4 · 迁移幂等 3 · 日程契约与守卫 28 · 循环实例化 14 · 区间查询装配 12 · v2→v3 迁移+双向联动 18 · schedules CRUD 26 · 看板排序规则（reorderPositions）12 · 看板名称守卫 6 · v3→v4 迁移+看板数据层 33 · 看板统计口径（computeBoardStats）35 · 看板 CSV 台账（buildBoardCsvContent）36 · 字段类型引擎（validateFieldValue / coerceFieldValue / compareValues）86 · 记录数据归一与查询装配（normalizeRecordData / queryRecords）25 · 看板导出文件名（buildBoardCsvFileName · U2-2）6 · v4→v5 迁移+多维表格数据层 44 · 视图 spec 归一（normalizeViewSpec）31（r7 新增）· 按视图查询口径（多字段 AND / 多级排序 / 投影）21（r7 新增）· CSV 导入口径（parseCsvText / planCsvImport / 零半态）43（r7 新增）· v5→v6 迁移+视图数据层（持久化 / 原子导入）43（r7 新增）· **块类型引擎（normalizeBlockContent / canConvertBlockType / 拆合装配）64（r8 新增）· v6→v7 迁移+文档数据层（持久化 / 拆合移动 / 全文装配）65（r8 新增）**
-- HTTP audit **639** 项（服务就绪 1 · health/settings 5 · todo 新建 12 · 列表详情 7 · 状态流转 9 · summary 11 · 删除 6 · 未知路由 1 · schedules CRUD 36 · 双向联动 22 · 循环实例 over HTTP 23 · projects CRUD 25 · board columns CRUD 20 · cards CRUD + 跨列移动 50 · board stats + CSV export 84 · tables / fields / records（r6）86 · views + CSV import（r7）119 · **documents + blocks（r8）117（r8 新增）** · schedules 删除 5）
-- typecheck 4 包全绿（strict + noUncheckedIndexedAccess）
+- e2e **809** 项（服务离线口径 809，api 在线时 HTTP 冒烟节 +1 = 810）：迁移一致性 7 · settings 9 · todo CRUD 15 · 输入校验 13 · 状态机 10 · 汇总计数 7 · raw schema 4 · 迁移幂等 3 · 日程契约与守卫 28 · 循环实例化 14 · 区间查询装配 12 · v2→v3 迁移+双向联动 18 · schedules CRUD 26 · 看板排序规则（reorderPositions）12 · 看板名称守卫 6 · v3→v4 迁移+看板数据层 33 · 看板统计口径（computeBoardStats）35 · 看板 CSV 台账（buildBoardCsvContent）36 · 字段类型引擎（validateFieldValue / coerceFieldValue / compareValues）86 · 记录数据归一与查询装配（normalizeRecordData / queryRecords）25 · 看板导出文件名（buildBoardCsvFileName · U2-2）6 · v4→v5 迁移+多维表格数据层 44 · 视图 spec 归一（normalizeViewSpec）31（r7 新增）· 按视图查询口径（多字段 AND / 多级排序 / 投影）21（r7 新增）· CSV 导入口径（parseCsvText / planCsvImport / 零半态）43（r7 新增）· v5→v6 迁移+视图数据层（持久化 / 原子导入）43（r7 新增）· **块类型引擎（normalizeBlockContent / canConvertBlockType / 拆合装配）64（r8 新增）· v6→v7 迁移+文档数据层（持久化 / 拆合移动 / 全文装配）65（r8 新增）· Markdown 双向引擎（markdownToBlocks / blocksToMarkdown / 未知语法降级）36（r9 新增）· Markdown 导入计划（normalizeMarkdownImportPayload / planMarkdownImport / 零半态）25（r9 新增）· AI 修订语义（instruction 守卫 / planRevisionApply / mock 录制回放）20（r9 新增）· 导入数据层（importBlocks 单事务整体替换 / 零半态 / 持久化 / 往返）12（r9 新增）**
+- HTTP audit **706** 项（服务就绪 1 · health/settings 5 · todo 新建 12 · 列表详情 7 · 状态流转 9 · summary 11 · 删除 6 · 未知路由 1 · schedules CRUD 36 · 双向联动 22 · 循环实例 over HTTP 23 · projects CRUD 25 · board columns CRUD 20 · cards CRUD + 跨列移动 50 · board stats + CSV export 84 · tables / fields / records（r6）86 · views + CSV import（r7）119 · **documents + blocks（r8）117（r8 新增）· Markdown import/export + AI revise（r9）67（r9 新增）** · schedules 删除 5）
+- typecheck 5 包全绿（strict + noUncheckedIndexedAccess；shared / db / web / api / **agent(r9 新增)**）
 - CI：ubuntu / windows / macos 三平台 verify 门禁 + tag 触发 Release；CI 的 HTTP smoke 静态正则随 schema 版本号同步放宽为 `(2|3|4|5|6|7)`（v0.0.6 教训）
 - r6 规模变化：e2e 288 → 449（+161）· audit 313 → 403（+90）；**无一条断言被删**（只涨不缩，宪法第四条）
 - r7 规模变化：e2e 449 → 587（+138）· audit 403 → 522（+119）；**无一条断言被删**（只涨不缩，宪法第四条）。随版本增长只更新了 **6 条既有断言的期望值**（迁移队列最高版本 5→6：`[3,4,5]`→`[3,4,5,6]`、`[4,5]`→`[4,5,6]`、`[5]`→`[5,6]`、构造越界队列 1..6→1..7，以及 audit 两处 `health.schemaVersion` 5→6），另有 2 条 e2e 断言的**标签文字**（4/5 → 6）同步，条数不变。
 - r8 规模变化：e2e 587 → **716（+129）**· audit 522 → **639（+117）**；**无一条断言被删**（只涨不缩，宪法第四条）。随 v6→v7 迁移只更新了 **6 条既有断言的期望值**（`[3,4,5,6]`→`[3,4,5,6,7]`、`[4,5,6]`→`[4,5,6,7]`、`[5,6]`→`[5,6,7]`、`[6]`→`[6,7]`、构造越界队列 1..7→1..8）与 audit 两处 `health.schemaVersion` 6→7；另有 8 条 e2e 断言的**标签文字**（4 条「v2/v3/v4/v5 旧库补跑 v6」→ 补 v7、3 条「CURRENT_SCHEMA_VERSION（6）」→（7）、1 条「重启后 user_version 仍为 6」→ 7）同步，条数不变。
+- r9 规模变化：e2e 716 → **809（+93）**· audit 639 → **706（+67）**；**无一条断言被删**（只涨不缩，宪法第四条）。新增四节 e2e（36 双向引擎 + 25 导入计划 + 20 修订语义 + 12 导入数据层）与一节 audit（67 条真实 HTTP 装配，含导入预览/零半态 422/修订采纳与放弃/4xx）；本轮**未做 schema 迁移**，既有断言期望值与 CI smoke 正则 `(2|3|4|5|6|7)` 均未改动。唯一修正是一条 audit 预览行数期望（6→5，按 `MARKDOWN_IMPORT_PREVIEW_ROWS=5` 的真实契约），条数不变。
 
-### 核心概念（逐轮累积，r1~r7 已落地的部分）
+### 核心概念（逐轮累积，r1~r9 已落地的部分）
 
 - **迁移纪律**：schema 变更只走 `packages/db/src/schema.ts` 的 `MIGRATIONS` 队列（v1 settings → v2 todos → v3 schedules → v4 projects/board_columns/cards → v5 tables/fields/records → v6 views → **v7 documents/blocks**），`user_version` 管理，重开幂等、旧库原地升级只补跑缺失版本
 - **状态机集中**：待办状态流转（open/done/archived）定义在 `packages/shared`，非法流转服务层与路由层双层拒绝
@@ -260,6 +274,21 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
   （打印时隐藏 topbar / tabs / 工具条 / 列表 / 块操作，只输出 `.docs-print-sheet`）
 - **r7 U2 低成本修复**（r8 顺手）：CSV 导入对话框补「数据行号」列 + 错误清单改「第 N 条数据（CSV 第 N+1 行）」口径（U2-1）；
   确认按钮旁前置「将向当前表追加 N 行 / 不可撤销」后果提示（U2-4）
+- **Markdown 双向唯一入口**（r9）：`markdownToBlocks`（空行分块 / ``` 围栏状态机 / `#` / `##` / `###` / `- [x]` / `-` / `1.` / `>` / `---`，未知语法一律 paragraph **逐字保留**）与
+  `blocksToMarkdown`（按 (position, id) 排序、连续 numbered 编号、paragraph 防误判转义、自适应代码围栏）都在 shared；
+  API 导出只装配、零方言分支；`blocks → md → blocks` 往返逐字节相等有 e2e + audit 双重断言
+- **文档导入零半态**（r9）：`normalizeMarkdownImportPayload`（markdown 文本 / `{markdown}` / `{blocks}` 三形态）→
+  `planMarkdownImport`（逐块走 `normalizeBlockContent`，错误带块号 + 中文原因）→ `shouldCommitMarkdownImport`（任一块非法即整体拒绝）
+  → db `importBlocks`（**事务外整体校验 + 单事务 DELETE/INSERT 整篇替换**）。preview 端点只解析不写库；
+  commit 全合法 200、部分失败 **422 且一块不写**（HTTP 前后快照逐字节相等）
+- **AI 块级修订契约**（r9）：`RevisionProvider` 接口（instruction + 块类型 + 原文 → 建议文本 / 理由 / provider）
+  由 api 一处注入 mock 实现，**M5 接真实模型只换 provider**；`assertValidRevisionInstruction` 守卫空 / 超长指令，
+  `planRevisionApply` 唯一决定采纳语义——**adopt 非 true 时 applied=false 且服务端零写入**，采纳才走 updateBlock；
+  未采纳前后块快照逐字节相等有 e2e + audit + CDP 真点三层实证
+- **mock 模型与评测集骨架**（r9）：`packages/agent/mock-provider.ts` 固定脚本化回复（精简/扩写/要点/正式/默认，零 token、零随机、同输入恒定同输出）；
+  `packages/agent/evals/` 录制回放式 `RecordedCall` / `runReplay`，错误期望必须被检出（非恒真占位）
+- **r8 U2 两项修复**（r9 顺手）：窄屏长文本 textarea 按 scrollHeight 自动撑高（不再 1px 字形顶渣）；
+  编辑态无序 / 有序列表块补可见 `•` / `1.` marker（with shared `computeNumberedOrdinals`）
 - **探针真读库**：`/api/health` 每次真写读一次 settings，不只是进程活着
 
 ## 明确不做（当前阶段）
