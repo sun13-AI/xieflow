@@ -157,6 +157,15 @@ import {
   computeInlineDiff,
   type PlannerContextMessage,
   type DiffSegment,
+  KNOWLEDGE_SOURCE_TYPES,
+  isKnowledgeSourceType,
+  assertValidKnowledgeSourceType,
+  assertValidKnowledgeTitle,
+  assertValidKnowledgeContent,
+  assertValidKnowledgeQuery,
+  MAX_KNOWLEDGE_TITLE,
+  MAX_KNOWLEDGE_CONTENT,
+  MAX_KNOWLEDGE_QUERY,
 } from "@xieflow/shared";
 import type { TodoStatus } from "@xieflow/shared";
 import {
@@ -175,6 +184,13 @@ import {
   generateJsonData,
   buildArtifactFromToolResults,
   ARTIFACT_GENERATOR_LABELS,
+  chunkText,
+  searchChunks,
+  tokenizeText,
+  countTokens,
+  DEFAULT_CHUNK_SIZE,
+  DEFAULT_CHUNK_OVERLAP,
+  NO_EMBEDDING,
 } from "@xieflow/agent";
 
 // ---------- 极简断言器 ----------
@@ -274,6 +290,7 @@ try {
         { version: 7, name: "g", up: [] },
         { version: 8, name: "h", up: [] },
         { version: 9, name: "i", up: [] },
+        { version: 10, name: "j", up: [] },
       ]),
     "队列超出 SCHEMA_VERSION：一致性校验抛错",
   );
@@ -661,8 +678,8 @@ try {
     const v3Migrated = openDatabaseRaw({ path: v3Path });
     eq(
       v3Migrated.appliedMigrations,
-      [3, 4, 5, 6, 7, 8],
-      "v2 旧库重开补跑 v3+v4+v5+v6+v7+v8 迁移（真实 PRAGMA 升级路径，r10 起队列追加 v8）",
+      [3, 4, 5, 6, 7, 8, 9],
+      "v2 旧库重开补跑 v3+v4+v5+v6+v7+v8+v9 迁移（真实 PRAGMA 升级路径，r12 起队列追加 v9）",
     );
     const tables = v3Migrated.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -887,8 +904,8 @@ try {
     const v4Open = openDatabaseRaw({ path: v4Path });
     eq(
       v4Open.appliedMigrations,
-      [4, 5, 6, 7, 8],
-      "v3 旧库重开只补跑 v4+v5+v6+v7+v8 迁移（真实 PRAGMA 升级路径）",
+      [4, 5, 6, 7, 8, 9],
+      "v3 旧库重开只补跑 v4+v5+v6+v7+v8+v9 迁移（真实 PRAGMA 升级路径）",
     );
     const tables = v4Open.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -899,7 +916,7 @@ try {
     eq(
       (v4Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（8）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（9）",
     );
     const rawDb: SqliteDatabase = v4Open.raw;
     throws(
@@ -1546,7 +1563,7 @@ try {
     v4Open2.raw.exec("PRAGMA user_version = 4");
     v4Open2.raw.close();
     const v5Open = openDatabaseRaw({ path: v5Path });
-    eq(v5Open.appliedMigrations, [5, 6, 7, 8], "v4 旧库重开只补跑 v5+v6+v7+v8 迁移（真实 PRAGMA 升级路径）");
+    eq(v5Open.appliedMigrations, [5, 6, 7, 8, 9], "v4 旧库重开只补跑 v5+v6+v7+v8+v9 迁移（真实 PRAGMA 升级路径）");
     const tableNames = v5Open.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
       .map((r) => String((r as unknown as { name: unknown }).name));
@@ -1556,7 +1573,7 @@ try {
     eq(
       (v5Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（8）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（9）",
     );
     const rawDb5: SqliteDatabase = v5Open.raw;
     throws(
@@ -2265,7 +2282,7 @@ try {
     v5Open.raw.exec("PRAGMA user_version = 5");
     v5Open.raw.close();
     const v6Open = openDatabaseRaw({ path: v6Path });
-    eq(v6Open.appliedMigrations, [6, 7, 8], "v5 旧库重开只补跑 v6+v7+v8 迁移（真实 PRAGMA 升级路径）");
+    eq(v6Open.appliedMigrations, [6, 7, 8, 9], "v5 旧库重开只补跑 v6+v7+v8+v9 迁移（真实 PRAGMA 升级路径）");
     const tableNames = v6Open.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
       .map((r) => String((r as unknown as { name: unknown }).name));
@@ -2273,7 +2290,7 @@ try {
     eq(
       (v6Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（8）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（9）",
     );
     const rawDb6: SqliteDatabase = v6Open.raw;
     eq(
@@ -2412,7 +2429,7 @@ try {
     eq(
       (reopened.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "重启后 user_version 仍为 8",
+      "重启后 user_version 仍为 9",
     );
     eq(JSON.stringify(reopened.db.listViews(tbl.id)), beforeViews, "视图持久化：重启前后 spec 逐字节相等");
     eq(
@@ -2545,11 +2562,11 @@ try {
     oldOpen.raw.exec("PRAGMA user_version = 6");
     oldOpen.raw.close();
     const v7Open = openDatabaseRaw({ path: v7Path });
-    eq(v7Open.appliedMigrations, [7, 8], "v6 旧库重开补跑 v7+v8 迁移（真实 PRAGMA 升级路径）");
+    eq(v7Open.appliedMigrations, [7, 8, 9], "v6 旧库重开补跑 v7+v8+v9 迁移（真实 PRAGMA 升级路径）");
     eq(
       (v7Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（8）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（9）",
     );
     const tables = (v7Open.raw.all(
       "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('documents','blocks') ORDER BY name",
@@ -2933,11 +2950,11 @@ try {
     old10.raw.exec("PRAGMA user_version = 7");
     old10.raw.close();
     const v8 = openDatabaseRaw({ path: p10Path });
-    eq(v8.appliedMigrations, [8], "v7 旧库重开只补跑 v8 迁移（真实 PRAGMA 升级路径）");
+    eq(v8.appliedMigrations, [8, 9], "v7 旧库重开只补跑 v8+v9 迁移（真实 PRAGMA 升级路径）");
     eq(
       (v8.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（8）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（9）",
     );
     const t10 = v8.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -3095,9 +3112,9 @@ try {
     const tablesRes = await registry.execute(tdb, "list_tables", {});
     ok(((tablesRes.data as { tables?: BaseTable[] } | null)?.tables ?? []).some((t) => t.name === "r10 工具用表格"), "list_tables 真读回刚建表格");
     const know = await registry.execute(tdb, "search_knowledge", { query: "路线图" });
-    eq(know.ok, true, "search_knowledge 空占位执行成功（M6 前约定）");
-    eq((know.data as { results?: unknown[] } | null)?.results ?? null, [], "search_knowledge 返回空结果数组");
-    eq((know.data as { placeholder?: boolean } | null)?.placeholder, true, "search_knowledge 明示 placeholder=true（非伪造命中）");
+    eq(know.ok, true, "search_knowledge 空库执行成功（r12 真检索零命中）");
+    eq((know.data as { results?: unknown[] } | null)?.results ?? null, [], "search_knowledge 空库返回空结果数组");
+    eq((know.data as { placeholder?: boolean } | null)?.placeholder, undefined, "search_knowledge 不再返回 placeholder（r12 真检索，非占位）");
     await throwsAsync(() => registry.execute(tdb, "mystery_tool", {}), "未知工具执行抛错（HTTP 400 根因）");
     await throwsAsync(() => registry.execute(tdb, "create_todo", { title: 123 }), "非法参数（title 非字符串）执行抛错");
     await throwsAsync(() => registry.execute(tdb, "create_todo", { title: "x", quadrant: "q9" }), "非法参数（象限越界）执行抛错");
@@ -3340,7 +3357,163 @@ try {
     cdb.close();
   }
 
-  // 41. HTTP 冒烟 /api/health
+  // 40. r12：schema v8→v9 迁移与知识库数据层
+  section("schema v8→v9 迁移与知识库数据层（knowledge_docs / knowledge_chunks）");
+  {
+    mkdirSync("scripts/.tmp-e2e", { recursive: true });
+    const p = `scripts/.tmp-e2e/r12-v9-${Date.now()}.db`;
+    const old = openDatabaseRaw({ path: p });
+    old.raw.exec("PRAGMA user_version = 8");
+    old.raw.close();
+    const v9 = openDatabaseRaw({ path: p });
+    eq(v9.appliedMigrations, [9], "v8 旧库重开只补跑 v9 迁移（真实 PRAGMA 升级路径）");
+    eq(
+      (v9.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
+      CURRENT_SCHEMA_VERSION,
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（9）",
+    );
+    const tables = v9.raw
+      .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+      .map((r) => String((r as { name: unknown }).name));
+    ok(tables.includes("knowledge_docs"), "v9 迁移建出 knowledge_docs 表");
+    ok(tables.includes("knowledge_chunks"), "v9 迁移建出 knowledge_chunks 表");
+    const docCols = (v9.raw.all("PRAGMA table_info(knowledge_docs)") as { name: string }[]).map((r) => r.name);
+    eq(
+      docCols,
+      ["id", "title", "source_type", "source_id", "content", "chunk_count", "created_at"],
+      "knowledge_docs 七列逐字吻合任务单",
+    );
+    const chunkCols = (v9.raw.all("PRAGMA table_info(knowledge_chunks)") as { name: string }[]).map((r) => r.name);
+    eq(
+      chunkCols,
+      ["id", "doc_id", "position", "content", "token_count", "vector"],
+      "knowledge_chunks 六列（含可空 vector 列，embedding 留位）",
+    );
+    throws(
+      () => v9.raw.run("INSERT INTO knowledge_docs (title, source_type, source_id, content, chunk_count, created_at) VALUES ('', 'text', NULL, 'x', 0, '')"),
+      "knowledge_docs.title 空串被 schema CHECK 拒绝",
+    );
+    throws(
+      () => v9.raw.run("INSERT INTO knowledge_docs (title, source_type, source_id, content, chunk_count, created_at) VALUES ('t', 'evil', NULL, 'x', 0, '')"),
+      "knowledge_docs.source_type CHECK 拒绝非法值",
+    );
+    throws(
+      () => v9.raw.run("INSERT INTO knowledge_chunks (doc_id, position, content, token_count) VALUES (999999, 0, 'x', 1)"),
+      "knowledge_chunks.doc_id 外键拒绝孤儿块",
+    );
+    const drafts = [
+      { position: 0, content: "第一块", tokenCount: 3 },
+      { position: 1, content: "第二块", tokenCount: 3 },
+    ];
+    const ingested = v9.db.createKnowledgeDoc({ title: "r12 真入库", sourceType: "text", sourceId: null, content: "第一块第二块", chunks: drafts });
+    eq(ingested.doc.title, "r12 真入库", "createKnowledgeDoc 真落库并读回标题");
+    eq(ingested.doc.sourceType, "text", "createKnowledgeDoc 落 source_type=text");
+    eq(ingested.doc.chunkCount, 2, "createKnowledgeDoc 的 chunk_count = 分块数");
+    eq(ingested.chunks.length, 2, "createKnowledgeDoc 一次落 2 块");
+    eq(v9.db.listKnowledgeDocs().length, 1, "listKnowledgeDocs 真读回 1 篇");
+    eq(v9.db.getKnowledgeDoc(ingested.doc.id)?.title, ingested.doc.title, "getKnowledgeDoc 按 id 读回");
+    eq(v9.db.getKnowledgeDoc(999999), null, "getKnowledgeDoc 不存在返回 null");
+    eq(v9.db.listKnowledgeChunks(ingested.doc.id).map((c) => c.position), [0, 1], "listKnowledgeChunks 按 position 升序");
+    const searchChunksFromDb = v9.db.listKnowledgeChunksForSearch();
+    eq(searchChunksFromDb.length, 2, "listKnowledgeChunksForSearch 带来源字段读回 2 块");
+    eq(searchChunksFromDb[0]?.docTitle, "r12 真入库", "检索源块携带 doc_title 来源引用");
+    eq(searchChunksFromDb[0]?.sourceType, "text", "检索源块携带 source_type 来源引用");
+    const snap = JSON.stringify(v9.db.listKnowledgeChunks(ingested.doc.id));
+    ok(snap.length > 20, "删除前块快照非空（证明级联前确有数据）");
+    v9.db.deleteKnowledgeDoc(ingested.doc.id);
+    eq(v9.db.listKnowledgeDocs().length, 0, "deleteKnowledgeDoc 真删文档");
+    eq(v9.db.listKnowledgeChunks(ingested.doc.id).length, 0, "删文档级联删块（schema ON DELETE CASCADE）");
+    v9.raw.close();
+  }
+
+  // 41. r12：分块引擎（段落/字数切分 + 重叠窗口 + 边界不丢字）
+  section("r12 分块引擎 chunkText（段落/字数切分 + 重叠窗口 + 边界不丢字）");
+  {
+    eq(DEFAULT_CHUNK_SIZE, 200, "缺省 chunkSize=200");
+    eq(DEFAULT_CHUNK_OVERLAP, 40, "缺省 overlap=40（重叠窗口）");
+    eq(chunkText("").length, 0, "空文本分块 0 片");
+    eq(chunkText("   \n  \n ").length, 0, "纯空白文本分块 0 片");
+    const one = chunkText("短文本");
+    eq(one.length, 1, "短文本一片");
+    eq(one[0]?.position, 0, "首片 position=0");
+    eq(one[0]?.content, "短文本", "短文本原样保留（trim 后）");
+    ok((one[0]?.tokenCount ?? 0) > 0, "短文本 token_count > 0");
+    const plain = "字".repeat(250);
+    const cut = chunkText(plain, { chunkSize: 100, overlap: 20 });
+    eq(cut.length, 3, "250 字按 100/20 切成 3 片");
+    eq(cut.map((c) => c.position), [0, 1, 2], "分块 position 连号 0..2");
+    eq(cut.map((c) => c.content.length), [100, 100, 90], "前两片满 100 字，末片 90 字");
+    ok(cut[1]?.content.startsWith("字".repeat(20)) === true, "第 2 片头部为第 1 片尾部 20 字（重叠窗口在场）");
+    const rebuilt = cut[0]!.content + cut[1]!.content.slice(20) + cut[2]!.content.slice(20);
+    eq(rebuilt, plain, "去重叠拼接逐字等于原文（边界不丢字）");
+    const paras = chunkText("第一段短句。\n第二段短句。\n第三段短句。", { chunkSize: 200, overlap: 0 });
+    eq(paras.length, 1, "三段短文在字数内并一片");
+    ok(paras[0]?.content.includes("第一段") === true && paras[0]?.content.includes("第三段") === true, "段落分块保留全部段落文字");
+    const longPara = chunkText("甲".repeat(180) + "\n" + "乙".repeat(180), { chunkSize: 200, overlap: 30 });
+    ok(longPara.length >= 2, "超长段落按字数切为多片");
+    ok(longPara.some((c) => c.content.includes("乙")), "跨段落切分不丢后段文字");
+    eq(chunkText("百字短文。", { chunkSize: 5, overlap: 0 })[0]?.content, "百字短文。", "chunkSize 小于文本时仍不丢字（单片保底）");
+    let mono = true;
+    for (const c of cut) if (c.tokenCount !== 100 && c.tokenCount !== 90) mono = false;
+    ok(mono, "token_count 逐片等于汉字字数（token 口径确定）");
+  }
+
+  // 42. r12：TF-IDF 检索引擎（排序 / 空查询 / 来源引用）
+  section("r12 TF-IDF 检索引擎 searchChunks（排序 / 空查询 / 来源引用）");
+  {
+    eq(tokenizeText("你好 hello 123"), ["你", "好", "hello", "123"], "tokenize：中文逐字、英文数字成词（样例）");
+    eq(countTokens("你好 hello 123"), 4, "countTokens=4（你/好/hello/123）");
+    eq(countTokens("   "), 0, "纯空白 token=0");
+    const chunks = [
+      { id: 11, docId: 1, position: 0, content: "苹果 手机 手机 手机 手机", docTitle: "科技稿", sourceType: "text" as const, sourceId: null },
+      { id: 22, docId: 2, position: 0, content: "苹果 水果 香蕉", docTitle: "果园稿", sourceType: "document" as const, sourceId: 7 },
+      { id: 33, docId: 3, position: 0, content: "苹果 手机 平板", docTitle: "数码稿", sourceType: "text" as const, sourceId: null },
+    ];
+    eq(searchChunks("", chunks).length, 0, "空查询返回 0 命中");
+    eq(searchChunks("   ", chunks).length, 0, "纯空白查询返回 0 命中");
+    eq(searchChunks("手机", []).length, 0, "空语料返回 0 命中");
+    const hits = searchChunks("手机", chunks, 10);
+    eq(hits.length, 2, "查询「手机」命中 2 块（不含「果园稿」）");
+    eq(hits[0]?.docId, 1, "TF-IDF 排序：手机词频最高的「科技稿」居首");
+    ok((hits[0]?.score ?? 0) > (hits[1]?.score ?? 0), "命中按余弦相似度降序");
+    ok(hits.every((h) => h.score > 0), "全部命中 score > 0（零分不过滤阈值）");
+    eq(hits[0]?.chunkId, 11, "命中携带 chunk_id 来源引用");
+    eq(hits[0]?.docTitle, "科技稿", "命中携带 doc_title 来源引用");
+    eq(hits[1]?.sourceType, "text", "命中携带 source_type 来源引用");
+    eq(hits[1]?.sourceId, null, "命中携带 source_id 来源引用（text 为 null）");
+    const banana = searchChunks("香蕉", chunks);
+    eq(banana.length, 1, "稀有词「香蕉」只命中 1 块");
+    eq(banana[0]?.docId, 2, "稀有词命中可溯源到具体文档");
+    eq(banana[0]?.sourceId, 7, "document 来源的 source_id 可溯源");
+    eq(searchChunks("苹果", chunks, 1).length, 1, "limit=1 只返回 1 条");
+    eq(searchChunks("不存在词xyz", chunks).length, 0, "零交集查询返回空");
+    eq(NO_EMBEDDING.id, "none", "embedding 留位：缺省 provider id=none");
+  }
+
+  // 43. r12：search_knowledge 工具从占位改为真检索
+  section("r12 search_knowledge 工具真检索（来源引用）");
+  {
+    const tdb = openDatabase({ path: ":memory:" });
+    tdb.createKnowledgeDoc({
+      title: "工具真检索稿",
+      sourceType: "text",
+      sourceId: null,
+      content: "苹果 手机 手机 手机",
+      chunks: [{ position: 0, content: "苹果 手机 手机 手机", tokenCount: 4 }],
+    });
+    const reg = createDefaultToolRegistry();
+    const hit = await reg.execute(tdb, "search_knowledge", { query: "手机" });
+    eq(hit.ok, true, "search_knowledge 真执行 ok=true");
+    const data = hit.data as { results: { docId: number; chunkId: number; docTitle: string }[] };
+    ok(data.results.length > 0, "search_knowledge 命中非空（非 r10 空占位）");
+    eq(data.results[0]?.docTitle, "工具真检索稿", "工具回执携带真实文档标题");
+    ok(typeof data.results[0]?.docId === "number" && typeof data.results[0]?.chunkId === "number", "工具回执携带 doc_id / chunk_id 来源引用");
+    const empty = await reg.execute(tdb, "search_knowledge", { query: "无此词qqq" });
+    eq((empty.data as { results: unknown[] }).results.length, 0, "零命中查询返回空结果（不伪造）");
+    tdb.close();
+  }
+
+  // 44. HTTP 冒烟 /api/health
   section("HTTP 冒烟 /api/health");
   let httpOk = false;
   let httpNote = "api 服务未运行（pnpm dev:api 后再跑 pnpm test 可覆盖此节）";

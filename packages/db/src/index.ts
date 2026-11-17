@@ -25,6 +25,9 @@ import {
   mapRowToConversation,
   mapRowToMessage,
   mapRowToArtifact,
+  mapRowToKnowledgeDoc,
+  mapRowToKnowledgeChunk,
+  mapRowToKnowledgeSearchChunk,
 } from "./mappers.js";
 import type {
   AppSetting,
@@ -51,6 +54,11 @@ import type {
   ToolCallRecord,
   Artifact,
   ArtifactType,
+  KnowledgeSourceType,
+  KnowledgeChunkDraft,
+  KnowledgeDoc,
+  KnowledgeChunk,
+  KnowledgeSearchChunk,
 } from "@xieflow/shared";
 import {
   canTransitionTodo,
@@ -90,6 +98,9 @@ import {
   assertValidChatMessage,
   assertValidMessageRole,
   assertValidArtifactType,
+  assertValidKnowledgeTitle,
+  assertValidKnowledgeSourceType,
+  assertValidKnowledgeContent,
   ValidationError,
 } from "@xieflow/shared";
 import { REPEATS_ORDER } from "./repeat-order.js";
@@ -1578,5 +1589,99 @@ export class XieFlowDb {
         artifact,
       };
     });
+  }
+
+  // ---- r12：知识库数据层（knowledge_docs / knowledge_chunks，入库单事务零半态） ----
+
+  /**
+   * 知识文档 + 全部分块单事务落库。校验走 shared 守卫，chunk_count 由实际分块数得出，
+   * 中途任一异常 ROLLBACK（绝不留下「有文档但没块」的半态）。
+   */
+  createKnowledgeDoc(input: {
+    readonly title: unknown;
+    readonly sourceType: unknown;
+    readonly sourceId: number | null;
+    readonly content: unknown;
+    readonly chunks: readonly KnowledgeChunkDraft[];
+  }): { doc: KnowledgeDoc; chunks: KnowledgeChunk[] } {
+    const title = input.title;
+    const sourceType = input.sourceType;
+    const content = input.content;
+    assertValidKnowledgeTitle(title);
+    assertValidKnowledgeSourceType(sourceType);
+    assertValidKnowledgeContent(content);
+    let sourceId: number | null = null;
+    if (sourceType === "document") {
+      const sid = input.sourceId;
+      if (typeof sid !== "number" || !Number.isInteger(sid) || sid <= 0) {
+        throw new ValidationError("document 来源必须提供正整数 source_id");
+      }
+      sourceId = sid;
+      if (this.getDocument(sourceId) === null) {
+        throw new Error(`来源文档不存在：${sourceId}`);
+      }
+    }
+    if (!Array.isArray(input.chunks)) throw new ValidationError("chunks 必须是数组");
+    for (const c of input.chunks) {
+      if (!Number.isInteger(c.position) || c.position < 0) throw new ValidationError("分块 position 非法");
+      if (typeof c.content !== "string") throw new ValidationError("分块 content 必须是字符串");
+      if (!Number.isInteger(c.tokenCount) || c.tokenCount < 0) throw new ValidationError("分块 token_count 非法");
+    }
+    return this.withTransaction(() => {
+      const now = new Date().toISOString();
+      const res = this.db.run(
+        "INSERT INTO knowledge_docs (title, source_type, source_id, content, chunk_count, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+        [title, sourceType, sourceId, content, input.chunks.length, now],
+      );
+      const docRow = this.db.get("SELECT * FROM knowledge_docs WHERE id = ?", [res.lastInsertRowid]);
+      if (!docRow) throw new Error("知识文档写入后读回失败");
+      const inserted: KnowledgeChunk[] = [];
+      for (const c of input.chunks) {
+        const cr = this.db.run(
+          "INSERT INTO knowledge_chunks (doc_id, position, content, token_count, vector) VALUES (?, ?, ?, ?, NULL)",
+          [res.lastInsertRowid, c.position, c.content, c.tokenCount],
+        );
+        const chunkRow = this.db.get("SELECT * FROM knowledge_chunks WHERE id = ?", [cr.lastInsertRowid]);
+        if (!chunkRow) throw new Error("知识分块写入后读回失败");
+        inserted.push(mapRowToKnowledgeChunk(chunkRow));
+      }
+      return { doc: mapRowToKnowledgeDoc(docRow), chunks: inserted };
+    });
+  }
+
+  getKnowledgeDoc(id: number): KnowledgeDoc | null {
+    const row = this.db.get("SELECT * FROM knowledge_docs WHERE id = ?", [id]);
+    return row ? mapRowToKnowledgeDoc(row) : null;
+  }
+
+  listKnowledgeDocs(): KnowledgeDoc[] {
+    return this.db.all("SELECT * FROM knowledge_docs ORDER BY id DESC").map(mapRowToKnowledgeDoc);
+  }
+
+  /** 删知识文档：分块由 schema ON DELETE CASCADE 级联清理（无孤儿块）。 */
+  deleteKnowledgeDoc(id: number): boolean {
+    const res = this.db.run("DELETE FROM knowledge_docs WHERE id = ?", [id]);
+    return res.changes > 0;
+  }
+
+  listKnowledgeChunks(docId: number): KnowledgeChunk[] {
+    return this.db
+      .all("SELECT * FROM knowledge_chunks WHERE doc_id = ? ORDER BY position, id", [docId])
+      .map(mapRowToKnowledgeChunk);
+  }
+
+  getKnowledgeChunk(id: number): KnowledgeChunk | null {
+    const row = this.db.get("SELECT * FROM knowledge_chunks WHERE id = ?", [id]);
+    return row ? mapRowToKnowledgeChunk(row) : null;
+  }
+
+  /** 检索源块：JOIN 文档来源字段，交给 agent 的纯函数 searchChunks（api 层零算法分支）。 */
+  listKnowledgeChunksForSearch(): KnowledgeSearchChunk[] {
+    return this.db
+      .all(
+        "SELECT c.id, c.doc_id, c.position, c.content, d.title AS doc_title, d.source_type, d.source_id " +
+          "FROM knowledge_chunks c JOIN knowledge_docs d ON d.id = c.doc_id ORDER BY c.id",
+      )
+      .map(mapRowToKnowledgeSearchChunk);
   }
 }

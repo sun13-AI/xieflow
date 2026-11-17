@@ -118,7 +118,7 @@ async function audit() {
     eq(h.json && h.json.ok, true, "health.ok = true");
     // r4 起动态对表：health.schemaVersion 必须等于迁移队列最高版本（不再硬编码 2/3，
     // r3 v0.0.6 CI 红教训——静态硬编码在每轮迁移后必过期）
-    eq(h.json && h.json.schemaVersion, 8, "health.schemaVersion = 8（r10 迁移后）");
+    eq(h.json && h.json.schemaVersion, 9, "health.schemaVersion = 9（r12 迁移后）");
     const s = await req("GET", "/api/settings");
     eq(s.status, 200, "GET /api/settings -> 200");
     ok(Array.isArray(s.json && s.json.settings), "settings 返回数组");
@@ -215,7 +215,7 @@ async function audit() {
   {
     // health 探针反映 schema v8（r4 起迁移后动态推进）
     const h3 = await req("GET", "/api/health");
-    eq(h3.json && h3.json.schemaVersion, 8, "health.schemaVersion = 8（schedules 节复核）");
+    eq(h3.json && h3.json.schemaVersion, 9, "health.schemaVersion = 9（schedules 节复核）");
 
     const r = await expectStatus(
       "POST",
@@ -1850,6 +1850,77 @@ async function audit() {
     await expectStatus("DELETE", `/api/todos/${todoId2}`, undefined, 200, "r11 删第 2 轮待办 -> 200");
     await expectStatus("DELETE", `/api/documents/${docId}`, undefined, 200, "r11 删摘要源文档 -> 200");
     await expectStatus("DELETE", `/api/schedules/${createdSch.id}`, undefined, 200, "r11 删自建日程 -> 200");
+  }
+
+  console.log("\n== Knowledge r12: ingest / TF-IDF search / source refs / 4xx ==");
+  {
+    // 4xx first: empty content / too long content / illegal source_type / empty query
+    await expectStatus("POST", "/api/knowledge/ingest", { title: "x", sourceType: "text", content: "   " }, 400, "r12 空内容入库 -> 400");
+    await expectStatus("POST", "/api/knowledge/ingest", { title: "x", sourceType: "text", content: "字".repeat(200001) }, 400, "r12 超长内容入库 -> 400");
+    await expectStatus("POST", "/api/knowledge/ingest", { title: "x", sourceType: "evil", content: "abc" }, 400, "r12 非法 source_type -> 400");
+    await expectStatus("POST", "/api/knowledge/ingest", { title: "", sourceType: "text", content: "abc" }, 400, "r12 空标题入库 -> 400");
+    await expectStatus("POST", "/api/knowledge/ingest", { title: "x", sourceType: "document", sourceId: 999999 }, 404, "r12 文档源不存在 -> 404");
+    await expectStatus("GET", "/api/knowledge/search", undefined, 400, "r12 缺查询词 -> 400");
+    await expectStatus("GET", "/api/knowledge/search?q=%20%20", undefined, 400, "r12 纯空白查询 -> 400");
+    await expectStatus("GET", "/api/knowledge/search?q=abc&limit=0", undefined, 400, "r12 limit=0 -> 400");
+    await expectStatus("GET", "/api/knowledge/search?q=abc&limit=999", undefined, 400, "r12 limit 超上限 -> 400");
+
+    const empty = await expectStatus("GET", "/api/knowledge/docs", undefined, 200, "r12 GET 知识库文档列表 -> 200");
+    ok(Array.isArray(empty.json.docs), "r12 文档列表为数组");
+
+    // seed THREE docs over real HTTP (waizhuan TF-IDF ranking scenario)
+    const d1 = await expectStatus("POST", "/api/knowledge/ingest", { title: "r12科技稿", sourceType: "text", content: "苹果 手机 手机 手机 手机" }, 201, "r12 真入库科技稿 -> 201");
+    const d2 = await expectStatus("POST", "/api/knowledge/ingest", { title: "r12果园稿", sourceType: "text", content: "苹果 水果 香蕉" }, 201, "r12 真入库果园稿 -> 201");
+    const d3 = await expectStatus("POST", "/api/knowledge/ingest", { title: "r12数码稿", sourceType: "text", content: "苹果 手机 平板" }, 201, "r12 真入库数码稿 -> 201");
+    eq(d1.json.doc.chunkCount, 1, "r12 科技稿 chunk_count=1");
+    ok(d1.json.chunks[0].tokenCount > 0, "r12 入库自动分块并算 token_count");
+    const list = await expectStatus("GET", "/api/knowledge/docs", undefined, 200, "r12 三篇真入库后列表 -> 200");
+    eq(list.json.docs.length, 3, "r12 列表真读回 3 篇");
+    const one = await expectStatus("GET", `/api/knowledge/docs/${d1.json.doc.id}`, undefined, 200, "r12 GET 单篇文档 -> 200");
+    eq(one.json.title, "r12科技稿", "r12 单篇标题逐字回读");
+    const chunks = await expectStatus("GET", `/api/knowledge/docs/${d1.json.doc.id}/chunks`, undefined, 200, "r12 GET 文档分块 -> 200");
+    eq(chunks.json.chunks.length, 1, "r12 分块真读回");
+
+    // TF-IDF ranking over real HTTP: "手机" ranks 科技稿 (tf=4/5) above 数码稿 (tf=1/3); 果园稿 excluded
+    const s1 = await expectStatus("GET", "/api/knowledge/search?q=%E6%89%8B%E6%9C%BA&limit=10", undefined, 200, "r12 检索「手机」-> 200");
+    eq(s1.json.hits.length, 2, "r12 检索「手机」命中 2 块（果园稿零分过滤）");
+    eq(s1.json.hits[0].docTitle, "r12科技稿", "r12 TF-IDF 排序：词频最高的科技稿居首");
+    ok(s1.json.hits[0].score > s1.json.hits[1].score, "r12 命中按 score 降序（真 TF-IDF 非字典序）");
+    ok(typeof s1.json.hits[0].docId === "number" && typeof s1.json.hits[0].chunkId === "number", "r12 命中带 doc_id/chunk_id 来源引用");
+    eq(s1.json.hits[0].sourceType, "text", "r12 命中带 source_type 来源引用");
+    const s2 = await expectStatus("GET", "/api/knowledge/search?q=%E9%A6%99%E8%95%89", undefined, 200, "r12 检索稀有词「香蕉」-> 200");
+    eq(s2.json.hits.length, 1, "r12 稀有词只命中果园稿 1 块");
+    eq(s2.json.hits[0].docId, d2.json.doc.id, "r12 稀有词命中可溯源到具体文档 id");
+    const s3 = await expectStatus("GET", "/api/knowledge/search?q=abcxyznotexist", undefined, 200, "r12 零交集查询 -> 200");
+    eq(s3.json.hits.length, 0, "r12 零交集查询返回空命中（不伪造）");
+    const s4 = await expectStatus("GET", "/api/knowledge/search?q=%E8%8B%B9%E6%9E%9C&limit=1", undefined, 200, "r12 limit=1 检索 -> 200");
+    eq(s4.json.hits.length, 1, "r12 limit 参数生效（只返 1 条）");
+
+    // document-source ingest: real document -> assembleDocumentText -> chunks with source_id
+    const docSrc = await expectStatus("POST", "/api/documents", { title: "r12文档源" }, 201, "r12 建文档源 -> 201");
+    await expectStatus("POST", `/api/documents/${docSrc.json.id}/import.md`, { markdown: "# 标题\n\n这是一段来自真实文档的正文。" }, 200, "r12 导入真块供文档源入库 -> 200");
+    const fromDoc = await expectStatus("POST", "/api/knowledge/ingest", { title: "r12文档源入库", sourceType: "document", sourceId: docSrc.json.id }, 201, "r12 从文档入库 -> 201");
+    eq(fromDoc.json.doc.sourceType, "document", "r12 文档源入库 source_type=document");
+    eq(fromDoc.json.doc.sourceId, docSrc.json.id, "r12 文档源入库 source_id 指回真文档");
+    const sDoc = await expectStatus("GET", "/api/knowledge/search?q=%E6%AD%A3%E6%96%87", undefined, 200, "r12 检索文档源内容 -> 200");
+    ok(sDoc.json.hits.some((h: { sourceId: number }) => h.sourceId === docSrc.json.id), "r12 文档源命中 source_id 可溯源");
+
+    // search_knowledge tool over real HTTP returns non-empty with source refs
+    const conv = await expectStatus("POST", "/api/conversations", { title: "r12 工具检索会话" }, 201, "r12 建工具检索会话 -> 201");
+    const toolChat = await expectStatus("POST", `/api/conversations/${conv.json.id}/chat`, { message: "忽略", toolCalls: [{ name: "search_knowledge", arguments: { query: "手机" } }] }, 201, "r12 search_knowledge 经 HTTP -> 201");
+    eq(toolChat.json.toolCalls[0].ok, true, "r12 search_knowledge 真执行 ok=true");
+    ok((toolChat.json.toolCalls[0].data.results ?? []).length > 0, "r12 工具回执非空（非 r10 占位）");
+    ok(typeof toolChat.json.toolCalls[0].data.results[0].chunkId === "number", "r12 工具回执含 chunk_id 来源");
+
+    // cleanup (reverse creation order; cascade removes chunks on doc delete)
+    await expectStatus("DELETE", `/api/conversations/${conv.json.id}`, undefined, 200, "r12 删工具会话 -> 200");
+    for (const d of [d1, d2, d3, fromDoc]) {
+      await expectStatus("DELETE", `/api/knowledge/docs/${d.json.doc.id}`, undefined, 200, `r12 删知识文档 ${d.json.doc.id} -> 200`);
+    }
+    await expectStatus("DELETE", `/api/documents/${docSrc.json.id}`, undefined, 200, "r12 删文档源 -> 200");
+    await expectStatus("GET", `/api/knowledge/docs/${d1.json.doc.id}`, undefined, 404, "r12 删后 GET 知识文档 -> 404");
+    const after = await expectStatus("GET", "/api/knowledge/docs", undefined, 200, "r12 清理后列表 -> 200");
+    eq(after.json.docs.length, 0, "r12 清理后知识库归零（无残留）");
   }
 
   console.log("\n== schedules delete (r3) ==");

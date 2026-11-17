@@ -2,8 +2,8 @@
 //
 // 宪法纪律：工具的 name / description / parameters 契约与入参归一全在 packages/shared；
 // 本文件只做「注册 → 校验 → 执行 → 回执」装配。**handler 全部调用真实服务层（XieFlowDb）**，
-// 不返回 mock/伪造数据；唯一例外是 search_knowledge——任务单明示 M6 前返回空结果占位，
-// 且回执显式带 placeholder=true，绝不冒充命中。
+// 不返回 mock/伪造数据；search_knowledge 自 r12 起改为真检索（TF-IDF 纯本地算法），
+// 检索算法本身集中在 ./knowledge.ts，handler 只做取数 + 调纯函数 + 组装带来源引用的回执。
 import type { XieFlowDb } from "@xieflow/db";
 import {
   ValidationError,
@@ -20,6 +20,7 @@ import {
   type ToolName,
   type ToolResult,
 } from "@xieflow/shared";
+import { searchChunks } from "./knowledge.js";
 
 /** handler 回执：人类可读摘要 + 真实数据（数据原样交给 api 落库/产物预览） */
 export interface ToolHandlerResult {
@@ -58,7 +59,7 @@ function requirePositiveInt(args: Record<string, unknown>, key: string, label: s
   return n;
 }
 
-/** 12 个真实服务层 handler：只读 8 个 + 状态变更 3 个 + 占位 1 个（search_knowledge） */
+/** 12 个真实服务层 handler（只读 9 个 + 状态变更 3 个；search_knowledge 真检索不占位） */
 const DEFAULT_TOOLS: readonly RegisteredTool[] = [
   {
     name: "list_todos",
@@ -162,17 +163,28 @@ const DEFAULT_TOOLS: readonly RegisteredTool[] = [
   },
   {
     name: "search_knowledge",
-    description: "知识库语义检索（M6 前的空结果占位，显式 placeholder=true）。",
+    description: "知识库检索（本地 TF-IDF）：返回带 doc_id / chunk_id 来源引用的命中。",
     parameters: {
       type: "object",
-      properties: { query: { type: "string", description: "检索词" } },
+      properties: {
+        query: { type: "string", description: "检索词" },
+        limit: { type: "number", description: "最多返回条数（可选）" },
+      },
       required: ["query"],
     },
-    handler: (_db, args) => {
+    handler: (db, args) => {
       const query = requireString(args, "query", "search_knowledge");
+      const limitRaw = args.limit;
+      let limit = 5;
+      if (limitRaw !== undefined && limitRaw !== null) {
+        const n = typeof limitRaw === "number" ? limitRaw : Number(limitRaw);
+        if (!Number.isInteger(n) || n <= 0) throw new ValidationError("search_knowledge：limit 必须是正整数");
+        limit = n;
+      }
+      const results = searchChunks(query, db.listKnowledgeChunksForSearch(), limit);
       return {
-        summary: "知识库检索为 M6 前的空占位，本次命中 0 条",
-        data: { query, results: [], placeholder: true },
+        summary: results.length === 0 ? `知识库「${query}」命中 0 条` : `知识库「${query}」命中 ${results.length} 条（ sourced from ${[...new Set(results.map((r) => r.docId))].join(", ")}）`,
+        data: { query, results, count: results.length },
       };
     },
   },

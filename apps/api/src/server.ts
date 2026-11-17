@@ -46,6 +46,12 @@ import {
   contentTypeForArtifactType,
   normalizeContextWindow,
   toPlannerContext,
+  assertValidKnowledgeTitle,
+  assertValidKnowledgeSourceType,
+  assertValidKnowledgeContent,
+  assertValidKnowledgeQuery,
+  normalizeKnowledgeLimit,
+  assembleDocumentText,
   type RevisionRequest,
   type Schedule,
   type FieldType,
@@ -56,6 +62,8 @@ import {
   createDefaultToolRegistry,
   mockPlanner,
   executeChat,
+  chunkText,
+  searchChunks,
 } from "@xieflow/agent";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -1763,6 +1771,109 @@ app.post("/api/conversations/:id/chat", async (req, reply) => {
       contextMessages: context.length,
       ...(plan.resolution ? { resolution: plan.resolution } : {}),
     });
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+// ---- r12（M6 起步）：知识库入库与检索 ----
+// 算法零分支纪律：分块只调 agent.chunkText，检索只调 agent.searchChunks；
+// 本层只做来源内容装配、守卫与 400/404 映射、增删查找回。
+
+interface IngestBody {
+  title?: unknown;
+  sourceType?: unknown;
+  sourceId?: unknown;
+  content?: unknown;
+}
+
+app.post("/api/knowledge/ingest", async (req, reply) => {
+  try {
+    const body = (req.body ?? {}) as IngestBody;
+    assertValidKnowledgeTitle(body.title);
+    assertValidKnowledgeSourceType(body.sourceType);
+    let content: string;
+    let sourceId: number | null = null;
+    if (body.sourceType === "document") {
+      if (body.sourceId === undefined || body.sourceId === null) {
+        throw new ValidationError("document 来源必须提供 source_id");
+      }
+      sourceId = parseId(String(body.sourceId));
+      if (requireDb().getDocument(sourceId) === null) {
+        return reply.code(404).send({ error: `来源文档不存在：${sourceId}` });
+      }
+      // 真实文档正文来自块装配（共享口径），api 不散落拼接规则
+      content = assembleDocumentText(requireDb().listBlocks(sourceId));
+      if (content.trim() === "") throw new ValidationError("来源文档没有可用正文");
+    } else {
+      assertValidKnowledgeContent(body.content);
+      content = body.content as string;
+    }
+    const chunks = chunkText(content); // 自动分块，算法集中 agent
+    const saved = requireDb().createKnowledgeDoc({
+      title: body.title,
+      sourceType: body.sourceType,
+      sourceId,
+      content,
+      chunks,
+    });
+    return reply.code(201).send({ doc: saved.doc, chunks: saved.chunks });
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.get("/api/knowledge/docs", async () => {
+  return { docs: requireDb().listKnowledgeDocs() };
+});
+
+app.get("/api/knowledge/docs/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const doc = requireDb().getKnowledgeDoc(id);
+    if (!doc) return reply.code(404).send({ error: `知识文档不存在：${id}` });
+    return doc;
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.get("/api/knowledge/docs/:id/chunks", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    if (requireDb().getKnowledgeDoc(id) === null) {
+      return reply.code(404).send({ error: `知识文档不存在：${id}` });
+    }
+    return { docId: id, chunks: requireDb().listKnowledgeChunks(id) };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.delete("/api/knowledge/docs/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    if (requireDb().getKnowledgeDoc(id) === null) {
+      return reply.code(404).send({ error: `知识文档不存在：${id}` });
+    }
+    requireDb().deleteKnowledgeDoc(id);
+    return { deleted: true, id };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+/**
+ * GET 检索：q 必填非空（400），limit 1~50（缺省 5）；命中带 doc_id/chunk_id 来源引用。
+ * 检索是纯函数（agent.searchChunks），api 只取全部分块源 + 装配响应，零算法分支。
+ */
+app.get("/api/knowledge/search", async (req, reply) => {
+  try {
+    const query = req.query as { q?: unknown; limit?: unknown };
+    assertValidKnowledgeQuery(query.q);
+    const limit = normalizeKnowledgeLimit(query.limit);
+    const hits = searchChunks(query.q, requireDb().listKnowledgeChunksForSearch(), limit);
+    return { query: query.q, limit, count: hits.length, hits };
   } catch (err) {
     return toErrorReply(err, reply);
   }

@@ -14,7 +14,7 @@ powershell -File scripts\start.ps1 stop    # 收服务
 # 开发模式：
 pnpm dev:api         # api 服务 http://127.0.0.1:8787
 pnpm dev:web         # web 界面 http://127.0.0.1:5173
-pnpm run test:all    # typecheck + e2e（1020 断言）+ HTTP 审计（867 断言）
+pnpm run test:all    # typecheck + e2e（1087 断言）+ HTTP 审计（923 断言）
 ```
 
 ### 打包（对齐 IKanBot 的 pack/dist 语义）
@@ -65,19 +65,31 @@ docs/
   plan.md            轮次看板与任务单（每轮更新）
   feedback/          研发报告 / 复验报告（VERDICT）/ UI 审查报告
   staff/             agent 员工档案与逐轮履历
-  ui/                截图矩阵（逐张对照断言；shell/ 为八 tab 壳基线）
+  ui/                截图矩阵（逐张对照断言；shell/ 为九 tab 壳基线）
 .github/workflows/   CI：三平台 verify + tag 触发 Release
 ```
 
 ## 路线图
 
-M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表格 ✅ → M4 文档 ✅ → M5 AI 工作台（进行中）→ M6 知识库 RAG → M7 导图+白板 → M8 组织管理 → M9 网络版 → M10 多端与单机版
+M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表格 ✅ → M4 文档 ✅ → M5 AI 工作台 ✅ → M6 知识库 RAG（进行中）→ M7 导图+白板 → M8 组织管理 → M9 网络版 → M10 多端与单机版
 
 进度看板：[docs/plan.md](docs/plan.md)
 
 ## 界面与测试对照
 
-按 AGENTS.md 立项规则：**界面更新必须带截图证据（每次，无例外）**，截图与实现同一提交。逐图索引（r1/r2/r3/r4/r5/r6/r7/r8/r9/r10/r11 矩阵全量、逐张对照断言）：
+按 AGENTS.md 立项规则：**界面更新必须带截图证据（每次，无例外）**，截图与实现同一提交。逐图索引（r1/r2/r3/r4/r5/r6/r7/r8/r9/r10/r11/r12 矩阵全量、逐张对照断言）：
+
+### r12 矩阵：[docs/ui/r12/](docs/ui/r12/README.md) —— 知识库入库与检索（M6 起步，共 7 张）：
+
+| 截图 | 形态 | 对应断言 |
+|---|---|---|
+| [01-knowledge-empty.png](docs/ui/r12/01-knowledge-empty.png) | 知识库空态（九 tab 壳「知识库」激活 + 「＋ 入库」引导 + 首次使用空态钉注；真实 0 篇文档） | e2e「空文本分块 0 片」；audit「r12 GET 知识库文档列表 -> 200」端到端形态 |
+| [02-ingest-dialog.png](docs/ui/r12/02-ingest-dialog.png) | 入库对话框（标题 / 来源切换「纯文本·已有文档」/ 内容自动分块提示 / 确认入库；背后为 3 篇真实种子文档） | audit「r12 真入库科技稿 -> 201」「r12 非法 source_type -> 400」 |
+| [03-after-ingest.png](docs/ui/r12/03-after-ingest.png) | 入库成功后文档列表（3 篇真种子文档 + 各 1 片 + 纯文本来源徽标） | audit「r12 列表真读回 3 篇」「r12 入库自动分块并算 token_count」 |
+| [04-search-results.png](docs/ui/r12/04-search-results.png) | **真实链路·搜索结果**（真查「手机」2 命中，score 降序 + 「来源：docTitle · chunk #id · 第 N 片 · 纯文本」引用 + 命中词高亮） | audit「r12 TF-IDF 排序：词频最高的科技稿居首」「r12 命中带 doc_id/chunk_id 来源引用」；e2e「TF-IDF 排序：手机词频最高的「科技稿」居首」 |
+| [05-source-highlight.png](docs/ui/r12/05-source-highlight.png) | **来源引用高亮钉态**（同 2 命中 + 紫色 spotlight 来源条 + 加粗黄色命中词；可溯源到具体 chunk） | audit「r12 稀有词命中可溯源到具体文档 id」；e2e「命中携带 chunk_id 来源引用」 |
+| [06-narrow.png](docs/ui/r12/06-narrow.png) | 窄屏 488×900（?narrow=1）：**九药丸横排一行不折行不裁切**、徽章独占下一行；文档列表 + 搜索命中完整 | 无独立数字断言（CSS 断点，逐张目验；九 tab 壳基线同批重拍） |
+| [07-error.png](docs/ui/r12/07-error.png) | 错误态（语义化文案 + 操作提示 + 「重试」按钮，钉态） | 无独立断言（4xx 由 audit r12 节锁定） |
 
 ### r11 矩阵：[docs/ui/r11/](docs/ui/r11/README.md) —— 多轮上下文与产物生成（M5 收官，共 8 张；第 8 张为 ui-reviewer U1 返工补拍）：
 
@@ -198,7 +210,7 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 | [18-board-switched-project.png](docs/ui/r4/18-board-switched-project.png) | **返工 #1·D 证据**：项目切换深链 → 第二项目看板（下拉选中态） | audit「GET /api/projects -> 200」多项目读回 UI 形态 |
 | [19-board-card-moved-ui.png](docs/ui/r4/19-board-card-moved-ui.png) | **返工 #1·A4 全路径②**：建卡 → 真实移动 → 两侧列重排 | audit「PATCH 卡跨列移动 -> 200」+ 两侧重排 UI 形态 |
 
-### 壳基线：[docs/ui/shell/](docs/ui/shell/README.md) —— **八 tab** 激活态（r4 返工 #1 B 固化，shot.ps1 自动拍摄；r6 新增「表格」→ 六张；**r8 新增「文档」→ 七张**；r9 徽章推进；**r10 新增「AI 工作台」→ 基线扩为八张**，补 `chat-tab-active.png` 并同批重拍旧七张，与 r9 基线哈希全异；**r11 八 tab 不变但徽章推进，同批重拍八张，与 r10 逐位全异**）：工作台 / 待办 / 日程 / 项目 / 看板 / 表格 / 文档 / AI 工作台各 1 张（r2/r3/r4 U1-1 三轮连漏的流程性终结）。
+### 壳基线：[docs/ui/shell/](docs/ui/shell/README.md) —— **九 tab** 激活态（r4 返工 #1 B 固化，shot.ps1 自动拍摄；r6 新增「表格」→ 六张；**r8 新增「文档」→ 七张**；r9 徽章推进；**r10 新增「AI 工作台」→ 八张**；r11 徽章推进同批重拍；**r12 新增「知识库」→ 九张**，补 `knowledge-tab-active.png` 并同批重拍旧八张，与 r11 基线哈希全异）：工作台 / 待办 / 日程 / 项目 / 看板 / 表格 / 文档 / AI 工作台 / 知识库各 1 张（r2/r3/r4 U1-1 三轮连漏的流程性终结）。
 
 ### r3 矩阵：[docs/ui/r3/](docs/ui/r3/README.md) —— 日程页月视图 + 联动徽标 + 工作台今日日程（共 11 张，返工 #1 修正 06/10 + 补 11）：
 
@@ -237,10 +249,10 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 
 ### 断言规模（每轮更新，下降 = 回归 = 冻结发版）
 
-- e2e **1020** 项（服务离线口径 1020，api 在线时 HTTP 冒烟节 +1 = 1021）：迁移一致性 7 · settings 9 · todo CRUD 15 · 输入校验 13 · 状态机 10 · 汇总计数 7 · raw schema 4 · 迁移幂等 3 · 日程契约与守卫 28 · 循环实例化 14 · 区间查询装配 12 · v2→v3 迁移+双向联动 18 · schedules CRUD 26 · 看板排序规则（reorderPositions）12 · 看板名称守卫 6 · v3→v4 迁移+看板数据层 33 · 看板统计口径（computeBoardStats）35 · 看板 CSV 台账（buildBoardCsvContent）36 · 字段类型引擎（validateFieldValue / coerceFieldValue / compareValues）86 · 记录数据归一与查询装配（normalizeRecordData / queryRecords）25 · 看板导出文件名（buildBoardCsvFileName · U2-2）6 · v4→v5 迁移+多维表格数据层 44 · 视图 spec 归一（normalizeViewSpec）31（r7 新增）· 按视图查询口径（多字段 AND / 多级排序 / 投影）21（r7 新增）· CSV 导入口径（parseCsvText / planCsvImport / 零半态）43（r7 新增）· v5→v6 迁移+视图数据层（持久化 / 原子导入）43（r7 新增）· **块类型引擎（normalizeBlockContent / canConvertBlockType / 拆合装配）64（r8 新增）· v6→v7 迁移+文档数据层（持久化 / 拆合移动 / 全文装配）65（r8 新增）· Markdown 双向引擎（markdownToBlocks / blocksToMarkdown / 未知语法降级）36（r9 新增）· Markdown 导入计划（normalizeMarkdownImportPayload / planMarkdownImport / 零半态）25（r9 新增）· AI 修订语义（instruction 守卫 / planRevisionApply / mock 录制回放）20（r9 新增）· 导入数据层（importBlocks 单事务整体替换 / 零半态 / 持久化 / 往返）12（r9 新增）· schema v7→v8 迁移与对话数据层（conversations / messages / artifacts）33（r10 新增）· 工具契约与脚本规划口径（TOOL_NAMES / 规划 / 汇总）34（r10 新增）· 工具注册表与真实服务层调用（ToolRegistry）26（r10 新增）· mock-planner 与工具调用录制回放（≥15 用例）9（r10 新增）· 对话编排与产物（executeChat）13（r10 新增）· **r11 契约（产物类型 / 上下文窗口 / 行内 diff）24（r11 新增）· r9 U2 行内增删改 diff 11（r11 新增）· r11 跨轮指代消解 12（r11 新增）· r11 三类产物生成器 13（r11 新增）· r11 工具链扩展真服务层 14（r11 新增）· r11 多轮上下文编排与回放扩充 22（r11 新增）**
-- HTTP audit **867** 项（服务就绪 1 · health/settings 5 · todo 新建 12 · 列表详情 7 · 状态流转 9 · summary 11 · 删除 6 · 未知路由 1 · schedules CRUD 36 · 双向联动 22 · 循环实例 over HTTP 23 · projects CRUD 25 · board columns CRUD 20 · cards CRUD + 跨列移动 50 · board stats + CSV export 84 · tables / fields / records（r6）86 · views + CSV import（r7）119 · documents + blocks（r8）117 · Markdown import/export + AI revise（r9）67 · AI workbench: tools / conversations / chat / artifacts（r10）80 · **AI workbench r11: multi-turn context / artifact generators / extended tools 81（r11 新增）** · schedules 删除 5）
+- e2e **1087** 项（服务离线口径 1087，api 在线时 HTTP 冒烟节 +1 = 1088）：迁移一致性 7 · settings 9 · todo CRUD 15 · 输入校验 13 · 状态机 10 · 汇总计数 7 · raw schema 4 · 迁移幂等 3 · 日程契约与守卫 28 · 循环实例化 14 · 区间查询装配 12 · v2→v3 迁移+双向联动 18 · schedules CRUD 26 · 看板排序规则（reorderPositions）12 · 看板名称守卫 6 · v3→v4 迁移+看板数据层 33 · 看板统计口径（computeBoardStats）35 · 看板 CSV 台账（buildBoardCsvContent）36 · 字段类型引擎（validateFieldValue / coerceFieldValue / compareValues）86 · 记录数据归一与查询装配（normalizeRecordData / queryRecords）25 · 看板导出文件名（buildBoardCsvFileName · U2-2）6 · v4→v5 迁移+多维表格数据层 44 · 视图 spec 归一（normalizeViewSpec）31（r7 新增）· 按视图查询口径（多字段 AND / 多级排序 / 投影）21（r7 新增）· CSV 导入口径（parseCsvText / planCsvImport / 零半态）43（r7 新增）· v5→v6 迁移+视图数据层（持久化 / 原子导入）43（r7 新增）· **块类型引擎（normalizeBlockContent / canConvertBlockType / 拆合装配）64（r8 新增）· v6→v7 迁移+文档数据层（持久化 / 拆合移动 / 全文装配）65（r8 新增）· Markdown 双向引擎（markdownToBlocks / blocksToMarkdown / 未知语法降级）36（r9 新增）· Markdown 导入计划（normalizeMarkdownImportPayload / planMarkdownImport / 零半态）25（r9 新增）· AI 修订语义（instruction 守卫 / planRevisionApply / mock 录制回放）20（r9 新增）· 导入数据层（importBlocks 单事务整体替换 / 零半态 / 持久化 / 往返）12（r9 新增）· schema v7→v8 迁移与对话数据层（conversations / messages / artifacts）33（r10 新增）· 工具契约与脚本规划口径（TOOL_NAMES / 规划 / 汇总）34（r10 新增）· 工具注册表与真实服务层调用（ToolRegistry）26（r10 新增）· mock-planner 与工具调用录制回放（≥15 用例）9（r10 新增）· 对话编排与产物（executeChat）13（r10 新增）· **r11 契约（产物类型 / 上下文窗口 / 行内 diff）24（r11 新增）· r9 U2 行内增删改 diff 11（r11 新增）· r11 跨轮指代消解 12（r11 新增）· r11 三类产物生成器 13（r11 新增）· r11 工具链扩展真服务层 14（r11 新增）· r11 多轮上下文编排与回放扩充 22（r11 新增）· **schema v8→v9 知识库数据层 23（r12 新增）· 分块引擎 chunkText 19（r12 新增）· TF-IDF 检索引擎 searchChunks 20（r12 新增）· search_knowledge 工具真检索 5（r12 新增）**
+- HTTP audit **923** 项（服务就绪 1 · health/settings 5 · todo 新建 12 · 列表详情 7 · 状态流转 9 · summary 11 · 删除 6 · 未知路由 1 · schedules CRUD 36 · 双向联动 22 · 循环实例 over HTTP 23 · projects CRUD 25 · board columns CRUD 20 · cards CRUD + 跨列移动 50 · board stats + CSV export 84 · tables / fields / records（r6）86 · views + CSV import（r7）119 · documents + blocks（r8）117 · Markdown import/export + AI revise（r9）67 · AI workbench: tools / conversations / chat / artifacts（r10）80 · **AI workbench r11: multi-turn context / artifact generators / extended tools 81（r11 新增）· Knowledge r12: ingest / TF-IDF search / source refs / 4xx 56（r12 新增）** · schedules 删除 5）
 - typecheck 5 包全绿（strict + noUncheckedIndexedAccess；shared / db / web / api / **agent(r9 新增)**）
-- CI：ubuntu / windows / macos 三平台 verify 门禁 + tag 触发 Release；CI 的 HTTP smoke 静态正则随 schema 版本号同步放宽为 `(2|3|4|5|6|7|8)`（v0.0.6 教训）
+- CI：ubuntu / windows / macos 三平台 verify 门禁 + tag 触发 Release；CI 的 HTTP smoke 静态正则随 schema 版本号同步放宽为 `(2|3|4|5|6|7|8|9)`（v0.0.6 教训）
 - r6 规模变化：e2e 288 → 449（+161）· audit 313 → 403（+90）；**无一条断言被删**（只涨不缩，宪法第四条）
 - r7 规模变化：e2e 449 → 587（+138）· audit 403 → 522（+119）；**无一条断言被删**（只涨不缩，宪法第四条）。随版本增长只更新了 **6 条既有断言的期望值**（迁移队列最高版本 5→6：`[3,4,5]`→`[3,4,5,6]`、`[4,5]`→`[4,5,6]`、`[5]`→`[5,6]`、构造越界队列 1..6→1..7，以及 audit 两处 `health.schemaVersion` 5→6），另有 2 条 e2e 断言的**标签文字**（4/5 → 6）同步，条数不变。
 - r8 规模变化：e2e 587 → **716（+129）**· audit 522 → **639（+117）**；**无一条断言被删**（只涨不缩，宪法第四条）。随 v6→v7 迁移只更新了 **6 条既有断言的期望值**（`[3,4,5,6]`→`[3,4,5,6,7]`、`[4,5,6]`→`[4,5,6,7]`、`[5,6]`→`[5,6,7]`、`[6]`→`[6,7]`、构造越界队列 1..7→1..8）与 audit 两处 `health.schemaVersion` 6→7；另有 8 条 e2e 断言的**标签文字**（4 条「v2/v3/v4/v5 旧库补跑 v6」→ 补 v7、3 条「CURRENT_SCHEMA_VERSION（6）」→（7）、1 条「重启后 user_version 仍为 6」→ 7）同步，条数不变。
@@ -249,9 +261,11 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 
 - r11 规模变化：e2e 924 → **1020（+96）**· audit 786 → **867（+81）**；**无一条断言被删**（只涨不缩，宪法第四条）。新增六节 e2e（24 契约 + 11 行内 diff + 12 指代消解 + 13 产物生成器 + 14 工具链真服务层 + 22 多轮编排与回放）与一节 audit（81 条真 HTTP：12 工具目录 / context_window 4xx / 三轮跨轮指代 / 三类产物 /content / 产物不存在与非法类型 4xx / 4 新工具真建数据 / 清理）。**本轮无 schema 迁移**（artifacts.type 本就是 TEXT，三类新产物无需 v9），CI smoke 正则保持 `(2|3|4|5|6|7|8)`；只更新 **6 条既有断言的期望值/标签**（e2e 工具数/工具名/状态变更清单 8→12 ×3、注册表 8→12 ×1、audit 工具目录数与工具名 8→12 ×2），条数不变。
 
-### 核心概念（逐轮累积，r1~r11 已落地的部分）
+- r12 规模变化：e2e 1020 → **1087（+67）**· audit 867 → **923（+56）**；**无一条断言被删**（只涨不缩，宪法第四条）。新增四节 e2e（23 v8→v9 知识库数据层 + 19 分块引擎 + 20 TF-IDF 检索 + 5 search_knowledge 真检索）与一节 audit（56 条真 HTTP：CRUD / 三篇文档 TF-IDF 排序 / 来源引用 / 文档源入库 / 工具真检索 / 4xx：空内容·超长内容·非法 source_type·空查询·limit 越界 / 清理）。随 v8→v9 迁移只更新 **9 条既有断言的期望值**（e2e 迁移队列越界构造 1 条 + v2~v7 旧库补跑队列末追加 9 共 6 条 + audit 两处 `health.schemaVersion` 8→9）与若干标签文字；另 1 条 search_knowledge 占位断言的期望随行为变更同步（`placeholder=true`→`undefined`），均不改条数；CI smoke 正则同步为 `(2|3|4|5|6|7|8|9)`。
 
-- **迁移纪律**：schema 变更只走 `packages/db/src/schema.ts` 的 `MIGRATIONS` 队列（v1 settings → v2 todos → v3 schedules → v4 projects/board_columns/cards → v5 tables/fields/records → v6 views → v7 documents/blocks → **v8 conversations/messages/artifacts**），`user_version` 管理，重开幂等、旧库原地升级只补跑缺失版本
+### 核心概念（逐轮累积，r1~r12 已落地的部分）
+
+- **迁移纪律**：schema 变更只走 `packages/db/src/schema.ts` 的 `MIGRATIONS` 队列（v1 settings → v2 todos → v3 schedules → v4 projects/board_columns/cards → v5 tables/fields/records → v6 views → v7 documents/blocks → **v8 conversations/messages/artifacts → v9 knowledge_docs/knowledge_chunks**），`user_version` 管理，重开幂等、旧库原地升级只补跑缺失版本
 - **状态机集中**：待办状态流转（open/done/archived）定义在 `packages/shared`，非法流转服务层与路由层双层拒绝
 - **汇总计数唯一入口**：今/明/周 + 四象限计数只写在 `computeTodoSummary`（shared 纯函数），api 下发、UI 消费同一口径
 - **循环实例化唯一入口**：daily/weekly/monthly 展开规则只写在 `computeRepeatInstances`（shared 纯函数，含月末收敛与实例封顶）；区间查询装配只写在 `assembleRangeSchedules`
@@ -320,8 +334,8 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
   编辑态无序 / 有序列表块补可见 `•` / `1.` marker（with shared `computeNumberedOrdinals`）
 - **AI 工作台对话数据层**（r10）：schema v8 新增 `conversations` / `messages` / `artifacts` 三表（消息 role CHECK、conversation_id ON DELETE CASCADE、`tool_calls_json` 存逐条回执）；
   `recordChatExchange` 把 user → tool → assistant → artifact 一个事务落库，删会话级联清消息与产物，reload 不丢
-- **工具注册表唯一入口**（r10）：8 个工具（list_todos / create_todo / list_documents / create_document / list_projects / list_cards / list_tables / search_knowledge）集中在 `packages/agent/tool-registry.ts`，
-  handler **全部调真实服务层（XieFlowDb）**；唯一例外 search_knowledge 按任务单在 M6 前返回空结果并显式 `placeholder=true`，绝不伪造命中。
+- **工具注册表唯一入口**（r10/r12）：12 个工具集中在 `packages/agent/tool-registry.ts`，
+  handler **全部调真实服务层（XieFlowDb）**，无占位例外——`search_knowledge` 自 r12 起走真检索（见下）并回带 `doc_id` / `chunk_id` 来源引用，不再返回 `placeholder=true`。
   名称清单 / 参数归一 / 状态变更工具清单全在 shared，api 层零工具分支；未知工具 / 非法参数 → 400
 - **mock 规划器与回放锁定**（r10）：`mockPlanner`（`mock-scripted-v1`）按 shared `SCRIPTED_INTENTS` 扫描消息 → 工具调用序列 → 真实执行 → shared `buildChatSummary` 汇总，零 token 零随机；
   `packages/agent/evals/tool-replay.ts` 录制 **17 条**用例，在全新内存库上真执行并核对 `intent` / 工具名+参数 / ok 标志 / 摘要 / **实际创建的 todo 与 document 标题**，错误期望必须变红（非恒真占位）；换真实模型只换 api 一处 planner 注入
@@ -332,6 +346,10 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 - **产物生成器唯一入口**（r11）：`html-report` / `markdown-table` / `json-data` 三类全部从真实工具回执装配（`packages/agent/artifact-generators.ts`），标签 / 守卫 / content-type 在 shared；`POST /chat {artifactType}` 生成并落 artifacts 表，`GET /api/artifacts/:id/content` 按 type 返回可预览正文（不存在 404、非法/不符 type 400）；HTML 用 `iframe sandbox` 预览，非占位
 - **12 工具真服务层**（r11）：r10 八工具之上新增 `summarize_document`（`assembleDocumentText` 真读块）/ `export_document_md`（`blocksToMarkdown` 真导出）/ `list_schedules`（真区间查询）/ `create_schedule`（`db.createSchedule` 真建日程并纳入 `STATE_CHANGING_TOOLS`），handler 全接 XieFlowDb；UI 工具目录 6/页分页
 - **r9/r10 U2 必修**（r11）：`computeInlineDiff`（中文按字/英文按词 LCS，same/removed/added 段合并）集中在 shared，DocsPage 修订面板原文红删除线 / 建议绿新增高亮；产物卡按「第 N 轮产物 · 对应本轮对话」与流同轮；窄容器八药丸 `white-space: nowrap` + 488px 顶栏纵排，不折行不裁切
+- **知识库入库与检索唯一入口**（r12）：schema v9 新增 `knowledge_docs`（chunk_count）/ `knowledge_chunks`（token_count + 可空 vector 列，embedding 留位）；
+  `chunkText`（200 字 / 40 字重叠，断段落优先、去重叠逐字等于原文）与 `searchChunks`（TF-IDF 余弦，中文逐字+英文成词，score 降序、零分过滤）全集中 `packages/agent/knowledge.ts`，纯 TS 零依赖零 token，api 层零算法分支；
+  `POST /api/knowledge/ingest` 支持纯文本 / 已有文档两种来源（文档源走 `assembleDocumentText` 装配 + source_id 回指），`GET /api/knowledge/search?q=&limit=` 与 `search_knowledge` 工具都返回可溯源到具体 chunk 的来源引用；
+  三篇文档 TF-IDF 排序 + 重叠窗口与检索排序两组变异红相均由 e2e/audit 锁定
 - **回放评测集扩至 27 条**（r11）：r10 17 条之上 +4 新工具 +3 多轮指代 +3 产物类型，`runToolReplay` 在全新内存库真执行并核对 `resolution` / `artifactType` / `expectState.schedules`；改坏指代或产物生成器均变红（两组变异红相）
 
 ## 明确不做（当前阶段）

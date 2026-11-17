@@ -42,3 +42,14 @@ export {
   type RecordedToolCase,
   type ToolReplayResult,
 } from "./evals/tool-replay.js";
+export {
+  chunkText,
+  searchChunks,
+  tokenizeText,
+  countTokens,
+  DEFAULT_CHUNK_SIZE,
+  DEFAULT_CHUNK_OVERLAP,
+  NO_EMBEDDING,
+  type ChunkOptions,
+  type EmbeddingProvider,
+} from "./knowledge.js";

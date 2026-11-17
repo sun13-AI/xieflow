@@ -25,8 +25,11 @@ import type {
   ToolCallRecord,
   Artifact,
   ArtifactType,
+  KnowledgeDoc,
+  KnowledgeChunk,
+  KnowledgeSearchChunk,
 } from "@xieflow/shared";
-import { isFieldType, isBlockType, normalizeBlockContent } from "@xieflow/shared";
+import { isFieldType, isBlockType, normalizeBlockContent, isKnowledgeSourceType } from "@xieflow/shared";
 import { REPEATS_ORDER } from "./repeat-order.js";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -297,6 +300,51 @@ export function mapRowToMessage(row: Row): Message {
     content: parseMessageContent(row.content_json),
     toolCalls: parseToolCalls(row.tool_calls_json),
     createdAt: String(row.created_at),
+  };
+}
+
+/** r12：knowledge_docs（source_type 走 shared 唯一守卫，camelCase 快照唯一入口） */
+export function mapRowToKnowledgeDoc(row: Row): KnowledgeDoc {
+  const sourceType = String(row.source_type);
+  if (!isKnowledgeSourceType(sourceType)) {
+    throw new Error(`非法知识来源类型值：${row.source_type}`);
+  }
+  return {
+    id: Number(row.id),
+    title: String(row.title),
+    sourceType,
+    sourceId: row.source_id === null ? null : Number(row.source_id),
+    content: String(row.content),
+    chunkCount: Number(row.chunk_count),
+    createdAt: String(row.created_at),
+  };
+}
+
+/** r12：knowledge_chunks（vector 列可空，embedding 留位；快照不暴露 vector） */
+export function mapRowToKnowledgeChunk(row: Row): KnowledgeChunk {
+  return {
+    id: Number(row.id),
+    docId: Number(row.doc_id),
+    position: Number(row.position),
+    content: String(row.content),
+    tokenCount: Number(row.token_count),
+  };
+}
+
+/** r12：检索源块 = chunk JOIN 文档来源字段（agent searchChunks 的纯函数入口） */
+export function mapRowToKnowledgeSearchChunk(row: Row): KnowledgeSearchChunk {
+  const sourceType = String(row.source_type);
+  if (!isKnowledgeSourceType(sourceType)) {
+    throw new Error(`非法知识来源类型值：${row.source_type}`);
+  }
+  return {
+    id: Number(row.id),
+    docId: Number(row.doc_id),
+    position: Number(row.position),
+    content: String(row.content),
+    docTitle: String(row.doc_title),
+    sourceType,
+    sourceId: row.source_id === null ? null : Number(row.source_id),
   };
 }
 

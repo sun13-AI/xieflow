@@ -192,6 +192,32 @@ export const MIGRATIONS: Migration[] = [
       `CREATE INDEX IF NOT EXISTS idx_artifacts_conversation ON artifacts (conversation_id)`,
     ],
   },
+  {
+    version: 9,
+    name: "r12 · knowledge_docs / knowledge_chunks 表（M6 知识库入库与检索）",
+    up: [
+      `CREATE TABLE IF NOT EXISTS knowledge_docs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL CHECK (length(title) > 0),
+        source_type TEXT NOT NULL CHECK (source_type IN ('text','document')),
+        source_id INTEGER REFERENCES documents(id) ON DELETE CASCADE,
+        content TEXT NOT NULL,
+        chunk_count INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_knowledge_docs_source_type ON knowledge_docs (source_type)`,
+      `CREATE INDEX IF NOT EXISTS idx_knowledge_docs_source_id ON knowledge_docs (source_id)`,
+      `CREATE TABLE IF NOT EXISTS knowledge_chunks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        doc_id INTEGER NOT NULL REFERENCES knowledge_docs(id) ON DELETE CASCADE,
+        position INTEGER NOT NULL,
+        content TEXT NOT NULL,
+        token_count INTEGER NOT NULL,
+        vector TEXT
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_doc ON knowledge_chunks (doc_id)`,
+    ],
+  },
 ];
 
 /** 当前 schema 版本（与 shared 的 SCHEMA_VERSION 保持一致，e2e 会断言二者相等） */

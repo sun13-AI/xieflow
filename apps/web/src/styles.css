@@ -2552,3 +2552,294 @@ pre.docs-print-block.docs-code {
     box-shadow: none;
   }
 }
+
+/* ---- r12：知识库 tab（文档列表 / 入库对话框 / TF-IDF 命中 / 来源引用高亮） ---- */
+.kb-shell {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.kb-side,
+.kb-main {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.kb-side-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.kb-side-head h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.kb-ingest-btn {
+  white-space: nowrap;
+}
+
+.kb-doc-list,
+.kb-hits {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.kb-doc-item {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #f9fafb;
+}
+
+.kb-doc-title {
+  font-weight: 700;
+  font-size: 14px;
+  word-break: break-word;
+}
+
+.kb-doc-meta {
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.kb-pill {
+  background: #e0e7ff;
+  color: #3730a3;
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+.kb-del {
+  margin-left: auto;
+  border: 1px solid #fca5a5;
+  background: #fff;
+  color: #b91c1c;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 11px;
+  padding: 1px 7px;
+}
+
+.kb-searchbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.kb-search-input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 14px;
+}
+
+.kb-notice,
+.kb-shot-note {
+  margin: 0 0 10px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 12px;
+}
+
+.kb-shot-note {
+  background: #f5f3ff;
+  color: #6d28d9;
+}
+
+.kb-intro {
+  border: 1px dashed #c7d2fe;
+  border-radius: 8px;
+  padding: 16px;
+  color: #4b5563;
+  background: #f8faff;
+}
+
+.kb-intro h3 {
+  margin: 0 0 6px;
+  font-size: 15px;
+  color: #3730a3;
+}
+
+.kb-intro p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.kb-hit {
+  border: 1px solid #e5e7eb;
+  border-left: 3px solid #4f46e5;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #fafbff;
+}
+
+.kb-hit-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 6px;
+  font-size: 11px;
+}
+
+.kb-score {
+  background: #dcfce7;
+  color: #166534;
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.kb-source {
+  color: #4338ca;
+  font-weight: 600;
+}
+
+.kb-hit-body {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.7;
+  word-break: break-word;
+}
+
+.kb-mark {
+  background: #fde68a;
+  color: #78350f;
+  font-weight: 700;
+  border-radius: 3px;
+  padding: 0 2px;
+}
+
+.kb-spotlight .kb-hit {
+  border-left-width: 6px;
+  border-left-color: #7c3aed;
+  background: #f5f3ff;
+}
+
+.kb-spotlight .kb-source {
+  background: #ede9fe;
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+
+.kb-spotlight .kb-mark {
+  background: #fbbf24;
+  font-size: 15px;
+}
+
+.kb-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.kb-modal {
+  width: min(520px, 92vw);
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.kb-modal h3 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.kb-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 13px;
+  color: #374151;
+}
+
+.kb-field input,
+.kb-field textarea,
+.kb-field select {
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.kb-field small {
+  color: #6b7280;
+  font-size: 11px;
+}
+
+.kb-source-switch {
+  display: flex;
+  gap: 8px;
+}
+
+.kb-source-switch button {
+  border: 1px solid #d1d5db;
+  background: #fff;
+  border-radius: 999px;
+  padding: 5px 14px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.kb-source-switch .kb-src-active {
+  background: #4f46e5;
+  border-color: #4f46e5;
+  color: #fff;
+}
+
+.kb-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.btn-primary {
+  background: #4f46e5;
+  border-color: #4f46e5;
+  color: #fff;
+}
+
+.force-narrow .kb-shell {
+  grid-template-columns: 1fr;
+}
+
+.force-narrow .kb-modal {
+  width: 96vw;
+}
+
+/* r12：九 tab 壳在窄屏仍单行（第八/九药丸不裁切，徽章独占下一行） */
+.force-narrow .tab {
+  padding: 4px 6px;
+  font-size: 10px;
+}

@@ -10,6 +10,7 @@
 #   powershell -File scripts\shot.ps1 shots -Round r9 # capture r9 document import/export/revise states
 #   powershell -File scripts\shot.ps1 shots -Round r10 # capture r10 AI workbench chat/tool/artifact states
 #   powershell -File scripts\shot.ps1 shots -Round r11 # capture r11 multi-turn context / artifact / diff-inline states
+#   powershell -File scripts\shot.ps1 shots -Round r12 # capture r12 knowledge ingest / TF-IDF search / source refs states
 #   powershell -File scripts\shot.ps1 shots -Round r11 -Shot 08-docs-diff-inline # rework#1: re-capture ONLY the diff-inline evidence (no other matrix/shell re-shot)
 #   powershell -File scripts\shot.ps1 down            # stop servers
 #   powershell -File scripts\shot.ps1 status          # show port status
@@ -25,11 +26,12 @@
 # r9: Markdown import/export + AI revise states (real HTTP between captures).
 # r10: an EIGHTH tab (AI workbench) was added -> the baseline now captures eight active states.
 # r11: multi-turn context / artifact generators / 12-tool pagination states.
+# r12: a NINTH tab (knowledge) was added -> the baseline now captures nine active states.
 param(
   [Parameter(Position = 0)]
   [ValidateSet("up", "shots", "down", "status", "all")]
   [string]$Action = "status",
-  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11")]
+  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12")]
   [string]$Round = "r1",
   [Parameter()]
   [string]$Shot = ""
@@ -121,6 +123,7 @@ function Find-Browser {
 # evidence again (r2/r3/r4 three-round U1-1 lesson). Landing dir: docs\ui\shell\.
 # r8: the SEVENTH tab (docs) was added -> all seven active states are re-shot.
 # r10: the EIGHTH tab (chat / AI workbench) was added -> eight active states in one batch.
+# r12: the NINTH tab (knowledge) was added -> nine active states in one batch.
 function Invoke-ShellBaseline {
   param([string]$BrowserPath)
   $shellDir = Join-Path $Root "docs\ui\shell"
@@ -134,7 +137,8 @@ function Invoke-ShellBaseline {
     @{ page = "board";     file = "board-tab-active" },
     @{ page = "bases";     file = "bases-tab-active" },
     @{ page = "docs";      file = "docs-tab-active" },
-    @{ page = "chat";      file = "chat-tab-active" }
+    @{ page = "chat";      file = "chat-tab-active" },
+    @{ page = "knowledge"; file = "knowledge-tab-active" }
   )
   foreach ($t in $tabs) {
     $url = "http://127.0.0.1:$WebPort/"
@@ -582,6 +586,29 @@ function Invoke-Shots {
     }
   }
 
+  # r12: three REAL knowledge docs via POST /api/knowledge/ingest (real TF-IDF data
+  # for the search/source-highlight shots). All Chinese is \uXXXX escaped so this
+  # file stays pure ASCII for PS 5.1. Docs are deleted after the matrix (cleanup).
+  $r12DocIds = @()
+  $r12Query = [uri]::EscapeDataString(([string][char]0x624b) + ([string][char]0x673a))
+  if ($Round -eq "r12") {
+    try {
+      $r12Seeds = @(
+        '{"title":"r12 \u79d1\u6280\u7a3f","sourceType":"text","content":"\u82f9\u679c \u624b\u673a \u624b\u673a \u624b\u673a \u624b\u673a"}',
+        '{"title":"r12 \u679c\u56ed\u7a3f","sourceType":"text","content":"\u82f9\u679c \u6c34\u679c \u9999\u8549"}',
+        '{"title":"r12 \u6570\u7801\u7a3f","sourceType":"text","content":"\u82f9\u679c \u624b\u673a \u5e73\u677f"}'
+      )
+      foreach ($seed in $r12Seeds) {
+        $r12Ingested = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/knowledge/ingest" -Method Post `
+          -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes($seed))
+        $r12DocIds += $r12Ingested.doc.id
+      }
+      Write-Output "seeded r12 knowledge docs=$($r12DocIds -join ',') query=$r12Query"
+    } catch {
+      Write-Output "warn: r12 seed failed ($($_.Exception.Message)) - live search shots may show no hits"
+    }
+  }
+
   # r9: three REAL documents. Doc A demonstrates import/export (import happens
   # between shots 01/02); doc B demonstrates discard (never written); doc C
   # demonstrates adoption (a REAL revise adopt=true happens between 04/05).
@@ -677,7 +704,22 @@ function Invoke-Shots {
     }
   }
 
-  if ($Round -eq "r11") {
+  if ($Round -eq "r12") {
+    # 01 = pinned first-use empty state; 02 = ingest dialog (seeded docs behind it);
+    # 03 = real seeded doc list (3 ingested docs); 04 = real TF-IDF search results;
+    # 05 = source-reference spotlight (same hits, highlight emphasis); 06 = narrow 488x900;
+    # 07 = pinned error state. All search hits come from GET /api/knowledge/search.
+    $r12Base = "http://127.0.0.1:$WebPort/?page=knowledge"
+    $shots = @(
+      @{ name = "01-knowledge-empty";    url = "$r12Base&shot=knowledge-empty"; width = 1280; height = 800 },
+      @{ name = "02-ingest-dialog";      url = "$r12Base&shot=knowledge-ingest-dialog"; width = 1280; height = 800 },
+      @{ name = "03-after-ingest";       url = "$r12Base"; width = 1280; height = 800 },
+      @{ name = "04-search-results";     url = "$r12Base&q=$r12Query"; width = 1280; height = 800 },
+      @{ name = "05-source-highlight";   url = "$r12Base&shot=knowledge-source-highlight&q=$r12Query"; width = 1280; height = 800 },
+      @{ name = "06-narrow";             url = "$r12Base&q=$r12Query&narrow=1"; width = 488; height = 900 },
+      @{ name = "07-error";              url = "$r12Base&shot=knowledge-error"; width = 1280; height = 800 }
+    )
+  } elseif ($Round -eq "r11") {
     # 01 = two-turn conversation A (second chat sent between seed and capture);
     # 02 = same data + pinned context-hint note; 03/04 = real generated HTML/Markdown artifacts;
     # 05 = 12-tool catalogue page 2 with expanded tool-call receipts; 06 = narrow; 07 = error.
@@ -1114,7 +1156,20 @@ function Invoke-Shots {
   # seed todo, so repeat runs stay deterministic.
   # r5: delete both seeded projects (by id - the script stays ASCII) and the two
   # seeded todos.
-  if ($Round -eq "r11") {
+  if ($Round -eq "r12") {
+    # r12: delete the three seeded knowledge docs (chunks cascade) so repeat runs
+    # stay deterministic and the shell baseline shows first-use empty knowledge.
+    try {
+      foreach ($kid12 in $r12DocIds) {
+        if ($kid12) {
+          Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/knowledge/docs/$kid12" -Method Delete | Out-Null
+        }
+      }
+      Write-Output "cleaned seeded r12 knowledge docs"
+    } catch {
+      Write-Output "warn: r12 cleanup failed ($($_.Exception.Message))"
+    }
+  } elseif ($Round -eq "r11") {
     # r11: delete four seeded conversations (messages + artifacts cascade) and the
     # two todos really created by the two chats so repeat runs stay deterministic.
     try {

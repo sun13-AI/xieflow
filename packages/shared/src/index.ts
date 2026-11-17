@@ -321,7 +321,7 @@ export function assembleRangeSchedules(
 }
 
 /** 数据库 schema 版本号，每轮迁移必须 +1（宪法：禁止手改库文件） */
-export const SCHEMA_VERSION: number = 8;
+export const SCHEMA_VERSION: number = 9;
 
 
 /** 迁移脚本类型：user_version 从 from 升到 to */
@@ -2754,4 +2754,102 @@ export function planScriptedChat(message: string, context?: readonly PlannerCont
 export function buildChatSummary(intent: string, results: readonly ToolResult[]): string {
   const lines = results.map((r, i) => `${i + 1}. ${r.name}：${r.summary}`);
   return `已完成「${intent}」：共 ${results.length} 次工具调用。${lines.length > 0 ? `\n${lines.join("\n")}` : ""}`;
+}
+
+// ---- r12（M6 起步）：知识库入库与检索（本地 RAG）契约，全部集中 shared ----
+
+/** 知识文档来源类型：纯文本 / 真实文档（schema CHECK 同源，禁散落字面量） */
+export const KNOWLEDGE_SOURCE_TYPES = ["text", "document"] as const;
+export type KnowledgeSourceType = (typeof KNOWLEDGE_SOURCE_TYPES)[number];
+export function isKnowledgeSourceType(value: unknown): value is KnowledgeSourceType {
+  return typeof value === "string" && (KNOWLEDGE_SOURCE_TYPES as readonly string[]).includes(value);
+}
+export function assertValidKnowledgeSourceType(value: unknown): asserts value is KnowledgeSourceType {
+  if (!isKnowledgeSourceType(value)) {
+    throw new ValidationError(`非法 source_type：${String(value)}（仅 text / document）`);
+  }
+}
+
+/** 知识库输入上限（api 400 守卫与 UI 计数同源） */
+export const MAX_KNOWLEDGE_TITLE = 200;
+export const MAX_KNOWLEDGE_CONTENT = 200000;
+export const MAX_KNOWLEDGE_QUERY = 500;
+export const MAX_KNOWLEDGE_SEARCH_LIMIT = 50;
+
+export function assertValidKnowledgeTitle(value: unknown): asserts value is string {
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new ValidationError("知识文档标题不能为空");
+  }
+  if (value.length > MAX_KNOWLEDGE_TITLE) {
+    throw new ValidationError(`知识文档标题过长：最多 ${MAX_KNOWLEDGE_TITLE} 字`);
+  }
+}
+export function assertValidKnowledgeContent(value: unknown): asserts value is string {
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new ValidationError("知识文档内容不能为空");
+  }
+  if (value.length > MAX_KNOWLEDGE_CONTENT) {
+    throw new ValidationError(`知识文档内容过长：最多 ${MAX_KNOWLEDGE_CONTENT} 字`);
+  }
+}
+export function assertValidKnowledgeQuery(value: unknown): asserts value is string {
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new ValidationError("检索词不能为空");
+  }
+  if (value.length > MAX_KNOWLEDGE_QUERY) {
+    throw new ValidationError(`检索词过长：最多 ${MAX_KNOWLEDGE_QUERY} 字`);
+  }
+}
+export function normalizeKnowledgeLimit(value: unknown): number {
+  if (value === undefined || value === null || value === "") return 5;
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isInteger(n) || n <= 0 || n > MAX_KNOWLEDGE_SEARCH_LIMIT) {
+    throw new ValidationError(`limit 必须是 1~${MAX_KNOWLEDGE_SEARCH_LIMIT} 的整数`);
+  }
+  return n;
+}
+
+/** 知识文档 / 分块快照（mappers camelCase 唯一口径） */
+export interface KnowledgeDoc {
+  readonly id: number;
+  readonly title: string;
+  readonly sourceType: KnowledgeSourceType;
+  readonly sourceId: number | null;
+  readonly content: string;
+  readonly chunkCount: number;
+  readonly createdAt: string;
+}
+export interface KnowledgeChunk {
+  readonly id: number;
+  readonly docId: number;
+  readonly position: number;
+  readonly content: string;
+  readonly tokenCount: number;
+}
+/** 分块草稿（chunkText 产出，db 入库入参；vector 可空，embedding 留位） */
+export interface KnowledgeChunkDraft {
+  readonly position: number;
+  readonly content: string;
+  readonly tokenCount: number;
+}
+/** 检索源块（db JOIN 文档来源字段 → agent 纯函数检索入口） */
+export interface KnowledgeSearchChunk {
+  readonly id: number;
+  readonly docId: number;
+  readonly position: number;
+  readonly content: string;
+  readonly docTitle: string;
+  readonly sourceType: KnowledgeSourceType;
+  readonly sourceId: number | null;
+}
+/** 检索命中（doc_id / chunk_id 来源引用可溯源到具体 chunk） */
+export interface KnowledgeSearchHit {
+  readonly docId: number;
+  readonly chunkId: number;
+  readonly position: number;
+  readonly content: string;
+  readonly docTitle: string;
+  readonly sourceType: KnowledgeSourceType;
+  readonly sourceId: number | null;
+  readonly score: number;
 }
