@@ -42,6 +42,10 @@ import {
   assertValidRevisionInstruction,
   planRevisionApply,
   assertValidChatMessage,
+  assertValidArtifactType,
+  contentTypeForArtifactType,
+  normalizeContextWindow,
+  toPlannerContext,
   type RevisionRequest,
   type Schedule,
   type FieldType,
@@ -1682,15 +1686,47 @@ app.get("/api/artifacts/:id", async (req, reply) => {
   }
 });
 
+/**
+ * GET 产物可预览内容（r11）：按 type 返回 contentType + 原文。
+ * 可选 ?type= 指定期望类型（非法 / 与落库类型不符 → 400）；产物不存在 → 404。
+ */
+app.get("/api/artifacts/:id/content", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const query = req.query as { type?: unknown };
+    if (query.type !== undefined) assertValidArtifactType(query.type);
+    const artifact = requireDb().getArtifact(id);
+    if (!artifact) return reply.code(404).send({ error: `产物不存在：${id}` });
+    assertValidArtifactType(artifact.type);
+    if (query.type !== undefined && query.type !== artifact.type) {
+      return reply.code(400).send({ error: `产物类型不符：期望 ${query.type}，实际 ${artifact.type}` });
+    }
+    return {
+      id: artifact.id,
+      type: artifact.type,
+      title: artifact.title,
+      contentType: contentTypeForArtifactType(artifact.type),
+      content: artifact.content,
+    };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
 interface ChatBody {
   message?: unknown;
+  /** 上下文窗口（最近 N 条落库消息注入规划；缺省 8，上限 20） */
+  context_window?: unknown;
+  /** 产物类型：chat-result / html-report / markdown-table / json-data */
+  artifactType?: unknown;
   /** 显式工具调用覆盖 mock 规划（供 4xx：未知工具 / 非法参数；正常用户对话不传） */
   toolCalls?: unknown;
 }
 
 /**
- * POST 对话：mock 规划 → 真实工具执行 → 逐条 tool_call 落库 → AI 汇总 → 产物。
- * 400：空消息 / 超长消息 / 未知工具 / 非法参数；404：会话不存在。
+ * POST 对话：取最近 N 条真实落库消息作为上下文 → mock 规划（含指代消解）
+ * → 真实工具执行 → 逐条 tool_call 落库 → 按 artifactType 生成产物 → AI 汇总。
+ * 400：空消息 / 超长消息 / 上下文超限 / 非法产物类型 / 未知工具 / 非法参数；404：会话不存在。
  * 事务在 db.recordChatExchange 内，执行失败时连 tool 消息都不会落库。
  */
 app.post("/api/conversations/:id/chat", async (req, reply) => {
@@ -1699,7 +1735,14 @@ app.post("/api/conversations/:id/chat", async (req, reply) => {
     if (!requireConversation(id, reply)) return reply;
     const body = (req.body ?? {}) as ChatBody;
     assertValidChatMessage(body.message);
-    const options = body.toolCalls === undefined ? {} : { toolCalls: body.toolCalls };
+    const contextWindow = normalizeContextWindow(body.context_window);
+    const context = toPlannerContext(requireDb().listMessages(id).slice(-contextWindow));
+    const options = {
+      context,
+      contextWindow,
+      artifactType: body.artifactType,
+      ...(body.toolCalls === undefined ? {} : { toolCalls: body.toolCalls }),
+    };
     const plan = await executeChat(requireDb(), toolRegistry, chatPlanner, body.message, options);
     const saved = requireDb().recordChatExchange({
       conversationId: id,
@@ -1716,6 +1759,9 @@ app.post("/api/conversations/:id/chat", async (req, reply) => {
       toolCalls: plan.toolCalls,
       messages: saved.messages,
       artifact: saved.artifact,
+      contextWindow: plan.contextWindow,
+      contextMessages: context.length,
+      ...(plan.resolution ? { resolution: plan.resolution } : {}),
     });
   } catch (err) {
     return toErrorReply(err, reply);

@@ -22,11 +22,12 @@
 # r8: a SEVENTH tab (docs) was added -> the baseline now captures seven active states.
 # r9: Markdown import/export + AI revise states (real HTTP between captures).
 # r10: an EIGHTH tab (AI workbench) was added -> the baseline now captures eight active states.
+# r11: multi-turn context / artifact generators / 12-tool pagination states.
 param(
   [Parameter(Position = 0)]
   [ValidateSet("up", "shots", "down", "status", "all")]
   [string]$Action = "status",
-  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10")]
+  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11")]
   [string]$Round = "r1"
 )
 
@@ -516,6 +517,52 @@ function Invoke-Shots {
     }
   }
 
+  # r11: four REAL conversations. A = two-turn context chain (chat2 sent between
+  # captures), B = empty list state, Html/Table = one generated artifact each.
+  # All Chinese is \uXXXX escaped; this file stays pure ASCII for PS 5.1.
+  $r11ConvAId = $null
+  $r11ConvBId = $null
+  $r11ConvHtmlId = $null
+  $r11ConvTableId = $null
+  $r11TodoIds = @()
+  if ($Round -eq "r11") {
+    try {
+      $r11A = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/conversations" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes(
+        '{"title":"r11 \u591A\u8F6E\u5BF9\u8BDD\u6F14\u793A"}'))
+      $r11B = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/conversations" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes(
+        '{"title":"r11 \u7A7A\u4F1A\u8BDD"}'))
+      $r11H = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/conversations" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes(
+        '{"title":"r11 \u4EA7\u7269 HTML"}'))
+      $r11T = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/conversations" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes(
+        '{"title":"r11 \u4EA7\u7269\u8868\u683C"}'))
+      $r11ConvAId = $r11A.id
+      $r11ConvBId = $r11B.id
+      $r11ConvHtmlId = $r11H.id
+      $r11ConvTableId = $r11T.id
+      $r11Chat1 = '{"message":"\u65B0\u5EFA\u5F85\u529E\uFF1Ar11 \u622A\u56FE\u5B9E\u4F53\uFF0C\u7136\u540E\u5217\u51FA\u6587\u6863"}'
+      $r11First = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/conversations/$r11ConvAId/chat" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes($r11Chat1))
+      $r11TodoIds += $r11First.toolCalls[0].data.todo.id
+      $r11Chat2 = '{"message":"\u518D\u5EFA\u4E00\u4E2A"}'
+      $r11Second = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/conversations/$r11ConvAId/chat" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes($r11Chat2))
+      $r11TodoIds += $r11Second.toolCalls[0].data.todo.id
+      $r11HtmlChat = '{"message":"\u76D8\u70B9\u5F85\u529E","artifactType":"html-report"}'
+      $r11Html = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/conversations/$r11ConvHtmlId/chat" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes($r11HtmlChat))
+      $r11TableChat = '{"message":"\u76D8\u70B9\u5F85\u529E","artifactType":"markdown-table"}'
+      $r11Table = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/conversations/$r11ConvTableId/chat" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes($r11TableChat))
+      Write-Output "seeded r11 conversations A=$r11ConvAId B=$r11ConvBId html=$r11ConvHtmlId table=$r11ConvTableId htmlType=$($r11Html.artifact.type) tableType=$($r11Table.artifact.type) secondResolution=$($r11Second.resolution.referenceKind)"
+    } catch {
+      Write-Output "warn: r11 seed failed ($($_.Exception.Message)) - live shots may show empty chats"
+    }
+  }
+
   # r9: three REAL documents. Doc A demonstrates import/export (import happens
   # between shots 01/02); doc B demonstrates discard (never written); doc C
   # demonstrates adoption (a REAL revise adopt=true happens between 04/05).
@@ -611,7 +658,21 @@ function Invoke-Shots {
     }
   }
 
-  if ($Round -eq "r10") {
+  if ($Round -eq "r11") {
+    # 01 = two-turn conversation A (second chat sent between seed and capture);
+    # 02 = same data + pinned context-hint note; 03/04 = real generated HTML/Markdown artifacts;
+    # 05 = 12-tool catalogue page 2 with expanded tool-call receipts; 06 = narrow; 07 = error.
+    $r11Base = "http://127.0.0.1:$WebPort/?page=chat"
+    $shots = @(
+      @{ name = "01-multiturn-chat"; url = "$r11Base&convId=$r11ConvAId"; width = 1280; height = 800 },
+      @{ name = "02-context-hint";   url = "$r11Base&convId=$r11ConvAId&shot=chat-context"; width = 1280; height = 800 },
+      @{ name = "03-artifact-html";  url = "$r11Base&convId=$r11ConvHtmlId&shot=chat-artifact-html"; width = 1280; height = 800 },
+      @{ name = "04-artifact-table"; url = "$r11Base&convId=$r11ConvTableId&shot=chat-artifact-table"; width = 1280; height = 800 },
+      @{ name = "05-tools-page2";    url = "$r11Base&convId=$r11ConvAId&shot=chat-tools2&toolsPage=2"; width = 1280; height = 800 },
+      @{ name = "06-narrow";         url = "$r11Base&convId=$r11ConvAId&narrow=1"; width = 488; height = 900 },
+      @{ name = "07-error";          url = "$r11Base&shot=chat-error"; width = 1280; height = 800 }
+    )
+  } elseif ($Round -eq "r10") {
     # 01 = pinned empty state (before any conversation is selected/created in the UI);
     # 02 = two REAL conversations, B selected (empty stream) -> list state;
     # 03 = conversation A with a REAL 3-tool-call chat stream;
@@ -866,6 +927,10 @@ function Invoke-Shots {
       }
     }
 
+    # r11: the two-turn anaphora chat is seeded before capture 01 (verified real
+    # HTTP), so 01 and 02 show the same genuine 2-round data; 02 adds only the
+    # pinned context-hint note. No artificial between-capture state change.
+
     # r10 (r3 B lesson): real HTTP between captures so 03/04/05 are different states.
     # 03 -> 04: a REAL second chat with three read-only tool calls (boards/tables).
     if ($Round -eq "r10" -and $s.name -eq "03-chat-stream") {
@@ -1025,7 +1090,25 @@ function Invoke-Shots {
   # seed todo, so repeat runs stay deterministic.
   # r5: delete both seeded projects (by id - the script stays ASCII) and the two
   # seeded todos.
-  if ($Round -eq "r10") {
+  if ($Round -eq "r11") {
+    # r11: delete four seeded conversations (messages + artifacts cascade) and the
+    # two todos really created by the two chats so repeat runs stay deterministic.
+    try {
+      foreach ($cid11 in @($r11ConvAId, $r11ConvBId, $r11ConvHtmlId, $r11ConvTableId)) {
+        if ($cid11) {
+          Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/conversations/$cid11" -Method Delete | Out-Null
+        }
+      }
+      foreach ($tid11 in $r11TodoIds) {
+        if ($tid11) {
+          Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/todos/$tid11" -Method Delete | Out-Null
+        }
+      }
+      Write-Output "cleaned seeded r11 conversations and created todos"
+    } catch {
+      Write-Output "warn: r11 cleanup failed ($($_.Exception.Message))"
+    }
+  } elseif ($Round -eq "r10") {
     # r10: delete the two seeded conversations (messages + artifacts cascade) and the
     # todo really created by the first chat so repeat runs stay deterministic.
     try {

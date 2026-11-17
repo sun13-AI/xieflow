@@ -205,7 +205,7 @@ export default function App() {
             AI 工作台
           </button>
         </nav>
-        <span className="badge">r10 · AI 工作台对话与工具调用（M5 起步）</span>
+        <span className="badge">r11 · 多轮上下文与产物生成（M5 收官）</span>
       </header>
 
       {tab === "todos" ? (

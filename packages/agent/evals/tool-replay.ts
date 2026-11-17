@@ -1,11 +1,11 @@
-// XieFlow packages/agent/evals/tool-replay.ts — r10 工具调用录制回放评测集
+// XieFlow packages/agent/evals/tool-replay.ts — r10 工具调用录制回放 + r11 多轮上下文扩充
 //
 // 宪法第四条：「agent 工具调用行为（M5 起）用录制回放评测集锁定」。
-// 每条用例 = 一句用户消息 + 期望的意图 / 工具调用序列 / 回执 ok 标志 / 真实落库状态。
-// runToolReplay 在**全新的内存库**上真执行 handler（含 create_todo 实际创建），再逐字段比对：
-// 期望写错、规划漂移、handler 不真写库三者任一发生都会进 failures，评测集不会退化成恒真占位。
+// 每条用例 = 一句用户消息（可带上一轮上下文）+ 期望的意图 / 工具调用序列 / 回执 ok / 产物类型 / 真实落库状态。
+// runToolReplay 在**全新的内存库**上真执行 handler（含 create_todo / create_schedule 实际创建），再逐字段比对：
+// 期望写错、规划漂移、handler 不真写库、指代消解失效四者任一发生都会进 failures，评测集不会退化成恒真占位。
 import { openDatabase, type XieFlowDb } from "@xieflow/db";
-import type { ToolName, ToolCallRequest } from "@xieflow/shared";
+import type { ArtifactType, PlannerContextMessage, ToolName, ToolCallRequest } from "@xieflow/shared";
 import { executeChat, mockPlanner, type Planner } from "../mock-planner.js";
 import type { ToolRegistry } from "../tool-registry.js";
 
@@ -17,11 +17,18 @@ export interface RecordedToolCase {
     readonly toolCalls: readonly ToolCallRequest[];
     readonly okFlags: readonly boolean[];
     readonly summary?: string;
+    readonly artifactType?: ArtifactType;
+    readonly resolution?: { readonly referenceKind: string; readonly referencedTitle: string };
   };
+  /** 多轮上下文：上一轮真实落库消息归一后的轻量上下文 */
+  readonly context?: readonly PlannerContextMessage[];
+  /** 需要文档存在时：先在全新内存库里真建一篇（id=1，消息里「文档 1」即可命中） */
+  readonly seedDocument?: string;
   /** 状态变更类工具必须带：回放后在真实库里查回的标题清单 */
   readonly expectState?: {
     readonly todos?: readonly string[];
     readonly documents?: readonly string[];
+    readonly schedules?: readonly string[];
   };
 }
 
@@ -205,6 +212,133 @@ export const TOOL_EVAL_CASES: readonly RecordedToolCase[] = [
     },
     expectState: { documents: ["方案"] },
   },
+
+  // ---- r11 新增 10 条：4 个新工具 + 3 条多轮指代 + 3 类产物生成 ----
+  {
+    name: "r11-summarize-document",
+    message: "总结文档 1",
+    seedDocument: "回放摘要文档",
+    expected: {
+      intent: "summarize_document+list_documents",
+      toolCalls: [
+        { name: "summarize_document", arguments: { documentId: 1 } },
+        { name: "list_documents", arguments: {} },
+      ],
+      okFlags: [true, true],
+    },
+    expectState: { documents: ["回放摘要文档"] },
+  },
+  {
+    name: "r11-export-document-md",
+    message: "导出文档 1 为 Markdown",
+    seedDocument: "回放导出文档",
+    expected: {
+      intent: "export_document_md+list_documents",
+      toolCalls: [
+        { name: "export_document_md", arguments: { documentId: 1 } },
+        { name: "list_documents", arguments: {} },
+      ],
+      okFlags: [true, true],
+    },
+    expectState: { documents: ["回放导出文档"] },
+  },
+  {
+    name: "r11-list-schedules-empty",
+    message: "列出日程",
+    expected: {
+      intent: "list_schedules",
+      toolCalls: [{ name: "list_schedules", arguments: {} }],
+      okFlags: [true],
+    },
+  },
+  {
+    name: "r11-create-schedule-real",
+    message: "新建日程：回放评审 2026-11-20 10:00-11:00",
+    expected: {
+      intent: "create_schedule+list_schedules",
+      toolCalls: [
+        { name: "create_schedule", arguments: { title: "回放评审", date: "2026-11-20", start: "10:00", end: "11:00" } },
+        { name: "list_schedules", arguments: {} },
+      ],
+      okFlags: [true, true],
+    },
+    expectState: { schedules: ["回放评审"] },
+  },
+  {
+    name: "r11-context-repeat-todo",
+    message: "再建一个",
+    context: [{ role: "user", text: "新建待办：写周报" }],
+    expected: {
+      intent: "create_todo+list_todos",
+      toolCalls: [
+        { name: "create_todo", arguments: { title: "写周报（再建）", quadrant: "q2" } },
+        { name: "list_todos", arguments: {} },
+      ],
+      okFlags: [true, true],
+      resolution: { referenceKind: "repeat", referencedTitle: "写周报" },
+    },
+    expectState: { todos: ["写周报（再建）"] },
+  },
+  {
+    name: "r11-context-retitle-todo",
+    message: "把它改成：季度周报",
+    context: [{ role: "user", text: "新建待办：写周报" }],
+    expected: {
+      intent: "create_todo+list_todos",
+      toolCalls: [
+        { name: "create_todo", arguments: { title: "季度周报", quadrant: "q2" } },
+        { name: "list_todos", arguments: {} },
+      ],
+      okFlags: [true, true],
+      resolution: { referenceKind: "retitle", referencedTitle: "写周报" },
+    },
+    expectState: { todos: ["季度周报"] },
+  },
+  {
+    name: "r11-context-repeat-document",
+    message: "再建一个",
+    context: [{ role: "user", text: "新建文档：设计方案" }],
+    expected: {
+      intent: "create_document+list_documents",
+      toolCalls: [
+        { name: "create_document", arguments: { title: "设计方案（再建）" } },
+        { name: "list_documents", arguments: {} },
+      ],
+      okFlags: [true, true],
+      resolution: { referenceKind: "repeat", referencedTitle: "设计方案" },
+    },
+    expectState: { documents: ["设计方案（再建）"] },
+  },
+  {
+    name: "r11-artifact-html",
+    message: "盘点待办",
+    expected: {
+      intent: "list_todos",
+      toolCalls: [{ name: "list_todos", arguments: {} }],
+      okFlags: [true],
+      artifactType: "html-report",
+    },
+  },
+  {
+    name: "r11-artifact-markdown",
+    message: "盘点待办",
+    expected: {
+      intent: "list_todos",
+      toolCalls: [{ name: "list_todos", arguments: {} }],
+      okFlags: [true],
+      artifactType: "markdown-table",
+    },
+  },
+  {
+    name: "r11-artifact-json",
+    message: "盘点待办",
+    expected: {
+      intent: "list_todos",
+      toolCalls: [{ name: "list_todos", arguments: {} }],
+      okFlags: [true],
+      artifactType: "json-data",
+    },
+  },
 ];
 
 export interface ToolReplayResult {
@@ -220,7 +354,7 @@ export function freshReplayDb(): XieFlowDb {
 
 /**
  * 回放：真跑 planner + registry + 真实 db，逐字段比对录制期望，并核对状态变更类工具真写库。
- * 非恒真：期望写错 / 规划漂移 / handler 不真执行，都会进 failures。
+ * 非恒真：期望写错 / 规划漂移 / handler 不真执行 / 指代消解失效，都会进 failures。
  */
 export async function runToolReplay(
   makeDb: () => XieFlowDb,
@@ -233,7 +367,11 @@ export async function runToolReplay(
   for (const c of cases) {
     const db = makeDb();
     try {
-      const exec = await executeChat(db, registry, planner, c.message);
+      if (c.seedDocument !== undefined) db.createDocument(c.seedDocument);
+      const exec = await executeChat(db, registry, planner, c.message, {
+        context: c.context,
+        artifactType: c.expected.artifactType,
+      });
       const problems: string[] = [];
       if (exec.intent !== c.expected.intent) {
         problems.push(`intent got ${exec.intent} want ${c.expected.intent}`);
@@ -248,6 +386,15 @@ export async function runToolReplay(
       if (c.expected.summary !== undefined && exec.summary !== c.expected.summary) {
         problems.push(`summary got ${exec.summary} want ${c.expected.summary}`);
       }
+      if (c.expected.artifactType !== undefined && exec.artifact.type !== c.expected.artifactType) {
+        problems.push(`artifactType got ${exec.artifact.type} want ${c.expected.artifactType}`);
+      }
+      if (c.expected.resolution !== undefined) {
+        const got = { referenceKind: exec.resolution?.referenceKind, referencedTitle: exec.resolution?.referencedTitle };
+        if (JSON.stringify(got) !== JSON.stringify(c.expected.resolution)) {
+          problems.push(`resolution got ${JSON.stringify(got)} want ${JSON.stringify(c.expected.resolution)}`);
+        }
+      }
       if (c.expectState?.todos !== undefined) {
         const got = db.listTodos().map((t) => t.title);
         if (JSON.stringify(got) !== JSON.stringify(c.expectState.todos)) {
@@ -258,6 +405,12 @@ export async function runToolReplay(
         const got = db.listDocuments().map((d) => d.title);
         if (JSON.stringify(got) !== JSON.stringify(c.expectState.documents)) {
           problems.push(`documents got ${JSON.stringify(got)} want ${JSON.stringify(c.expectState.documents)}`);
+        }
+      }
+      if (c.expectState?.schedules !== undefined) {
+        const got = db.listSchedules().map((s) => s.title);
+        if (JSON.stringify(got) !== JSON.stringify(c.expectState.schedules)) {
+          problems.push(`schedules got ${JSON.stringify(got)} want ${JSON.stringify(c.expectState.schedules)}`);
         }
       }
       if (problems.length === 0) passed += 1;

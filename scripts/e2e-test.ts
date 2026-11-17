@@ -142,6 +142,21 @@ import {
   assertValidArtifactType,
   planScriptedChat,
   buildChatSummary,
+  GENERATED_ARTIFACT_TYPES,
+  DEFAULT_ARTIFACT_TYPE,
+  isGeneratedArtifactType,
+  assertValidGeneratedArtifactType,
+  normalizeArtifactTypeRequest,
+  contentTypeForArtifactType,
+  DEFAULT_CONTEXT_WINDOW,
+  MAX_CONTEXT_WINDOW,
+  assertValidContextWindow,
+  normalizeContextWindow,
+  resolveContextualMessage,
+  toPlannerContext,
+  computeInlineDiff,
+  type PlannerContextMessage,
+  type DiffSegment,
 } from "@xieflow/shared";
 import type { TodoStatus } from "@xieflow/shared";
 import {
@@ -155,6 +170,11 @@ import {
   executeChat,
   TOOL_EVAL_CASES,
   runToolReplay,
+  generateHtmlReport,
+  generateMarkdownTable,
+  generateJsonData,
+  buildArtifactFromToolResults,
+  ARTIFACT_GENERATOR_LABELS,
 } from "@xieflow/agent";
 
 // ---------- 极简断言器 ----------
@@ -2986,13 +3006,13 @@ try {
   // 31. r10：工具契约与脚本规划口径（全部集中 shared）
   section("工具契约与脚本规划口径（TOOL_NAMES / 规划 / 汇总）");
   {
-    eq(TOOL_NAMES.length, 8, "首批工具注册表恰 8 个工具");
+    eq(TOOL_NAMES.length, 12, "工具注册表扩到 12 个工具（r11）");
     eq(
       [...TOOL_NAMES],
-      ["list_todos", "create_todo", "list_documents", "create_document", "list_projects", "list_cards", "list_tables", "search_knowledge"],
-      "8 个工具名逐字符合任务单",
+      ["list_todos", "create_todo", "list_documents", "create_document", "list_projects", "list_cards", "list_tables", "search_knowledge", "summarize_document", "export_document_md", "list_schedules", "create_schedule"],
+      "12 个工具名逐字符合 r10+r11 任务单（后 4 个为 r11 新增）",
     );
-    eq([...STATE_CHANGING_TOOLS], ["create_todo", "create_document"], "状态变更类工具恰 2 个（需「实际创建」断言）");
+    eq([...STATE_CHANGING_TOOLS], ["create_todo", "create_document", "create_schedule"], "状态变更类工具 3 个（r11 加 create_schedule，需「实际创建」断言）");
     noThrow(() => assertValidToolName("create_todo"), "合法工具名守卫放行");
     throws(() => assertValidToolName("mystery_tool"), "未知工具名守卫抛错（4xx 根因）");
     eq(normalizeToolCallRequest({ name: "list_todos" }).arguments, {}, "工具调用缺省参数归一为空对象");
@@ -3042,7 +3062,7 @@ try {
   {
     const tdb = openDatabase({ path: ":memory:" });
     const registry = createDefaultToolRegistry();
-    eq(registry.list().length, 8, "默认注册表恰 8 个工具");
+    eq(registry.list().length, 12, "默认注册表恰 12 个工具（r11 扩链）");
     eq(registry.list().map((d) => d.name), [...TOOL_NAMES], "注册表工具名与 shared 清单逐位相等");
     ok(registry.list().every((d) => d.description.length > 0), "每个工具都有非空 description");
     ok(registry.list().every((d) => d.parameters.type === "object"), "每个工具 parameters 都是 object schema");
@@ -3142,7 +3162,185 @@ try {
     cdb.close();
   }
 
-  // 35. HTTP 冒烟 /api/health
+  // 35. r11：产物类型 / 上下文窗口 / 行内 diff 契约（TDD：先断言，后实现）
+  section("r11 契约：产物类型 / 上下文窗口 / 行内 diff");
+  {
+    eq([...GENERATED_ARTIFACT_TYPES], ["html-report", "markdown-table", "json-data"], "r11 三类可预览产物类型逐字锁定");
+    eq(DEFAULT_ARTIFACT_TYPE, "chat-result", "缺省产物仍为 chat-result（向后兼容 r10）");
+    noThrow(() => assertValidArtifactType("html-report"), "新增产物类型通过既有守卫");
+    throws(() => assertValidArtifactType("bad-type"), "未知产物类型守卫抛错（HTTP 400 根因）");
+    eq(isGeneratedArtifactType("markdown-table"), true, "markdown-table 属可预览生成类型");
+    eq(isGeneratedArtifactType("chat-result"), false, "chat-result 不属三类生成类型");
+    noThrow(() => assertValidGeneratedArtifactType("json-data"), "合法生成类型守卫放行");
+    throws(() => assertValidGeneratedArtifactType("chat-result"), "chat-result 不能当生成类型传入");
+    eq(normalizeArtifactTypeRequest(undefined), "chat-result", "未传产物类型归一为 chat-result");
+    eq(normalizeArtifactTypeRequest("html-report"), "html-report", "合法产物类型原样归一");
+    throws(() => normalizeArtifactTypeRequest("evil"), "非法产物类型归一抛错");
+    eq(contentTypeForArtifactType("html-report"), "text/html; charset=utf-8", "HTML 产物 content-type");
+    eq(contentTypeForArtifactType("markdown-table"), "text/markdown; charset=utf-8", "Markdown 产物 content-type");
+    eq(contentTypeForArtifactType("json-data"), "application/json; charset=utf-8", "JSON 产物 content-type");
+    eq(contentTypeForArtifactType("chat-result"), "application/json; charset=utf-8", "r10 产物 content-type 兼容");
+    eq(DEFAULT_CONTEXT_WINDOW, 8, "上下文窗口默认 8 条");
+    eq(MAX_CONTEXT_WINDOW, 20, "上下文窗口上限 20 条");
+    eq(normalizeContextWindow(undefined), DEFAULT_CONTEXT_WINDOW, "未传上下文窗口取默认 8");
+    eq(normalizeContextWindow(3), 3, "合法上下文窗口原样归一");
+    throws(() => normalizeContextWindow(0), "上下文窗口 0 抛错（HTTP 400 根因）");
+    throws(() => normalizeContextWindow(MAX_CONTEXT_WINDOW + 1), "上下文窗口超上限抛错（400）");
+    throws(() => normalizeContextWindow("8"), "非数字上下文窗口抛错");
+    noThrow(() => assertValidContextWindow(8), "合法上下文窗口守卫放行");
+  }
+
+  // 36. r11：r9 U2 必修——行内增删改高亮 diff 算法（集中 shared，非纯样式）
+  section("r9 U2 修复：行内增删改 diff（computeInlineDiff）");
+  {
+    const same = computeInlineDiff("同一句话", "同一句话");
+    eq(same.map((s) => s.kind), ["same"], "完全相同文本只有 same 段");
+    eq(same.map((s) => s.text).join(""), "同一句话", "same 段文本无损");
+    eq(computeInlineDiff("", "新增文本").map((s) => s.kind), ["added"], "空原文 → 全 added");
+    eq(computeInlineDiff("旧文本", "").map((s) => s.kind), ["removed"], "空建议 → 全 removed");
+    const changed = computeInlineDiff("这是一段旧文本", "这是一段新文本");
+    ok(changed.some((s) => s.kind === "same"), "局部修改保留 same 段");
+    ok(changed.some((s) => s.kind === "removed"), "局部修改含 removed 段（旧字高亮）");
+    ok(changed.some((s) => s.kind === "added"), "局部修改含 added 段（新字高亮）");
+    eq(changed.filter((s) => s.kind !== "removed").map((s) => s.text).join(""), "这是一段新文本", "去掉 removed 段后逐字等于建议文本");
+    eq(changed.filter((s) => s.kind !== "added").map((s) => s.text).join(""), "这是一段旧文本", "去掉 added 段后逐字等于原文");
+    eq(JSON.stringify(computeInlineDiff("这是一段旧文本", "这是一段新文本")), JSON.stringify(changed), "diff 输出逐字节确定（零随机）");
+    ok(changed.every((s: DiffSegment) => ["same", "removed", "added"].includes(s.kind) && s.text.length > 0), "diff 段Kind 合法且无空段");
+  }
+
+  // 37. r11：跨轮指代消解（shared 纯函数，上下文来自落库消息）
+  section("r11 多轮上下文：跨轮指代消解");
+  {
+    const prior: PlannerContextMessage[] = [{ role: "user", text: "新建待办：写周报" }];
+    const repeat = resolveContextualMessage("再建一个", prior);
+    eq(repeat.resolved, true, "「再建一个」命中上一轮实体");
+    eq(repeat.referenceKind, "repeat", "重复指代 kind=repeat");
+    eq(repeat.referencedTitle, "写周报", "引用实体标题取自上一轮真实消息");
+    eq(repeat.message, "新建待办：写周报（再建）", "重复指代解析为可执行脚本消息");
+    const repeatNamed = resolveContextualMessage("再建一个：写月报", prior);
+    eq(repeatNamed.message, "新建待办：写月报", "「再建一个：新标题」用新标题并保留实体类型");
+    eq(repeatNamed.referencedTitle, "写周报", "指代来源仍是上一轮标题");
+    const retitle = resolveContextualMessage("把它改成：季度周报", prior);
+    eq(retitle.referenceKind, "retitle", "「把它改成」kind=retitle");
+    eq(retitle.message, "新建待办：季度周报", "改标题解析为带新标题的确定性脚本消息");
+    const none = resolveContextualMessage("再建一个", []);
+    eq(none.resolved, false, "无历史上下文时不硬解指代");
+    eq(none.message, "再建一个", "未解析消息原样返回");
+    eq(resolveContextualMessage("盘点待办和文档", prior).resolved, false, "普通消息不触发指代消解");
+    const docPrior: PlannerContextMessage[] = [{ role: "user", text: "新建文档：设计方案" }];
+    eq(resolveContextualMessage("再建一个", docPrior).message, "新建文档：设计方案（再建）", "跨轮实体类型（文档）被正确继承");
+  }
+
+  // 38. r11：三类产物生成器（真实内容，非占位）
+  section("r11 产物生成器：HTML / Markdown 表格 / JSON");
+  {
+    const toolCalls: ToolCallRecord[] = [{
+      id: "tc-1", name: "create_todo", arguments: { title: "写周报", quadrant: "q2" },
+      ok: true, summary: "已创建待办「写周报」（#1）", data: { todo: { id: 1 } },
+    }];
+    const input = { intent: "create_todo", message: "新建待办：写周报", toolCalls, summary: "已完成「create_todo」：共 1 次工具调用。" };
+    const html = generateHtmlReport(input);
+    eq(html.type, "html-report", "HTML 报告产物类型正确");
+    ok(html.title.includes("HTML 报告"), "HTML 报告标题含类型中文名");
+    ok(html.content.startsWith("<!doctype html>") && html.content.includes("</html>"), "HTML 报告是完整可打开文档");
+    ok(html.content.includes("<table>") && html.content.includes("写周报"), "HTML 报告含真实数据表与执行摘要");
+    ok(!html.content.includes("<script"), "HTML 报告不含脚本（安全预览）");
+    const md = generateMarkdownTable(input);
+    eq(md.type, "markdown-table", "Markdown 表格产物类型正确");
+    ok(md.content.includes("| 工具 |") && md.content.includes("| --- |"), "Markdown 表格含表头与分隔行");
+    ok(md.content.includes("create_todo") && md.content.includes("写周报"), "Markdown 表格含真实工具与数据");
+    const escaped = generateMarkdownTable({ ...input, toolCalls: [{ ...toolCalls[0]!, summary: "含竖线 | 的摘要" }] });
+    ok(escaped.content.includes("\\|"), "Markdown 表格转义单元格内竖线");
+    const json = generateJsonData(input);
+    eq(json.type, "json-data", "JSON 数据产物类型正确");
+    eq(JSON.parse(json.content).tools.length, 1, "JSON 数据产物含全部工具回执");
+    eq(JSON.parse(json.content).intent, "create_todo", "JSON 数据产物 intent 正确");
+    eq(JSON.stringify(buildArtifactFromToolResults("html-report", input)), JSON.stringify(html), "统一入口与单类型生成器逐字一致");
+    eq(ARTIFACT_GENERATOR_LABELS["json-data"], "JSON 数据", "产物标签逐字锁定");
+  }
+
+  // 39. r11：12 工具真实服务层调用（4 个新工具全接 XieFlowDb）
+  section("r11 工具链扩展：新 4 工具真调服务层");
+  {
+    const tdb = openDatabase({ path: ":memory:" });
+    const reg = createDefaultToolRegistry();
+    eq(reg.list().length, 12, "默认注册表恰 12 个工具");
+    const tdoc = tdb.createDocument("r11 服务层文档");
+    const tblock = tdb.listBlocks(tdoc.id)[0]!;
+    tdb.updateBlock(tblock.id, { text: "r11 导出正文" });
+    const summarized = await executeChat(tdb, reg, mockPlanner, "忽略", { toolCalls: [{ name: "summarize_document", arguments: { documentId: tdoc.id } }] });
+    eq(summarized.toolCalls[0]?.ok, true, "summarize_document 真实执行成功");
+    ok(String(summarized.toolCalls[0]?.summary).includes("文档"), "文档摘要含标题与统计");
+    eq((summarized.toolCalls[0]?.data as { blockCount: number } | null)?.blockCount, 1, "摘要块数来自真实服务层");
+    const exportedMd = await executeChat(tdb, reg, mockPlanner, "忽略", { toolCalls: [{ name: "export_document_md", arguments: { documentId: tdoc.id } }] });
+    eq(exportedMd.toolCalls[0]?.ok, true, "export_document_md 真实执行成功");
+    ok(String((exportedMd.toolCalls[0]?.data as { markdown: string } | null)?.markdown).includes("r11 导出正文"), "导出的 Markdown 含真块正文");
+    const listedSchedules = await executeChat(tdb, reg, mockPlanner, "忽略", { toolCalls: [{ name: "list_schedules", arguments: {} }] });
+    eq(listedSchedules.toolCalls[0]?.ok, true, "list_schedules 真实执行成功");
+    eq((listedSchedules.toolCalls[0]?.data as { count: number } | null)?.count, 0, "新库日程数 0 真读回");
+    const beforeSchedules = tdb.listSchedules().length;
+    const createdSchedule = await executeChat(tdb, reg, mockPlanner, "忽略", {
+      toolCalls: [{ name: "create_schedule", arguments: { title: "r11 真建日程", date: "2026-11-20", start: "10:00", end: "11:00" } }],
+    });
+    eq(createdSchedule.toolCalls[0]?.ok, true, "create_schedule 真实执行成功");
+    eq(tdb.listSchedules().length, beforeSchedules + 1, "create_schedule 真建日程（状态变更断言）");
+    eq(tdb.listSchedules()[0]?.title, "r11 真建日程", "新建日程标题真落库");
+    const scriptedSchedule = await executeChat(tdb, reg, mockPlanner, "新建日程：r11 脚本日程 2026-11-21 14:00-15:00");
+    ok(scriptedSchedule.toolCalls.some((t) => t.name === "create_schedule"), "脚本意图可触发 create_schedule");
+    ok(tdb.listSchedules().some((s) => s.title === "r11 脚本日程"), "脚本日程标题真落库");
+    const badDate = await executeChat(tdb, reg, mockPlanner, "忽略", {
+      toolCalls: [{ name: "create_schedule", arguments: { title: "x", date: "bad", start: "10:00", end: "11:00" } }],
+    });
+    eq(badDate.toolCalls[0]?.ok, false, "非法日程日期 handler 返 ok=false（不伪造成功）");
+    const missingDoc = await executeChat(tdb, reg, mockPlanner, "忽略", { toolCalls: [{ name: "summarize_document", arguments: { documentId: 99999 } }] });
+    eq(missingDoc.toolCalls[0]?.ok, false, "不存在文档的摘要返 ok=false");
+    tdb.close();
+  }
+
+  // 40. r11：多轮上下文 + 产物类型 + 回放扩充（≥27 用例）
+  section("r11 多轮上下文编排与产物生成");
+  {
+    const cdb = openDatabase({ path: ":memory:" });
+    const reg = createDefaultToolRegistry();
+    const conv = cdb.createConversation("r11 多轮上下文");
+    const first = await executeChat(cdb, reg, mockPlanner, "新建待办：写周报");
+    cdb.recordChatExchange({ conversationId: conv.id, userText: "新建待办：写周报", toolCalls: first.toolCalls, summary: first.summary, artifact: first.artifact });
+    const ctx = toPlannerContext(cdb.listMessages(conv.id));
+    eq(ctx.length, 3, "落库消息归一为 3 条规划上下文");
+    eq(ctx[0]?.role, "user", "上下文角色逐位来自真实落库消息");
+    const second = await executeChat(cdb, reg, mockPlanner, "再建一个", { context: ctx });
+    eq(second.toolCalls[0]?.arguments.title, "写周报（再建）", "第 2 轮「再建一个」引用第 1 轮真实实体");
+    eq(second.resolution?.referenceKind, "repeat", "第 2 轮回执携带指代解析元数据");
+    eq(second.resolution?.referencedTitle, "写周报", "指代来源标题可审计");
+    eq(second.contextWindow, DEFAULT_CONTEXT_WINDOW, "缺省 context_window 回显 8");
+    cdb.recordChatExchange({ conversationId: conv.id, userText: "再建一个", toolCalls: second.toolCalls, summary: second.summary, artifact: second.artifact });
+    const third = await executeChat(cdb, reg, mockPlanner, "把它改成：季度周报", { context: toPlannerContext(cdb.listMessages(conv.id)), contextWindow: 2 });
+    eq(third.toolCalls[0]?.arguments.title, "季度周报", "第 3 轮「把它改成」解析为新标题");
+    eq(third.resolution?.referenceKind, "retitle", "retitle 元数据回显");
+    eq(third.contextWindow, 2, "显式 context_window 回显 2");
+    const htmlExec = await executeChat(cdb, reg, mockPlanner, "盘点待办", { artifactType: "html-report" });
+    eq(htmlExec.artifact.type, "html-report", "chat 可指定生成 HTML 产物");
+    ok(htmlExec.artifact.content.startsWith("<!doctype html>"), "HTML 产物内容非空占位");
+    const mdExec = await executeChat(cdb, reg, mockPlanner, "盘点待办", { artifactType: "markdown-table" });
+    eq(mdExec.artifact.type, "markdown-table", "chat 可指定生成 Markdown 表格产物");
+    ok(mdExec.artifact.content.includes("| --- |"), "Markdown 产物含真实表格分隔行");
+    const jsonExec = await executeChat(cdb, reg, mockPlanner, "盘点待办", { artifactType: "json-data" });
+    eq(jsonExec.artifact.type, "json-data", "chat 可指定生成 JSON 数据产物");
+    await throwsAsync(() => executeChat(cdb, reg, mockPlanner, "盘点待办", { artifactType: "evil" }), "非法产物类型 → 编排抛错（HTTP 400）");
+    await throwsAsync(() => executeChat(cdb, reg, mockPlanner, "盘点待办", { contextWindow: 99 }), "上下文超限 → 编排抛错（HTTP 400）");
+    eq(TOOL_EVAL_CASES.length >= 27, true, `回放评测集 ${TOOL_EVAL_CASES.length} ≥ 27（r10 17 + r11 ≥10）`);
+    eq(new Set(TOOL_EVAL_CASES.map((c) => c.name)).size, TOOL_EVAL_CASES.length, "r11 回放用例名仍互不重复");
+    const replayAll = await runToolReplay(() => openDatabase({ path: ":memory:" }), reg);
+    eq(replayAll.failures, [], "扩充后回放全绿（含多轮上下文与新工具）");
+    const multiCases = TOOL_EVAL_CASES.filter((c) => c.context && c.context.length > 0);
+    eq(multiCases.length >= 3, true, `多轮上下文回放用例 ${multiCases.length} ≥ 3`);
+    const badCases = TOOL_EVAL_CASES.map((c) => ({ ...c, expected: { ...c.expected, intent: c.expected.intent + "-WRONG" } }));
+    const badReplay11 = await runToolReplay(() => openDatabase({ path: ":memory:" }), reg, badCases);
+    ok(badReplay11.failures.length > 0, "故意写错期望 → r11 回放必须变红（非恒真）");
+    cdb.close();
+  }
+
+  // 41. HTTP 冒烟 /api/health
   section("HTTP 冒烟 /api/health");
   let httpOk = false;
   let httpNote = "api 服务未运行（pnpm dev:api 后再跑 pnpm test 可覆盖此节）";

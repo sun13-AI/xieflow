@@ -2,6 +2,16 @@
 
 > 宪法见设计包 AGENTS.md；轮次规则见 RUNBOOK.md（均在 D:\work\好东西\xieflow-design\）。
 
+### 2026-11-17 · r11 研发（yanfa-r11 · M5 收官：多轮上下文与产物生成）
+- 交付：多轮上下文（shared `DEFAULT_CONTEXT_WINDOW=8` / `MAX=20` / `normalizeContextWindow` / `toPlannerContext` / `resolveContextualMessage`，指代消解「再建一个 / 把它改成」纯函数化，api 按窗口截取真实落库消息注入 planner，`resolution` 元数据回显）；**产物生成器** `packages/agent/artifact-generators.ts`（HTML 报告 / Markdown 表格 / JSON 数据，全从真实工具回执装配，iframe/sandbox 预览）；工具链 8→**12**（+summarize_document / export_document_md / list_schedules / create_schedule，handler 全接 XieFlowDb，create_schedule 纳入状态变更清单）；api `chat` 带 `context_window` + `artifactType`、`GET /api/artifacts/:id/content` 按 type 返回可预览正文
+- web：对话流多轮连续 + 上下文提示条 + 12 工具 6/页分页 + 产物 HTML/表格/JSON 三 tab 切换；**r9 U2 必修**（shared `computeInlineDiff` + DocsPage 原文红删/建议绿增行内高亮）、**r10 U2 必修**（产物卡「第 N 轮产物 · 对应本轮对话」与流同轮、窄容器八药丸 nowrap + 488px 顶栏纵排不折行不裁切）
+- 回放评测集 17→**27**（+4 新工具 +3 多轮指代 +3 产物类型；`runToolReplay` 核对 `resolution` / `artifactType` / `expectState.schedules`）
+- 断言规模：e2e 924 → **1020（+96）**· audit 786 → **867（+81）**· typecheck 5 包全绿；`pnpm run test:all` exit 0。**无一条断言被删**；只更新 6 条既有期望值/标签（e2e 工具数/工具名/状态变更清单 8→12 ×3、注册表 8→12 ×1、audit 工具目录数与工具名 8→12 ×2）；**本轮无 schema 迁移**（artifacts.type 为 TEXT，三类新产物不需 v9），CI smoke 正则保持 `(2|3|4|5|6|7|8)`
+- **变异红相留痕（两组）**：① shared `resolveContextualMessage` 强制不解析 → e2e 1003-17 / audit 799-1 抛错（指代链路全红）；② HTML 产物生成器改占位 → e2e 1017-3 / audit 865-2。两组目标文件 SHA256 `BD5897CE…` / `1B8AF531…` 改前改后完全相同，`MUTATION-PROBE` 零残留，重跑全绿
+- 截图矩阵：docs/ui/r11/ **7 张**（多轮对话 / 上下文提示 / 产物 HTML / 产物表格 / 工具链第 2 页 / 窄屏 U2 修复 / 错误态）+ 壳基线 8 张同批重拍（徽章 r11，与 r10 逐位全异）；7/7 与 8/8 哈希互异，全库 111 PNG / 109 互异（仅 r4 已披露 2 组同态）；首轮 01 命名与数据不符 + 窄屏第八药丸裁切两处经全矩阵重拍修正，废片未入库；逐张 `read_image` 目验
+- 「用户第一次用」全链路（headless CDP 真点，0 会话起步）：建会话 conv#19 → 真发「新建待办：CDP r11 真建实体，然后列出文档」3 工具（真建 #60）→ 真发「再建一个」→ UI 显「引用上一轮…(repeat)」+ 真建 #61 + 产物 #23「第 2 轮产物」→ HTTP 回查 6 消息 / 3+2 tool_call / 2 产物 / 待办 #60#61 → reload 全在 → 切「表格」预览 tab → DELETE 探针后 conv=0 / todos=1（未动 r3 既有「22」）→ 服务收净
+- 危险区：未 push / 未打 tag / 未发版 / 未改 CI release 配置；**无 schema 迁移、未手改库文件**；只删本轮自建探针会话/待办/日程/文档；PowerShell 新增段全 ASCII（shot.ps1 81960 B、非 ASCII 0、PS5.1 Parser 0 错误）；全程 headless、服务收净、零 token（只 mock）
+
 ### 2026-11-17 · r10 研发（yanfa-r10 · M5 起步：AI 工作台对话与工具调用框架）
 - 交付：schema v7→v8（conversations / messages / artifacts 三表 + role CHECK + conversation_id ON DELETE CASCADE + `tool_calls_json` 逐条回执）；`recordChatExchange` 单事务落 user/tool/assistant/artifact；工具契约与脚本规划口径全集中 shared（TOOL_NAMES / STATE_CHANGING_TOOLS / 参数归一 / SCRIPTED_INTENTS / buildChatSummary）
 - packages/agent：`ToolRegistry` 8 工具 handler **全接真实 XieFlowDb**（search_knowledge 按任务单为 M6 前空占位并显式 placeholder=true）；`mock-planner.ts`（`mock-scripted-v1`）识别意图→执行→汇总；evals 从 r9 单步修订骨架扩为 **17 条多步工具轨迹录制回放**，含 7 条「实际创建」状态断言（宪法四条）
@@ -120,7 +130,7 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r8 | M4 第 1 片：文档块编辑器（单人版） | ✅已发版（首轮双通过；块操作 97/97 + 变异红相 2 组独立复现） | v0.0.12 | e2e 716 · audit 639 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r9 | M4 第 2 片：Markdown 导入导出 + AI 块级修订（mock） | ✅已发版（首轮双通过；会话中断后续做收官） | v0.0.13 | e2e 809 · audit 706 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r10 | M5 第 1 片：AI 工作台对话与工具调用框架 | ✅已发版（首轮双通过；8 工具真实 handler + 17 回放） | v0.0.14 | e2e 924 · audit 786 | 通过（waizhuan）+ UI 通过（阻断岗） |
-| r11 | M5 第 2 片：多轮上下文与产物生成（M5 收官） | 🔨研发中 | — | — | — |
+| r11 | M5 第 2 片：多轮上下文与产物生成（M5 收官） | 🔨研发中（待双 VERDICT / 发版） | — | e2e 1020 · audit 867 | 待复验 |
 
 附加交付（r2 内 lead 直做，已入库 8e4fb9b）：
 - 一键启动：start.cmd 双击 / scripts\start.ps1 start|stop|status（三轮全链路验证；期间排掉「僵尸 api 抢 8787」环境坑，非脚本缺陷）

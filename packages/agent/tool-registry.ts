@@ -9,6 +9,12 @@ import {
   ValidationError,
   isToolName,
   normalizeToolCallRequest,
+  assembleDocumentText,
+  blocksToMarkdown,
+  assertValidScheduleDate,
+  assertValidScheduleRange,
+  assertValidScheduleRepeat,
+  type ScheduleRepeat,
   type ToolCallRequest,
   type ToolDefinition,
   type ToolName,
@@ -45,7 +51,14 @@ function optionalString(args: Record<string, unknown>, key: string): string | nu
   return value;
 }
 
-/** 8 个真实服务层 handler（只读 6 个 + 状态变更 2 个） */
+function requirePositiveInt(args: Record<string, unknown>, key: string, label: string): number {
+  const value = args[key];
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isInteger(n) || n <= 0) throw new ValidationError(`${label}：${key} 必须是正整数`);
+  return n;
+}
+
+/** 12 个真实服务层 handler：只读 8 个 + 状态变更 3 个 + 占位 1 个（search_knowledge） */
 const DEFAULT_TOOLS: readonly RegisteredTool[] = [
   {
     name: "list_todos",
@@ -163,6 +176,94 @@ const DEFAULT_TOOLS: readonly RegisteredTool[] = [
       };
     },
   },
+  {
+    name: "summarize_document",
+    description: "读取真实文档的块并给出标题/块数/字数摘要（只读服务层查询）。",
+    parameters: {
+      type: "object",
+      properties: { documentId: { type: "number", description: "文档 id" } },
+      required: ["documentId"],
+    },
+    handler: (db, args) => {
+      const documentId = requirePositiveInt(args, "documentId", "summarize_document");
+      const doc = db.getDocument(documentId);
+      if (doc === null) throw new ValidationError(`文档不存在：${documentId}`);
+      const blocks = db.listBlocks(documentId);
+      const text = assembleDocumentText(blocks);
+      return {
+        summary: `文档「${doc.title}」共 ${blocks.length} 块 / ${text.length} 字`,
+        data: { documentId, title: doc.title, blockCount: blocks.length, chars: text.length, preview: text.slice(0, 200) },
+      };
+    },
+  },
+  {
+    name: "export_document_md",
+    description: "按 shared blocksToMarkdown 导出真实文档 Markdown（只读，不改库）。",
+    parameters: {
+      type: "object",
+      properties: { documentId: { type: "number", description: "文档 id" } },
+      required: ["documentId"],
+    },
+    handler: (db, args) => {
+      const documentId = requirePositiveInt(args, "documentId", "export_document_md");
+      const doc = db.getDocument(documentId);
+      if (doc === null) throw new ValidationError(`文档不存在：${documentId}`);
+      const markdown = blocksToMarkdown(db.listBlocks(documentId));
+      return {
+        summary: `已导出文档「${doc.title}」的 Markdown（${markdown.length} 字符）`,
+        data: { documentId, title: doc.title, markdown },
+      };
+    },
+  },
+  {
+    name: "list_schedules",
+    description: "列出日程；给 from/to 则按日期区间读真实服务层，否则聚合全部。",
+    parameters: {
+      type: "object",
+      properties: {
+        from: { type: "string", description: "可选起始日 YYYY-MM-DD" },
+        to: { type: "string", description: "可选结束日 YYYY-MM-DD" },
+      },
+      required: [],
+    },
+    handler: (db, args) => {
+      const from = optionalString(args, "from");
+      const to = optionalString(args, "to");
+      if ((from === null) !== (to === null)) throw new ValidationError("list_schedules：from 与 to 必须同时提供");
+      const schedules = from !== null && to !== null ? db.listSchedulesByDateRange(from, to) : db.listSchedules();
+      return { summary: `日程 ${schedules.length} 条`, data: { schedules, count: schedules.length } };
+    },
+  },
+  {
+    name: "create_schedule",
+    description: "新建一条日程并真实落库（状态变更类工具，复用 shared 日程守卫）。",
+    parameters: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "日程标题" },
+        date: { type: "string", description: "日期 YYYY-MM-DD" },
+        start: { type: "string", description: "开始 HH:mm" },
+        end: { type: "string", description: "结束 HH:mm" },
+        repeat: { type: "string", description: "重复规则", enum: ["none", "daily", "weekly", "monthly"] },
+      },
+      required: ["title", "date", "start", "end"],
+    },
+    handler: (db, args) => {
+      const title = requireString(args, "title", "create_schedule");
+      const date = requireString(args, "date", "create_schedule");
+      const start = requireString(args, "start", "create_schedule");
+      const end = requireString(args, "end", "create_schedule");
+      assertValidScheduleDate(date);
+      assertValidScheduleRange(start, end);
+      const repeatRaw = optionalString(args, "repeat") ?? "none";
+      assertValidScheduleRepeat(repeatRaw);
+      const schedule = db.createSchedule(title, date, start, end, null, repeatRaw as ScheduleRepeat);
+      return {
+        summary: `已创建日程「${title}」（#${schedule.id}，${date} ${start}-${end}）`,
+        data: { schedule },
+      };
+    },
+  },
 ];
 
 /** JSON-schema 子集校验：必填项 + 类型 + enum；未知参数忽略（向后兼容） */
@@ -233,7 +334,7 @@ export class ToolRegistry {
   }
 }
 
-/** 默认注册表：8 个工具，全部接真实服务层 */
+/** 默认注册表：12 个工具（r10 八工具 + r11 四工具），全部接真实服务层 */
 export function createDefaultToolRegistry(): ToolRegistry {
   return new ToolRegistry(DEFAULT_TOOLS);
 }

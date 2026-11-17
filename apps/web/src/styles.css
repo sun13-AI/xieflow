@@ -2338,6 +2338,175 @@ pre.docs-print-block.docs-code {
   grid-template-columns: 1fr;
 }
 
+/* r10 U2-2 修复：窄容器壳八药丸不再竖排折行、徽章不紧贴末药丸 */
+.topbar {
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
+
+.tabs {
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.tab {
+  white-space: nowrap;
+  padding: 5px 11px;
+  flex-shrink: 0;
+}
+
+.badge {
+  white-space: nowrap;
+}
+
+/* r9 U2 必修：行内增删改高亮（原文删除红、建议新增绿，与 shared computeInlineDiff 对应） */
+.diff-seg-removed {
+  background: #fee2e2;
+  color: #991b1b;
+  text-decoration: line-through;
+  border-radius: 3px;
+  padding: 0 1px;
+}
+
+.diff-seg-added {
+  background: #dcfce7;
+  color: #166534;
+  font-weight: 600;
+  border-radius: 3px;
+  padding: 0 1px;
+}
+
+/* r11：上下文提示 / 12 工具分页 / 三类产物预览切换 */
+.chat-context-hint {
+  margin: 0 0 8px;
+  padding: 6px 10px;
+  border-left: 3px solid #7c3aed;
+  border-radius: 6px;
+  background: #f5f3ff;
+  color: #5b21b6;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.force-narrow .topbar {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.force-narrow .tabs {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.force-narrow .tab {
+  padding: 4px 8px;
+  font-size: 11px;
+}
+
+.context-pin-note {
+  color: #6d28d9;
+  font-weight: 700;
+}
+
+.chat-tools-block {
+  margin-top: 8px;
+}
+
+.chat-tool-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.chat-tool-list li {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  padding: 4px 6px;
+  border: 1px solid #eef1f5;
+  border-radius: 6px;
+  font-size: 11px;
+}
+
+.chat-tool-list code {
+  color: #1e40af;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.chat-tool-list span {
+  color: #94a3b8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-tools-pager {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.btn-small {
+  padding: 3px 9px;
+  font-size: 11px;
+}
+
+.artifact-round {
+  margin: 0 0 4px;
+  color: #7c3aed;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.artifact-tabs {
+  display: flex;
+  gap: 6px;
+  margin: 8px 0 4px;
+}
+
+.artifact-tab {
+  border: 1px solid #d7dde7;
+  background: #fff;
+  color: #64748b;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.artifact-tab-active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+  font-weight: 700;
+}
+
+.artifact-preview-kind {
+  margin: 2px 0 0;
+  color: #64748b;
+  font-size: 11px;
+}
+
+.artifact-html-frame {
+  width: 100%;
+  height: 430px;
+  margin-top: 8px;
+  border: 1px solid #e6e9ef;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.artifact-expanded .artifact-html-frame {
+  height: 600px;
+}
+
+.force-narrow .artifact-html-frame {
+  height: 320px;
+}
+
 /* 打印样式表：window.print() 只输出文档纸面，壳 / 工具条 / 块操作全部隐藏 */
 @media print {
   body {

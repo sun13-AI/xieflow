@@ -1,4 +1,4 @@
-# docs/ui/shell · 八 tab 壳激活态基线（返工 #1 B 固化，r10 起八 tab）
+# docs/ui/shell · 八 tab 壳激活态基线（返工 #1 B 固化，r10 起八 tab，r11 同批重拍）
 
 > r2 U1-1（工作台）→ r3 U1-2（待办）→ r4 U1-1（工作台+待办+日程三页全漏）——
 > 「壳变更 → 继承页 tab 激活证据断档」三轮连漏后，ui-reviewer 建议固化为 shot.ps1
@@ -11,8 +11,10 @@
 > **r10 起为八 tab**（新增「AI 工作台」= 对话 / 工具调用 / 产物预览页）：新增 tab 当轮
 > 基线自动扩为八张（`chat-tab-active.png`），旧七张一并重拍（壳换新 → 旧页激活态也
 > 必须带本轮壳），与 r9 基线逐位全异。
-> r10 壳徽章改为「r10 · AI 工作台对话与工具调用（M5 起步）」，工作台 schema 卡推进
+> r10 壳徽章为「r10 · AI 工作台对话与工具调用（M5 起步）」，工作台 schema 卡推进
 > 到 **v8**、里程碑改「M5 AI 工作台（进行中）」。
+> **r11 八 tab 不变但徽章改「r11 · 多轮上下文与产物生成（M5 收官）」**，机制自动重拍旧八张，
+> 与 r10 八张逐位全异（tab 数不变，壳内容变即重拍，避免 U1-1 复发）。
 
 | 文件 | 形态 | 对应断言 |
 |---|---|---|
@@ -21,19 +23,18 @@
 | schedules-tab-active.png | 日程激活（?page=schedules；月视图 + 今天高亮） | e2e「新库 schedules 为空」；audit「GET 空区间 -> 200」 |
 | projects-tab-active.png | 项目激活（?page=projects；空态 + 新建入口） | audit「GET /api/projects -> 200」空列表形态 |
 | board-tab-active.png | 看板激活（?page=board；无项目空态引导） | audit「GET /api/projects -> 200」空列表形态的看板侧消费 |
-| bases-tab-active.png | 表格激活（?page=bases；一张表都没有的首次使用空态 + 「＋ 新建表」入口；八药丸壳 + r10 徽章） | audit「GET /api/tables -> 200」空列表形态；e2e「createTable 自动创建默认字段（7 种类型齐备）」 |
-| docs-tab-active.png | 文档激活（?page=docs；一篇文档都没有的首次使用空态 + 「＋ 新建文档」/ 导入 / 导出 / 打印预览；八药丸壳 + r10 徽章） | audit「r9 GET 文档列表 -> 200」空列表形态；e2e「建文档默认首块自动在场（不是零块死路）」 |
-| chat-tab-active.png | **AI 工作台激活（r10 新增）**（?page=chat；真实 0 会话态：三栏首次使用引导 + 「＋ 新建会话」+ 侧栏「可用工具 8 个」+ r10 徽章） | audit「r10 GET /api/conversations -> 200」「工具目录恰 8 个工具」；e2e「首批工具注册表恰 8 个工具」 |
+| bases-tab-active.png | 表格激活（?page=bases；一张表都没有的首次使用空态 + 「＋ 新建表」入口；八药丸壳 + r11 徽章） | audit「GET /api/tables -> 200」空列表形态；e2e「createTable 自动创建默认字段（7 种类型齐备）」 |
+| docs-tab-active.png | 文档激活（?page=docs；一篇文档都没有的首次使用空态 + 「＋ 新建文档」/ 导入 / 导出 / 打印预览；八药丸壳 + r11 徽章；修订面板行内增删改高亮由 r11 修复） | audit「r9 GET 文档列表 -> 200」空列表形态；e2e「建文档默认首块自动在场（不是零块死路）」 |
+| chat-tab-active.png | **AI 工作台激活**（?page=chat；真实 0 会话态：三栏首次使用引导 + 「＋ 新建会话」+ 侧栏「可用工具 12 个」+ r11 徽章） | audit「r11 GET /api/tools -> 200」「工具目录扩到 12 个」；e2e「默认注册表恰 12 个工具」 |
 
-## r10 哈希自查（八张互异，与 r9 基线逐位全异）
+## r11 哈希自查（八张互异，与 r10 基线逐位全异）
 
-`workbench=A23DE2FF` · `todos=C8B9EE01` · `schedules=48647C7F` · `projects=A7DDD6E6` ·
-`board=0DFEA6AB` · `bases=D90E52E7` · `docs=D99EFDB0` · `chat=C858F2AF`。
+`workbench=0E245150` · `todos=C59BDAE4` · `schedules=EC51B375` · `projects=BE4362F5` ·
+`board=D3222E0E` · `bases=B7098A3B` · `docs=9B43151B` · `chat=466A8EF0`。
 
-r9 基线为 `7585AF58 / BC5F5C92 / 499EEE27 / 41F34A28 / EF7AAF78 / 53BE476B / 1A6D435E`（七张），
-r10 八张全部同批重拍且逐位全异（旧七张唯一变化是壳徽章 + 工作台 schema v8/M5 里程碑，新增第八张 chat）。
-`chat-tab-active` 与 `docs/ui/r10/01-chat-empty.png`（`626892DC`）**刻意不同态**：前者为真实 0 会话态，
-后者带「空态钉态：0 会话 / 0 消息 / 0 产物」注记，哈希互异，非同字节充数。
+r10 基线为 `A23DE2FF / C8B9EE01 / 48647C7F / A7DDD6E6 / 0DFEA6AB / D90E52E7 / D99EFDB0 / C858F2AF`（八张），
+r11 八张全部同批重拍且逐位全异（唯一变化是壳徽章推进 r11；tab 数不变）。
+`chat-tab-active` 与 `docs/ui/r11/` 矩阵任一图**刻意不同态**：前者为真实 0 会话态，矩阵为两轮对话 / 产物 / 窄屏 / 错误态。
 
 ## 机制说明
 

@@ -12,6 +12,8 @@ import {
   canConvertBlockType,
   computeNumberedOrdinals,
   buildDocumentMdFileName,
+  computeInlineDiff,
+  type DiffSegment,
   type BlockType,
   type Document as DocMeta,
   type DocumentBlock,
@@ -47,6 +49,26 @@ interface ReviseSuggestionData {
   suggestedText: string;
   applied: boolean;
   block: DocumentBlock;
+}
+
+/** r9 U2 修复：行内增删改高亮——原文标 removed（删除线红）、建议标 added（新增绿），相同段保持原样 */
+function InlineDiff({ original, suggested, side }: { original: string; suggested: string; side: "original" | "suggested" }) {
+  const segments: DiffSegment[] = computeInlineDiff(original, suggested);
+  return (
+    <pre data-state={side === "original" ? "docs-diff-inline-original" : "docs-diff-inline-suggested"}>
+      {segments.map((seg, i) => {
+        if (seg.kind === "same") return <span key={i}>{seg.text}</span>;
+        if (seg.kind === "removed") {
+          return side === "original"
+            ? <span key={i} className="diff-seg-removed" data-diff-kind="removed">{seg.text}</span>
+            : <span key={i}>{seg.text}</span>;
+        }
+        return side === "suggested"
+          ? <span key={i} className="diff-seg-added" data-diff-kind="added">{seg.text}</span>
+          : <span key={i}>{seg.text}</span>;
+      })}
+    </pre>
+  );
 }
 
 /** r9 导入预览钉态样本（真实预览端点解析，不写库） */
@@ -1026,12 +1048,12 @@ export default function DocsPage() {
                 {reviseData && (
                   <div className="docs-revise-diff" data-state="docs-revise-diff">
                     <div className="docs-diff-col">
-                      <h3>原文</h3>
-                      <pre>{reviseData.originalText || "（空）"}</pre>
+                      <h3>原文（红=被删）</h3>
+                      <InlineDiff original={reviseData.originalText} suggested={reviseData.suggestedText} side="original" />
                     </div>
                     <div className="docs-diff-col docs-diff-suggested">
-                      <h3>建议（{reviseData.provider}）</h3>
-                      <pre>{reviseData.suggestedText}</pre>
+                      <h3>建议（{reviseData.provider} · 绿=新增）</h3>
+                      <InlineDiff original={reviseData.originalText} suggested={reviseData.suggestedText} side="suggested" />
                     </div>
                     <p className="hint">理由：{reviseData.rationale}</p>
                   </div>

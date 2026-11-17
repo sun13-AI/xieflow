@@ -1632,11 +1632,11 @@ async function audit() {
   console.log("\n== AI workbench: tools / conversations / chat / artifacts (r10) ==");
   {
     const catalog = await expectStatus("GET", "/api/tools", undefined, 200, "r10 GET /api/tools -> 200");
-    eq(catalog.json.tools.length, 8, "工具目录恰 8 个工具");
+    eq(catalog.json.tools.length, 12, "工具目录扩到 12 个工具（r11）");
     eq(
       catalog.json.tools.map((t: { name: string }) => t.name),
-      ["list_todos", "create_todo", "list_documents", "create_document", "list_projects", "list_cards", "list_tables", "search_knowledge"],
-      "工具名逐字符合任务单",
+      ["list_todos", "create_todo", "list_documents", "create_document", "list_projects", "list_cards", "list_tables", "search_knowledge", "summarize_document", "export_document_md", "list_schedules", "create_schedule"],
+      "12 个工具名逐字符合 r10+r11 任务单",
     );
     eq(catalog.json.planner, "mock-scripted-v1", "工具目录回显 mock planner 标识");
     ok(catalog.json.tools.every((t: { description: string }) => t.description.length > 0), "每个工具都有非空描述");
@@ -1731,6 +1731,125 @@ async function audit() {
     await expectStatus("GET", `/api/conversations/${c1.json.id}/artifacts`, undefined, 404, "r10 删后产物列表 -> 404（级联）");
     await expectStatus("DELETE", `/api/conversations/${c2.json.id}`, undefined, 200, "r10 DELETE 第二会话 -> 200");
     await expectStatus("DELETE", `/api/todos/${createdTodo.id}`, undefined, 200, "r10 DELETE 自建待办 -> 200");
+  }
+
+  console.log("\n== AI workbench r11: multi-turn context / artifact generators / extended tools ==");
+  {
+    const catalog = await expectStatus("GET", "/api/tools", undefined, 200, "r11 GET /api/tools -> 200");
+    eq(catalog.json.tools.length, 12, "r11 工具目录扩到 12 个");
+    const names = catalog.json.tools.map((t: { name: string }) => t.name);
+    for (const n of ["summarize_document", "export_document_md", "list_schedules", "create_schedule"]) {
+      ok(names.includes(n), `r11 工具目录含 ${n}`);
+    }
+
+    const c = await expectStatus("POST", "/api/conversations", { title: "r11 审计多轮会话" }, 201, "r11 建多轮会话 -> 201");
+    const cid = c.json.id as number;
+    const chatUrl = `/api/conversations/${cid}/chat`;
+
+    // 4xx：上下文超限 / 非法产物类型 / 空消息（先于任何成功写入）
+    await expectStatus("POST", chatUrl, { message: "盘点待办", context_window: 0 }, 400, "r11 context_window=0 -> 400");
+    await expectStatus("POST", chatUrl, { message: "盘点待办", context_window: 21 }, 400, "r11 context_window 超上限 -> 400");
+    await expectStatus("POST", chatUrl, { message: "盘点待办", context_window: "8" }, 400, "r11 context_window 非数字 -> 400");
+    await expectStatus("POST", chatUrl, { message: "盘点待办", artifactType: "evil" }, 400, "r11 非法产物类型 -> 400");
+    await expectStatus("POST", chatUrl, { message: "   " }, 400, "r11 空消息 -> 400（回归 r10）");
+
+    // 第 1 轮：真建待办（跨轮指代的真实实体来源）
+    const t1 = await expectStatus("POST", chatUrl, { message: "新建待办：r11审计实体", context_window: 8 }, 201, "r11 第 1 轮对话 -> 201");
+    eq(t1.json.contextWindow, 8, "r11 第 1 轮回显默认窗口 8");
+    eq(t1.json.contextMessages, 0, "r11 首轮无历史上下文");
+    const todoId1 = t1.json.toolCalls[0].data.todo.id as number;
+    ok(todoId1 > 0, "r11 第 1 轮真建待办 id 可读");
+
+    // 第 2 轮：「再建一个」引用第 1 轮真实标题，再建一条
+    const t2 = await expectStatus("POST", chatUrl, { message: "再建一个" }, 201, "r11 第 2 轮指代对话 -> 201");
+    eq(t2.json.contextMessages, 3, "r11 第 2 轮注入 3 条真实落库消息");
+    eq(t2.json.resolution.referenceKind, "repeat", "r11 第 2 轮回显 repeat 指代元数据");
+    eq(t2.json.resolution.referencedTitle, "r11审计实体", "r11 指代来源为第 1 轮真标题");
+    eq(t2.json.toolCalls[0].arguments.title, "r11审计实体（再建）", "r11 第 2 轮工具参数引用第 1 轮实体");
+    const todoId2 = t2.json.toolCalls[0].data.todo.id as number;
+    ok(todoId2 > todoId1, "r11 第 2 轮真建第二条待办");
+
+    // 第 3 轮：窗口足够大才包含被指代的创建消息（小窗口故意不带历史，指代不应硬解）
+    const t3 = await expectStatus("POST", chatUrl, { message: "把它改成：r11审计修正版", context_window: 8 }, 201, "r11 第 3 轮改标题对话 -> 201");
+    eq(t3.json.contextWindow, 8, "r11 第 3 轮回显显式窗口 8");
+    eq(t3.json.contextMessages, 6, "r11 第 3 轮注入前两轮全部 6 条消息");
+    eq(t3.json.resolution.referenceKind, "retitle", "r11 第 3 轮回显 retitle 元数据");
+    eq(t3.json.toolCalls[0].arguments.title, "r11审计修正版", "r11 第 3 轮标题改写落到工具参数");
+    const tSmall = await expectStatus("POST", chatUrl, { message: "盘点待办和文档" }, 201, "r11 第 4 轮只读对话 -> 201");
+    eq(tSmall.json.contextWindow, 8, "r11 第 4 轮缺省窗口 8");
+    eq(tSmall.json.contextMessages, 8, "r11 第 4 轮按上限截取最近 8 条消息");
+    eq(tSmall.json.resolution, undefined, "r11 小窗口未含创建消息时不硬解指代");
+
+    const msgs = await expectStatus("GET", `/api/conversations/${cid}/messages`, undefined, 200, "r11 多轮对话流 -> 200");
+    eq(msgs.json.messages.length, 12, "r11 四轮各落 3 条消息（reload 不丢）");
+    const arts = await expectStatus("GET", `/api/conversations/${cid}/artifacts`, undefined, 200, "r11 多轮产物列表 -> 200");
+    eq(arts.json.artifacts.length, 4, "r11 四轮各落 1 篇产物");
+    const todosAfter = (await req("GET", "/api/todos")).json.todos;
+    ok(todosAfter.some((t: { title: string }) => t.title === "r11审计实体（再建）"), "r11 跨轮再建的待办真出现在库内列表");
+
+    // 三类产物真实生成 + /content 按 type 返回可预览内容
+    const c2 = await expectStatus("POST", "/api/conversations", { title: "r11 审计产物会话" }, 201, "r11 建产物会话 -> 201");
+    const chat2 = `/api/conversations/${c2.json.id}/chat`;
+    const htmlChat = await expectStatus("POST", chat2, { message: "盘点待办", artifactType: "html-report" }, 201, "r11 HTML 产物对话 -> 201");
+    eq(htmlChat.json.artifact.type, "html-report", "r11 HTML 产物类型落库");
+    const htmlId = htmlChat.json.artifact.id as number;
+    const htmlContent = await expectStatus("GET", `/api/artifacts/${htmlId}/content`, undefined, 200, "r11 GET HTML 产物内容 -> 200");
+    eq(htmlContent.json.contentType, "text/html; charset=utf-8", "r11 HTML content-type 正确");
+    ok(String(htmlContent.json.content).startsWith("<!doctype html>"), "r11 HTML 内容是完整可打开文档（非占位）");
+    ok(String(htmlContent.json.content).includes("<table>"), "r11 HTML 内容含真实数据表");
+    const mdChat = await expectStatus("POST", chat2, { message: "盘点待办", artifactType: "markdown-table" }, 201, "r11 Markdown 产物对话 -> 201");
+    const mdContent = await expectStatus("GET", `/api/artifacts/${mdChat.json.artifact.id}/content`, undefined, 200, "r11 GET Markdown 产物内容 -> 200");
+    eq(mdContent.json.contentType, "text/markdown; charset=utf-8", "r11 Markdown content-type 正确");
+    ok(String(mdContent.json.content).includes("| --- |"), "r11 Markdown 内容含真实表格分隔行");
+    const jsonChat = await expectStatus("POST", chat2, { message: "盘点待办", artifactType: "json-data" }, 201, "r11 JSON 产物对话 -> 201");
+    const jsonContent = await expectStatus("GET", `/api/artifacts/${jsonChat.json.artifact.id}/content`, undefined, 200, "r11 GET JSON 产物内容 -> 200");
+    eq(JSON.parse(jsonContent.json.content).tools.length, 1, "r11 JSON 产物含真实工具回执");
+
+    // /content 4xx：不存在 / 非数字 id / 非法 type / 类型不符
+    await expectStatus("GET", "/api/artifacts/99999/content", undefined, 404, "r11 不存在产物内容 -> 404");
+    await expectStatus("GET", "/api/artifacts/not-a-number/content", undefined, 400, "r11 非数字产物 id 内容 -> 400");
+    await expectStatus("GET", `/api/artifacts/${htmlId}/content?type=evil`, undefined, 400, "r11 非法请求类型 -> 400");
+    await expectStatus("GET", `/api/artifacts/${htmlId}/content?type=json-data`, undefined, 400, "r11 请求类型与产物不符 -> 400");
+    const typed = await expectStatus("GET", `/api/artifacts/${htmlId}/content?type=html-report`, undefined, 200, "r11 正确类型请求 -> 200");
+    eq(typed.json.id, htmlId, "r11 指定类型回读同一产物 id");
+
+    // 新 4 工具经 HTTP 真调服务层（含状态变更「实际创建」）
+    const doc = await expectStatus("POST", "/api/documents", { title: "r11 审计摘要文档" }, 201, "r11 建摘要源文档 -> 201");
+    const docId = doc.json.id as number;
+    await expectStatus("POST", `/api/documents/${docId}/import.md`, { markdown: "# r11 审计标题\n\nr11 正文段落" }, 200, "r11 导入真块供摘要/导出 -> 200");
+    const sumTool = await expectStatus("POST", chat2, { message: "忽略", toolCalls: [{ name: "summarize_document", arguments: { documentId: docId } }] }, 201, "r11 summarize_document 经 HTTP -> 201");
+    eq(sumTool.json.toolCalls[0].ok, true, "r11 summarize_document 真执行 ok=true");
+    ok(String(sumTool.json.toolCalls[0].summary).includes("r11 审计摘要文档"), "r11 摘要含真实文档标题");
+    const expTool = await expectStatus("POST", chat2, { message: "忽略", toolCalls: [{ name: "export_document_md", arguments: { documentId: docId } }] }, 201, "r11 export_document_md 经 HTTP -> 201");
+    ok(String(expTool.json.toolCalls[0].data.markdown).includes("r11 审计标题"), "r11 导出 Markdown 含真实块内容");
+    const listSch = await expectStatus("POST", chat2, { message: "忽略", toolCalls: [{ name: "list_schedules", arguments: {} }] }, 201, "r11 list_schedules 经 HTTP -> 201");
+    eq(listSch.json.toolCalls[0].ok, true, "r11 list_schedules 真执行 ok=true");
+    const beforeSch = await expectStatus("GET", "/api/schedules?from=2026-11-20&to=2026-11-20", undefined, 200, "r11 建日程前区间查询 -> 200");
+    const beforeSchCount = beforeSch.json.schedules.length as number;
+    ok(Array.isArray(beforeSch.json.schedules), "r11 日程区间查询返回数组（基线已含其他轮次日程）");
+    const createSch = await expectStatus("POST", chat2, {
+      message: "忽略",
+      toolCalls: [{ name: "create_schedule", arguments: { title: "r11审计日程", date: "2026-11-20", start: "10:00", end: "11:00" } }],
+    }, 201, "r11 create_schedule 经 HTTP -> 201");
+    eq(createSch.json.toolCalls[0].ok, true, "r11 create_schedule 真执行 ok=true");
+    const afterSch = await expectStatus("GET", "/api/schedules?from=2026-11-20&to=2026-11-20", undefined, 200, "r11 建日程后区间查询 -> 200");
+    eq(afterSch.json.schedules.length, beforeSchCount + 1, "r11 create_schedule 经 HTTP 真建日程（区间计数 +1）");
+    const createdSch = afterSch.json.schedules.find((s: { title: string }) => s.title === "r11审计日程");
+    ok(createdSch !== undefined, "r11 新建日程标题真出现在库内列表");
+    eq(createdSch?.title, "r11审计日程", "r11 新建日程标题逐字回读");
+    const badSch = await expectStatus("POST", chat2, {
+      message: "忽略",
+      toolCalls: [{ name: "create_schedule", arguments: { title: "x", date: "bad", start: "10:00", end: "11:00" } }],
+    }, 201, "r11 非法日程日期对话 -> 201（handler 返 ok=false）");
+    eq(badSch.json.toolCalls[0].ok, false, "r11 非法日期不伪造成功回执");
+
+    // 清理本轮自建探针：会话级联清消息/产物，另删真建的待办/文档/日程
+    await expectStatus("DELETE", `/api/conversations/${cid}`, undefined, 200, "r11 删多轮会话 -> 200");
+    await expectStatus("DELETE", `/api/conversations/${c2.json.id}`, undefined, 200, "r11 删产物会话 -> 200");
+    await expectStatus("DELETE", `/api/todos/${todoId1}`, undefined, 200, "r11 删第 1 轮待办 -> 200");
+    await expectStatus("DELETE", `/api/todos/${todoId2}`, undefined, 200, "r11 删第 2 轮待办 -> 200");
+    await expectStatus("DELETE", `/api/documents/${docId}`, undefined, 200, "r11 删摘要源文档 -> 200");
+    await expectStatus("DELETE", `/api/schedules/${createdSch.id}`, undefined, 200, "r11 删自建日程 -> 200");
   }
 
   console.log("\n== schedules delete (r3) ==");

@@ -14,7 +14,7 @@ powershell -File scripts\start.ps1 stop    # 收服务
 # 开发模式：
 pnpm dev:api         # api 服务 http://127.0.0.1:8787
 pnpm dev:web         # web 界面 http://127.0.0.1:5173
-pnpm run test:all    # typecheck + e2e（924 断言）+ HTTP 审计（786 断言）
+pnpm run test:all    # typecheck + e2e（1020 断言）+ HTTP 审计（867 断言）
 ```
 
 ### 打包（对齐 IKanBot 的 pack/dist 语义）
@@ -77,7 +77,19 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 
 ## 界面与测试对照
 
-按 AGENTS.md 立项规则：**界面更新必须带截图证据（每次，无例外）**，截图与实现同一提交。逐图索引（r1/r2/r3/r4/r5/r6/r7/r8/r9/r10 矩阵全量、逐张对照断言）：
+按 AGENTS.md 立项规则：**界面更新必须带截图证据（每次，无例外）**，截图与实现同一提交。逐图索引（r1/r2/r3/r4/r5/r6/r7/r8/r9/r10/r11 矩阵全量、逐张对照断言）：
+
+### r11 矩阵：[docs/ui/r11/](docs/ui/r11/README.md) —— 多轮上下文与产物生成（M5 收官，共 7 张）：
+
+| 截图 | 形态 | 对应断言 |
+|---|---|---|
+| [01-multiturn-chat.png](docs/ui/r11/01-multiturn-chat.png) | **真实链路·多轮对话**（会话 A 两轮：首轮 3 工具真建待办 + 次轮「再建一个」2 工具真建「（再建）」待办；上下文提示 + 「第 2 轮产物」同轮对齐） | audit「r11 第 2 轮回显 repeat 指代元数据」「r11 第 2 轮工具参数引用第 1 轮实体」；e2e「第 2 轮「再建一个」引用第 1 轮真实实体」 |
+| [02-context-hint.png](docs/ui/r11/02-context-hint.png) | **上下文提示钉态**（同两轮真实数据 + 注记「2 轮对话 / 6 条落库消息 / repeat 指代已解析」） | e2e「第 2 轮注入 3 条真实落库消息」；audit 同条 |
+| [03-artifact-html.png](docs/ui/r11/03-artifact-html.png) | **真实链路·HTML 产物**（iframe 渲染完整 HTML 报告：H1 + 真数据表 + 汇总，非占位） | audit「r11 HTML 内容是完整可打开文档（非占位）」；e2e「HTML 报告是完整可打开文档」 |
+| [04-artifact-table.png](docs/ui/r11/04-artifact-table.png) | **真实链路·Markdown 表格产物**（GFM 表头/分隔行/参数列 + 汇总，独立真实产物） | audit「r11 Markdown 内容含真实表格分隔行」；e2e「Markdown 表格转义单元格内竖线」 |
+| [05-tools-page2.png](docs/ui/r11/05-tools-page2.png) | **工具链第 2 页**（6/页分页，后 4 个 r11 新增工具在场；中间工具气泡展开 arguments） | audit「r11 工具目录扩到 12 个」；e2e「默认注册表恰 12 个工具」 |
+| [06-narrow.png](docs/ui/r11/06-narrow.png) | 窄屏 488×900：**r10 U2-2 修复**（八药丸横排一行不折行不裁切、徽章独占下一行）+ 三栏纵排 | 无独立数字断言（CSS 断点，确定性钉态，逐张目验） |
+| [07-error.png](docs/ui/r11/07-error.png) | 错误态（语义化文案 + 操作提示 + 「重试」按钮，钉态） | 无独立断言（4xx 由 audit r11 节锁定） |
 
 ### r10 矩阵：[docs/ui/r10/](docs/ui/r10/README.md) —— AI 工作台对话与工具调用（M5 起步，共 7 张）：
 
@@ -185,7 +197,7 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 | [18-board-switched-project.png](docs/ui/r4/18-board-switched-project.png) | **返工 #1·D 证据**：项目切换深链 → 第二项目看板（下拉选中态） | audit「GET /api/projects -> 200」多项目读回 UI 形态 |
 | [19-board-card-moved-ui.png](docs/ui/r4/19-board-card-moved-ui.png) | **返工 #1·A4 全路径②**：建卡 → 真实移动 → 两侧列重排 | audit「PATCH 卡跨列移动 -> 200」+ 两侧重排 UI 形态 |
 
-### 壳基线：[docs/ui/shell/](docs/ui/shell/README.md) —— **八 tab** 激活态（r4 返工 #1 B 固化，shot.ps1 自动拍摄；r6 新增「表格」→ 六张；**r8 新增「文档」→ 七张**；r9 徽章推进；**r10 新增「AI 工作台」→ 基线扩为八张**，补 `chat-tab-active.png` 并同批重拍旧七张，与 r9 基线哈希全异）：工作台 / 待办 / 日程 / 项目 / 看板 / 表格 / 文档 / AI 工作台各 1 张（r2/r3/r4 U1-1 三轮连漏的流程性终结）。
+### 壳基线：[docs/ui/shell/](docs/ui/shell/README.md) —— **八 tab** 激活态（r4 返工 #1 B 固化，shot.ps1 自动拍摄；r6 新增「表格」→ 六张；**r8 新增「文档」→ 七张**；r9 徽章推进；**r10 新增「AI 工作台」→ 基线扩为八张**，补 `chat-tab-active.png` 并同批重拍旧七张，与 r9 基线哈希全异；**r11 八 tab 不变但徽章推进，同批重拍八张，与 r10 逐位全异**）：工作台 / 待办 / 日程 / 项目 / 看板 / 表格 / 文档 / AI 工作台各 1 张（r2/r3/r4 U1-1 三轮连漏的流程性终结）。
 
 ### r3 矩阵：[docs/ui/r3/](docs/ui/r3/README.md) —— 日程页月视图 + 联动徽标 + 工作台今日日程（共 11 张，返工 #1 修正 06/10 + 补 11）：
 
@@ -224,8 +236,8 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 
 ### 断言规模（每轮更新，下降 = 回归 = 冻结发版）
 
-- e2e **924** 项（服务离线口径 924，api 在线时 HTTP 冒烟节 +1 = 925）：迁移一致性 7 · settings 9 · todo CRUD 15 · 输入校验 13 · 状态机 10 · 汇总计数 7 · raw schema 4 · 迁移幂等 3 · 日程契约与守卫 28 · 循环实例化 14 · 区间查询装配 12 · v2→v3 迁移+双向联动 18 · schedules CRUD 26 · 看板排序规则（reorderPositions）12 · 看板名称守卫 6 · v3→v4 迁移+看板数据层 33 · 看板统计口径（computeBoardStats）35 · 看板 CSV 台账（buildBoardCsvContent）36 · 字段类型引擎（validateFieldValue / coerceFieldValue / compareValues）86 · 记录数据归一与查询装配（normalizeRecordData / queryRecords）25 · 看板导出文件名（buildBoardCsvFileName · U2-2）6 · v4→v5 迁移+多维表格数据层 44 · 视图 spec 归一（normalizeViewSpec）31（r7 新增）· 按视图查询口径（多字段 AND / 多级排序 / 投影）21（r7 新增）· CSV 导入口径（parseCsvText / planCsvImport / 零半态）43（r7 新增）· v5→v6 迁移+视图数据层（持久化 / 原子导入）43（r7 新增）· **块类型引擎（normalizeBlockContent / canConvertBlockType / 拆合装配）64（r8 新增）· v6→v7 迁移+文档数据层（持久化 / 拆合移动 / 全文装配）65（r8 新增）· Markdown 双向引擎（markdownToBlocks / blocksToMarkdown / 未知语法降级）36（r9 新增）· Markdown 导入计划（normalizeMarkdownImportPayload / planMarkdownImport / 零半态）25（r9 新增）· AI 修订语义（instruction 守卫 / planRevisionApply / mock 录制回放）20（r9 新增）· 导入数据层（importBlocks 单事务整体替换 / 零半态 / 持久化 / 往返）12（r9 新增）· schema v7→v8 迁移与对话数据层（conversations / messages / artifacts）33（r10 新增）· 工具契约与脚本规划口径（TOOL_NAMES / 规划 / 汇总）34（r10 新增）· 工具注册表与真实服务层调用（ToolRegistry）26（r10 新增）· mock-planner 与工具调用录制回放（≥15 用例）9（r10 新增）· 对话编排与产物（executeChat）13（r10 新增）**
-- HTTP audit **786** 项（服务就绪 1 · health/settings 5 · todo 新建 12 · 列表详情 7 · 状态流转 9 · summary 11 · 删除 6 · 未知路由 1 · schedules CRUD 36 · 双向联动 22 · 循环实例 over HTTP 23 · projects CRUD 25 · board columns CRUD 20 · cards CRUD + 跨列移动 50 · board stats + CSV export 84 · tables / fields / records（r6）86 · views + CSV import（r7）119 · documents + blocks（r8）117 · Markdown import/export + AI revise（r9）67 · **AI workbench: tools / conversations / chat / artifacts（r10）80（r10 新增）** · schedules 删除 5）
+- e2e **1020** 项（服务离线口径 1020，api 在线时 HTTP 冒烟节 +1 = 1021）：迁移一致性 7 · settings 9 · todo CRUD 15 · 输入校验 13 · 状态机 10 · 汇总计数 7 · raw schema 4 · 迁移幂等 3 · 日程契约与守卫 28 · 循环实例化 14 · 区间查询装配 12 · v2→v3 迁移+双向联动 18 · schedules CRUD 26 · 看板排序规则（reorderPositions）12 · 看板名称守卫 6 · v3→v4 迁移+看板数据层 33 · 看板统计口径（computeBoardStats）35 · 看板 CSV 台账（buildBoardCsvContent）36 · 字段类型引擎（validateFieldValue / coerceFieldValue / compareValues）86 · 记录数据归一与查询装配（normalizeRecordData / queryRecords）25 · 看板导出文件名（buildBoardCsvFileName · U2-2）6 · v4→v5 迁移+多维表格数据层 44 · 视图 spec 归一（normalizeViewSpec）31（r7 新增）· 按视图查询口径（多字段 AND / 多级排序 / 投影）21（r7 新增）· CSV 导入口径（parseCsvText / planCsvImport / 零半态）43（r7 新增）· v5→v6 迁移+视图数据层（持久化 / 原子导入）43（r7 新增）· **块类型引擎（normalizeBlockContent / canConvertBlockType / 拆合装配）64（r8 新增）· v6→v7 迁移+文档数据层（持久化 / 拆合移动 / 全文装配）65（r8 新增）· Markdown 双向引擎（markdownToBlocks / blocksToMarkdown / 未知语法降级）36（r9 新增）· Markdown 导入计划（normalizeMarkdownImportPayload / planMarkdownImport / 零半态）25（r9 新增）· AI 修订语义（instruction 守卫 / planRevisionApply / mock 录制回放）20（r9 新增）· 导入数据层（importBlocks 单事务整体替换 / 零半态 / 持久化 / 往返）12（r9 新增）· schema v7→v8 迁移与对话数据层（conversations / messages / artifacts）33（r10 新增）· 工具契约与脚本规划口径（TOOL_NAMES / 规划 / 汇总）34（r10 新增）· 工具注册表与真实服务层调用（ToolRegistry）26（r10 新增）· mock-planner 与工具调用录制回放（≥15 用例）9（r10 新增）· 对话编排与产物（executeChat）13（r10 新增）· **r11 契约（产物类型 / 上下文窗口 / 行内 diff）24（r11 新增）· r9 U2 行内增删改 diff 11（r11 新增）· r11 跨轮指代消解 12（r11 新增）· r11 三类产物生成器 13（r11 新增）· r11 工具链扩展真服务层 14（r11 新增）· r11 多轮上下文编排与回放扩充 22（r11 新增）**
+- HTTP audit **867** 项（服务就绪 1 · health/settings 5 · todo 新建 12 · 列表详情 7 · 状态流转 9 · summary 11 · 删除 6 · 未知路由 1 · schedules CRUD 36 · 双向联动 22 · 循环实例 over HTTP 23 · projects CRUD 25 · board columns CRUD 20 · cards CRUD + 跨列移动 50 · board stats + CSV export 84 · tables / fields / records（r6）86 · views + CSV import（r7）119 · documents + blocks（r8）117 · Markdown import/export + AI revise（r9）67 · AI workbench: tools / conversations / chat / artifacts（r10）80 · **AI workbench r11: multi-turn context / artifact generators / extended tools 81（r11 新增）** · schedules 删除 5）
 - typecheck 5 包全绿（strict + noUncheckedIndexedAccess；shared / db / web / api / **agent(r9 新增)**）
 - CI：ubuntu / windows / macos 三平台 verify 门禁 + tag 触发 Release；CI 的 HTTP smoke 静态正则随 schema 版本号同步放宽为 `(2|3|4|5|6|7|8)`（v0.0.6 教训）
 - r6 规模变化：e2e 288 → 449（+161）· audit 313 → 403（+90）；**无一条断言被删**（只涨不缩，宪法第四条）
@@ -234,7 +246,9 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 - r9 规模变化：e2e 716 → **809（+93）**· audit 639 → **706（+67）**；**无一条断言被删**（只涨不缩，宪法第四条）。新增四节 e2e（36 双向引擎 + 25 导入计划 + 20 修订语义 + 12 导入数据层）与一节 audit（67 条真实 HTTP 装配，含导入预览/零半态 422/修订采纳与放弃/4xx）；本轮**未做 schema 迁移**，既有断言期望值与 CI smoke 正则 `(2|3|4|5|6|7)` 均未改动。唯一修正是一条 audit 预览行数期望（6→5，按 `MARKDOWN_IMPORT_PREVIEW_ROWS=5` 的真实契约），条数不变。
 - r10 规模变化：e2e 809 → **924（+115）**· audit 706 → **786（+80）**；**无一条断言被删**（只涨不缩，宪法第四条）。新增五节 e2e（33 对话数据层 + 34 工具契约/规划 + 26 真实注册表 + 9 回放 + 13 编排）与一节 audit（80 条真 HTTP 装配，含 4xx：空消息/未知工具/非法参数/空标题/越权 id、逐条 tool_call 落库查库验证、create_todo 实际创建、产物与级联删除）。随 v7→v8 迁移只更新了 **6 条既有断言的期望值**（`[3,4,5,6,7]`→`[3,4,5,6,7,8]`、`[4,5,6,7]`→`[4,5,6,7,8]`、`[5,6,7]`→`[5,6,7,8]`、`[6,7]`→`[6,7,8]`、`[7]`→`[7,8]`、构造越界队列 1..8→1..9）与 audit 两处 `health.schemaVersion` 7→8；另有 e2e 若干**标签文字**同步（`CURRENT_SCHEMA_VERSION（8）`、`重启后 user_version 仍为 8`、迁移链文字加 v8），条数不变。CI smoke 正则同步为 `(2|3|4|5|6|7|8)`。
 
-### 核心概念（逐轮累积，r1~r10 已落地的部分）
+- r11 规模变化：e2e 924 → **1020（+96）**· audit 786 → **867（+81）**；**无一条断言被删**（只涨不缩，宪法第四条）。新增六节 e2e（24 契约 + 11 行内 diff + 12 指代消解 + 13 产物生成器 + 14 工具链真服务层 + 22 多轮编排与回放）与一节 audit（81 条真 HTTP：12 工具目录 / context_window 4xx / 三轮跨轮指代 / 三类产物 /content / 产物不存在与非法类型 4xx / 4 新工具真建数据 / 清理）。**本轮无 schema 迁移**（artifacts.type 本就是 TEXT，三类新产物无需 v9），CI smoke 正则保持 `(2|3|4|5|6|7|8)`；只更新 **6 条既有断言的期望值/标签**（e2e 工具数/工具名/状态变更清单 8→12 ×3、注册表 8→12 ×1、audit 工具目录数与工具名 8→12 ×2），条数不变。
+
+### 核心概念（逐轮累积，r1~r11 已落地的部分）
 
 - **迁移纪律**：schema 变更只走 `packages/db/src/schema.ts` 的 `MIGRATIONS` 队列（v1 settings → v2 todos → v3 schedules → v4 projects/board_columns/cards → v5 tables/fields/records → v6 views → v7 documents/blocks → **v8 conversations/messages/artifacts**），`user_version` 管理，重开幂等、旧库原地升级只补跑缺失版本
 - **状态机集中**：待办状态流转（open/done/archived）定义在 `packages/shared`，非法流转服务层与路由层双层拒绝
@@ -313,6 +327,11 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 - **逐条 tool_call 落库**（r10）：一次对话的每条工具调用都生成 `tc-1/tc-2/...` 回执，随 tool 角色消息写入 `tool_calls_json`；
   HTTP 层有查库断言锁定「≥2 次真实工具调用 + tool 消息逐条回执 + create_todo 实际创建」，两组变异红相（跳过 handler / 不落 tool_calls）均被检出后逐字节还原
 - **探针真读库**：`/api/health` 每次真写读一次 settings，不只是进程活着
+- **多轮上下文唯一入口**（r11）：`DEFAULT_CONTEXT_WINDOW=8` / `MAX_CONTEXT_WINDOW=20` / `normalizeContextWindow` 与 `toPlannerContext` / `resolveContextualMessage` 全在 shared；api 按 `context_window` 从真实落库消息截取最近 N 条注入 planner，超限时 400；「再建一个 / 把它改成」在 shared 纯函数里消解为可执行脚本消息并回显 `resolution{referenceKind,referencedTitle}`，无历史时不硬解；M5 mock 无 update 工具，「改成」按「参照上一轮实体生成修正版」解释（报告自曝）
+- **产物生成器唯一入口**（r11）：`html-report` / `markdown-table` / `json-data` 三类全部从真实工具回执装配（`packages/agent/artifact-generators.ts`），标签 / 守卫 / content-type 在 shared；`POST /chat {artifactType}` 生成并落 artifacts 表，`GET /api/artifacts/:id/content` 按 type 返回可预览正文（不存在 404、非法/不符 type 400）；HTML 用 `iframe sandbox` 预览，非占位
+- **12 工具真服务层**（r11）：r10 八工具之上新增 `summarize_document`（`assembleDocumentText` 真读块）/ `export_document_md`（`blocksToMarkdown` 真导出）/ `list_schedules`（真区间查询）/ `create_schedule`（`db.createSchedule` 真建日程并纳入 `STATE_CHANGING_TOOLS`），handler 全接 XieFlowDb；UI 工具目录 6/页分页
+- **r9/r10 U2 必修**（r11）：`computeInlineDiff`（中文按字/英文按词 LCS，same/removed/added 段合并）集中在 shared，DocsPage 修订面板原文红删除线 / 建议绿新增高亮；产物卡按「第 N 轮产物 · 对应本轮对话」与流同轮；窄容器八药丸 `white-space: nowrap` + 488px 顶栏纵排，不折行不裁切
+- **回放评测集扩至 27 条**（r11）：r10 17 条之上 +4 新工具 +3 多轮指代 +3 产物类型，`runToolReplay` 在全新内存库真执行并核对 `resolution` / `artifactType` / `expectState.schedules`；改坏指代或产物生成器均变红（两组变异红相）
 
 ## 明确不做（当前阶段）
 

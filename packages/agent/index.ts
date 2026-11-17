@@ -26,6 +26,15 @@ export {
   type ChatExecution,
   type ExecuteChatOptions,
 } from "./mock-planner.js";
+export { ARTIFACT_GENERATOR_LABELS } from "@xieflow/shared";
+export {
+  generateHtmlReport,
+  generateMarkdownTable,
+  generateJsonData,
+  buildArtifactFromToolResults,
+  type ArtifactGenerationInput,
+  type ArtifactDraft,
+} from "./artifact-generators.js";
 export {
   TOOL_EVAL_CASES,
   runToolReplay,

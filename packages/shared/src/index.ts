@@ -2332,7 +2332,7 @@ export const MAX_CHAT_MESSAGE = 2000;
 
 export type MessageRole = "user" | "assistant" | "tool";
 export const MESSAGE_ROLES: readonly MessageRole[] = ["user", "assistant", "tool"];
-export const ARTIFACT_TYPES = ["chat-result"] as const;
+export const ARTIFACT_TYPES = ["chat-result", "html-report", "markdown-table", "json-data"] as const;
 export type ArtifactType = (typeof ARTIFACT_TYPES)[number];
 
 export interface Conversation {
@@ -2376,7 +2376,7 @@ export interface Artifact {
   readonly createdAt: string;
 }
 
-/** 首批 8 个工具名（集中清单，注册表/回放/UI 共用，禁止散落字面量） */
+/** 12 个工具名（r10 八工具 + r11 四工具；集中清单，注册表/回放/UI 共用，禁止散落字面量） */
 export const TOOL_NAMES = [
   "list_todos",
   "create_todo",
@@ -2386,11 +2386,15 @@ export const TOOL_NAMES = [
   "list_cards",
   "list_tables",
   "search_knowledge",
+  "summarize_document",
+  "export_document_md",
+  "list_schedules",
+  "create_schedule",
 ] as const;
 export type ToolName = (typeof TOOL_NAMES)[number];
 
 /** 状态变更类工具（回放必须带「实际创建」断言；只读工具不需要） */
-export const STATE_CHANGING_TOOLS: readonly ToolName[] = ["create_todo", "create_document"];
+export const STATE_CHANGING_TOOLS: readonly ToolName[] = ["create_todo", "create_document", "create_schedule"];
 
 export function isToolName(value: unknown): value is ToolName {
   return typeof value === "string" && (TOOL_NAMES as readonly string[]).includes(value);
@@ -2482,18 +2486,17 @@ export interface ScriptedIntent {
 export const SCRIPTED_INTENTS: readonly ScriptedIntent[] = [
   { id: "create_todo", keywords: ["新建待办", "新建一个待办", "新建个待办", "创建一个待办", "创建待办", "添加待办", "加个待办", "建个待办", "新增待办"], summary: "新建待办" },
   { id: "create_document", keywords: ["新建文档", "创建文档", "建个文档", "添加文档", "新增文档"], summary: "新建文档" },
+  { id: "create_schedule", keywords: ["新建日程", "创建日程", "安排日程", "新增日程", "添加日程"], summary: "新建日程" },
+  { id: "export_document_md", keywords: ["导出文档", "导出 Markdown", "导出markdown", "导出 md", "导出MD"], summary: "导出文档 Markdown" },
+  { id: "summarize_document", keywords: ["总结文档", "文档摘要", "概括文档", "文档总结"], summary: "文档摘要" },
   { id: "list_todos", keywords: ["待办", "任务"], summary: "待办清单" },
   { id: "list_documents", keywords: ["文档"], summary: "文档清单" },
   { id: "list_projects", keywords: ["项目"], summary: "项目清单" },
   { id: "list_cards", keywords: ["卡片", "看板"], summary: "看板卡片" },
   { id: "list_tables", keywords: ["表格", "多维表"], summary: "多维表格" },
+  { id: "list_schedules", keywords: ["日程", "排期"], summary: "日程清单" },
   { id: "search_knowledge", keywords: ["知识库", "知识", "检索"], summary: "知识库检索" },
 ];
-
-export interface PlannedChat {
-  readonly intent: string;
-  readonly toolCalls: readonly ToolCallRequest[];
-}
 
 /** 从脚本消息里抽标题：「：/:</quoted>」优先，否则整句截断，保证确定性 */
 function extractScriptedTitle(message: string): string {
@@ -2504,9 +2507,204 @@ function extractScriptedTitle(message: string): string {
   return message.trim().slice(0, MAX_TODO_TITLE);
 }
 
-/** 脚本化规划：扫描所有命中意图，按规则表顺序去重产出工具调用序列 */
-export function planScriptedChat(message: string): PlannedChat {
-  const hit = SCRIPTED_INTENTS.filter((rule) => rule.keywords.some((k) => message.includes(k)));
+/** 从脚本消息抽日程参数：日期 / 起止时间 / 去掉日期时间后的标题（确定性，零随机） */
+function extractScheduleArgs(message: string): { title: string; date: string; start: string; end: string } | null {
+  const dateMatch = message.match(/(\d{4}-\d{2}-\d{2})/);
+  const timeMatch = message.match(/(\d{1,2}:\d{2})\s*[-~—至到]\s*(\d{1,2}:\d{2})/);
+  if (!dateMatch?.[1] || !timeMatch?.[1] || !timeMatch?.[2]) return null;
+  const pad = (hms: string): string => (hms.length === 4 ? `0${hms}` : hms);
+  const rawTitle = (message.match(/[:：]\s*([^，。；;]+)/)?.[1] ?? message).trim();
+  const title = rawTitle
+    .replace(/\d{4}-\d{2}-\d{2}/g, "")
+    .replace(/\d{1,2}:\d{2}\s*[-~—至到]\s*\d{1,2}:\d{2}/g, "")
+    .replace(/[\s,，]+$/g, "")
+    .trim()
+    .slice(0, MAX_TODO_TITLE);
+  return { title: title === "" ? "新日程" : title, date: dateMatch[1], start: pad(timeMatch[1]), end: pad(timeMatch[2]) };
+}
+
+/** 从脚本消息抽文档 id（「文档 3」/「documentId: 3」）；无 id 返回 null（handler 返 ok=false，不伪造） */
+function extractDocumentId(message: string): number | null {
+  const m = message.match(/文档\s*#?(\d+)|documentId\s*[:：]?\s*(\d+)/i);
+  const n = Number(m?.[1] ?? m?.[2]);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+// ---- r11：多轮上下文 / 产物生成 / 行内 diff（全部契约与规则仍集中 shared） ----
+
+/** 三类可由工具结果生成的产物（chat-result 为 r10 兼容的通用 JSON 产物） */
+export const GENERATED_ARTIFACT_TYPES = ["html-report", "markdown-table", "json-data"] as const;
+export type GeneratedArtifactType = (typeof GENERATED_ARTIFACT_TYPES)[number];
+export const DEFAULT_ARTIFACT_TYPE: ArtifactType = "chat-result";
+
+export const ARTIFACT_GENERATOR_LABELS: Record<ArtifactType, string> = {
+  "chat-result": "对话产物",
+  "html-report": "HTML 报告",
+  "markdown-table": "Markdown 表格",
+  "json-data": "JSON 数据",
+};
+
+export function isGeneratedArtifactType(value: unknown): value is GeneratedArtifactType {
+  return typeof value === "string" && (GENERATED_ARTIFACT_TYPES as readonly string[]).includes(value);
+}
+
+export function assertValidGeneratedArtifactType(value: unknown): asserts value is GeneratedArtifactType {
+  if (!isGeneratedArtifactType(value)) {
+    throw new ValidationError(`非法产物生成类型：${String(value)}`);
+  }
+}
+
+/** chat 请求产物类型归一：缺省 → chat-result；三类生成类型原样；其余抛错 → HTTP 400 */
+export function normalizeArtifactTypeRequest(value: unknown): ArtifactType {
+  if (value === undefined || value === null) return DEFAULT_ARTIFACT_TYPE;
+  assertValidArtifactType(value);
+  return value;
+}
+
+/** GET /api/artifacts/:id/content 的 content-type 唯一口径 */
+export function contentTypeForArtifactType(type: ArtifactType): string {
+  if (type === "html-report") return "text/html; charset=utf-8";
+  if (type === "markdown-table") return "text/markdown; charset=utf-8";
+  return "application/json; charset=utf-8";
+}
+
+/** 上下文窗口：默认 8，上限 20（防超长上下文拖垮 mock 规划） */
+export const DEFAULT_CONTEXT_WINDOW = 8;
+export const MAX_CONTEXT_WINDOW = 20;
+
+export function assertValidContextWindow(value: unknown): asserts value is number {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > MAX_CONTEXT_WINDOW) {
+    throw new ValidationError(`context_window 必须是 1~${MAX_CONTEXT_WINDOW} 的整数`);
+  }
+}
+
+export function normalizeContextWindow(value: unknown): number {
+  if (value === undefined || value === null) return DEFAULT_CONTEXT_WINDOW;
+  assertValidContextWindow(value);
+  return value;
+}
+
+/** 规划器上下文只取 role + 文本（不含 id/时间戳，保证回放逐字节确定） */
+export interface PlannerContextMessage {
+  readonly role: MessageRole;
+  readonly text: string;
+}
+
+export function toPlannerContext(messages: readonly Message[]): PlannerContextMessage[] {
+  return messages.map((m) => ({ role: m.role, text: m.content.text }));
+}
+
+export interface ContextResolution {
+  readonly resolved: boolean;
+  /** 解析后的可执行脚本消息（未解析时原文返回） */
+  readonly message: string;
+  readonly referenceKind: "none" | "repeat" | "retitle";
+  /** 被指代的上一轮实体标题（可审计） */
+  readonly referencedTitle?: string;
+}
+
+const NO_RESOLUTION: ContextResolution = { resolved: false, message: "", referenceKind: "none" };
+
+/** 从上一轮创建消息还原「新建待办 q1：标题」式确定性脚本（保留实体类型与象限/日期时间） */
+function rebuildCreateMessage(priorText: string, newTitle: string): string {
+  if (priorText.includes("新建日程") || priorText.includes("创建日程") || priorText.includes("安排日程")) {
+    const s = extractScheduleArgs(priorText);
+    if (s) return `新建日程：${newTitle} ${s.date} ${s.start}-${s.end}`;
+    return `新建日程：${newTitle}`;
+  }
+  if (priorText.includes("新建文档") || priorText.includes("创建文档") || priorText.includes("建个文档")) {
+    return `新建文档：${newTitle}`;
+  }
+  const q = priorText.match(/\bq([1-4])\b/i)?.[1];
+  return q ? `新建待办 q${q}：${newTitle}` : `新建待办：${newTitle}`;
+}
+
+/**
+ * 跨轮指代消解：仅对「再建一个 / 把它改成」类表达生效，引用最近一条创建类用户消息的真实标题。
+ * 无历史或无法定位实体时原样返回（不硬解、不编造）；纯函数、零随机，可录制回放。
+ * 注：M5 mock 工具集未提供 update 工具，「改成」按「参照上一轮实体生成修正版」解释并在元数据标注 retitle。
+ */
+export function resolveContextualMessage(message: string, context: readonly PlannerContextMessage[]): ContextResolution {
+  const isRepeat = /再建一个|再建个|再来一个|再创建一?个|再来一份/.test(message);
+  const isRetitle = /把它改成|把它改为|改成|改为/.test(message);
+  if (!isRepeat && !isRetitle) return { ...NO_RESOLUTION, message };
+
+  const prior = [...context].reverse().find((m) => {
+    if (m.role !== "user") return false;
+    return ["新建待办", "创建待办", "新建文档", "创建文档", "新建日程", "创建日程", "安排日程", "添加待办", "加个待办"].some((k) => m.text.includes(k));
+  });
+  if (!prior) return { ...NO_RESOLUTION, message };
+  const referencedTitle = extractScriptedTitle(prior.text);
+
+  if (isRetitle) {
+    const explicit = message.match(/(?:把它)?(?:改成|改为)\s*[:：]?\s*([^，。；;,]+)/)?.[1]?.trim();
+    const title = (explicit && explicit !== "" ? explicit : extractScriptedTitle(message)).slice(0, MAX_TODO_TITLE);
+    return { resolved: true, message: rebuildCreateMessage(prior.text, title), referenceKind: "retitle", referencedTitle };
+  }
+
+  const explicit = message.match(/(?:再建一个|再建个|再来一个|再创建一?个|再来一份)\s*[:：,，]?\s*([^，。；;]+)/)?.[1]?.trim();
+  const title = (explicit && explicit !== "" ? explicit : `${referencedTitle}（再建）`).slice(0, MAX_TODO_TITLE);
+  return { resolved: true, message: rebuildCreateMessage(prior.text, title), referenceKind: "repeat", referencedTitle };
+}
+
+/** 行内 diff 段：same=未变 / removed=删除（旧文高亮）/ added=新增（新文高亮） */
+export interface DiffSegment {
+  readonly kind: "same" | "removed" | "added";
+  readonly text: string;
+}
+
+/** 行内增删改：中文按字、英文数字按词切分，LCS 求最长公共子序列，再合并相邻同类段 */
+export function computeInlineDiff(original: string, suggested: string): DiffSegment[] {
+  const tokenize = (s: string): string[] => s.match(/[\u4e00-\u9fff]|[A-Za-z0-9_]+|\s+|[^\s]/g) ?? [];
+  const a = tokenize(original);
+  const b = tokenize(suggested);
+  const n = a.length;
+  const m = b.length;
+  const lcs: number[][] = Array.from({ length: n + 1 }, () => Array<number>(m + 1).fill(0));
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      lcs[i]![j] = a[i] === b[j] ? lcs[i + 1]![j + 1]! + 1 : Math.max(lcs[i + 1]![j]!, lcs[i]![j + 1]!);
+    }
+  }
+  const ops: { kind: DiffSegment["kind"]; text: string }[] = [];
+  let i = 0;
+  let j = 0;
+  while (i < n && j < m) {
+    if (a[i] === b[j]) {
+      ops.push({ kind: "same", text: a[i]! });
+      i++;
+      j++;
+    } else if (lcs[i + 1]![j]! >= lcs[i]![j + 1]!) {
+      ops.push({ kind: "removed", text: a[i]! });
+      i++;
+    } else {
+      ops.push({ kind: "added", text: b[j]! });
+      j++;
+    }
+  }
+  while (i < n) { ops.push({ kind: "removed", text: a[i]! }); i++; }
+  while (j < m) { ops.push({ kind: "added", text: b[j]! }); j++; }
+  const merged: DiffSegment[] = [];
+  for (const op of ops) {
+    const last = merged[merged.length - 1];
+    if (last && last.kind === op.kind) merged[merged.length - 1] = { kind: last.kind, text: last.text + op.text };
+    else merged.push({ ...op });
+  }
+  return merged;
+}
+
+/** 脚本化规划：扫描所有命中意图，按规则表顺序去重产出工具调用序列。r11 支持上下文指代消解。 */
+export interface PlannedChat {
+  readonly intent: string;
+  readonly toolCalls: readonly ToolCallRequest[];
+  /** 仅当传入上下文且命中指代时携带（回放可审计；无指代时不出现，保持 r10 输出逐字节兼容） */
+  readonly resolution?: ContextResolution;
+}
+
+export function planScriptedChat(message: string, context?: readonly PlannerContextMessage[]): PlannedChat {
+  const resolution = context === undefined ? undefined : resolveContextualMessage(message, context);
+  const effective = resolution?.resolved ? resolution.message : message;
+  const hit = SCRIPTED_INTENTS.filter((rule) => effective.includes(rule.keywords[0]!) || rule.keywords.some((k) => effective.includes(k)));
   const seen = new Set<ToolName>();
   const toolCalls: ToolCallRequest[] = [];
   for (const rule of hit) {
@@ -2514,21 +2712,42 @@ export function planScriptedChat(message: string): PlannedChat {
     seen.add(rule.id);
     const args: Record<string, unknown> = {};
     if (rule.id === "create_todo" || rule.id === "create_document") {
-      args.title = extractScriptedTitle(message);
+      args.title = extractScriptedTitle(effective);
       if (rule.id === "create_todo") {
-        const q = message.match(/\bq([1-4])\b/i);
+        const q = effective.match(/\bq([1-4])\b/i);
         args.quadrant = q?.[1] ? `q${q[1]}` : "q2";
       }
+    } else if (rule.id === "create_schedule") {
+      const s = extractScheduleArgs(effective);
+      if (s) {
+        args.title = s.title;
+        args.date = s.date;
+        args.start = s.start;
+        args.end = s.end;
+      }
+    } else if (rule.id === "summarize_document" || rule.id === "export_document_md") {
+      const docId = extractDocumentId(effective);
+      if (docId !== null) args.documentId = docId;
     } else if (rule.id === "list_cards") {
-      const pid = message.match(/项目\s*(\d+)|projectId\s*[:：]?\s*(\d+)/i);
-      const n = Number(pid?.[1] ?? pid?.[2]);
-      if (Number.isInteger(n) && n > 0) args.projectId = n;
+      const pid = effective.match(/项目\s*(\d+)|projectId\s*[:：]?\s*(\d+)/i);
+      const num = Number(pid?.[1] ?? pid?.[2]);
+      if (Number.isInteger(num) && num > 0) args.projectId = num;
+    } else if (rule.id === "list_schedules") {
+      const dates = effective.match(/\d{4}-\d{2}-\d{2}/g);
+      if (dates?.[1]) {
+        args.from = dates[0];
+        args.to = dates[1];
+      }
     } else if (rule.id === "search_knowledge") {
-      args.query = message.trim().slice(0, MAX_CHAT_MESSAGE);
+      args.query = effective.trim().slice(0, MAX_CHAT_MESSAGE);
     }
     toolCalls.push({ name: rule.id, arguments: args });
   }
-  return { intent: hit.map((r) => r.id).join("+") || "empty", toolCalls };
+  return {
+    intent: hit.map((r) => r.id).join("+") || "empty",
+    toolCalls,
+    ...(resolution?.resolved ? { resolution } : {}),
+  };
 }
 
 /** AI 汇总文案唯一口径：次数 + 逐条回执摘要（provider 无关） */
