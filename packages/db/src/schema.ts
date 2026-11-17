@@ -218,6 +218,19 @@ export const MIGRATIONS: Migration[] = [
       `CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_doc ON knowledge_chunks (doc_id)`,
     ],
   },
+  {
+    version: 10,
+    name: "r14 · mindmaps 表（M7 第 1 片：思维导图 Markdown 双视图）",
+    up: [
+      `CREATE TABLE IF NOT EXISTS mindmaps (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL CHECK (length(title) > 0),
+        content_markdown TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+    ],
+  },
 ];
 
 /** 当前 schema 版本（与 shared 的 SCHEMA_VERSION 保持一致，e2e 会断言二者相等） */

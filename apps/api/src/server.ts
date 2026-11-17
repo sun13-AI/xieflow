@@ -53,6 +53,7 @@ import {
   normalizeKnowledgeLimit,
   normalizeTracebackChunkId,
   assembleDocumentText,
+  parseMarkdownToTree,
   type RevisionRequest,
   type Schedule,
   type FieldType,
@@ -1886,6 +1887,84 @@ app.get("/api/knowledge/search", async (req, reply) => {
     const limit = normalizeKnowledgeLimit(query.limit);
     const hits = searchChunks(query.q, requireDb().listKnowledgeChunksForSearch(), limit);
     return { query: query.q, limit, count: hits.length, hits };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+/**
+ * r14 思维导图：CRUD + GET /:id/tree（shared 解析后的树 JSON）+ PUT /:id/content（Markdown 源）。
+ * 解析/守卫全集中 shared，路由层只做 400/404 映射与装配，零算法分支。
+ */
+interface CreateMindmapBody {
+  title?: unknown;
+  contentMarkdown?: unknown;
+}
+
+app.post("/api/mindmaps", async (req, reply) => {
+  try {
+    const body = (req.body ?? {}) as CreateMindmapBody;
+    const map = requireDb().createMindmap({ title: body.title, contentMarkdown: body.contentMarkdown ?? "" });
+    return reply.code(201).send(map);
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.get("/api/mindmaps", async () => ({ mindmaps: requireDb().listMindmaps() }));
+
+app.get("/api/mindmaps/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const map = requireDb().getMindmap(id);
+    if (!map) return reply.code(404).send({ error: `导图不存在：${id}` });
+    return map;
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.patch("/api/mindmaps/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const body = (req.body ?? {}) as { title?: unknown };
+    const map = requireDb().updateMindmapTitle(id, body.title);
+    if (!map) return reply.code(404).send({ error: `导图不存在：${id}` });
+    return map;
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.delete("/api/mindmaps/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    if (!requireDb().deleteMindmap(id)) return reply.code(404).send({ error: `导图不存在：${id}` });
+    return { deleted: true, id };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+/** 树由 shared parseMarkdownToTree 现算，不落库（改 Markdown 即改树，api 零算法分支） */
+app.get("/api/mindmaps/:id/tree", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const map = requireDb().getMindmap(id);
+    if (!map) return reply.code(404).send({ error: `导图不存在：${id}` });
+    return { mindmapId: id, title: map.title, tree: parseMarkdownToTree(map.contentMarkdown) };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.put("/api/mindmaps/:id/content", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const body = (req.body ?? {}) as { contentMarkdown?: unknown };
+    const map = requireDb().updateMindmapContent(id, body.contentMarkdown);
+    if (!map) return reply.code(404).send({ error: `导图不存在：${id}` });
+    return map;
   } catch (err) {
     return toErrorReply(err, reply);
   }

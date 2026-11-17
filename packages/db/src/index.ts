@@ -28,6 +28,7 @@ import {
   mapRowToKnowledgeDoc,
   mapRowToKnowledgeChunk,
   mapRowToKnowledgeSearchChunk,
+  mapRowToMindmap,
 } from "./mappers.js";
 import type {
   AppSetting,
@@ -60,6 +61,7 @@ import type {
   KnowledgeChunk,
   KnowledgeSearchChunk,
   RagCitation,
+  Mindmap,
 } from "@xieflow/shared";
 import {
   canTransitionTodo,
@@ -102,6 +104,9 @@ import {
   assertValidKnowledgeTitle,
   assertValidKnowledgeSourceType,
   assertValidKnowledgeContent,
+  assertValidMindmapTitle,
+  assertValidMindmapContent,
+  assertValidMindmapContentOrEmpty,
   ValidationError,
 } from "@xieflow/shared";
 import { REPEATS_ORDER } from "./repeat-order.js";
@@ -1691,5 +1696,52 @@ export class XieFlowDb {
           "FROM knowledge_chunks c JOIN knowledge_docs d ON d.id = c.doc_id ORDER BY c.id",
       )
       .map(mapRowToKnowledgeSearchChunk);
+  }
+
+  // ---- r14：思维导图数据层（mindmaps 表；Markdown 源逐字存，树只在 shared 解析） ----
+
+  createMindmap(input: { readonly title: unknown; readonly contentMarkdown?: unknown }): Mindmap {
+    const title = input.title;
+    const contentMarkdown = input.contentMarkdown ?? "";
+    assertValidMindmapTitle(title);
+    assertValidMindmapContentOrEmpty(contentMarkdown);
+    const now = new Date().toISOString();
+    const res = this.db.run(
+      "INSERT INTO mindmaps (title, content_markdown, created_at, updated_at) VALUES (?, ?, ?, ?)",
+      [title, contentMarkdown, now, now],
+    );
+    const row = this.db.get("SELECT * FROM mindmaps WHERE id = ?", [res.lastInsertRowid]);
+    if (!row) throw new Error("导图写入后读回失败");
+    return mapRowToMindmap(row);
+  }
+
+  getMindmap(id: number): Mindmap | null {
+    const row = this.db.get("SELECT * FROM mindmaps WHERE id = ?", [id]);
+    return row ? mapRowToMindmap(row) : null;
+  }
+
+  listMindmaps(): Mindmap[] {
+    return this.db.all("SELECT * FROM mindmaps ORDER BY id DESC").map(mapRowToMindmap);
+  }
+
+  updateMindmapTitle(id: number, title: unknown): Mindmap | null {
+    assertValidMindmapTitle(title);
+    if (this.getMindmap(id) === null) return null;
+    const now = new Date().toISOString();
+    this.db.run("UPDATE mindmaps SET title = ?, updated_at = ? WHERE id = ?", [title, now, id]);
+    return this.getMindmap(id);
+  }
+
+  /** 保存 Markdown 源：非空守卫在 shared，非法内容整条拒绝、不留半态（旧内容逐字保留） */
+  updateMindmapContent(id: number, contentMarkdown: unknown): Mindmap | null {
+    assertValidMindmapContent(contentMarkdown);
+    if (this.getMindmap(id) === null) return null;
+    const now = new Date().toISOString();
+    this.db.run("UPDATE mindmaps SET content_markdown = ?, updated_at = ? WHERE id = ?", [contentMarkdown, now, id]);
+    return this.getMindmap(id);
+  }
+
+  deleteMindmap(id: number): boolean {
+    return this.db.run("DELETE FROM mindmaps WHERE id = ?", [id]).changes > 0;
   }
 }

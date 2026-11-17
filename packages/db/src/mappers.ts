@@ -28,6 +28,7 @@ import type {
   KnowledgeDoc,
   KnowledgeChunk,
   KnowledgeSearchChunk,
+  Mindmap,
 } from "@xieflow/shared";
 import { isFieldType, isBlockType, normalizeBlockContent, isKnowledgeSourceType } from "@xieflow/shared";
 import { REPEATS_ORDER } from "./repeat-order.js";
@@ -357,5 +358,16 @@ export function mapRowToArtifact(row: Row): Artifact {
     title: String(row.title),
     content: String(row.content),
     createdAt: String(row.created_at),
+  };
+}
+
+/** r14：mindmaps（Markdown 源逐字存，树由 shared 解析不落库） */
+export function mapRowToMindmap(row: Row): Mindmap {
+  return {
+    id: Number(row.id),
+    title: String(row.title),
+    contentMarkdown: String(row.content_markdown),
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
   };
 }

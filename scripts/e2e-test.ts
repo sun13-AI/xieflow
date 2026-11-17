@@ -173,6 +173,17 @@ import {
   extractRagQuery,
   normalizeTracebackChunkId,
   type RagCitation,
+  MAX_MINDMAP_TITLE,
+  MAX_MINDMAP_CONTENT,
+  assertValidMindmapTitle,
+  assertValidMindmapContent,
+  assertValidMindmapContentOrEmpty,
+  parseMarkdownToTree,
+  treeToMarkdown,
+  countMindmapNodes,
+  toggleNodeCollapse,
+  type MindmapTree,
+  type MindmapNode,
 } from "@xieflow/shared";
 import type { TodoStatus } from "@xieflow/shared";
 import {
@@ -303,6 +314,7 @@ try {
         { version: 8, name: "h", up: [] },
         { version: 9, name: "i", up: [] },
         { version: 10, name: "j", up: [] },
+        { version: 11, name: "k", up: [] },
       ]),
     "队列超出 SCHEMA_VERSION：一致性校验抛错",
   );
@@ -690,8 +702,8 @@ try {
     const v3Migrated = openDatabaseRaw({ path: v3Path });
     eq(
       v3Migrated.appliedMigrations,
-      [3, 4, 5, 6, 7, 8, 9],
-      "v2 旧库重开补跑 v3+v4+v5+v6+v7+v8+v9 迁移（真实 PRAGMA 升级路径，r12 起队列追加 v9）",
+      [3, 4, 5, 6, 7, 8, 9, 10],
+      "v2 旧库重开补跑 v3+v4+v5+v6+v7+v8+v9+v10 迁移（真实 PRAGMA 升级路径，r14 起队列追加 v10）",
     );
     const tables = v3Migrated.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -916,8 +928,8 @@ try {
     const v4Open = openDatabaseRaw({ path: v4Path });
     eq(
       v4Open.appliedMigrations,
-      [4, 5, 6, 7, 8, 9],
-      "v3 旧库重开只补跑 v4+v5+v6+v7+v8+v9 迁移（真实 PRAGMA 升级路径）",
+      [4, 5, 6, 7, 8, 9, 10],
+      "v3 旧库重开只补跑 v4+v5+v6+v7+v8+v9+v10 迁移（真实 PRAGMA 升级路径）",
     );
     const tables = v4Open.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -928,7 +940,7 @@ try {
     eq(
       (v4Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（9）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（10）",
     );
     const rawDb: SqliteDatabase = v4Open.raw;
     throws(
@@ -1575,7 +1587,7 @@ try {
     v4Open2.raw.exec("PRAGMA user_version = 4");
     v4Open2.raw.close();
     const v5Open = openDatabaseRaw({ path: v5Path });
-    eq(v5Open.appliedMigrations, [5, 6, 7, 8, 9], "v4 旧库重开只补跑 v5+v6+v7+v8+v9 迁移（真实 PRAGMA 升级路径）");
+    eq(v5Open.appliedMigrations, [5, 6, 7, 8, 9, 10], "v4 旧库重开只补跑 v5+v6+v7+v8+v9+v10 迁移（真实 PRAGMA 升级路径）");
     const tableNames = v5Open.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
       .map((r) => String((r as unknown as { name: unknown }).name));
@@ -1585,7 +1597,7 @@ try {
     eq(
       (v5Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（9）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（10）",
     );
     const rawDb5: SqliteDatabase = v5Open.raw;
     throws(
@@ -2294,7 +2306,7 @@ try {
     v5Open.raw.exec("PRAGMA user_version = 5");
     v5Open.raw.close();
     const v6Open = openDatabaseRaw({ path: v6Path });
-    eq(v6Open.appliedMigrations, [6, 7, 8, 9], "v5 旧库重开只补跑 v6+v7+v8+v9 迁移（真实 PRAGMA 升级路径）");
+    eq(v6Open.appliedMigrations, [6, 7, 8, 9, 10], "v5 旧库重开只补跑 v6+v7+v8+v9+v10 迁移（真实 PRAGMA 升级路径）");
     const tableNames = v6Open.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
       .map((r) => String((r as unknown as { name: unknown }).name));
@@ -2302,7 +2314,7 @@ try {
     eq(
       (v6Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（9）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（10）",
     );
     const rawDb6: SqliteDatabase = v6Open.raw;
     eq(
@@ -2441,7 +2453,7 @@ try {
     eq(
       (reopened.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "重启后 user_version 仍为 9",
+      "重启后 user_version 仍为 10",
     );
     eq(JSON.stringify(reopened.db.listViews(tbl.id)), beforeViews, "视图持久化：重启前后 spec 逐字节相等");
     eq(
@@ -2574,11 +2586,11 @@ try {
     oldOpen.raw.exec("PRAGMA user_version = 6");
     oldOpen.raw.close();
     const v7Open = openDatabaseRaw({ path: v7Path });
-    eq(v7Open.appliedMigrations, [7, 8, 9], "v6 旧库重开补跑 v7+v8+v9 迁移（真实 PRAGMA 升级路径）");
+    eq(v7Open.appliedMigrations, [7, 8, 9, 10], "v6 旧库重开补跑 v7+v8+v9+v10 迁移（真实 PRAGMA 升级路径）");
     eq(
       (v7Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（9）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（10）",
     );
     const tables = (v7Open.raw.all(
       "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('documents','blocks') ORDER BY name",
@@ -2962,11 +2974,11 @@ try {
     old10.raw.exec("PRAGMA user_version = 7");
     old10.raw.close();
     const v8 = openDatabaseRaw({ path: p10Path });
-    eq(v8.appliedMigrations, [8, 9], "v7 旧库重开只补跑 v8+v9 迁移（真实 PRAGMA 升级路径）");
+    eq(v8.appliedMigrations, [8, 9, 10], "v7 旧库重开只补跑 v8+v9+v10 迁移（真实 PRAGMA 升级路径）");
     eq(
       (v8.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（9）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（10）",
     );
     const t10 = v8.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -3378,11 +3390,11 @@ try {
     old.raw.exec("PRAGMA user_version = 8");
     old.raw.close();
     const v9 = openDatabaseRaw({ path: p });
-    eq(v9.appliedMigrations, [9], "v8 旧库重开只补跑 v9 迁移（真实 PRAGMA 升级路径）");
+    eq(v9.appliedMigrations, [9, 10], "v8 旧库重开只补跑 v9+v10 迁移（真实 PRAGMA 升级路径）");
     eq(
       (v9.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（9）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（10）",
     );
     const tables = v9.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -3660,7 +3672,130 @@ try {
     edb.close();
   }
 
-  // 45. HTTP 冒烟 /api/health
+  // 46. r14：思维导图 Markdown 双视图（转换引擎 / schema v10 / 数据层 / 折叠状态）
+  section("r14 思维导图：Markdown 双向 / 树结构 / 折叠 / schema v10 数据层");
+  {
+    const md = [
+      "# 产品路线图",
+      "",
+      "## M7 导图",
+      "- 左侧 Markdown",
+      "  - 实时解析",
+      "- 右侧树视图",
+      "1. 总览",
+      "**未知语法** <b>原样</b>",
+      "",
+      "```ts",
+      "const x = 1;",
+      "```",
+      "",
+    ].join("\n");
+    const tree = parseMarkdownToTree(md);
+    eq(tree.roots.length, 1, "一级标题成为唯一根节点");
+    eq(tree.roots[0]!.label, "产品路线图", "根节点 label 去掉标题 marker");
+    eq(tree.roots[0]!.raw, "# 产品路线图", "根节点 raw 逐字保留源行");
+    eq(tree.roots[0]!.children.length, 1, "二级标题挂在一级标题下");
+    const m7 = tree.roots[0]!.children[0]!;
+    eq(m7.label, "M7 导图", "二级标题 label 正确");
+    eq(m7.depth, 1, "二级标题 depth=1");
+    eq(m7.blankBefore, 1, "空行计入 blankBefore（往返不丢空行）");
+    eq(m7.children.filter((n) => !n.raw.includes("```ts")).map((n) => `${n.kind}:${n.label}`), [
+      "bullet:左侧 Markdown",
+      "bullet:右侧树视图",
+      "numbered:总览",
+      "text:**未知语法** <b>原样</b>",
+    ], "列表→子节点，未知语法降级 text 节点且逐字保留");
+    eq(m7.children[0]!.children.length, 1, "缩进列表成为上一列表项的子节点");
+    eq(m7.children[0]!.children[0]!.label, "实时解析", "缩进子节点 label 正确");
+    eq(m7.children[0]!.children[0]!.depth, 3, "缩进子节点 depth=3（根→标题→列表→缩进列表）");
+    const code = m7.children.find((n) => n.raw.includes("```ts"))!;
+    ok(code !== undefined, "代码围栏被解析为节点（未丢失）");
+    ok(code.raw.includes("const x = 1;"), "代码围栏正文逐字保留在 raw 中");
+    eq(treeToMarkdown(tree), md, "md→tree→md 逐字节相等（标题/列表/空行/围栏全不丢）");
+    eq(countMindmapNodes(tree), 8, "节点计数含标题、列表、未知语法与围栏节点");
+
+    const hand: MindmapTree = {
+      roots: [{
+        id: "n0", label: "A", raw: "# A", kind: "heading", depth: 0, line: 1, blankBefore: 0,
+        children: [{
+          id: "n0.0", label: "b", raw: "- b", kind: "bullet", depth: 1, line: 3, blankBefore: 1,
+          children: [],
+        }],
+      }],
+      trailingBlanks: 0,
+    };
+    eq(treeToMarkdown(hand), "# A\n\n- b", "treeToMarkdown 从树对象重建 Markdown（blankBefore 生效）");
+    eq(parseMarkdownToTree("").roots.length, 0, "空 Markdown 解析为空树");
+    eq(treeToMarkdown(parseMarkdownToTree("")), "", "空树导出空字符串");
+    eq(treeToMarkdown(parseMarkdownToTree("\n\n")), "\n\n", "纯空行往返不丢");
+    eq(parseMarkdownToTree("# A\r\n\r\n- b\r\n").roots[0]!.children.length, 1, "CRLF 归一为 LF 后结构一致");
+    eq(MAX_MINDMAP_TITLE, 200, "导图标题上限与 shared 常量一致");
+    eq(MAX_MINDMAP_CONTENT, 200000, "导图内容上限与 shared 常量一致");
+    throws(() => assertValidMindmapTitle(""), "导图空标题守卫抛错");
+    throws(() => assertValidMindmapTitle("   "), "导图纯空白标题守卫抛错");
+    throws(() => assertValidMindmapTitle("x".repeat(MAX_MINDMAP_TITLE + 1)), "导图超长标题守卫抛错");
+    noThrow(() => assertValidMindmapTitle("x".repeat(MAX_MINDMAP_TITLE)), "导图标题恰为上限值合法");
+    throws(() => assertValidMindmapContent(""), "空 Markdown 内容守卫抛错");
+    throws(() => assertValidMindmapContent("  \n "), "纯空白 Markdown 内容守卫抛错");
+    throws(() => assertValidMindmapContent("a\u0000b"), "含 NUL 的非法 Markdown 守卫抛错");
+    throws(() => assertValidMindmapContent("x".repeat(MAX_MINDMAP_CONTENT + 1)), "超长 Markdown 守卫抛错");
+    noThrow(() => assertValidMindmapContentOrEmpty(""), "建导图允许空 Markdown（不是死路）");
+    throws(() => assertValidMindmapContentOrEmpty("a\u0000b"), "空内容入口仍拒绝非法字符");
+
+    let collapsed: readonly string[] = [];
+    collapsed = toggleNodeCollapse(collapsed, "n0.0");
+    eq(collapsed, ["n0.0"], "折叠：点节点加入折叠集合");
+    eq(toggleNodeCollapse(collapsed, "n0.0"), [], "展开：再次点同一节点移出集合");
+    const multi = toggleNodeCollapse(toggleNodeCollapse(collapsed, "n0.1"), "n0.2");
+    eq(multi, ["n0.0", "n0.1", "n0.2"], "多节点折叠可叠加且顺序确定");
+    eq(toggleNodeCollapse(multi, "n0.1"), ["n0.0", "n0.2"], "展开一个节点不影响其它折叠节点");
+
+    const mdb = freshDb();
+    eq(mdb.listMindmaps().length, 0, "新库导图列表为空");
+    const mm = mdb.createMindmap({ title: "r14 导图", contentMarkdown: "# 起点" });
+    ok(mm.id > 0, "createMindmap 返回自增 id");
+    eq(mm.title, "r14 导图", "导图 title 读回");
+    eq(mm.contentMarkdown, "# 起点", "导图 Markdown 源读回");
+    const emptyMap = mdb.createMindmap({ title: "r14 空导图" });
+    eq(emptyMap.contentMarkdown, "", "缺省内容为空字符串（空态可建）");
+    eq(mdb.listMindmaps().length, 2, "listMindmaps 读到两张导图");
+    eq(mdb.getMindmap(mm.id)!.id, mm.id, "getMindmap 按 id 命中");
+    eq(mdb.getMindmap(999999), null, "getMindmap 不存在返回 null");
+    throws(() => mdb.createMindmap({ title: "" }), "数据层拒绝空标题");
+    throws(() => mdb.createMindmap({ title: "x", contentMarkdown: "a\u0000" }), "数据层拒绝非法 Markdown");
+    const renamed = mdb.updateMindmapTitle(mm.id, "r14 改名")!;
+    eq(renamed.title, "r14 改名", "updateMindmapTitle 生效");
+    eq(mdb.updateMindmapTitle(999999, "x"), null, "updateMindmapTitle 不存在返回 null");
+    throws(() => mdb.updateMindmapTitle(mm.id, ""), "数据层拒绝改名为空");
+    const saved = mdb.updateMindmapContent(mm.id, "# 新内容\n\n- 子节点")!;
+    eq(saved.contentMarkdown, "# 新内容\n\n- 子节点", "updateMindmapContent 逐字保存 Markdown 源");
+    throws(() => mdb.updateMindmapContent(mm.id, "   "), "数据层拒绝空内容覆盖");
+    eq(mdb.updateMindmapContent(999999, "# x"), null, "数据层越权 id 覆盖返回 null（api 映射 404）");
+    eq(countMindmapNodes(parseMarkdownToTree(saved.contentMarkdown)), 2, "保存后的 Markdown 可解析成 2 节点树");
+    eq(mdb.deleteMindmap(mm.id), true, "deleteMindmap 命中");
+    eq(mdb.deleteMindmap(mm.id), false, "deleteMindmap 重复删除返回 false");
+    eq(mdb.getMindmap(mm.id), null, "删除后 getMindmap 为 null");
+
+    mkdirSync("scripts/.tmp-e2e", { recursive: true });
+    const p14 = `scripts/.tmp-e2e/r14-${Date.now()}.db`;
+    const file14 = openDatabase({ path: p14 });
+    file14.createMindmap({ title: "持久化", contentMarkdown: "# 根\n- 子" });
+    file14.close();
+    const reopened14 = openDatabase({ path: p14 });
+    eq(reopened14.listMindmaps().length, 1, "导图关库重开不丢（列表）");
+    eq(reopened14.getMindmap(1)!.contentMarkdown, "# 根\n- 子", "导图关库重开不丢（Markdown 源逐字节）");
+    reopened14.close();
+    const raw14 = openDatabaseRaw({ path: `scripts/.tmp-e2e/r14-raw-${Date.now()}.db` });
+    eq((raw14.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 10, "真实 PRAGMA user_version=10");
+    eq(
+      raw14.raw.all("PRAGMA table_info(mindmaps)").map((r) => String((r as unknown as { name: unknown }).name)),
+      ["id", "title", "content_markdown", "created_at", "updated_at"],
+      "mindmaps 表列结构由 v10 迁移创建（id/title/content_markdown/created_at/updated_at）",
+    );
+    raw14.raw.close();
+  }
+
+  // 47. HTTP 冒烟 /api/health
   section("HTTP 冒烟 /api/health");
   let httpOk = false;
   let httpNote = "api 服务未运行（pnpm dev:api 后再跑 pnpm test 可覆盖此节）";

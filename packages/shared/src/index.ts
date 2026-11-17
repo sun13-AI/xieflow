@@ -321,7 +321,7 @@ export function assembleRangeSchedules(
 }
 
 /** 数据库 schema 版本号，每轮迁移必须 +1（宪法：禁止手改库文件） */
-export const SCHEMA_VERSION: number = 9;
+export const SCHEMA_VERSION: number = 10;
 
 
 /** 迁移脚本类型：user_version 从 from 升到 to */
@@ -2900,4 +2900,238 @@ export function normalizeTracebackChunkId(value: unknown): number | null {
   const n = typeof value === "number" ? value : Number(value);
   if (!Number.isInteger(n) || n <= 0) throw new ValidationError("chunkId 必须是正整数");
   return n;
+}
+
+// ---- r14（M7 起步）：思维导图 Markdown 双视图（解析/装配/折叠规则全集中 shared，api/web 零算法分支） ----
+
+/** 导图标题与 Markdown 源上限（api 400 守卫、UI 计数同源） */
+export const MAX_MINDMAP_TITLE = 200;
+export const MAX_MINDMAP_CONTENT = 200000;
+
+export function assertValidMindmapTitle(value: unknown): asserts value is string {
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new ValidationError("导图标题不能为空");
+  }
+  if (value.length > MAX_MINDMAP_TITLE) {
+    throw new ValidationError(`导图标题过长：最多 ${MAX_MINDMAP_TITLE} 字`);
+  }
+}
+
+/** 写内容守卫：非空、长度受限、禁 NUL 控制字符（非法 Markdown → 400） */
+export function assertValidMindmapContent(value: unknown): asserts value is string {
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new ValidationError("Markdown 内容不能为空");
+  }
+  if (value.length > MAX_MINDMAP_CONTENT) {
+    throw new ValidationError(`Markdown 内容过长：最多 ${MAX_MINDMAP_CONTENT} 字`);
+  }
+  if (value.includes("\u0000")) {
+    throw new ValidationError("Markdown 含非法控制字符（NUL）");
+  }
+}
+
+/** 建导图允许空 Markdown（空态不是死路）；非空时仍走完整守卫 */
+export function assertValidMindmapContentOrEmpty(value: unknown): asserts value is string {
+  if (value === undefined || value === null || value === "") return;
+  assertValidMindmapContent(value);
+}
+
+/** 导图领域对象（schema v10 mindmaps 表 camelCase 映射） */
+export interface Mindmap {
+  readonly id: number;
+  readonly title: string;
+  readonly contentMarkdown: string;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+/** 树节点来源类型：标题 / 无序 / 有序 / 待办 / 引用 / 普通文本（未知语法降级 text） */
+export type MindmapNodeKind = "heading" | "bullet" | "numbered" | "todo" | "quote" | "text";
+
+/**
+ * 树节点：
+ * - label 为去掉 marker 的可展示文本；raw 为逐字源行（含 marker / 围栏多行），treeToMarkdown 以 raw 装配；
+ * - id 为确定性路径（n0 / n0.1 / n0.1.2），同 Markdown 得同 id → 折叠状态 reload 可复现；
+ * - blankBefore 为此节点前的空行数，trailingBlanks 为文末空行数，二者保证往返不丢空行。
+ */
+export interface MindmapNode {
+  readonly id: string;
+  readonly label: string;
+  readonly raw: string;
+  readonly kind: MindmapNodeKind;
+  readonly depth: number;
+  readonly line: number;
+  readonly blankBefore: number;
+  children: MindmapNode[];
+  readonly checked?: boolean;
+}
+
+export interface MindmapTree {
+  roots: MindmapNode[];
+  readonly trailingBlanks: number;
+}
+
+export const EMPTY_MINDMAP_TREE: MindmapTree = { roots: [], trailingBlanks: 0 };
+
+/** 缩进宽度：2 空格/层（tab 折算 2 空格） */
+const MINDMAP_INDENT_WIDTH = 2;
+
+function mindmapIndent(line: string): number {
+  let width = 0;
+  for (const ch of line) {
+    if (ch === " ") width += 1;
+    else if (ch === "\t") width += MINDMAP_INDENT_WIDTH;
+    else break;
+  }
+  return Math.floor(width / MINDMAP_INDENT_WIDTH);
+}
+
+/**
+ * Markdown → 树（r14 唯一解析入口，转换规则集中于此）：
+ * ① 标题 `#{1,6}` 按层级挂到最近更低层标题下；同级/更高层出栈为兄弟/祖先子节点；
+ * ② 列表 `-`/`*`/`+`/`1.`/`- [x]` 按缩进挂到当前标题下，缩进深一层则挂到上一列表项；
+ * ③ 代码围栏整段（含围栏行）作为一个 text 节点，内部任何 marker 都不参与结构解析；
+ * ④ 其它语法（表格/加粗/HTML/四级以上文本…）降级 text 节点，label 与 raw 逐字保留，不丢内容；
+ * ⑤ 空行计入 blankBefore / trailingBlanks，CRLF 归一为 LF。
+ */
+export function parseMarkdownToTree(md: string): MindmapTree {
+  if (typeof md !== "string") throw new ValidationError("Markdown 必须是字符串");
+  const src = md.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const lines = src.split("\n");
+  const roots: MindmapNode[] = [];
+  // 虚拟根：children 即 roots；headingStack / listStack 保存真实节点
+  const virtualRoot: { level: number; node: { children: MindmapNode[] } } = { level: 0, node: { children: roots } };
+  const headingStack: typeof virtualRoot[] = [virtualRoot];
+  let listStack: { indent: number; node: MindmapNode }[] = [];
+  let i = 0;
+  let blanks = 0;
+  const attach = (parent: MindmapNode | typeof virtualRoot["node"], nodeFactory: (id: string, depth: number) => MindmapNode): MindmapNode => {
+    const isRoot = parent === virtualRoot.node;
+    const childIndex = parent.children.length;
+    const nodeId = isRoot
+      ? `n${childIndex}`
+      : `${(parent as MindmapNode).id}.${childIndex}`;
+    const depth = isRoot ? 0 : (parent as MindmapNode).depth + 1;
+    const node = nodeFactory(nodeId, depth);
+    parent.children.push(node);
+    return node;
+  };
+  while (i < lines.length) {
+    const line = lines[i]!;
+    if (line.trim() === "") {
+      blanks += 1;
+      i += 1;
+      continue;
+    }
+    // 代码围栏：整段收集为单个 text 节点，内部不做任何结构解析
+    const fence = /^(\s*)(`{3,})(.*)$/.exec(line);
+    if (fence) {
+      const marker = fence[2]!;
+      const body: string[] = [line];
+      i += 1;
+      while (i < lines.length) {
+        body.push(lines[i]!);
+        const closing = /^(\s*)(`{3,})\s*$/.exec(lines[i]!);
+        i += 1;
+        if (closing && closing[2]!.length >= marker.length) break;
+      }
+      const parent = headingStack[headingStack.length - 1]!.node;
+      attach(parent, (id, depth) => ({
+        id, raw: body.join("\n"), label: body[0]!.trim(), kind: "text", depth,
+        line: i - body.length + 1, blankBefore: blanks, children: [],
+      }));
+      blanks = 0;
+      listStack = [];
+      continue;
+    }
+    const heading = /^(\s*)(#{1,6})\s+(.*)$/.exec(line);
+    if (heading) {
+      const level = heading[2]!.length;
+      while (headingStack.length > 1 && headingStack[headingStack.length - 1]!.level >= level) headingStack.pop();
+      const parent = headingStack[headingStack.length - 1]!.node;
+      const label = heading[3]!;
+      const rawLine = line;
+      const sourceLine = i + 1;
+      const blankBefore = blanks;
+      const node = attach(parent, (id, depth) => ({
+        id, raw: rawLine, label, kind: "heading", depth, line: sourceLine, blankBefore, children: [],
+      }));
+      headingStack.push({ level, node });
+      blanks = 0;
+      listStack = [];
+      i += 1;
+      continue;
+    }
+    const todo = /^(\s*)[-*+]\s+\[([ xX])\]\s*(.*)$/.exec(line);
+    const bullet = /^(\s*)[-*+]\s+(.*)$/.exec(line);
+    const numbered = /^(\s*)\d+[.)]\s+(.*)$/.exec(line);
+    const quote = /^(\s*)>\s?(.*)$/.exec(line);
+    const listMatch = todo ?? bullet ?? numbered ?? quote;
+    const parent = headingStack[headingStack.length - 1]!.node;
+    if (listMatch) {
+      const indent = mindmapIndent(listMatch[1] ?? "");
+      while (listStack.length > 0 && listStack[listStack.length - 1]!.indent >= indent) listStack.pop();
+      const listParent = listStack.length > 0 ? listStack[listStack.length - 1]!.node : parent;
+      const kind: MindmapNodeKind = todo ? "todo" : numbered ? "numbered" : quote ? "quote" : "bullet";
+      const label = (todo ? todo[3] : bullet ? bullet[2] : numbered ? numbered[2] : quote?.[2]) ?? line.trim();
+      const checked = todo ? todo[2]!.toLowerCase() === "x" : undefined;
+      const rawLine = line;
+      const sourceLine = i + 1;
+      const blankBefore = blanks;
+      const node = attach(listParent, (id, depth) => ({
+        id, raw: rawLine, label, kind, depth, line: sourceLine, blankBefore, children: [],
+        ...(checked === undefined ? {} : { checked }),
+      }));
+      listStack.push({ indent, node });
+      blanks = 0;
+      i += 1;
+      continue;
+    }
+    // 未知语法：降级为普通节点，整行逐字保留（不丢内容）
+    const rawLine = line;
+    const sourceLine = i + 1;
+    const blankBefore = blanks;
+    attach(parent, (id, depth) => ({
+      id, raw: rawLine, label: rawLine.trim(), kind: "text", depth, line: sourceLine, blankBefore, children: [],
+    }));
+    blanks = 0;
+    listStack = [];
+    i += 1;
+  }
+  return { roots, trailingBlanks: blanks };
+}
+
+/** 树 → Markdown（r14 唯一装配入口）：按 DFS 顺序用 raw 逐字重建，blankBefore / trailingBlanks 原样还原 */
+export function treeToMarkdown(tree: MindmapTree): string {
+  const lines: string[] = [];
+  const walk = (nodes: readonly MindmapNode[]): void => {
+    for (const node of nodes) {
+      for (let b = 0; b < node.blankBefore; b += 1) lines.push("");
+      lines.push(node.raw);
+      walk(node.children);
+    }
+  };
+  walk(tree.roots);
+  for (let b = 0; b < tree.trailingBlanks; b += 1) lines.push("");
+  return lines.join("\n");
+}
+
+/** 节点总数（含各级子节点，断言与 UI 计数同源） */
+export function countMindmapNodes(tree: MindmapTree): number {
+  let count = 0;
+  const walk = (nodes: readonly MindmapNode[]): void => {
+    for (const node of nodes) {
+      count += 1;
+      walk(node.children);
+    }
+  };
+  walk(tree.roots);
+  return count;
+}
+
+/** 折叠状态切换（纯函数，web 直接复用；api 零算法分支） */
+export function toggleNodeCollapse(collapsedIds: readonly string[], nodeId: string): string[] {
+  return collapsedIds.includes(nodeId)
+    ? collapsedIds.filter((id) => id !== nodeId)
+    : [...collapsedIds, nodeId];
 }

@@ -21,6 +21,7 @@ import {
   markdownToBlocks,
   blocksToMarkdown,
   buildDocumentMdFileName,
+  treeToMarkdown,
 } from "@xieflow/shared";
 import { createMockProvider, MOCK_PROVIDER_ID } from "@xieflow/agent";
 
@@ -118,7 +119,7 @@ async function audit() {
     eq(h.json && h.json.ok, true, "health.ok = true");
     // r4 起动态对表：health.schemaVersion 必须等于迁移队列最高版本（不再硬编码 2/3，
     // r3 v0.0.6 CI 红教训——静态硬编码在每轮迁移后必过期）
-    eq(h.json && h.json.schemaVersion, 9, "health.schemaVersion = 9（r12 迁移后）");
+    eq(h.json && h.json.schemaVersion, 10, "health.schemaVersion = 10（r14 迁移后）");
     const s = await req("GET", "/api/settings");
     eq(s.status, 200, "GET /api/settings -> 200");
     ok(Array.isArray(s.json && s.json.settings), "settings 返回数组");
@@ -215,7 +216,7 @@ async function audit() {
   {
     // health 探针反映 schema v8（r4 起迁移后动态推进）
     const h3 = await req("GET", "/api/health");
-    eq(h3.json && h3.json.schemaVersion, 9, "health.schemaVersion = 9（schedules 节复核）");
+    eq(h3.json && h3.json.schemaVersion, 10, "health.schemaVersion = 10（schedules 节复核）");
 
     const r = await expectStatus(
       "POST",
@@ -1984,6 +1985,74 @@ async function audit() {
     await expectStatus("DELETE", `/api/knowledge/docs/${ragD2.json.doc.id}`, undefined, 200, "r13 删果园稿 -> 200");
     const ragAfter = await expectStatus("GET", "/api/knowledge/docs", undefined, 200, "r13 清理后知识库列表 -> 200");
     ok(ragAfter.json.docs.length >= 0, "r13 清理后列表可读（本轮两篇已删）");
+  }
+
+  console.log("\n== Mindmap r14: CRUD / tree / content / 4xx ==");
+  {
+    const md = "# 导图根\n\n## 分支\n- 子项 A\n  - 孙项\n**未知语法** <i>原样</i>";
+    const m1 = await expectStatus("POST", "/api/mindmaps", { title: "r14 真导图", contentMarkdown: md }, 201, "r14 POST 导图 -> 201");
+    eq(m1.json && m1.json.title, "r14 真导图", "r14 POST title 读回");
+    eq(m1.json && m1.json.contentMarkdown, md, "r14 POST Markdown 源逐字节读回");
+    ok(m1.json && m1.json.id > 0, "r14 POST 返回自增 id");
+    const mEmpty = await expectStatus("POST", "/api/mindmaps", { title: "r14 空导图" }, 201, "r14 空内容建导图 -> 201（非死路）");
+    eq(mEmpty.json && mEmpty.json.contentMarkdown, "", "r14 缺省 contentMarkdown 为空串");
+    const mList = await expectStatus("GET", "/api/mindmaps", undefined, 200, "r14 GET 导图列表 -> 200");
+    ok(Array.isArray(mList.json && mList.json.mindmaps), "r14 列表返回 mindmaps 数组");
+    eq(mList.json.mindmaps.length, 2, "r14 列表含两张新建导图");
+    const mGet = await expectStatus("GET", `/api/mindmaps/${m1.json.id}`, undefined, 200, "r14 GET 导图详情 -> 200");
+    eq(mGet.json && mGet.json.id, m1.json.id, "r14 详情 id 一致");
+
+    // 真 HTTP 树解析：GET /:id/tree 返回 shared 解析后的 JSON，装配回 Markdown 逐字节相等
+    const tr = await expectStatus("GET", `/api/mindmaps/${m1.json.id}/tree`, undefined, 200, "r14 GET /:id/tree -> 200");
+    eq(tr.json && tr.json.mindmapId, m1.json.id, "r14 树响应回显 mindmapId");
+    eq(tr.json && tr.json.title, "r14 真导图", "r14 树响应回显 title");
+    eq(tr.json.tree.roots.length, 1, "r14 树解析：一级标题为唯一根");
+    eq(tr.json.tree.roots[0].label, "导图根", "r14 树解析：根节点 label");
+    eq(tr.json.tree.roots[0].children[0].label, "分支", "r14 树解析：二级标题是子节点");
+    const branch = tr.json.tree.roots[0].children[0];
+    eq(branch.children[0].kind, "bullet", "r14 树解析：列表→子节点");
+    eq(branch.children[0].children[0].label, "孙项", "r14 树解析：缩进列表→孙节点");
+    eq(branch.children[1].kind, "text", "r14 树解析：未知语法降级 text 节点");
+    eq(branch.children[1].label, "**未知语法** <i>原样</i>", "r14 树解析：未知语法逐字保留不丢内容");
+    eq(treeToMarkdown(tr.json.tree), md, "r14 HTTP 树 → Markdown 逐字节等于保存的源（真实双向）");
+    eq(tr.json.tree.roots[0].children[0].children[0].depth, 2, "r14 树节点 depth=2（根→标题→列表）");
+    eq(tr.json.tree.roots[0].children[0].children[0].children[0].depth, 3, "r14 缩进孙节点 depth=3");
+
+    // PUT content：保存新源 → GET tree 立刻反映（双视图同步的服务端契约）
+    const md2 = "# 改后根\n- 新分支\n  -  deep";
+    const put = await expectStatus("PUT", `/api/mindmaps/${m1.json.id}/content`, { contentMarkdown: md2 }, 200, "r14 PUT /:id/content -> 200");
+    eq(put.json && put.json.contentMarkdown, md2, "r14 PUT 后 Markdown 源逐字节读回");
+    const tr2 = await expectStatus("GET", `/api/mindmaps/${m1.json.id}/tree`, undefined, 200, "r14 PUT 后 GET tree -> 200");
+    eq(treeToMarkdown(tr2.json.tree), md2, "r14 PUT 后树同步为新源（不是旧缓存）");
+    eq(tr2.json.tree.roots[0].label, "改后根", "r14 PUT 后根节点 label 更新");
+    eq(tr2.json.tree.roots[0].children[0].children[0].label, "deep", "r14 PUT 后缩进节点更新");
+
+    // 4xx：非法 Markdown / 空内容 / 越权 id / 非数字 id
+    await expectStatus("PUT", `/api/mindmaps/${m1.json.id}/content`, { contentMarkdown: "" }, 400, "r14 PUT 空内容 -> 400");
+    await expectStatus("PUT", `/api/mindmaps/${m1.json.id}/content`, { contentMarkdown: "   \n " }, 400, "r14 PUT 纯空白 Markdown -> 400");
+    await expectStatus("PUT", `/api/mindmaps/${m1.json.id}/content`, { contentMarkdown: "a\u0000b" }, 400, "r14 PUT 含 NUL 的非法 Markdown -> 400");
+    await expectStatus("PUT", `/api/mindmaps/${m1.json.id}/content`, { contentMarkdown: 42 }, 400, "r14 PUT 非字符串 Markdown -> 400");
+    await expectStatus("PUT", `/api/mindmaps/${m1.json.id}/content`, { contentMarkdown: "x".repeat(200001) }, 400, "r14 PUT 超长 Markdown -> 400");
+    await expectStatus("PUT", "/api/mindmaps/999999/content", { contentMarkdown: "# x" }, 404, "r14 PUT 越权 id -> 404");
+    await expectStatus("PUT", "/api/mindmaps/not-a-number/content", { contentMarkdown: "# x" }, 400, "r14 PUT 非数字 id -> 400");
+    await expectStatus("GET", "/api/mindmaps/999999/tree", undefined, 404, "r14 树：越权 id -> 404");
+    await expectStatus("GET", "/api/mindmaps/not-a-number/tree", undefined, 400, "r14 树：非数字 id -> 400");
+    await expectStatus("GET", "/api/mindmaps/999999", undefined, 404, "r14 GET 不存在导图 -> 404");
+    await expectStatus("GET", "/api/mindmaps/not-a-number", undefined, 400, "r14 GET 非数字 id -> 400");
+    await expectStatus("POST", "/api/mindmaps", { title: "" }, 400, "r14 POST 空标题 -> 400");
+    await expectStatus("POST", "/api/mindmaps", { title: "x", contentMarkdown: "a\u0000b" }, 400, "r14 POST 非法 Markdown -> 400");
+    const patched = await expectStatus("PATCH", `/api/mindmaps/${m1.json.id}`, { title: "r14 改名" }, 200, "r14 PATCH 改标题 -> 200");
+    eq(patched.json && patched.json.title, "r14 改名", "r14 PATCH 后标题读回");
+    eq(patched.json && patched.json.contentMarkdown, md2, "r14 PATCH 不改 Markdown 源");
+    await expectStatus("PATCH", `/api/mindmaps/${m1.json.id}`, { title: "" }, 400, "r14 PATCH 空标题 -> 400");
+    await expectStatus("PATCH", "/api/mindmaps/999999", { title: "x" }, 404, "r14 PATCH 越权 id -> 404");
+
+    const del = await expectStatus("DELETE", `/api/mindmaps/${m1.json.id}`, undefined, 200, "r14 DELETE 导图 -> 200");
+    ok(del.json && del.json.deleted === true, "r14 DELETE 返回 deleted=true");
+    await expectStatus("DELETE", `/api/mindmaps/${mEmpty.json.id}`, undefined, 200, "r14 DELETE 空导图 -> 200");
+    await expectStatus("DELETE", `/api/mindmaps/${m1.json.id}`, undefined, 404, "r14 DELETE 重复同一 id -> 404");
+    const after = await expectStatus("GET", "/api/mindmaps", undefined, 200, "r14 清理后列表 -> 200");
+    eq(after.json.mindmaps.length, 0, "r14 清理后导图归零（无残留）");
   }
 
   console.log("\n== schedules delete (r3) ==");

@@ -2934,3 +2934,133 @@ pre.docs-print-block.docs-code {
 .force-narrow .rag-cite-snippet { grid-column: 2; }
 .chat-bubbles-rag { max-height: none; }
 .force-narrow .chat-bubbles { max-height: none; }
+
+/* r14：导图 tab（Markdown 源 + 树视图双栏；折叠按钮沿用既有 btn 语汇） */
+.mm-shell {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+.mm-side {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 12px;
+  min-width: 0;
+}
+.mm-side-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.mm-side-head h2 { margin: 0; font-size: 15px; }
+.mm-new { display: flex; gap: 6px; margin-bottom: 10px; }
+.mm-new input {
+  min-width: 0;
+  flex: 1;
+  padding: 6px 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 12px;
+}
+.mm-list { list-style: none; margin: 0; padding: 0; }
+.mm-list-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  margin-bottom: 6px;
+  padding: 4px 6px;
+}
+.mm-list-active { border-color: #2563eb; background: #eff6ff; }
+.mm-list-btn {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  padding: 2px;
+}
+.mm-list-title { display: block; font-weight: 600; font-size: 12px; overflow-wrap: anywhere; }
+.mm-list-meta { display: block; color: #6b7280; font-size: 10px; }
+.mm-del { border: 0; background: none; color: #b91c1c; cursor: pointer; font-size: 11px; }
+.mm-shot-note {
+  margin: 10px 0 0;
+  padding: 7px 8px;
+  background: #f5f3ff;
+  border-left: 3px solid #7c3aed;
+  border-radius: 6px;
+  color: #5b21b6;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.mm-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+  min-width: 0;
+}
+.mm-editor, .mm-tree-pane {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 12px;
+  min-width: 0;
+}
+.mm-pane-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.mm-pane-head h3 { margin: 0; font-size: 14px; }
+.mm-sync { color: #6b7280; font-size: 11px; }
+.mm-textarea {
+  width: 100%;
+  min-height: 360px;
+  box-sizing: border-box;
+  padding: 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  resize: vertical;
+  white-space: pre;
+  overflow-wrap: normal;
+  overflow-x: auto;
+}
+.mm-editor-actions { display: flex; align-items: center; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
+.mm-editor-meta { color: #6b7280; font-size: 11px; }
+.mm-notice { margin: 8px 0 0; padding: 6px 8px; border-radius: 6px; background: #eff6ff; color: #1d4ed8; font-size: 11px; }
+.mm-tree-stat { color: #6b7280; font-size: 11px; margin-bottom: 8px; }
+.mm-tree, .mm-children { list-style: none; margin: 0; padding-left: 0; }
+.mm-children { padding-left: 18px; border-left: 1px dashed #d1d5db; margin-left: 8px; }
+.mm-node { margin: 3px 0; }
+.mm-node-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.mm-toggle {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid #bfdbfe;
+  border-radius: 5px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+}
+.mm-toggle-leaf { flex-shrink: 0; width: 20px; text-align: center; color: #9ca3af; }
+.mm-node-label { font-size: 12px; overflow-wrap: anywhere; }
+.mm-kind-heading { font-weight: 700; color: #1e3a8a; }
+.mm-kind-bullet { color: #374151; }
+.mm-kind-numbered { color: #374151; }
+.mm-kind-todo { color: #166534; }
+.mm-kind-quote { color: #6d28d9; font-style: italic; }
+.mm-kind-text { color: #4b5563; }
+.mm-node-meta { margin-left: auto; flex-shrink: 0; color: #9ca3af; font-size: 10px; }
+.force-narrow .mm-shell { grid-template-columns: 1fr; }
+.force-narrow .mm-main { grid-template-columns: 1fr; }
+.force-narrow .mm-textarea { min-height: 220px; }
+.force-narrow .mm-node-meta { display: none; }

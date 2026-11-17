@@ -5,6 +5,7 @@
 // r9：文档页加 Markdown 导入导出与 AI 块级修订；壳徽章随轮次更新。
 // r10：+ AI 工作台页（M5 第 1 片：对话 / 工具调用 / 产物预览），壳基线扩为八 tab。
 // r12：+ 知识库页（M6 第 1 片：入库 / TF-IDF 检索 / 来源引用），壳基线扩为九 tab。
+// r14：+ 导图页（M7 第 1 片：Markdown 双视图），壳基线扩为十 tab。
 // 截图状态真实存在：加载中 / 空数据 / 正常 / 错误 / 窄屏（?narrow=1 显式钉态）
 import { useEffect, useState } from "react";
 import type { AppSetting, Schedule, Todo } from "@xieflow/shared";
@@ -16,13 +17,14 @@ import BasesPage from "./BasesPage";
 import DocsPage from "./DocsPage";
 import ChatPage from "./ChatPage";
 import KnowledgePage from "./KnowledgePage";
+import MindmapPage from "./MindmapPage";
 
 type LoadState =
   | { phase: "loading" }
   | { phase: "error"; message: string }
   | { phase: "ready"; settings: AppSetting[]; schemaVersion: number; todaySchedules: Schedule[]; todos: Todo[] };
 
-type PageTab = "home" | "todos" | "schedules" | "projects" | "board" | "bases" | "docs" | "chat" | "knowledge";
+type PageTab = "home" | "todos" | "schedules" | "projects" | "board" | "bases" | "docs" | "chat" | "knowledge" | "mindmap";
 
 /** 健康检查 + 今日日程（工作台卡片数据源；日程查询失败不阻塞工作台） */
 async function fetchHealth(): Promise<{
@@ -93,7 +95,9 @@ export default function App() {
                   ? "chat"
                   : page === "knowledge"
                     ? "knowledge"
-                    : "home";
+                    : page === "mindmap"
+                      ? "mindmap"
+                      : "home";
   });
   const [state, setState] = useState<LoadState>(() => {
     // 截图脚本用 ?shot= 钉住特定状态（真实状态都存在，参数只为确定性捕获）
@@ -108,7 +112,7 @@ export default function App() {
       return {
         phase: "ready",
         settings: [{ key: "company.name", value: "协流示例公司", updatedAt: now.toISOString() }],
-        schemaVersion: 9,
+        schemaVersion: 10,
         todaySchedules: workbenchTodaySeed(now),
         todos: [],
       };
@@ -140,7 +144,7 @@ export default function App() {
   const todoById = new Map(state.phase === "ready" ? state.todos.map((t) => [t.id, t]) : []);
 
   return (
-    <main className={tab === "bases" || tab === "docs" || tab === "chat" || tab === "knowledge" ? "shell shell-wide" : "shell"}>
+    <main className={tab === "bases" || tab === "docs" || tab === "chat" || tab === "knowledge" || tab === "mindmap" ? "shell shell-wide" : "shell"}>
       <header className="topbar">
         <span className="logo">协流 XieFlow</span>
         <nav className="tabs" data-state="tabs">
@@ -216,8 +220,16 @@ export default function App() {
           >
             知识库
           </button>
+          <button
+            type="button"
+            className={`tab ${tab === "mindmap" ? "tab-active" : ""}`}
+            data-tab="mindmap"
+            onClick={() => setTab("mindmap")}
+          >
+            导图
+          </button>
         </nav>
-        <span className="badge">r13 · RAG 对话与引用溯源（M6 收官）</span>
+        <span className="badge">r14 · 思维导图 Markdown 双视图（M7 起步）</span>
       </header>
 
       {tab === "todos" ? (
@@ -236,6 +248,8 @@ export default function App() {
         <ChatPage />
       ) : tab === "knowledge" ? (
         <KnowledgePage />
+      ) : tab === "mindmap" ? (
+        <MindmapPage />
       ) : (
         <>
           {state.phase === "loading" && (
@@ -298,7 +312,7 @@ export default function App() {
                   <dt>schema 版本</dt>
                   <dd>v{state.schemaVersion}</dd>
                   <dt>里程碑</dt>
-                  <dd>M6 知识库（进行中）</dd>
+                  <dd>M7 导图与白板（起步）</dd>
                 </dl>
               </section>
             </>

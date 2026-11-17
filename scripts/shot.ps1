@@ -12,6 +12,7 @@
 #   powershell -File scripts\shot.ps1 shots -Round r11 # capture r11 multi-turn context / artifact / diff-inline states
 #   powershell -File scripts\shot.ps1 shots -Round r12 # capture r12 knowledge ingest / TF-IDF search / source refs states
 #   powershell -File scripts\shot.ps1 shots -Round r13 # capture r13 RAG chat / citation cards / traceback / no-hit states
+#   powershell -File scripts\shot.ps1 shots -Round r14 # capture r14 mindmap markdown / tree / collapse states
 #   powershell -File scripts\shot.ps1 shots -Round r11 -Shot 08-docs-diff-inline # rework#1: re-capture ONLY the diff-inline evidence (no other matrix/shell re-shot)
 #   powershell -File scripts\shot.ps1 down            # stop servers
 #   powershell -File scripts\shot.ps1 status          # show port status
@@ -28,11 +29,12 @@
 # r10: an EIGHTH tab (AI workbench) was added -> the baseline now captures eight active states.
 # r11: multi-turn context / artifact generators / 12-tool pagination states.
 # r12: a NINTH tab (knowledge) was added -> the baseline now captures nine active states.
+# r14: a TENTH tab (mindmap) was added -> the baseline now captures ten active states.
 param(
   [Parameter(Position = 0)]
   [ValidateSet("up", "shots", "down", "status", "all")]
   [string]$Action = "status",
-  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13")]
+  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14")]
   [string]$Round = "r1",
   [Parameter()]
   [string]$Shot = ""
@@ -125,6 +127,7 @@ function Find-Browser {
 # r8: the SEVENTH tab (docs) was added -> all seven active states are re-shot.
 # r10: the EIGHTH tab (chat / AI workbench) was added -> eight active states in one batch.
 # r12: the NINTH tab (knowledge) was added -> nine active states in one batch.
+# r14: the TENTH tab (mindmap) was added -> ten active states in one batch.
 function Invoke-ShellBaseline {
   param([string]$BrowserPath)
   $shellDir = Join-Path $Root "docs\ui\shell"
@@ -139,7 +142,8 @@ function Invoke-ShellBaseline {
     @{ page = "bases";     file = "bases-tab-active" },
     @{ page = "docs";      file = "docs-tab-active" },
     @{ page = "chat";      file = "chat-tab-active" },
-    @{ page = "knowledge"; file = "knowledge-tab-active" }
+    @{ page = "knowledge"; file = "knowledge-tab-active" },
+    @{ page = "mindmap";   file = "mindmap-tab-active" }
   )
   foreach ($t in $tabs) {
     $url = "http://127.0.0.1:$WebPort/"
@@ -610,6 +614,25 @@ function Invoke-Shots {
     }
   }
 
+  # r14: REAL mindmap via HTTP. The map holds a real Markdown source so the edit /
+  # tree / collapse shots render the shared-parsed tree of a persisted record.
+  # All Chinese is \uXXXX escaped (ASCII-only file, PS 5.1 safe).
+  $r14MapId = 0
+  if ($Round -eq "r14") {
+    try {
+      $r14TitleBytes = [System.Text.Encoding]::UTF8.GetBytes('{"title":"r14 \u5bfc\u56fe\u6f14\u793a"}')
+      $r14Map = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/mindmaps" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body $r14TitleBytes
+      $r14MapId = $r14Map.id
+      $r14MdBytes = [System.Text.Encoding]::UTF8.GetBytes('{"contentMarkdown":"# \u4ea7\u54c1\u8def\u7ebf\u56fe\n\n## M7 \u5bfc\u56fe\n- \u5de6\u4fa7 Markdown\n  - \u5b9e\u65f6\u89e3\u6790\n- \u53f3\u4fa7\u6811\u89c6\u56fe\n  1. \u8282\u70b9\u6298\u53e0"}')
+      Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/mindmaps/$r14MapId/content" -Method Put `
+        -ContentType "application/json; charset=utf-8" -Body $r14MdBytes | Out-Null
+      Write-Output "seeded r14 mindmap=$r14MapId"
+    } catch {
+      Write-Output "warn: r14 seed failed ($($_.Exception.Message)) - live mindmap shots may show empty state"
+    }
+  }
+
   # r13: REAL knowledge docs + RAG conversations via HTTP. The hit and no-hit
   # chats are seeded before capture so every citation card shows real citations;
   # the jump shot uses the cited doc/chunk ids from the chat response itself.
@@ -747,7 +770,20 @@ function Invoke-Shots {
     }
   }
 
-  if ($Round -eq "r13") {
+  if ($Round -eq "r14") {
+    # 01 = pinned empty state; 02/03/04 = ONE real seeded mindmap, three views
+    # (Markdown editor / parsed tree / collapsed branch); 05 = narrow seam;
+    # 06 = pinned error state. All Chinese in seed is \uXXXX escaped above.
+    $r14Base = "http://127.0.0.1:$WebPort/?page=mindmap&mapId=$r14MapId"
+    $shots = @(
+      @{ name = "01-mindmap-empty"; url = "http://127.0.0.1:$WebPort/?page=mindmap&shot=mindmap-empty"; width = 1280; height = 800 },
+      @{ name = "02-markdown-edit"; url = "$r14Base&shot=mindmap-edit"; width = 1280; height = 800 },
+      @{ name = "03-tree-view";     url = "$r14Base&shot=mindmap-tree"; width = 1280; height = 800 },
+      @{ name = "04-collapsed";     url = "$r14Base&shot=mindmap-collapsed"; width = 1280; height = 800 },
+      @{ name = "05-narrow";        url = "$r14Base&narrow=1"; width = 488; height = 1100 },
+      @{ name = "06-error";         url = "http://127.0.0.1:$WebPort/?page=mindmap&shot=mindmap-error"; width = 1280; height = 800 }
+    )
+  } elseif ($Round -eq "r13") {
     # 01 = real RAG conversation (AI bubble + citation cards from real chat);
     # 02 = citation-card spotlight (same data); 03 = citation jump -> knowledge doc
     # traceback (real GET /api/knowledge/docs/:id?chunkId=); 04 = artifact citation list;
@@ -1218,7 +1254,17 @@ function Invoke-Shots {
   # seed todo, so repeat runs stay deterministic.
   # r5: delete both seeded projects (by id - the script stays ASCII) and the two
   # seeded todos.
-  if ($Round -eq "r13") {
+  if ($Round -eq "r14") {
+    # r14: delete only the mindmap this run seeded (repeat runs stay deterministic).
+    try {
+      if ($r14MapId -gt 0) {
+        Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/mindmaps/$r14MapId" -Method Delete | Out-Null
+        Write-Output "cleaned seeded r14 mindmap=$r14MapId"
+      }
+    } catch {
+      Write-Output "warn: r14 cleanup failed ($($_.Exception.Message))"
+    }
+  } elseif ($Round -eq "r13") {
     # r13: delete seeded RAG conversations (messages + artifacts cascade) and the
     # two knowledge docs so repeat runs stay deterministic (no user data touched).
     try {
