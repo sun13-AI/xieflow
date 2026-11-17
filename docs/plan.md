@@ -132,7 +132,9 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r10 | M5 第 1 片：AI 工作台对话与工具调用框架 | ✅已发版（首轮双通过；8 工具真实 handler + 17 回放） | v0.0.14 | e2e 924 · audit 786 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r11 | M5 第 2 片：多轮上下文与产物生成（M5 收官） | ✅已发版（初验 ui 打回 U1 缺图证→返工#1 补图→复审双通过） | v0.0.15 | e2e 1020 · audit 867 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r12 | M6 第 1 片：知识库入库与本地检索 | ✅已发版（首轮双通过；TF-IDF 手算核对 + 变异红相 2 组） | v0.0.16 | e2e 1087 · audit 923 | 通过（waizhuan）+ UI 通过（阻断岗） |
-| r13 | M6 第 2 片：RAG 对话与引用溯源（M6 收官） | 🔨研发中 | — | — | — |
+| r13 | M6 第 2 片：RAG 对话与引用溯源（M6 收官） | ✅已发版（首轮双通过；引用跳转真点 + lead 修 P4 速查行） | v0.0.17 | e2e 1161 · audit 966 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r14 | M7 第 1 片：思维导图 Markdown 双视图（M7 起步） | ✅已发版（首轮双通过；Markdown↔树 37/37 + 变异红相） | v0.0.18 | e2e 1221 · audit 1020 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r15 | M7 第 2 片：白板画布（M7 收官） | 🔨研发中 | — | — | — |
 
 附加交付（r2 内 lead 直做，已入库 8e4fb9b）：
 - 一键启动：start.cmd 双击 / scripts\start.ps1 start|stop|status（三轮全链路验证；期间排掉「僵尸 api 抢 8787」环境坑，非脚本缺陷）
@@ -348,7 +350,25 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
   4. 双 VERDICT（waizhuan + ui 阻断岗）通过
 - 前置：r12 已发版 ✅
 
-### r14（预占）· M7 第 1 片：思维导图（Markdown 双视图）
+### r14 · M7 第 1 片：思维导图（Markdown 双视图）—— 已发版 v0.0.18
+- 交付：schema v10 mindmaps 表；shared 集中 parseMarkdownToTree / treeToMarkdown / 折叠态纯函数（md→tree→md 逐字节往返、未知语法降级不丢）；api 七路由；web 第十 tab「导图」双栏实时同步 + 折叠
+- 断言：e2e 1161→1221 / audit 966→1020，typecheck 5 包；变异红相 1 组独立复现；双 VERDICT 通过
+
+### r15 · M7 第 2 片：白板画布与 AI 建板（M7 收官）
+- 目标：无限画布白板（卡片/便签/连线）+ Markdown 导出 + AI 建板（mock）——M7 收官轮
+- 交付清单：
+  1. schema v10→v11：whiteboards 表（id/title/created_at）、whiteboard_items 表（id/board_id/type:note|text|shape|x/y/w/h/content/color）
+  2. 布局规则集中 packages/shared：normalizeWhiteboardItem(type, props)、collisionResolve(items)（重叠时自动避让或报错，规则唯一）
+  3. api：whiteboards CRUD、items CRUD + 批量移动（x/y 变更审计）、POST /api/whiteboards/:id/ai-create（mock 建板：根据主题生成 5-8 个便签布局，零 token）
+  4. web：新增「白板」tab——无限画布（拖拽平移/缩放）、便签创建/编辑/删除、AI 建板按钮、导出 Markdown
+  5. 断言：e2e ≥+35（布局规则/批量移动/AI 建板/导出）、audit ≥+25（含 4xx：越权 board_id/非法 item 类型/越界坐标）
+  6. 截图 ≥7：白板空态/画布有便签/拖拽后/AI 建板结果/导出佐证/窄屏/错误态
+- 验收标准：
+  1. 全量绿：e2e ≥1256、audit ≥1045，README 双节同步
+  2. 画布平移/缩放后坐标换算正确（waizhuan 会真拖验证）；AI 建板真生成 ≥5 便签且布局不重叠
+  3. **新增「白板」tab 补该 tab 激活态图**（十一 tab 壳基线）
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r14 已发版（v0.0.18）✅
 
 ## 历史轮次（r1~r2 已收档，见下方记账区）
 
