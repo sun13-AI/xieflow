@@ -107,7 +107,8 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r6 | M3 第 1 片：多维表格字段引擎 + 网格视图 | ✅已发版（首轮双通过；187 条真实 HTTP 断言 + 67 张哈希亲算） | v0.0.10 | e2e 449 · audit 403 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r7 | M3 第 2 片：视图持久化与 CSV 导入（M3 收官） | ✅已发版（首轮双通过；零半态变异红相独立复现） | v0.0.11 | e2e 587 · audit 522 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r8 | M4 第 1 片：文档块编辑器（单人版） | ✅已发版（首轮双通过；块操作 97/97 + 变异红相 2 组独立复现） | v0.0.12 | e2e 716 · audit 639 | 通过（waizhuan）+ UI 通过（阻断岗） |
-| r9 | M4 第 2 片：Markdown 导入导出 + AI 块级修订（mock） | 🔨研发完成待复验 | — | e2e 809 · audit 706 | — |
+| r9 | M4 第 2 片：Markdown 导入导出 + AI 块级修订（mock） | ✅已发版（首轮双通过；会话中断后续做收官） | v0.0.13 | e2e 809 · audit 706 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r10 | M5 第 1 片：AI 工作台对话与工具调用框架 | 🔨研发中 | — | — | — |
 
 附加交付（r2 内 lead 直做，已入库 8e4fb9b）：
 - 一键启动：start.cmd 双击 / scripts\start.ps1 start|stop|status（三轮全链路验证；期间排掉「僵尸 api 抢 8787」环境坑，非脚本缺陷）
@@ -253,7 +254,25 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 - 前置：r8 已发版（待双 VERDICT 终审）
 - 特别项：r8 UI 记账 U2（06 窄屏长文本 1px 裁切渣、编辑态列表块缺 marker、纸面有序列表都显示「1.」）本轮必修前两条
 
-### r10（预占）· M5 第 1 片：AI 工作台对话与工具调用框架
+### r10 · M5 第 1 片：AI 工作台对话与工具调用框架（M5 起步）
+- 目标：AI 工作台（对话 + 工具调用）落地——对话持久化 + 工具注册表 + mock 模型规划执行 + 产物预览框架——M5 起步轮（真实模型留接口，开发全用 mock 零 token）
+- 交付清单：
+  1. schema v7→v8：conversations 表（id/title/created_at）、messages 表（id/conversation_id/role/content_json/tool_calls_json/created_at）、artifacts 表（id/conversation_id/type/title/content/created_at）
+  2. 工具注册表集中 packages/agent/：ToolRegistry（name/description/parameters schema/handler），首批工具 ≥8：list_todos / create_todo / list_documents / create_document / list_projects / list_cards / list_tables / search_knowledge（M6 前返回空结果占位）
+  3. agent 规划器：mock-planner.ts（脚本化：识别意图→输出工具调用序列→执行→汇总），**记录回放评测集** packages/agent/evals/ 扩充 ≥15 用例（宪法四条：工具调用行为录制回放锁定）
+  4. api：conversations CRUD、POST /api/conversations/:id/chat（mock 规划执行，逐条 tool_call 落库）、artifacts 读取
+  5. web：「AI 工作台」tab——会话列表 + 中间对话流（用户/AI/tool-call 气泡）+ 右侧产物预览面板
+  6. 断言：e2e ≥+40（工具注册/规划执行/消息落库/产物）、audit ≥+30（含 4xx：未知工具/非法参数/空消息）
+  7. 截图 ≥7：工作台空态/会话列表/对话流/工具调用气泡/产物预览/窄屏/错误态
+- 验收标准：
+  1. 全量绿：e2e ≥849、audit ≥736，README 双节同步
+  2. 一次对话能真实触发 ≥2 个工具调用且结果落库（ waizhuan 会查库验证），工具调用行为由回放评测集锁定
+  3. 工具注册表 handler 全为真实服务层调用（非 mock 数据），状态变更类工具（create_todo 等）有「实际创建」断言
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r9 已发版（v0.0.13）✅
+- 特别项：r9 UI 记账 U2（diff 无行内高亮）记入 r11
+
+### r11（预占）· M5 第 2 片：多轮上下文与产物生成（M5 收官）
 
 ## 历史轮次（r1~r2 已收档，见下方记账区）
 
