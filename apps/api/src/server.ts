@@ -6,7 +6,7 @@
 // r4 看板：projects / board-columns / cards CRUD + 跨列移动
 // （position 重排规则集中 shared reorderPositions，路由层只做装配与 400/404 映射）。
 import Fastify from "fastify";
-import type { FastifyReply } from "fastify";
+import type { FastifyReply, FastifyRequest } from "fastify";
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -64,6 +64,24 @@ import {
   type ViewFilterCondition,
 } from "@xieflow/shared";
 import {
+  AUTH_PERMISSIONS,
+  can as authCan,
+  assertPermission,
+  verifyPassword,
+  validateSession,
+  generateSessionToken,
+  normalizeServerMode,
+  assertValidServerMode,
+  ConflictError,
+  ForbiddenError,
+  SESSION_TTL_MS,
+  SESSION_MIN_TTL_MS,
+  type AuthUser,
+  type Session,
+  type AuthPermission,
+  type ServerMode,
+} from "@xieflow/shared/auth";
+import {
   createMockProvider,
   createDefaultToolRegistry,
   mockPlanner,
@@ -88,7 +106,87 @@ try {
   process.exit(1);
 }
 
+const ENV_MODE: ServerMode = normalizeServerMode(process.env.XIEFLOW_MODE);
+let serverMode: ServerMode = ENV_MODE;
+{
+  const saved = db?.getSetting("server.mode");
+  if (saved) serverMode = normalizeServerMode(saved.value);
+}
+
 const app = Fastify({ logger: { level: "warn" } });
+
+/** 认证上下文：用户 + 会话 + 权限清单（全部来自 shared 唯一映射） */
+interface AuthContext {
+  readonly user: AuthUser;
+  readonly session: Session;
+  readonly permissions: readonly AuthPermission[];
+}
+type AuthRequest = FastifyRequest & { auth?: AuthContext };
+
+/** 公开路由：注册 / 登录 / 登出 / 模式查询 / 健康探针 / settings 保持匿名可用 */
+const PUBLIC_AUTH_PATHS = new Set([
+  "/api/health", "/api/settings",
+  "/api/auth/register", "/api/auth/login", "/api/auth/logout", "/api/auth/mode",
+]);
+/** 无论 local/remote 都强制鉴权的探针路由（audit 用它锁 401 与真实全链路） */
+const ALWAYS_PROTECTED_PATHS = new Set(["/api/auth/me", "/api/auth/guard", "/api/auth/users"]);
+
+function responseCleared(reply: FastifyReply): FastifyReply {
+  return reply.header("X-Xieflow-Auth-Cleared", "1").code(401).send({
+    error: "登录态无效或已过期，请重新登录",
+    code: "UNAUTHORIZED",
+    cleared: true,
+  });
+}
+
+/** Bearer token 解析：头部优先，body.token 供登出等幂等入口使用 */
+function tokenFromRequest(req: FastifyRequest): string | null {
+  const header = req.headers.authorization;
+  if (typeof header === "string") {
+    const m = /^Bearer\s+(.+)$/i.exec(header);
+    if (m) return (m[1] ?? "").trim();
+  }
+  const body = req.body as { token?: unknown } | undefined;
+  if (body && typeof body.token === "string") return body.token;
+  return null;
+}
+
+/** 会话解析唯一入口：坏 token / 过期 / 用户已删一律清会话并返回 null（401 清假登录态） */
+function resolveAuth(req: FastifyRequest): AuthContext | null {
+  const token = tokenFromRequest(req);
+  if (!token) return null;
+  const store = requireDb();
+  const session = store.getSessionByToken(token);
+  if (!session) return null;
+  if (!validateSession(session).valid) {
+    store.deleteSession(session.token);
+    return null;
+  }
+  const user = store.getUserById(session.userId);
+  if (!user) {
+    store.deleteSession(session.token);
+    return null;
+  }
+  return { user, session, permissions: AUTH_PERMISSIONS[user.role] };
+}
+
+app.addHook("onRequest", async (req, reply) => {
+  const url = (req.raw.url ?? "").split("?")[0] ?? "";
+  if (!url.startsWith("/api/")) return;
+  if (PUBLIC_AUTH_PATHS.has(url)) return;
+  if (serverMode !== "remote" && !ALWAYS_PROTECTED_PATHS.has(url)) return;
+  const ctx = resolveAuth(req);
+  if (!ctx) return responseCleared(reply);
+  (req as AuthRequest).auth = ctx;
+  return;
+});
+
+function authErrorReply(err: unknown, reply: FastifyReply): FastifyReply {
+  if (err instanceof ForbiddenError) return reply.code(403).send({ error: err.message, code: "FORBIDDEN" });
+  if (err instanceof ConflictError) return reply.code(409).send({ error: err.message, code: "CONFLICT" });
+  if (err instanceof ValidationError) return reply.code(400).send({ error: err.message });
+  return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
+}
 
 /** 统一错误映射：ValidationError → 400，其余业务错误 → 400（消息透传） */
 function toErrorReply(err: unknown, reply: FastifyReply): FastifyReply {
@@ -115,7 +213,7 @@ app.get("/api/health", async () => {
   // 探针：真读一次库，不只是进程活着
   store.setSetting("last_health_check", new Date().toISOString());
   const settings = store.listSettings();
-  return { ok: true, schemaVersion: CURRENT_SCHEMA_VERSION, settings };
+  return { ok: true, schemaVersion: CURRENT_SCHEMA_VERSION, mode: serverMode, settings };
 });
 
 app.get("/api/settings", async () => {
@@ -2461,6 +2559,127 @@ app.post("/api/unit-tasks/:id/transition", async (req, reply) => {
     return task;
   } catch (err) {
     return toErrorReply(err, reply);
+  }
+});
+
+// ---- r18（M9 起步）：账号 / 会话 / 服务模式（规则全在 shared/auth，路由只装配与错误映射） ----
+
+interface AuthBody {
+  username?: unknown;
+  password?: unknown;
+  token?: unknown;
+  ttlMs?: unknown;
+  mode?: unknown;
+}
+
+app.post("/api/auth/register", async (req, reply) => {
+  try {
+    const body = (req.body ?? {}) as AuthBody;
+    const user = requireDb().createUser({ username: body.username, password: body.password });
+    return reply.code(201).send({ user });
+  } catch (err) {
+    return authErrorReply(err, reply);
+  }
+});
+
+app.post("/api/auth/login", async (req, reply) => {
+  try {
+    const body = (req.body ?? {}) as AuthBody;
+    const username = typeof body.username === "string" ? body.username.trim() : "";
+    const password = body.password;
+    // 用户不存在与密码错误统一 401，避免用户枚举；哈希校验走 shared verifyPassword。
+    const user = requireDb().getUserByUsername(username);
+    const stored = user ? requireDb().getPasswordHash(user.id) : null;
+    if (!user || typeof password !== "string" || !stored || !verifyPassword(password, stored)) {
+      return reply.code(401).send({ error: "用户名或密码错误", code: "INVALID_CREDENTIALS" });
+    }
+    let ttl = SESSION_TTL_MS;
+    if (body.ttlMs !== undefined) {
+      if (typeof body.ttlMs !== "number" || !Number.isFinite(body.ttlMs)) {
+        throw new ValidationError("ttlMs 必须是有限数字");
+      }
+      if (body.ttlMs < SESSION_MIN_TTL_MS || body.ttlMs > SESSION_TTL_MS) {
+        throw new ValidationError(`ttlMs 超出允许范围（${SESSION_MIN_TTL_MS}~${SESSION_TTL_MS}）`);
+      }
+      ttl = body.ttlMs;
+    }
+    const token = generateSessionToken();
+    const session = requireDb().createSession({
+      userId: user.id,
+      token,
+      expiresAt: new Date(Date.now() + ttl).toISOString(),
+    });
+    return {
+      token: session.token,
+      expiresAt: session.expiresAt,
+      user,
+      permissions: AUTH_PERMISSIONS[user.role],
+    };
+  } catch (err) {
+    return authErrorReply(err, reply);
+  }
+});
+
+app.post("/api/auth/logout", async (req) => {
+  const token = tokenFromRequest(req);
+  const deleted = token ? requireDb().deleteSession(token) : false;
+  return { ok: true, cleared: true, deleted };
+});
+
+app.get("/api/auth/me", async (req, reply) => {
+  const ctx = (req as AuthRequest).auth ?? resolveAuth(req);
+  if (!ctx) return responseCleared(reply);
+  return { user: ctx.user, permissions: ctx.permissions, expiresAt: ctx.session.expiresAt };
+});
+
+/** 受保护路由探针：local 模式下也强制 401，供 HTTP 审计独立锁定鉴权中间件 */
+app.get("/api/auth/guard", async (req, reply) => {
+  const ctx = (req as AuthRequest).auth ?? resolveAuth(req);
+  if (!ctx) return responseCleared(reply);
+  return { ok: true, userId: ctx.user.id, permissions: ctx.permissions, canManageUsers: authCan(ctx.user.role, "user:manage") };
+});
+
+app.get("/api/auth/users", async (req, reply) => {
+  const ctx = (req as AuthRequest).auth ?? resolveAuth(req);
+  if (!ctx) return responseCleared(reply);
+  try {
+    assertPermission(ctx.user.role, "user:manage");
+    return { users: requireDb().listUsers() };
+  } catch (err) {
+    return authErrorReply(err, reply);
+  }
+});
+
+app.delete("/api/auth/users/:id", async (req, reply) => {
+  const ctx = (req as AuthRequest).auth ?? resolveAuth(req);
+  if (!ctx) return responseCleared(reply);
+  try {
+    assertPermission(ctx.user.role, "user:manage");
+    const id = parseId((req.params as { id: string }).id);
+    if (!requireDb().deleteUser(id)) return reply.code(404).send({ error: `用户不存在：${id}` });
+    return { deleted: true, id };
+  } catch (err) {
+    return authErrorReply(err, reply);
+  }
+});
+
+app.get("/api/auth/mode", async () => ({ mode: serverMode, envMode: ENV_MODE }));
+
+app.post("/api/auth/mode", async (req, reply) => {
+  try {
+    // 切到 remote 之后，再调整模式需要管理员权限；首次从 local 切换是本机自托管动作。
+    if (serverMode === "remote") {
+      const ctx = (req as AuthRequest).auth ?? resolveAuth(req);
+      if (!ctx) return responseCleared(reply);
+      assertPermission(ctx.user.role, "auth:mode");
+    }
+    const body = (req.body ?? {}) as AuthBody;
+    assertValidServerMode(body.mode);
+    serverMode = body.mode;
+    requireDb().setSetting("server.mode", serverMode);
+    return { mode: serverMode };
+  } catch (err) {
+    return authErrorReply(err, reply);
   }
 });
 

@@ -45,6 +45,7 @@ import type {
   UnitTask,
   UnitTaskStatus,
 } from "@xieflow/shared";
+import type { AuthUser, AuthRole, Session } from "@xieflow/shared/auth";
 import { isFieldType, isBlockType, normalizeBlockContent, isKnowledgeSourceType } from "@xieflow/shared";
 import { REPEATS_ORDER } from "./repeat-order.js";
 
@@ -485,5 +486,25 @@ export function mapRowToUnitTask(row: Row): UnitTask {
     status: String(row.status) as UnitTaskStatus,
     dueDate: row.due_date === null || row.due_date === undefined ? null : String(row.due_date),
     parentId: row.parent_id === null || row.parent_id === undefined ? null : Number(row.parent_id),
+  };
+}
+
+/** v14 users 行 → 对外用户对象（password_hash 永不出 mappers） */
+export function mapRowToAuthUser(row: Row): AuthUser {
+  return {
+    id: Number(row.id),
+    username: String(row.username),
+    role: String(row.role) as AuthRole,
+    createdAt: String(row.created_at),
+  };
+}
+
+/** v14 sessions 行 → 会话对象 */
+export function mapRowToSession(row: Row): Session {
+  return {
+    id: Number(row.id),
+    userId: Number(row.user_id),
+    token: String(row.token),
+    expiresAt: String(row.expires_at),
   };
 }

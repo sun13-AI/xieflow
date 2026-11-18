@@ -64,6 +64,31 @@ async function req(method: string, path: string, body?: unknown): Promise<{ stat
   return { status: res.status, json };
 }
 
+/** r18: authenticated request (Bearer token) with response headers, for 401-clear assertions */
+async function authReq(
+  method: string,
+  path: string,
+  token: string | null,
+  body?: unknown,
+): Promise<{ status: number; json: any; headers: Headers }> {
+  const headers: Record<string, string> = {};
+  if (token) headers.authorization = `Bearer ${token}`;
+  if (body !== undefined) headers["content-type"] = "application/json";
+  const res = await fetch(`${BASE}${path}`, {
+    method,
+    headers,
+    body: body === undefined ? undefined : JSON.stringify(body),
+    signal: AbortSignal.timeout(5000),
+  });
+  let json: any = null;
+  try {
+    json = await res.json();
+  } catch {
+    /* empty body */
+  }
+  return { status: res.status, json, headers: res.headers };
+}
+
 async function expectStatus(
   method: string,
   path: string,
@@ -120,7 +145,7 @@ async function audit() {
     eq(h.json && h.json.ok, true, "health.ok = true");
     // r4 起动态对表：health.schemaVersion 必须等于迁移队列最高版本（不再硬编码 2/3，
     // r3 v0.0.6 CI 红教训——静态硬编码在每轮迁移后必过期）
-    eq(h.json && h.json.schemaVersion, 13, "health.schemaVersion = 13（r17 迁移后）");
+    eq(h.json && h.json.schemaVersion, 14, "health.schemaVersion = 14（r18 迁移后）");
     const s = await req("GET", "/api/settings");
     eq(s.status, 200, "GET /api/settings -> 200");
     ok(Array.isArray(s.json && s.json.settings), "settings 返回数组");
@@ -217,7 +242,7 @@ async function audit() {
   {
     // health 探针反映 schema v8（r4 起迁移后动态推进）
     const h3 = await req("GET", "/api/health");
-    eq(h3.json && h3.json.schemaVersion, 13, "health.schemaVersion = 13（schedules 节复核）");
+    eq(h3.json && h3.json.schemaVersion, 14, "health.schemaVersion = 14（r18 迁移后复核）");
 
     const r = await expectStatus(
       "POST",
@@ -2443,6 +2468,131 @@ async function audit() {
     await expectStatus("GET", `/api/schedules/${schedule.id}`, undefined, 404, "DELETE 后 GET 日程 -> 404");
     await expectStatus("DELETE", `/api/schedules/${schedule.id}`, undefined, 404, "DELETE 重复同一日程 id -> 404");
     await expectStatus("DELETE", "/api/schedules/not-a-number", undefined, 400, "DELETE 非数字日程 id -> 400");
+  }
+
+  console.log("\n== Auth r18: register / login / guard / me / logout / mode / 4xx ==");
+  {
+    const uname = "r18_audit_" + Date.now().toString(36);
+    const uname2 = uname + "_b";
+    const pw = "r18-Strong-Pass-2026";
+
+    // ---- 模式基线与注册 4xx ----
+    const mode0 = await req("GET", "/api/auth/mode");
+    eq(mode0.status, 200, "r18 GET 服务模式 -> 200");
+    ok(mode0.json && (mode0.json.mode === "local" || mode0.json.mode === "remote"), "r18 服务模式为 local|remote 之一");
+    await expectStatus("POST", "/api/auth/mode", { mode: "local" }, 200, "r18 基线切回 local -> 200");
+    await expectStatus("POST", "/api/auth/register", { username: uname, password: "weak" }, 400, "r18 弱密码注册 -> 400");
+    await expectStatus("POST", "/api/auth/register", { username: "ab", password: pw }, 400, "r18 过短用户名注册 -> 400");
+    await expectStatus("POST", "/api/auth/register", { username: uname, password: pw }, 201, "r18 注册首个用户 -> 201");
+    const reg = await req("POST", "/api/auth/register", { username: uname, password: pw });
+    eq(reg.status, 409, "r18 重复用户名 -> 409");
+    eq(reg.json && reg.json.code, "CONFLICT", "r18 重复用户名错误码 CONFLICT");
+    const first = await req("GET", "/api/auth/users");
+    eq(first.status, 401, "r18 未带 token 列用户 -> 401");
+
+    // ---- 登录 4xx 与真 token ----
+    await expectStatus("POST", "/api/auth/login", { username: uname, password: "wrong-password" }, 401, "r18 错误密码登录 -> 401");
+    await expectStatus("POST", "/api/auth/login", { username: "no_such_user_18", password: pw }, 401, "r18 不存在用户登录 -> 401");
+    await expectStatus("POST", "/api/auth/register", { username: uname2, password: pw }, 201, "r18 注册第二个用户 -> 201");
+    const adminLogin = await expectStatus("POST", "/api/auth/login", { username: uname, password: pw }, 200, "r18 管理员登录 -> 200");
+    const token = adminLogin.json && adminLogin.json.token;
+    ok(typeof token === "string" && /^[0-9a-f]{64}$/.test(token), "r18 token 为 64 位本地随机 hex");
+    eq(adminLogin.json && adminLogin.json.user.username, uname, "r18 登录回显用户名");
+    ok(!JSON.stringify(adminLogin.json).includes("password_hash"), "r18 登录响应不含 password_hash");
+    ok(Array.isArray(adminLogin.json && adminLogin.json.permissions), "r18 登录回显权限清单");
+    const memberLogin = await expectStatus("POST", "/api/auth/login", { username: uname2, password: pw }, 200, "r18 普通用户登录 -> 200");
+    const token2 = memberLogin.json && memberLogin.json.token;
+    eq(memberLogin.json && memberLogin.json.user.role, "user", "r18 第二个用户角色 user");
+    eq(memberLogin.json && memberLogin.json.permissions.includes("user:manage"), false, "r18 普通用户无用户管理权限");
+
+    // ---- 401 清假登录态（无 token / 假 token / 响应头标记）----
+    const g0 = await authReq("GET", "/api/auth/guard", null);
+    eq(g0.status, 401, "r18 受保护路由无 token -> 401");
+    eq(g0.json && g0.json.cleared, true, "r18 401 响应体 cleared=true（前端据此清假登录态）");
+    eq(g0.headers.get("x-xieflow-auth-cleared"), "1", "r18 401 响应头 X-Xieflow-Auth-Cleared=1");
+    await expectStatus("GET", "/api/auth/guard", undefined, 401, "r18 expectStatus 版 401 复核");
+    const gBad = await authReq("GET", "/api/auth/guard", "f".repeat(64));
+    eq(gBad.status, 401, "r18 伪造 token -> 401");
+    const gBad2 = await authReq("GET", "/api/auth/me", "0".repeat(64));
+    eq(gBad2.status, 401, "r18 另一假 token 访问 me -> 401");
+    eq(gBad2.json && gBad2.json.code, "UNAUTHORIZED", "r18 假 token 错误码 UNAUTHORIZED");
+    ok(gBad2.status === gBad.status, "r18 假 token 在两条受保护路由上行为一致（均 401）");
+    const guarded = await authReq("GET", "/api/auth/guard", token);
+    eq(guarded.status, 200, "r18 真 token 访问受保护路由 -> 200");
+    eq(guarded.json && guarded.json.ok, true, "r18 受保护探针 ok=true");
+    eq(guarded.json && guarded.json.userId, adminLogin.json.user.id, "r18 探针回显真用户 id");
+    eq(guarded.json && guarded.json.canManageUsers, true, "r18 管理员权限由 shared 映射回显");
+
+    // ---- me / 权限 403 ----
+    const meAnon = await req("GET", "/api/auth/me");
+    eq(meAnon.status, 401, "r18 GET me 无 token -> 401");
+    const me = await authReq("GET", "/api/auth/me", token);
+    eq(me.status, 200, "r18 GET me 带 token -> 200");
+    eq(me.json && me.json.user.username, uname, "r18 me 回显当前用户");
+    ok(Array.isArray(me.json && me.json.permissions), "r18 me 回显权限数组");
+    const usersByAdmin = await authReq("GET", "/api/auth/users", token);
+    eq(usersByAdmin.status, 200, "r18 管理员列用户 -> 200");
+    ok(usersByAdmin.json && usersByAdmin.json.users.length >= 2, "r18 管理员看到至少两个用户");
+    const usersByMember = await authReq("GET", "/api/auth/users", token2);
+    eq(usersByMember.status, 403, "r18 普通用户列用户 -> 403");
+    await authReq("DELETE", `/api/auth/users/${adminLogin.json.user.id}`, token2);
+    const delByMember = await authReq("DELETE", `/api/auth/users/${memberLogin.json.user.id}`, token2);
+    eq(delByMember.status, 403, "r18 普通用户删用户 -> 403");
+
+    // ---- 会话过期（真 HTTP：短 TTL 登录后等待到期）----
+    const shortLogin = await expectStatus("POST", "/api/auth/login", { username: uname, password: pw, ttlMs: 1 }, 200, "r18 短 TTL 登录 -> 200");
+    await new Promise((r) => setTimeout(r, 40));
+    const expiredGuard = await authReq("GET", "/api/auth/guard", shortLogin.json.token);
+    eq(expiredGuard.status, 401, "r18 过期会话访问受保护路由 -> 401");
+    eq(expiredGuard.json && expiredGuard.json.cleared, true, "r18 过期会话同样触发清登录态");
+    const expiredMe = await authReq("GET", "/api/auth/me", shortLogin.json.token);
+    eq(expiredMe.status, 401, "r18 过期会话访问 me -> 401");
+    const ttlBad = await req("POST", "/api/auth/login", { username: uname, password: pw, ttlMs: -1 });
+    eq(ttlBad.status, 400, "r18 非法 ttlMs 登录 -> 400");
+
+    // ---- 用户第一次用全链路：登录 → 带 token 访问 → 登出 → 401 → 重新登录 ----
+    const chainGuard = await authReq("GET", "/api/auth/guard", token);
+    eq(chainGuard.status, 200, "r18 全链路① 带 token 访问受保护路由 -> 200");
+    const logout = await expectStatus("POST", "/api/auth/logout", { token }, 200, "r18 全链路② 登出 -> 200");
+    eq(logout.json && logout.json.cleared, true, "r18 登出返回 cleared=true");
+    eq(logout.json && logout.json.deleted, true, "r18 登出真删会话");
+    const afterLogout = await authReq("GET", "/api/auth/guard", token);
+    eq(afterLogout.status, 401, "r18 全链路③ 登出后 token -> 401");
+    const relogin = await expectStatus("POST", "/api/auth/login", { username: uname, password: pw }, 200, "r18 全链路④ 重新登录 -> 200");
+    const token3 = relogin.json && relogin.json.token;
+    ok(token3 !== token, "r18 重新登录生成不同 token");
+    const afterRelogin = await authReq("GET", "/api/auth/guard", token3);
+    eq(afterRelogin.status, 200, "r18 全链路⑤ 新 token 访问受保护路由 -> 200");
+
+    // ---- remote 模式：业务路由 401 / 带 token 200 / 切回 local ----
+    const switchRemote = await authReq("POST", "/api/auth/mode", token3, { mode: "remote" });
+    eq(switchRemote.status, 200, "r18 管理员切 remote -> 200");
+    ok(switchRemote.json && switchRemote.json.mode === "remote", "r18 模式回显 remote");
+    const memberSwitch = await authReq("POST", "/api/auth/mode", token2, { mode: "local" });
+    eq(memberSwitch.status, 403, "r18 remote 下普通用户切模式 -> 403");
+    const stillRemote = await req("GET", "/api/auth/mode");
+    eq(stillRemote.json && stillRemote.json.mode, "remote", "r18 越权切换未改变模式");
+    const todosAnon = await req("GET", "/api/todos");
+    eq(todosAnon.status, 401, "r18 remote 模式业务路由无 token -> 401");
+    eq(todosAnon.json && todosAnon.json.cleared, true, "r18 remote 401 携带 cleared=true");
+    const todosAuthed = await authReq("GET", "/api/todos", token3);
+    eq(todosAuthed.status, 200, "r18 remote 模式业务路由带 token -> 200");
+    const badMode = await authReq("POST", "/api/auth/mode", token3, { mode: "invalid" });
+    eq(badMode.status, 400, "r18 非法模式切换 -> 400");
+    const backLocal = await authReq("POST", "/api/auth/mode", token3, { mode: "local" });
+    eq(backLocal.status, 200, "r18 管理员切回 local -> 200");
+    const todosLocal = await req("GET", "/api/todos");
+    eq(todosLocal.status, 200, "r18 local 模式业务路由匿名可用（不破坏既有路由）");
+
+    // ---- 清理本轮自建账号（级联清会话）：先删普通用户，再删管理员自己 ----
+    const delMember = await authReq("DELETE", `/api/auth/users/${memberLogin.json.user.id}`, token3);
+    eq(delMember.status, 200, "r18 清理普通用户账号 -> 200");
+    const delAdmin = await authReq("DELETE", `/api/auth/users/${adminLogin.json.user.id}`, token3);
+    eq(delAdmin.status, 200, "r18 清理管理员账号 -> 200");
+    const afterCleanup = await authReq("GET", "/api/auth/guard", token3);
+    eq(afterCleanup.status, 401, "r18 用户删除后其会话级联失效 -> 401");
+    const finalMode = await req("GET", "/api/auth/mode");
+    eq(finalMode.json && finalMode.json.mode, "local", "r18 终态服务模式回 local");
   }
 }
 

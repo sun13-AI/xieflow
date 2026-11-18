@@ -263,6 +263,24 @@ import {
   type UnitTaskTreeNode,
 } from "@xieflow/shared";
 import type { TodoStatus } from "@xieflow/shared";
+import { pbkdf2Sync } from "node:crypto";
+import {
+  AUTH_ROLES,
+  AUTH_PERMISSIONS,
+  can as canAuth,
+  assertPermission,
+  hashPassword,
+  verifyPassword,
+  generateSessionToken,
+  validateSession,
+  assertValidUsername,
+  assertValidPassword,
+  PBKDF2_ITERATIONS,
+  PBKDF2_KEYLEN,
+  SESSION_TTL_MS,
+  type Session,
+  type AuthUser,
+} from "@xieflow/shared/auth";
 import {
   createMockProvider,
   MOCK_PROVIDER_ID,
@@ -395,6 +413,7 @@ try {
         { version: 12, name: "l", up: [] },
         { version: 13, name: "m", up: [] },
         { version: 14, name: "n", up: [] },
+        { version: 15, name: "o", up: [] },
       ]),
     "队列超出 SCHEMA_VERSION：一致性校验抛错",
   );
@@ -782,8 +801,8 @@ try {
     const v3Migrated = openDatabaseRaw({ path: v3Path });
     eq(
       v3Migrated.appliedMigrations,
-      [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
-      "v2 旧库重开补跑 v3+v4+v5+v6+v7+v8+v9+v10+v11+v12+v13 迁移（真实 PRAGMA 升级路径，r17 起队列追加 v13）",
+      [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
+      "v2 旧库重开补跑 v3+v4+v5+v6+v7+v8+v9+v10+v11+v12+v13+v14 迁移（真实 PRAGMA 升级路径，r18 起队列追加 v14）",
     );
     const tables = v3Migrated.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -1008,8 +1027,8 @@ try {
     const v4Open = openDatabaseRaw({ path: v4Path });
     eq(
       v4Open.appliedMigrations,
-      [4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
-      "v3 旧库重开只补跑 v4+v5+v6+v7+v8+v9+v10+v11+v12+v13 迁移（真实 PRAGMA 升级路径）",
+      [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
+      "v3 旧库重开只补跑 v4+v5+v6+v7+v8+v9+v10+v11+v12+v13+v14 迁移（真实 PRAGMA 升级路径）",
     );
     const tables = v4Open.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -1020,7 +1039,7 @@ try {
     eq(
       (v4Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（13）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（14）",
     );
     const rawDb: SqliteDatabase = v4Open.raw;
     throws(
@@ -1667,7 +1686,7 @@ try {
     v4Open2.raw.exec("PRAGMA user_version = 4");
     v4Open2.raw.close();
     const v5Open = openDatabaseRaw({ path: v5Path });
-    eq(v5Open.appliedMigrations, [5, 6, 7, 8, 9, 10, 11, 12, 13], "v4 旧库重开只补跑 v5+v6+v7+v8+v9+v10+v11+v12+v13 迁移（真实 PRAGMA 升级路径）");
+    eq(v5Open.appliedMigrations, [5, 6, 7, 8, 9, 10, 11, 12, 13, 14], "v4 旧库重开只补跑 v5+v6+v7+v8+v9+v10+v11+v12+v13+v14 迁移（真实 PRAGMA 升级路径）");
     const tableNames = v5Open.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
       .map((r) => String((r as unknown as { name: unknown }).name));
@@ -1677,7 +1696,7 @@ try {
     eq(
       (v5Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（13）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（14）",
     );
     const rawDb5: SqliteDatabase = v5Open.raw;
     throws(
@@ -2386,7 +2405,7 @@ try {
     v5Open.raw.exec("PRAGMA user_version = 5");
     v5Open.raw.close();
     const v6Open = openDatabaseRaw({ path: v6Path });
-    eq(v6Open.appliedMigrations, [6, 7, 8, 9, 10, 11, 12, 13], "v5 旧库重开只补跑 v6+v7+v8+v9+v10+v11+v12+v13 迁移（真实 PRAGMA 升级路径）");
+    eq(v6Open.appliedMigrations, [6, 7, 8, 9, 10, 11, 12, 13, 14], "v5 旧库重开只补跑 v6+v7+v8+v9+v10+v11+v12+v13+v14 迁移（真实 PRAGMA 升级路径）");
     const tableNames = v6Open.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
       .map((r) => String((r as unknown as { name: unknown }).name));
@@ -2394,7 +2413,7 @@ try {
     eq(
       (v6Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（13）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（14）",
     );
     const rawDb6: SqliteDatabase = v6Open.raw;
     eq(
@@ -2533,7 +2552,7 @@ try {
     eq(
       (reopened.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "重启后 user_version 仍为 13",
+      "重启后 user_version 仍为 14",
     );
     eq(JSON.stringify(reopened.db.listViews(tbl.id)), beforeViews, "视图持久化：重启前后 spec 逐字节相等");
     eq(
@@ -2666,11 +2685,11 @@ try {
     oldOpen.raw.exec("PRAGMA user_version = 6");
     oldOpen.raw.close();
     const v7Open = openDatabaseRaw({ path: v7Path });
-    eq(v7Open.appliedMigrations, [7, 8, 9, 10, 11, 12, 13], "v6 旧库重开补跑 v7+v8+v9+v10+v11+v12+v13 迁移（真实 PRAGMA 升级路径）");
+    eq(v7Open.appliedMigrations, [7, 8, 9, 10, 11, 12, 13, 14], "v6 旧库重开补跑 v7+v8+v9+v10+v11+v12+v13+v14 迁移（真实 PRAGMA 升级路径）");
     eq(
       (v7Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（13）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（14）",
     );
     const tables = (v7Open.raw.all(
       "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('documents','blocks') ORDER BY name",
@@ -3054,11 +3073,11 @@ try {
     old10.raw.exec("PRAGMA user_version = 7");
     old10.raw.close();
     const v8 = openDatabaseRaw({ path: p10Path });
-    eq(v8.appliedMigrations, [8, 9, 10, 11, 12, 13], "v7 旧库重开只补跑 v8+v9+v10+v11+v12+v13 迁移（真实 PRAGMA 升级路径）");
+    eq(v8.appliedMigrations, [8, 9, 10, 11, 12, 13, 14], "v7 旧库重开只补跑 v8+v9+v10+v11+v12+v13+v14 迁移（真实 PRAGMA 升级路径）");
     eq(
       (v8.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（13）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（14）",
     );
     const t10 = v8.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -3470,11 +3489,11 @@ try {
     old.raw.exec("PRAGMA user_version = 8");
     old.raw.close();
     const v9 = openDatabaseRaw({ path: p });
-    eq(v9.appliedMigrations, [9, 10, 11, 12, 13], "v8 旧库重开只补跑 v9+v10+v11+v12+v13 迁移（真实 PRAGMA 升级路径）");
+    eq(v9.appliedMigrations, [9, 10, 11, 12, 13, 14], "v8 旧库重开只补跑 v9+v10+v11+v12+v13+v14 迁移（真实 PRAGMA 升级路径）");
     eq(
       (v9.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（13）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（14）",
     );
     const tables = v9.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -3866,7 +3885,7 @@ try {
     eq(reopened14.getMindmap(1)!.contentMarkdown, "# 根\n- 子", "导图关库重开不丢（Markdown 源逐字节）");
     reopened14.close();
     const raw14 = openDatabaseRaw({ path: `scripts/.tmp-e2e/r14-raw-${Date.now()}.db` });
-    eq((raw14.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 13, "真实 PRAGMA user_version=13");
+    eq((raw14.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 14, "真实 PRAGMA user_version=14");
     eq(
       raw14.raw.all("PRAGMA table_info(mindmaps)").map((r) => String((r as unknown as { name: unknown }).name)),
       ["id", "title", "content_markdown", "created_at", "updated_at"],
@@ -4049,7 +4068,7 @@ try {
     eq(r15.listWhiteboardItems(1)[0]!.content, "关库不丢", "白板条目关库重开不丢（逐字）");
     r15.close();
     const raw15 = openDatabaseRaw({ path: `scripts/.tmp-e2e/r15-raw-${Date.now()}.db` });
-    eq((raw15.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 13, "真实 PRAGMA user_version=13");
+    eq((raw15.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 14, "真实 PRAGMA user_version=14");
     eq(
       raw15.raw.all("PRAGMA table_info(whiteboards)").map((r) => String((r as unknown as { name: unknown }).name)),
       ["id", "title", "created_at"],
@@ -4247,7 +4266,7 @@ try {
     r16.close();
 
     const raw16 = openDatabaseRaw({ path: `scripts/.tmp-e2e/r16-raw-${Date.now()}.db` });
-    eq((raw16.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 13, "真实 PRAGMA user_version=13");
+    eq((raw16.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 14, "真实 PRAGMA user_version=14");
     eq(
       raw16.raw.all("PRAGMA table_info(approvals)").map((r) => String((r as unknown as { name: unknown }).name)),
       ["id", "title", "type", "applicant_id", "status", "current_assignee", "created_at", "updated_at"],
@@ -4353,7 +4372,7 @@ try {
 
     // 51d. schema v13 与数据层（真迁移、真落库、真事务、零半态）
     const raw17 = openDatabaseRaw({ path: ":memory:" });
-    eq((raw17.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 13, "新库 user_version=13");
+    eq((raw17.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 14, "新库 user_version=14");
     eq(
       raw17.raw.all("PRAGMA table_info(assets)").map((r) => String((r as unknown as { name: unknown }).name)),
       ["id", "name", "category", "quantity", "unit", "location", "custodian", "created_at"],
@@ -4446,7 +4465,140 @@ try {
     db = null;
   }
 
-  // 52. HTTP 冒烟 /api/health
+  // 52. r18：认证与会话（PBKDF2 哈希 / 校验 / 会话过期 / 权限 / schema v14 数据层）
+  section("r18 认证与会话：哈希 / 校验 / 会话过期 / 权限 / schema v14 数据层");
+  {
+    // 52a. 角色 → 权限映射（唯一口径集中在 shared/auth，api/web 零分支）
+    eq(AUTH_ROLES, ["user", "admin"], "认证角色仅 user/admin 两种");
+    ok(canAuth("user", "todo:read"), "普通用户可读待办");
+    ok(canAuth("user", "todo:write"), "普通用户可写待办");
+    ok(!canAuth("user", "user:manage"), "普通用户不可管理用户");
+    ok(!canAuth("user", "auth:mode"), "普通用户不可切换服务模式");
+    ok(canAuth("admin", "user:manage"), "管理员可管理用户");
+    ok(canAuth("admin", "auth:mode"), "管理员可切换服务模式");
+    ok(AUTH_PERMISSIONS.admin.length > AUTH_PERMISSIONS.user.length, "管理员权限严格多于普通用户");
+    throws(() => assertPermission("user", "user:manage"), "越权权限守卫抛错");
+    assertPermission("admin", "user:manage");
+    ok(true, "管理员权限守卫放行不抛错");
+
+    // 52b. 用户名 / 弱密码守卫（真实拒绝行为）
+    assertValidUsername("r18_alice");
+    ok(true, "合法用户名放行");
+    throws(() => assertValidUsername(""), "空用户名拒绝");
+    throws(() => assertValidUsername("ab"), "过短用户名拒绝");
+    throws(() => assertValidUsername("a".repeat(33)), "过长用户名拒绝");
+    assertValidPassword("r18-Strong-Pass-2026");
+    ok(true, "强密码放行");
+    throws(() => assertValidPassword(""), "空密码拒绝");
+    throws(() => assertValidPassword("short"), "弱密码（<8）拒绝");
+    throws(() => assertValidPassword("a".repeat(201)), "超长密码拒绝");
+
+    // 52c. PBKDF2 哈希与校验（真算法：与 Node 内置 pbkdf2Sync 逐字节对照）
+    const pw = "r18-Strong-Pass-2026";
+    const h1 = hashPassword(pw);
+    const parts = h1.split("$");
+    eq(parts.length, 4, "哈希存储格式四段 pbkdf2$iters$salt$digest");
+    eq(parts[0], "pbkdf2", "哈希算法标记为 pbkdf2");
+    eq(Number(parts[1]), PBKDF2_ITERATIONS, "迭代次数与 shared 常量一致");
+    ok(/^[0-9a-f]{64}$/.test(parts[2] ?? ""), "盐为 64 位十六进制（32 字节随机）");
+    ok(/^[0-9a-f]{64}$/.test(parts[3] ?? ""), "摘要为 64 位十六进制（32 字节）");
+    eq(
+      parts[3],
+      pbkdf2Sync(pw, Buffer.from(parts[2] ?? "", "hex"), Number(parts[1]), PBKDF2_KEYLEN, "sha256").toString("hex"),
+      "哈希摘要与 Node 内置 pbkdf2-sha256 逐字节一致（真算法非占位）",
+    );
+    const h2 = hashPassword(pw);
+    ok(h1 !== h2, "同密码两次哈希不同（随机盐，非确定性弱哈希）");
+    ok(verifyPassword(pw, h1), "正确密码校验通过");
+    ok(verifyPassword(pw, h2), "另一随机盐哈希同样校验通过");
+    ok(!verifyPassword("wrong-password", h1), "错误密码校验失败");
+    ok(!verifyPassword(pw, "pbkdf2$bad$zz$zz"), "非法存储格式校验返回 false 不抛错");
+    ok(!verifyPassword(pw, parts.slice(0, 3).concat("0".repeat(64)).join("$")), "篡改摘要校验失败");
+    ok(!h1.includes(pw), "密码明文不出现在哈希串中");
+
+    // 52d. 会话过期校验（到期时刻即失效，边界确定）
+    const iso = (ms: number): string => new Date(ms).toISOString();
+    const now = Date.parse("2026-11-18T12:00:00.000Z");
+    const exp = now + SESSION_TTL_MS;
+    const session: Session = { id: 1, userId: 1, token: "a".repeat(64), expiresAt: iso(exp) };
+    eq(validateSession(session, now), { valid: true }, "未过期会话有效");
+    eq(validateSession(session, now + 1000), { valid: true }, "有效期内会话持续有效");
+    eq(validateSession(session, exp), { valid: false, reason: "expired" }, "到期时刻即判过期（不拖延一秒）");
+    eq(validateSession(session, exp + 1), { valid: false, reason: "expired" }, "过期后会话无效");
+    ok(SESSION_TTL_MS > 0, "会话 TTL 为正数");
+
+    // 52e. token 本地随机生成（不写任何密钥文件）
+    const t1 = generateSessionToken();
+    const t2 = generateSessionToken();
+    eq(t1.length, 64, "会话 token 64 位十六进制");
+    ok(/^[0-9a-f]{64}$/.test(t1), "token 字符集仅小写 hex");
+    ok(t1 !== t2, "两次 token 不重复（本地随机）");
+    ok(!t1.includes("/") && !t1.includes("."), "token 不含路径字符（不落盘为文件）");
+
+    // 52f. schema v14 与账号数据层（真迁移、真落库、不明文、级联清理）
+    const raw18 = openDatabaseRaw({ path: ":memory:" });
+    eq((raw18.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 14, "新库 user_version=14");
+    eq(
+      raw18.raw.all("PRAGMA table_info(users)").map((r) => String((r as unknown as { name: unknown }).name)),
+      ["id", "username", "password_hash", "role", "created_at"],
+      "users 五列由 v14 迁移创建（password_hash 非明文列）",
+    );
+    eq(
+      raw18.raw.all("PRAGMA table_info(sessions)").map((r) => String((r as unknown as { name: unknown }).name)),
+      ["id", "user_id", "token", "expires_at"],
+      "sessions 四列由 v14 迁移创建",
+    );
+    const adb = raw18.db;
+    eq(adb.listUsers().length, 0, "新库用户表为空");
+    const admin = adb.createUser({ username: "r18_admin", password: "r18-Strong-Pass-2026" });
+    eq(admin.username, "r18_admin", "首个用户用户名回读");
+    eq(admin.role, "admin", "首个用户自动成为管理员（自托管首启引导）");
+    eq(adb.getUserById(admin.id)!.id, admin.id, "按 id 读回用户");
+    eq(adb.getUserByUsername("r18_admin")!.id, admin.id, "按用户名读回用户");
+    const rawHash = (raw18.raw.get("SELECT password_hash FROM users WHERE id = ?", [admin.id]) as { password_hash: string }).password_hash;
+    ok(!rawHash.includes("r18-Strong-Pass-2026"), "库内 password_hash 不含密码明文");
+    ok(rawHash.startsWith("pbkdf2$"), "库内 password_hash 为 PBKDF2 摘要格式");
+    ok(verifyPassword("r18-Strong-Pass-2026", rawHash), "库内摘要可被 verifyPassword 校验通过");
+    throws(() => adb.createUser({ username: "r18_admin", password: "another-Strong-Pass" }), "重复用户名拒绝");
+    throws(() => adb.createUser({ username: "bob", password: "weak" }), "弱密码在落库前拒绝");
+    const member = adb.createUser({ username: "r18_bob", password: "r18-Strong-Pass-2026" });
+    eq(member.role, "user", "第二个用户为普通角色");
+    eq(adb.listUsers().length, 2, "用户列表读回两人");
+
+    const s1 = adb.createSession({ userId: admin.id, token: generateSessionToken(), expiresAt: iso(now + SESSION_TTL_MS) });
+    eq(s1.userId, admin.id, "会话绑定用户 id");
+    eq(adb.getSessionByToken(s1.token)!.id, s1.id, "按 token 读回会话");
+    eq(adb.listSessions().length, 1, "会话列表一条");
+    eq(adb.listSessions(admin.id).length, 1, "按用户过滤会话一条");
+    throws(() => adb.createSession({ userId: 999999, token: generateSessionToken(), expiresAt: iso(now + SESSION_TTL_MS) }), "越权 user_id 会话拒绝");
+    throws(() => adb.createSession({ userId: admin.id, token: "short", expiresAt: iso(now + SESSION_TTL_MS) }), "非法 token 会话拒绝");
+    throws(() => adb.createSession({ userId: admin.id, token: generateSessionToken(), expiresAt: "not-a-date" }), "非法 expires_at 会话拒绝");
+    const expired = adb.createSession({ userId: member.id, token: generateSessionToken(), expiresAt: iso(now - 1000) });
+    eq(validateSession(adb.getSessionByToken(expired.token)!, now).valid, false, "库内读回的过期会话判无效");
+    eq(adb.deleteSessionsForUser(admin.id), 1, "按用户删除会话返回删除数");
+    eq(adb.getSessionByToken(s1.token), null, "删除后 token 不再命中（登出清登录态）");
+    eq(adb.purgeExpiredSessions(iso(now)).length > 0, true, "清理过期会话至少一条");
+    eq(adb.getSessionByToken(expired.token), null, "过期会话已清除");
+    eq(adb.deleteUser(admin.id), true, "删除用户返回 true");
+    eq(adb.getSessionByToken(expired.token), null, "用户删除后会话级联清除");
+    eq(adb.deleteUser(member.id), true, "删除第二个用户返回 true");
+    eq(adb.listUsers().length, 0, "账号数据层清理归零");
+    raw18.raw.close();
+
+    // 持久化重开不丢（真文件库）
+    mkdirSync("scripts/.tmp-e2e", { recursive: true });
+    const p18 = `scripts/.tmp-e2e/r18-${Date.now()}.db`;
+    const f18 = openDatabase({ path: p18 });
+    const pu = f18.createUser({ username: "r18_persist", password: "r18-Strong-Pass-2026" });
+    const ps = f18.createSession({ userId: pu.id, token: generateSessionToken(), expiresAt: iso(Date.now() + SESSION_TTL_MS) });
+    f18.close();
+    const f18b = openDatabase({ path: p18 });
+    eq(f18b.getUserByUsername("r18_persist")!.id, pu.id, "用户关库重开不丢");
+    eq(f18b.getSessionByToken(ps.token)!.userId, pu.id, "会话关库重开不丢");
+    f18b.close();
+  }
+
+  // 53. HTTP 冒烟 /api/health
   section("HTTP 冒烟 /api/health");
   let httpOk = false;
   let httpNote = "api 服务未运行（pnpm dev:api 后再跑 pnpm test 可覆盖此节）";

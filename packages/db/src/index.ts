@@ -38,6 +38,8 @@ import {
   mapRowToAsset,
   mapRowToAssetTransaction,
   mapRowToUnitTask,
+  mapRowToAuthUser,
+  mapRowToSession,
 } from "./mappers.js";
 import type {
   AppSetting,
@@ -86,6 +88,18 @@ import type {
   UnitTaskStatus,
   UnitTaskTreeNode,
 } from "@xieflow/shared";
+import {
+  hashPassword,
+  assertValidUsername,
+  assertValidPassword,
+  assertValidSessionToken,
+  assertValidExpiresAt,
+  isAuthRole,
+  ConflictError,
+  type AuthUser,
+  type AuthRole,
+  type Session,
+} from "@xieflow/shared/auth";
 import {
   canTransitionTodo,
   assertValidQuadrant,
@@ -2306,5 +2320,106 @@ export class XieFlowDb {
   /** 任务树装配唯一入口：读全表交给 shared buildTaskTree（环路/孤儿父节点规则同源） */
   getUnitTaskTree(): UnitTaskTreeNode[] {
     return buildTaskTree(this.listUnitTasks());
+  }
+
+  // ---- r18：账号与会话（schema v14）----
+
+  /**
+   * 建用户：密码在这里经 shared hashPassword 后只写 password_hash 列；
+   * 首个用户自动成为 admin（自托管首启引导），其余为 user，调用方不能自选角色。
+   */
+  createUser(input: { readonly username: unknown; readonly password: unknown; readonly role?: unknown }): AuthUser {
+    assertValidUsername(input.username);
+    assertValidPassword(input.password);
+    const username = input.username.trim();
+    if (this.getUserByUsername(username)) {
+      throw new ConflictError(`用户名已存在：${username}`);
+    }
+    const role: AuthRole = this.listUsers().length === 0 ? "admin" : "user";
+    if (input.role !== undefined && !isAuthRole(input.role)) {
+      throw new ValidationError(`非法用户角色：${String(input.role)}`);
+    }
+    const passwordHash = hashPassword(input.password);
+    const now = new Date().toISOString();
+    this.db.run(
+      "INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, ?)",
+      [username, passwordHash, role, now],
+    );
+    const row = this.db.get("SELECT id, username, role, created_at FROM users WHERE username = ?", [username]);
+    if (!row) throw new Error(`建用户后读回失败：${username}`);
+    return mapRowToAuthUser(row);
+  }
+
+  getUserById(id: number): AuthUser | null {
+    const row = this.db.get("SELECT id, username, role, created_at FROM users WHERE id = ?", [id]);
+    return row ? mapRowToAuthUser(row) : null;
+  }
+
+  getUserByUsername(username: string): AuthUser | null {
+    const row = this.db.get("SELECT id, username, role, created_at FROM users WHERE username = ?", [username]);
+    return row ? mapRowToAuthUser(row) : null;
+  }
+
+  /** 只供认证链路使用：取回哈希摘要，绝不通过任何对外接口返回 */
+  getPasswordHash(userId: number): string | null {
+    const row = this.db.get("SELECT password_hash FROM users WHERE id = ?", [userId]) as { password_hash?: string } | undefined;
+    return row?.password_hash ?? null;
+  }
+
+  listUsers(): AuthUser[] {
+    return this.db
+      .all("SELECT id, username, role, created_at FROM users ORDER BY id")
+      .map(mapRowToAuthUser);
+  }
+
+  deleteUser(id: number): boolean {
+    return this.db.run("DELETE FROM users WHERE id = ?", [id]).changes > 0;
+  }
+
+  createSession(input: { readonly userId: unknown; readonly token: unknown; readonly expiresAt: unknown }): Session {
+    const userId = Number(input.userId);
+    if (!Number.isInteger(userId) || userId <= 0 || !this.getUserById(userId)) {
+      throw new ValidationError(`用户不存在：${String(input.userId)}`);
+    }
+    assertValidSessionToken(input.token);
+    assertValidExpiresAt(input.expiresAt);
+    if (this.getSessionByToken(input.token)) {
+      throw new ConflictError("会话 token 已存在");
+    }
+    this.db.run(
+      "INSERT INTO sessions (user_id, token, expires_at) VALUES (?, ?, ?)",
+      [userId, input.token, input.expiresAt],
+    );
+    const row = this.db.get("SELECT id, user_id, token, expires_at FROM sessions WHERE token = ?", [input.token]);
+    if (!row) throw new Error("建会话后读回失败");
+    return mapRowToSession(row);
+  }
+
+  getSessionByToken(token: string): Session | null {
+    const row = this.db.get("SELECT id, user_id, token, expires_at FROM sessions WHERE token = ?", [token]);
+    return row ? mapRowToSession(row) : null;
+  }
+
+  listSessions(userId?: number): Session[] {
+    const rows = userId === undefined
+      ? this.db.all("SELECT id, user_id, token, expires_at FROM sessions ORDER BY id")
+      : this.db.all("SELECT id, user_id, token, expires_at FROM sessions WHERE user_id = ? ORDER BY id", [userId]);
+    return rows.map(mapRowToSession);
+  }
+
+  deleteSession(token: string): boolean {
+    return this.db.run("DELETE FROM sessions WHERE token = ?", [token]).changes > 0;
+  }
+
+  deleteSessionsForUser(userId: number): number {
+    return this.db.run("DELETE FROM sessions WHERE user_id = ?", [userId]).changes;
+  }
+
+  /** 删除已过期会话，返回被删对象（审计与测试可核对） */
+  purgeExpiredSessions(nowIso: string = new Date().toISOString()): Session[] {
+    if (!Number.isFinite(Date.parse(nowIso))) throw new ValidationError("非法清理基准时间");
+    const expired = this.listSessions().filter((s) => Date.parse(s.expiresAt) <= Date.parse(nowIso));
+    for (const s of expired) this.deleteSession(s.token);
+    return expired;
   }
 }

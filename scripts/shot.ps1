@@ -16,6 +16,7 @@
 #   powershell -File scripts\shot.ps1 shots -Round r15 # capture r15 whiteboard canvas / notes / drag / ai / export states
 #   powershell -File scripts\shot.ps1 shots -Round r16 # capture r16 approval form / todo / timeline / approved states
 #   powershell -File scripts\shot.ps1 shots -Round r17 # capture r17 assets / transactions / unit task tree states
+#   powershell -File scripts\shot.ps1 shots -Round r18 # capture r18 login / register / logout / 401 / mode switch states
 #   powershell -File scripts\shot.ps1 shots -Round r11 -Shot 08-docs-diff-inline # rework#1: re-capture ONLY the diff-inline evidence (no other matrix/shell re-shot)
 #   powershell -File scripts\shot.ps1 down            # stop servers
 #   powershell -File scripts\shot.ps1 status          # show port status
@@ -40,7 +41,7 @@ param(
   [Parameter(Position = 0)]
   [ValidateSet("up", "shots", "down", "status", "all")]
   [string]$Action = "status",
-  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17")]
+  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18")]
   [string]$Round = "r1",
   [Parameter()]
   [string]$Shot = ""
@@ -733,6 +734,35 @@ function Invoke-Shots {
     }
   }
 
+  # r18: REAL account chain over HTTP (register -> login -> guard -> logout).
+  # Token stays in this process only; no key file, no external IdP.
+  $r18UserId = 0
+  $r18Token = ""
+  $r18CleanupToken = ""
+  if ($Round -eq "r18") {
+    try {
+      $r18AuthBody = [System.Text.Encoding]::UTF8.GetBytes('{"username":"r18_shot_user","password":"r18-Strong-Pass-2026"}')
+      $r18Reg = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/auth/register" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body $r18AuthBody
+      $r18UserId = $r18Reg.user.id
+      $r18Login = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/auth/login" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body $r18AuthBody
+      $r18Token = $r18Login.token
+      $r18Guard = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/auth/guard" -Method Get `
+        -Headers @{ Authorization = "Bearer $r18Token" }
+      $r18LogoutBody = [System.Text.Encoding]::UTF8.GetBytes('{"token":"' + $r18Token + '"}')
+      $r18Logout = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/auth/logout" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body $r18LogoutBody
+      # fresh token for later cleanup (logout invalidated the first one)
+      $r18CleanupLogin = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/auth/login" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body $r18AuthBody
+      $r18CleanupToken = $r18CleanupLogin.token
+      Write-Output "r18 real chain: register=$r18UserId guard=$($r18Guard.ok) logout=$($r18Logout.cleared)"
+    } catch {
+      Write-Output "warn: r18 seed failed ($($_.Exception.Message)) - auth shots are pinned states"
+    }
+  }
+
   # r13: REAL knowledge docs + RAG conversations via HTTP. The hit and no-hit
   # chats are seeded before capture so every citation card shows real citations;
   # the jump shot uses the cited doc/chunk ids from the chat response itself.
@@ -897,6 +927,22 @@ function Invoke-Shots {
       @{ name = "05-approved";         url = "$r16Base&approvalId=$r16A2Id&actor=carol&shot=approval-approved"; width = 1280; height = 800 },
       @{ name = "06-narrow";           url = "$r16Base&view=todo&actor=bob&narrow=1"; width = 488; height = 1100 },
       @{ name = "07-error";            url = "$r16Base&shot=approval-error"; width = 1280; height = 800 }
+    )
+  } elseif ($Round -eq "r18") {
+    # Auth pages are standalone routes (no extra tab). 01/02/03/04/05/07 are
+    # deterministic pinned states; 06 is the workbench mode card on a real api.
+    # 08 pins the logged-in topbar (real token is held by the HTTP chain in seed).
+    $r18LoginBase = "http://127.0.0.1:$WebPort/?page=login"
+    $r18RegisterBase = "http://127.0.0.1:$WebPort/?page=register"
+    $shots = @(
+      @{ name = "01-login";           url = "$r18LoginBase&shot=login"; width = 1280; height = 900 },
+      @{ name = "02-register";        url = "$r18RegisterBase&shot=register"; width = 1280; height = 900 },
+      @{ name = "03-login-error";     url = "$r18LoginBase&shot=login-error"; width = 1280; height = 900 },
+      @{ name = "04-401-redirect";    url = "$r18LoginBase&reason=401"; width = 1280; height = 900 },
+      @{ name = "05-after-logout";    url = "$r18LoginBase&reason=logout"; width = 1280; height = 900 },
+      @{ name = "06-settings-mode";   url = "http://127.0.0.1:$WebPort/?shot=mode-settings"; width = 1280; height = 900 },
+      @{ name = "07-narrow";          url = "$r18LoginBase&narrow=1"; width = 488; height = 900 },
+      @{ name = "08-logged-in";       url = "http://127.0.0.1:$WebPort/?shot=ready&auth=in"; width = 1280; height = 900 }
     )
   } elseif ($Round -eq "r17") {
     # 01 = pinned empty; 02 = first-use form; 03 = real asset ledger; 04 = real
@@ -1505,6 +1551,21 @@ function Invoke-Shots {
       }
     } catch {
       Write-Output "warn: r16 cleanup failed ($($_.Exception.Message))"
+    }
+  } elseif ($Round -eq "r18") {
+    # r18: delete only the seeded account; its sessions cascade. No key file touched.
+    try {
+      if ($r18UserId -gt 0) {
+        Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/auth/users/$r18UserId" -Method Delete `
+          -Headers @{ Authorization = "Bearer $r18CleanupToken" } | Out-Null
+        Write-Output "cleaned seeded r18 user=$r18UserId"
+      }
+      Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/auth/mode" -Method Post `
+        -ContentType "application/json; charset=utf-8" `
+        -Body ([System.Text.Encoding]::UTF8.GetBytes('{"mode":"local"}')) | Out-Null
+      Write-Output "r18 service mode restored to local"
+    } catch {
+      Write-Output "warn: r18 cleanup failed ($($_.Exception.Message))"
     }
   } elseif ($Round -eq "r17") {
     # r17: delete only the asset and tasks this run seeded (transactions cascade).

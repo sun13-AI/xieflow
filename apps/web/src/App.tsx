@@ -9,6 +9,7 @@
 // r15：+ 白板页（M7 第 2 片：无限画布 / 便签 / AI 建板），壳基线扩为十一 tab。
 // r16：+ 审批页（M8 第 1 片：发起 / 三视角 / 时间线 / 操作），壳基线扩为十二 tab。
 // r17：+ 物资页 + 单位任务页（M8 收官），壳基线扩为十四 tab。
+// r18：+ 登录/注册独立路由（不占 tab）+ 工作台「本机/远端」模式卡 + 401 清假登录态跳登录。
 // 截图状态真实存在：加载中 / 空数据 / 正常 / 错误 / 窄屏（?narrow=1 显式钉态）
 import { useEffect, useState } from "react";
 import type { AppSetting, Schedule, Todo } from "@xieflow/shared";
@@ -25,6 +26,17 @@ import WhiteboardPage from "./WhiteboardPage";
 import ApprovalPage from "./ApprovalPage";
 import AssetsPage from "./AssetsPage";
 import UnitTasksPage from "./UnitTasksPage";
+import { LoginPage, RegisterPage } from "./AuthPages";
+import {
+  AUTH_CLEARED_EVENT,
+  apiFetch,
+  clearSession,
+  goToLogin,
+  readPreferredMode,
+  readToken,
+  savePreferredMode,
+  type FrontendMode,
+} from "./authClient";
 
 type LoadState =
   | { phase: "loading" }
@@ -83,6 +95,40 @@ function workbenchTodaySeed(now: Date): Schedule[] {
 }
 
 export default function App() {
+  const query = new URLSearchParams(window.location.search);
+  const authView = query.get("page") === "login" ? "login" : query.get("page") === "register" ? "register" : null;
+  const [token, setToken] = useState<string | null>(() => readToken());
+  const [serverMode, setServerMode] = useState<FrontendMode>("local");
+  const [preferredMode, setPreferredMode] = useState<FrontendMode>(() => readPreferredMode());
+  const [modeError, setModeError] = useState("");
+
+  useEffect(() => {
+    const onCleared = () => setToken(null);
+    window.addEventListener(AUTH_CLEARED_EVENT, onCleared);
+    return () => window.removeEventListener(AUTH_CLEARED_EVENT, onCleared);
+  }, []);
+
+  // 服务端模式来自 /api/auth/mode；本机偏好来自 localStorage。远端且无 token → 登录页。
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/auth/mode")
+      .then((r) => r.json())
+      .then((data: { mode?: unknown }) => {
+        if (!alive) return;
+        const server: FrontendMode = data.mode === "remote" ? "remote" : "local";
+        setServerMode(server);
+        if ((server === "remote" || readPreferredMode() === "remote") && !readToken() && !authView) {
+          goToLogin("remote");
+        }
+      })
+      .catch(() => {
+        /* 模式探测失败保持 local 默认，不阻塞单机使用 */
+      });
+    return () => {
+      alive = false;
+    };
+  }, [authView]);
+
   // tab 与截图钉态都从 URL 读（?page=todos / ?page=schedules / ?page=projects / ?page=board 可直达/可截图）
   const [tab, setTab] = useState<PageTab>(() => {
     const page = new URLSearchParams(window.location.search).get("page");
@@ -127,7 +173,7 @@ export default function App() {
       return {
         phase: "ready",
         settings: [{ key: "company.name", value: "协流示例公司", updatedAt: now.toISOString() }],
-        schemaVersion: 13,
+        schemaVersion: 14,
         todaySchedules: workbenchTodaySeed(now),
         todos: [],
       };
@@ -156,6 +202,45 @@ export default function App() {
     };
   }, []);
 
+  async function switchMode(mode: FrontendMode): Promise<void> {
+    setModeError("");
+    try {
+      const res = await apiFetch("/api/auth/mode", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ mode }),
+      });
+      const data = (await res.json().catch(() => null)) as { mode?: unknown; error?: string } | null;
+      if (!res.ok) throw new Error(data?.error ?? `切换失败（HTTP ${res.status}）`);
+      savePreferredMode(mode);
+      setPreferredMode(mode);
+      setServerMode(mode === "remote" ? "remote" : "local");
+      if (mode === "remote" && !readToken()) goToLogin("remote");
+    } catch (err) {
+      setModeError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  async function logout(): Promise<void> {
+    try {
+      await apiFetch("/api/auth/logout", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ token: readToken() }),
+      });
+    } catch {
+      /* 网络失败也要清本地假登录态 */
+    }
+    clearSession();
+    setToken(null);
+    goToLogin("logout");
+  }
+
+  // 认证页是独立路由：在 tab 壳之外整页渲染，因此 14 个 tab 数量不变。
+  if (authView === "login") return <LoginPage reason={query.get("reason")} />;
+  if (authView === "register") return <RegisterPage reason={query.get("reason")} />;
+
+  const pinnedToken = query.get("auth") === "in" ? "pinned-shot-token" : token;
   const todoById = new Map(state.phase === "ready" ? state.todos.map((t) => [t.id, t]) : []);
 
   return (
@@ -276,7 +361,14 @@ export default function App() {
             单位任务
           </button>
         </nav>
-        <span className="badge">r17 · 物资台账与单位任务流转（M8 收官）</span>
+        <span className="badge">r18 · 账号与网络版服务（M9 起步）</span>
+        <span className="auth-controls" data-state="auth-controls">
+          {pinnedToken ? (
+            <button type="button" className="auth-top-btn" onClick={logout}>退出登录</button>
+          ) : (
+            <button type="button" className="auth-top-btn" onClick={() => goToLogin(null)}>登录</button>
+          )}
+        </span>
       </header>
 
       {tab === "todos" ? (
@@ -348,6 +440,33 @@ export default function App() {
                   </ul>
                 )}
               </section>
+              <section className="card server-mode-card" data-state="server-mode">
+                <h2>服务模式</h2>
+                <p className="mode-current">
+                  当前：{serverMode === "remote" ? "远端（需登录）" : "本机（免登录）"}
+                  <span className="mode-sep">·</span>
+                  本机偏好：{preferredMode === "remote" ? "远端" : "本机"}
+                </p>
+                <div className="mode-switch">
+                  <button
+                    type="button"
+                    className={`mode-btn ${preferredMode === "local" ? "mode-btn-active" : ""}`}
+                    data-mode="local"
+                    onClick={() => switchMode("local")}
+                  >本机</button>
+                  <button
+                    type="button"
+                    className={`mode-btn ${preferredMode === "remote" ? "mode-btn-active" : ""}`}
+                    data-mode="remote"
+                    onClick={() => switchMode("remote")}
+                  >远端</button>
+                </div>
+                <p className="mode-consequence">切到「远端」后业务路由要求 Bearer token；401 会清除本地登录态并跳登录页。</p>
+                {modeError !== "" && <p className="mode-error" role="alert">{modeError}</p>}
+                {query.get("shot") === "mode-settings" && (
+                  <p className="shot-note" data-state="shot-note">截图钉注：设置区「本机/远端」切换卡；服务端模式来自 GET /api/auth/mode。</p>
+                )}
+              </section>
               <section className="card state-ready" data-state="ready">
                 <h2>工作台</h2>
                 {state.settings.length === 0 ? (
@@ -367,7 +486,7 @@ export default function App() {
                   <dt>schema 版本</dt>
                   <dd>v{state.schemaVersion}</dd>
                   <dt>里程碑</dt>
-                  <dd>M8 组织管理（收官）</dd>
+                  <dd>M9 网络版（起步）</dd>
                 </dl>
               </section>
             </>
