@@ -32,6 +32,9 @@ import {
   mapRowToWhiteboard,
   mapRowToWhiteboardSummary,
   mapRowToWhiteboardItem,
+  mapRowToApproval,
+  mapRowToApprovalStep,
+  mapRowToApprovalCc,
 } from "./mappers.js";
 import type {
   AppSetting,
@@ -69,6 +72,10 @@ import type {
   WhiteboardSummary,
   WhiteboardItem,
   WhiteboardItemProps,
+  Approval,
+  ApprovalStep,
+  ApprovalCc,
+  ApprovalView,
 } from "@xieflow/shared";
 import {
   canTransitionTodo,
@@ -118,6 +125,14 @@ import {
   normalizeWhiteboardItem,
   collisionResolve,
   planAiWhiteboard,
+  assertValidApprovalTitle,
+  assertValidApprovalType,
+  assertValidApprovalUser,
+  assertValidApprovalComment,
+  assertValidApprovalAction,
+  planApprovalAction,
+  isApprovalView,
+  selectApprovalsForView,
   ValidationError,
 } from "@xieflow/shared";
 import { REPEATS_ORDER } from "./repeat-order.js";
@@ -1938,5 +1953,145 @@ export class XieFlowDb {
       throw err;
     }
     return inserted;
+  }
+
+  // ---- r16：审批流数据层（状态机全在 shared；本层只装配上下文并按计划单事务落库） ----
+
+  createApproval(input: {
+    readonly title: unknown;
+    readonly type: unknown;
+    readonly applicantId: unknown;
+    readonly currentAssignee: unknown;
+    readonly cc?: unknown;
+  }): Approval {
+    assertValidApprovalTitle(input.title);
+    assertValidApprovalType(input.type);
+    assertValidApprovalUser(input.applicantId, "发起人");
+    assertValidApprovalUser(input.currentAssignee, "审批人");
+    const ccUsers: string[] = [];
+    if (input.cc !== undefined && input.cc !== null) {
+      if (!Array.isArray(input.cc)) throw new ValidationError("抄送人必须是字符串数组");
+      for (const raw of input.cc) {
+        assertValidApprovalUser(raw, "抄送人");
+        if (!ccUsers.includes(raw)) ccUsers.push(raw);
+      }
+    }
+    const now = new Date().toISOString();
+    let newId = 0;
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      const res = this.db.run(
+        "INSERT INTO approvals (title, type, applicant_id, status, current_assignee, created_at, updated_at) VALUES (?, ?, ?, 'draft', ?, ?, ?)",
+        [input.title, input.type, input.applicantId, input.currentAssignee, now, now],
+      );
+      newId = Number(res.lastInsertRowid);
+      for (const user of ccUsers) {
+        this.db.run("INSERT INTO approval_cc (approval_id, cc_user, created_at) VALUES (?, ?, ?)", [newId, user, now]);
+      }
+      this.db.exec("COMMIT");
+    } catch (err) {
+      this.db.exec("ROLLBACK");
+      throw err;
+    }
+    const row = this.db.get("SELECT * FROM approvals WHERE id = ?", [newId]);
+    if (!row) throw new Error("审批写入后读回失败");
+    return mapRowToApproval(row);
+  }
+
+  getApproval(id: number): Approval | null {
+    const row = this.db.get("SELECT * FROM approvals WHERE id = ?", [id]);
+    return row ? mapRowToApproval(row) : null;
+  }
+
+  listApprovals(): Approval[] {
+    return this.db.all("SELECT * FROM approvals ORDER BY id DESC").map(mapRowToApproval);
+  }
+
+  updateApprovalTitle(id: number, title: unknown): Approval | null {
+    assertValidApprovalTitle(title);
+    if (this.getApproval(id) === null) return null;
+    this.db.run("UPDATE approvals SET title = ?, updated_at = ? WHERE id = ?", [title, new Date().toISOString(), id]);
+    return this.getApproval(id);
+  }
+
+  deleteApproval(id: number): boolean {
+    return this.db.run("DELETE FROM approvals WHERE id = ?", [id]).changes > 0;
+  }
+
+  addApprovalCc(id: number, user: unknown): ApprovalCc | null {
+    assertValidApprovalUser(user, "抄送人");
+    if (this.getApproval(id) === null) return null;
+    if (this.listApprovalCc(id).includes(user)) throw new ValidationError(`抄送人重复：${user}`);
+    const res = this.db.run("INSERT INTO approval_cc (approval_id, cc_user, created_at) VALUES (?, ?, ?)", [
+      id, user, new Date().toISOString(),
+    ]);
+    const row = this.db.get("SELECT * FROM approval_cc WHERE id = ?", [res.lastInsertRowid]);
+    if (!row) throw new Error("抄送人写入后读回失败");
+    return mapRowToApprovalCc(row);
+  }
+
+  listApprovalCc(id: number): string[] {
+    return this.db
+      .all("SELECT cc_user FROM approval_cc WHERE approval_id = ? ORDER BY id ASC", [id])
+      .map((row) => String((row as { cc_user: unknown }).cc_user));
+  }
+
+  listApprovalSteps(id: number): ApprovalStep[] {
+    return this.db
+      .all('SELECT * FROM approval_steps WHERE approval_id = ? ORDER BY "order" ASC, id ASC', [id])
+      .map(mapRowToApprovalStep);
+  }
+
+  /** 审批动作唯一落库入口：shared 决策 → 单事务更新状态/assignee + 追加步骤（4xx 零半态） */
+  actOnApproval(
+    id: number,
+    action: unknown,
+    actor: unknown,
+    options: { readonly comment?: unknown; readonly targetAssignee?: unknown } = {},
+  ): Approval | null {
+    const current = this.getApproval(id);
+    if (!current) return null;
+    assertValidApprovalUser(actor, "操作人");
+    assertValidApprovalComment(options.comment);
+    const ctx = {
+      status: current.status,
+      applicantId: current.applicantId,
+      currentAssignee: current.currentAssignee,
+      actor,
+      targetAssignee: options.targetAssignee,
+    };
+    assertValidApprovalAction(action, ctx);
+    const plan = planApprovalAction(action, ctx);
+    const orderRow = this.db.get('SELECT COALESCE(MAX("order"), -1) + 1 AS next_order FROM approval_steps WHERE approval_id = ?', [id]) as {
+      next_order: number;
+    };
+    const nextOrder = Number(orderRow.next_order);
+    const now = new Date().toISOString();
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      this.db.run("UPDATE approvals SET status = ?, current_assignee = ?, updated_at = ? WHERE id = ?", [
+        plan.nextStatus, plan.nextAssignee, now, id,
+      ]);
+      this.db.run(
+        'INSERT INTO approval_steps (approval_id, "order", assignee, action, comment, acted_at) VALUES (?, ?, ?, ?, ?, ?)',
+        [id, nextOrder, plan.stepAssignee, plan.action, options.comment ?? "", now],
+      );
+      this.db.exec("COMMIT");
+    } catch (err) {
+      this.db.exec("ROLLBACK");
+      throw err;
+    }
+    return this.getApproval(id);
+  }
+
+  /** 三视角查询：cc 名单由本层装配，过滤口径复用 shared selectApprovalsForView */
+  listApprovalsByView(view: ApprovalView, actor: string): Approval[] {
+    if (!isApprovalView(view)) throw new ValidationError(`非法审批视角：${String(view)}`);
+    const ccByApproval: Record<number, string[]> = {};
+    for (const row of this.db.all("SELECT approval_id, cc_user FROM approval_cc ORDER BY id ASC")) {
+      const r = row as { approval_id: number; cc_user: string };
+      (ccByApproval[r.approval_id] ??= []).push(String(r.cc_user));
+    }
+    return selectApprovalsForView({ approvals: this.listApprovals(), ccByApproval, view, actor });
   }
 }

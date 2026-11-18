@@ -55,6 +55,7 @@ import {
   assembleDocumentText,
   parseMarkdownToTree,
   buildWhiteboardMarkdown,
+  isApprovalView,
   type RevisionRequest,
   type Schedule,
   type FieldType,
@@ -2136,6 +2137,144 @@ app.get("/api/whiteboards/:id/export.md", async (req, reply) => {
     return toErrorReply(err, reply);
   }
 });
+
+/**
+ * r16 审批流（M8 起步）：approvals CRUD + submit/approve/reject/delegate/withdraw
+ * + 三视角（我的待办 / 我发起的 / 抄送我的）。
+ * 状态机 / 动作判定 / 三视角过滤全集中 shared + db，路由层只做装配与 400/404 映射（零流转分支）。
+ */
+interface ApprovalBody {
+  title?: unknown;
+  type?: unknown;
+  applicantId?: unknown;
+  currentAssignee?: unknown;
+  cc?: unknown;
+  actor?: unknown;
+  comment?: unknown;
+  targetAssignee?: unknown;
+  user?: unknown;
+}
+
+app.post("/api/approvals", async (req, reply) => {
+  try {
+    const body = (req.body ?? {}) as ApprovalBody;
+    return reply.code(201).send(requireDb().createApproval({
+      title: body.title,
+      type: body.type,
+      applicantId: body.applicantId,
+      currentAssignee: body.currentAssignee,
+      cc: body.cc,
+    }));
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.get("/api/approvals", async () => ({ approvals: requireDb().listApprovals() }));
+
+/** 三视角必须定义在 /:id 之前：静态段优先，避免被动态 id 吞掉 */
+app.get("/api/approvals/view", async (req, reply) => {
+  try {
+    const q = req.query as { view?: unknown; actor?: unknown };
+    if (!isApprovalView(q.view)) throw new ValidationError(`非法审批视角：${String(q.view)}`);
+    return { approvals: requireDb().listApprovalsByView(q.view, q.actor as string) };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.get("/api/approvals/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const approval = requireDb().getApproval(id);
+    if (!approval) return reply.code(404).send({ error: `审批不存在：${id}` });
+    return approval;
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.patch("/api/approvals/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const body = (req.body ?? {}) as ApprovalBody;
+    const approval = requireDb().updateApprovalTitle(id, body.title);
+    if (!approval) return reply.code(404).send({ error: `审批不存在：${id}` });
+    return approval;
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.delete("/api/approvals/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    if (!requireDb().deleteApproval(id)) return reply.code(404).send({ error: `审批不存在：${id}` });
+    return { deleted: true, id };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.get("/api/approvals/:id/steps", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const store = requireDb();
+    if (!store.getApproval(id)) return reply.code(404).send({ error: `审批不存在：${id}` });
+    return { steps: store.listApprovalSteps(id) };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.get("/api/approvals/:id/cc", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const store = requireDb();
+    if (!store.getApproval(id)) return reply.code(404).send({ error: `审批不存在：${id}` });
+    return { cc: store.listApprovalCc(id) };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.post("/api/approvals/:id/cc", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const body = (req.body ?? {}) as ApprovalBody;
+    const added = requireDb().addApprovalCc(id, body.user);
+    if (!added) return reply.code(404).send({ error: `审批不存在：${id}` });
+    return reply.code(201).send({ cc: requireDb().listApprovalCc(id) });
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+/** 五个动作共用一条装配路径：动作合法性、角色与状态判定全在 shared/db */
+async function runApprovalAction(
+  action: "submit" | "approve" | "reject" | "delegate" | "withdraw",
+  req: { params: unknown; body?: unknown },
+  reply: FastifyReply,
+): Promise<FastifyReply> {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const body = (req.body ?? {}) as ApprovalBody;
+    const approval = requireDb().actOnApproval(id, action, body.actor, {
+      comment: body.comment,
+      targetAssignee: body.targetAssignee,
+    });
+    if (!approval) return reply.code(404).send({ error: `审批不存在：${id}` });
+    return reply.send(approval);
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+}
+
+app.post("/api/approvals/:id/submit", async (req, reply) => runApprovalAction("submit", req, reply));
+app.post("/api/approvals/:id/approve", async (req, reply) => runApprovalAction("approve", req, reply));
+app.post("/api/approvals/:id/reject", async (req, reply) => runApprovalAction("reject", req, reply));
+app.post("/api/approvals/:id/delegate", async (req, reply) => runApprovalAction("delegate", req, reply));
+app.post("/api/approvals/:id/withdraw", async (req, reply) => runApprovalAction("withdraw", req, reply));
 
 const stop = async () => {
   await app.close();

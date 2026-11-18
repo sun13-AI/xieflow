@@ -33,6 +33,11 @@ import type {
   WhiteboardSummary,
   WhiteboardItem,
   WhiteboardItemType,
+  Approval,
+  ApprovalStep,
+  ApprovalCc,
+  ApprovalType,
+  ApprovalAction,
 } from "@xieflow/shared";
 import { isFieldType, isBlockType, normalizeBlockContent, isKnowledgeSourceType } from "@xieflow/shared";
 import { REPEATS_ORDER } from "./repeat-order.js";
@@ -402,5 +407,40 @@ export function mapRowToWhiteboardItem(row: Row): WhiteboardItem {
     color: String(row.color),
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
+  };
+}
+
+/** r16：approvals / approval_steps / approval_cc（流转规则全在 shared，这里只做 snake→camel 映射） */
+export function mapRowToApproval(row: Row): Approval {
+  return {
+    id: Number(row.id),
+    title: String(row.title),
+    type: String(row.type) as ApprovalType,
+    applicantId: String(row.applicant_id),
+    status: String(row.status) as Approval["status"],
+    currentAssignee: String(row.current_assignee),
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+  };
+}
+
+export function mapRowToApprovalStep(row: Row): ApprovalStep {
+  return {
+    id: Number(row.id),
+    approvalId: Number(row.approval_id),
+    order: Number(row.order),
+    assignee: String(row.assignee),
+    action: String(row.action) as ApprovalAction,
+    comment: String(row.comment),
+    actedAt: String(row.acted_at),
+  };
+}
+
+export function mapRowToApprovalCc(row: Row): ApprovalCc {
+  return {
+    id: Number(row.id),
+    approvalId: Number(row.approval_id),
+    ccUser: String(row.cc_user),
+    createdAt: String(row.created_at),
   };
 }

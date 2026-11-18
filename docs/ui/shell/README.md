@@ -1,4 +1,4 @@
-# docs/ui/shell · 十一 tab 壳激活态基线（返工 #1 B 固化，r10 起八 tab，r12 起九 tab，r14 起十 tab，r15 起十一 tab）
+# docs/ui/shell · 十二 tab 壳激活态基线（返工 #1 B 固化，r10 起八 tab，r12 起九 tab，r14 起十 tab，r15 起十一 tab，r16 起十二 tab）
 
 > r2 U1-1（工作台）→ r3 U1-2（待办）→ r4 U1-1（工作台+待办+日程三页全漏）——
 > 「壳变更 → 继承页 tab 激活证据断档」三轮连漏后，ui-reviewer 建议固化为 shot.ps1
@@ -25,37 +25,41 @@
 > 与 r13 九张逐位全异；488px 窄屏十药丸仍单行不折行（见 `docs/ui/r14/05-narrow.png`）。
 > **r15 起为十一 tab**（新增「白板」= 无限画布 / 便签 / AI 建板 / 导出页）：新增 tab 当轮基线自动扩为十一张
 > （`whiteboard-tab-active.png`），旧十张一并同批重拍（徽章 r15、工作台 schema 卡 v11、里程碑 M7 收官），
-> 与 r14 十张逐位全异；488px 窄屏十一药丸单行不折行（见 `docs/ui/r15/06-narrow.png`）。
+> 与 r15 十一张逐位全异；488px 窄屏十一药丸单行不折行（见 `docs/ui/r15/06-narrow.png`）。
+> **r16 起为十二 tab**（新增「审批」= 发起 / 三视角 / 步骤时间线 / 操作按钮 / 抄送提示页）：新增 tab 当轮基线自动扩为十二张
+> （`approval-tab-active.png`），旧十一张一并同批重拍（徽章 r16、工作台 schema 卡 v12、里程碑 M8 组织管理起步），
+> 与 r15 十一张逐位全异；488px 窄屏十二药丸单行不折行（见 `docs/ui/r16/06-narrow.png`，r16 收窄药丸至 8px/3px）。
 
 | 文件 | 形态 | 对应断言 |
 |---|---|---|
-| workbench-tab-active.png | 工作台激活（默认页；schema 版本 **v11** + 里程碑 M7 导图与白板（收官） + r15 徽章） | e2e「settings 读写」节；audit「GET /api/health -> 200」UI 形态 |
+| workbench-tab-active.png | 工作台激活（默认页；schema 版本 **v12** + 里程碑 M8 组织管理（起步） + r16 徽章） | e2e「settings 读写」节；audit「GET /api/health -> 200」UI 形态 |
 | todos-tab-active.png | 待办激活（?page=todos；四象限 + 计数卡 + 徽标） | audit「GET 列表 -> 200」+ summary 计数组端到端形态 |
 | schedules-tab-active.png | 日程激活（?page=schedules；月视图 + 今天高亮） | e2e「新库 schedules 为空」；audit「GET 空区间 -> 200」 |
 | projects-tab-active.png | 项目激活（?page=projects；空态 + 新建入口） | audit「GET /api/projects -> 200」空列表形态 |
 | board-tab-active.png | 看板激活（?page=board；无项目空态引导） | audit「GET /api/projects -> 200」空列表形态的看板侧消费 |
-| bases-tab-active.png | 表格激活（?page=bases；一张表都没有的首次使用空态 + 「＋ 新建表」入口；十一药丸壳 + r15 徽章） | audit「GET /api/tables -> 200」空列表形态；e2e「createTable 自动创建默认字段（7 种类型齐备）」 |
-| docs-tab-active.png | 文档激活（?page=docs；一篇文档都没有的首次使用空态 + 「＋ 新建文档」/ 导入 / 导出 / 打印预览；十一药丸壳 + r15 徽章；修订面板行内增删改高亮由 r11 修复） | audit「r9 GET 文档列表 -> 200」空列表形态；e2e「建文档默认首块自动在场（不是零块死路）」 |
-| chat-tab-active.png | **AI 工作台激活**（?page=chat；真实 0 会话态：三栏首次使用引导 + 「＋ 新建会话」+ 侧栏「可用工具 12 个」+ r15 徽章） | audit「r11 GET /api/tools -> 200」「工具目录扩到 12 个」；e2e「默认注册表恰 12 个工具」 |
-| knowledge-tab-active.png | **知识库激活**（?page=knowledge；真实 0 篇知识文档态：十一药丸 + 「＋ 入库」引导 + 首次使用说明；r15 徽章；与 r13 矩阵 03 刻意分形——后者为溯源回看态） | audit「r12 GET 知识库文档列表 -> 200」空列表形态；e2e「空文本分块 0 片」 |
-| mindmap-tab-active.png | **导图激活**（?page=mindmap；真实 0 张导图态：十一药丸 + 「＋ 新建」入口 + Markdown 源/树视图双栏空态 + r15 徽章） | audit「r14 清理后导图归零」「r14 GET 导图列表 -> 200」空列表形态；e2e「新库导图列表为空」 |
-| whiteboard-tab-active.png | **白板激活**（?page=whiteboard；真实 0 张白板态：十一药丸 + 「＋ 新建」入口 + 无限画布网格 + 便签/AI 建板/导出工具条空态 + r15 徽章） | audit「r15 清理后白板归零」「r15 GET 白板列表 -> 200」空列表形态；e2e「新库白板列表为空」 |
+| bases-tab-active.png | 表格激活（?page=bases；一张表都没有的首次使用空态 + 「＋ 新建表」入口；十二药丸壳 + r16 徽章） | audit「GET /api/tables -> 200」空列表形态；e2e「createTable 自动创建默认字段（7 种类型齐备）」 |
+| docs-tab-active.png | 文档激活（?page=docs；一篇文档都没有的首次使用空态 + 「＋ 新建文档」/ 导入 / 导出 / 打印预览；十二药丸壳 + r16 徽章；修订面板行内增删改高亮由 r11 修复） | audit「r9 GET 文档列表 -> 200」空列表形态；e2e「建文档默认首块自动在场（不是零块死路）」 |
+| chat-tab-active.png | **AI 工作台激活**（?page=chat；真实 0 会话态：三栏首次使用引导 + 「＋ 新建会话」+ 侧栏「可用工具 12 个」+ r16 徽章） | audit「r11 GET /api/tools -> 200」「工具目录扩到 12 个」；e2e「默认注册表恰 12 个工具」 |
+| knowledge-tab-active.png | **知识库激活**（?page=knowledge；真实 0 篇知识文档态：十二药丸 + 「＋ 入库」引导 + 首次使用说明；r16 徽章；与 r13 矩阵 03 刻意分形——后者为溯源回看态） | audit「r12 GET 知识库文档列表 -> 200」空列表形态；e2e「空文本分块 0 片」 |
+| mindmap-tab-active.png | **导图激活**（?page=mindmap；真实 0 张导图态：十二药丸 + 「＋ 新建」入口 + Markdown 源/树视图双栏空态 + r16 徽章） | audit「r14 清理后导图归零」「r14 GET 导图列表 -> 200」空列表形态；e2e「新库导图列表为空」 |
+| whiteboard-tab-active.png | **白板激活**（?page=whiteboard；真实 0 张白板态：十二药丸 + 「＋ 新建」入口 + 无限画布网格 + 便签/AI 建板/导出工具条空态 + r16 徽章） | audit「r15 清理后白板归零」「r15 GET 白板列表 -> 200」空列表形态；e2e「新库白板列表为空」 |
+| approval-tab-active.png | **审批激活**（?page=approval；真实 0 条审批态：十二药丸 + 「＋ 新建审批」入口 + 当前身份框 + 三视角切换 + 空列表引导 + r16 徽章） | audit「r16 清理后审批归零」「r16 GET 审批列表 -> 200」空列表形态；e2e「新库审批列表为空」 |
 
-## r15 哈希自查（十一张互异，与 r14 基线逐位全异）
+## r16 哈希自查（十二张互异，与 r15 基线逐位全异）
 
-`workbench=0383DADC` · `todos=8156999C` · `schedules=7C207393` · `projects=C43FAE9C` ·
-`board=314F520E` · `bases=3C782558` · `docs=52458F27` · `chat=FAFD3FF5` · `knowledge=1637C3F3` ·
-`mindmap=344726B6` · `whiteboard=65970CAF` —— **11/11 互异**。
+`workbench=F3BE0E66` · `todos=B405DA06` · `schedules=37BEE7DA` · `projects=03D7D40D` ·
+`board=71B77D03` · `bases=296CD0F2` · `docs=BD77BC50` · `chat=7007FC12` · `knowledge=E8036C68` ·
+`mindmap=BB95DF05` · `whiteboard=E98E8DE9` · `approval=BC8BB048` —— **12/12 互异**。
 
-> r15 返工 #1 同批重拍：`workbench` 因页面内联实时 `last_health_check` 时间戳变化、`whiteboard` 因新增「拖动画布可平移」状态条提示，两者与 r15 首轮字节不同；其余九张逐字节未变。两者均已 `read_image` 目验，十一药丸与徽章无折行、无乱码、无塌陷。
+> r16 同批重拍：十二张全部因徽章 r16 / 工作台 v12·M8 起步 / 新增第十二 tab 而与 r15 基线逐位全异；`workbench` 另含实时 `last_health_check` 时间戳。十二张均已 `read_image` 目验，十二药丸与徽章无折行、无乱码、无塌陷。
 
-r14 基线为 `181780C7 / 8D8E3E01 / 6ACFD18D / 61E7B03B / 1F291832 / 85BED3EA / 87C09668 / 0BCD5179 / 36A6C61E / 15B9BB97`（十张）；
-r15 十一张全部同批重拍且逐位全异（徽章 r15 + 工作台 v11/M7 收官 + 新增第十一 tab），新第十一张 `whiteboard-tab-active` 与矩阵任一图不同字节。
+r15 基线为 `0383DADC / 8156999C / 7C207393 / C43FAE9C / 314F520E / 3C782558 / 52458F27 / FAFD3FF5 / 1637C3F3 / 344726B6 / 65970CAF`（十一张）；
+r16 十二张全部同批重拍且逐位全异，新第十二张 `approval-tab-active` 与矩阵任一图不同字节。
 `chat-tab-active` 与 `docs/ui/r11/` 矩阵任一图**刻意不同态**：前者为真实 0 会话态，矩阵为两轮对话 / 产物 / 窄屏 / 错误态。
 
 ## 机制说明
 
-- 拍摄入口：`scripts/shot.ps1` 的 `Invoke-ShellBaseline`（r4 返工 #1 加入；r8 `$tabs` 由 6 扩为 7，r10 由 7 扩为 8，r12 由 8 扩为 9，r14 由 9 扩为 10，r15 由 10 扩为 11）。
+- 拍摄入口：`scripts/shot.ps1` 的 `Invoke-ShellBaseline`（r4 返工 #1 加入；r8 `$tabs` 由 6 扩为 7，r10 由 7 扩为 8，r12 由 8 扩为 9，r14 由 9 扩为 10，r15 由 10 扩为 11，r16 由 11 扩为 12）。
 - 触发条件：`-Round r4` 及以后的 `shots` / `all` 动作（r1~r3 历史轮不回拍）。
 - 落盘：本目录，文件名 `<tab>-tab-active.png`（与 App.tsx PageTab 一一对应；
   新增/改名 tab 时须同步脚本内 $tabs 清单——头部注释已写明）。

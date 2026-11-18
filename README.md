@@ -1,6 +1,6 @@
 # 协流 XieFlow — AI 原生协同办公系统
 
-> Agent 自驱迭代的协同办公平台：待办 / 日程 / 项目 / 看板 / 多维表格 / 文档 / AI 工作台 / 知识库 / 导图 / 白板。
+> Agent 自驱迭代的协同办公平台：待办 / 日程 / 项目 / 看板 / 多维表格 / 文档 / AI 工作台 / 知识库 / 导图 / 白板 / 审批。
 > 产品方向参照 [多宝鱼](https://duobaoyu.work/)，迭代方法论参照 [IKanBot](https://github.com/chenpeigen2/IKanBot)（双 agent 流水线 + VERDICT 裁决 + 截图矩阵）。
 > **本仓库本身就是一个 agent 自驱迭代的活样本**：每一轮迭代由 AI 员工（研发视角 / 使用者视角 / UI 审查官）完成，全程证据入库——见 [AGENTS.md](AGENTS.md)（宪法）、[workflows/org.md](workflows/org.md)（编制）、[docs/staff/](docs/staff/)（员工履历）、[docs/plan.md](docs/plan.md)（轮次看板）、[docs/feedback/](docs/feedback/)（复验报告）。
 
@@ -14,7 +14,7 @@ powershell -File scripts\start.ps1 stop    # 收服务
 # 开发模式：
 pnpm dev:api         # api 服务 http://127.0.0.1:8787
 pnpm dev:web         # web 界面 http://127.0.0.1:5173
-pnpm run test:all    # typecheck + e2e（1331 断言）+ HTTP 审计（1111 断言）
+pnpm run test:all    # typecheck + e2e（1464 断言）+ HTTP 审计（1214 断言）
 ```
 
 ### 打包（对齐 IKanBot 的 pack/dist 语义）
@@ -50,7 +50,7 @@ packages/
   db/                schema.ts（user_version 迁移）/ index.ts / mappers.ts
   agent/             mock provider / ToolRegistry / mock-planner / 录制回放评测集（r9 起）
 apps/
-  web/               React + Vite 界面（工作台 / 待办四象限 / 日程月视图 / 项目 / 看板 / 多维表格网格 / 文档块编辑器 / AI 工作台 / 知识库 / 导图 / 白板画布）
+  web/               React + Vite 界面（工作台 / 待办四象限 / 日程月视图 / 项目 / 看板 / 多维表格网格 / 文档块编辑器 / AI 工作台 / 知识库 / 导图 / 白板画布 / 审批流）
   api/               Fastify 服务（health / settings / todos / schedules / projects / board / tables+fields+records / views / CSV import / documents / conversations+chat+artifacts / knowledge / mindmaps / whiteboards）
 scripts/
   e2e-test.ts        直连服务层断言
@@ -77,7 +77,19 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 
 ## 界面与测试对照
 
-按 AGENTS.md 立项规则：**界面更新必须带截图证据（每次，无例外）**，截图与实现同一提交。逐图索引（r1/r2/r3/r4/r5/r6/r7/r8/r9/r10/r11/r12/r13/r14/r15 矩阵全量、逐张对照断言）：
+按 AGENTS.md 立项规则：**界面更新必须带截图证据（每次，无例外）**，截图与实现同一提交。逐图索引（r1/r2/r3/r4/r5/r6/r7/r8/r9/r10/r11/r12/r13/r14/r15/r16 矩阵全量、逐张对照断言）：
+
+### r16 矩阵：[docs/ui/r16/](docs/ui/r16/README.md) —— 审批流引擎（M8 起步，共 7 张；十二 tab 壳基线同批重拍，seed 实 id #5/#6）：
+
+| 截图 | 形态 | 对应断言 |
+|---|---|---|
+| [01-approval-empty.png](docs/ui/r16/01-approval-empty.png) | **审批空态**（十二 tab 壳「审批」激活 + 「这里还没有审批——点『＋ 新建审批』发起第一单」+ 首次使用钉注；三视角切换与当前身份框在场，真实 0 条） | e2e「新库审批列表为空」；audit「r16 清理后审批归零」；`?shot=approval-empty` |
+| [02-approval-form.png](docs/ui/r16/02-approval-form.png) | **发起表单**：标题 / 类型（请假·报销·采购·其它）/ 审批人 / 抄送人四个真输入 + 「确认发起」主按钮；钉注写明落 approvals 与 approval_cc 两表 | audit「r16 POST 审批 -> 201」「r16 抄送人真落库回读」；e2e「createApproval 抄送人真落库」；`?shot=approval-form` |
+| [03-todo-list.png](docs/ui/r16/03-todo-list.png) | **真实链路·待办列表**：身份 bob，02→03 间真发 `POST /api/approvals/5/submit`，两条待审 (#6 报销 / #5 请假) 由 `GET /api/approvals/view?view=todo` 真读回；#6 详情已显「提交」一步 + 抄送提示 erin | audit「r16 submit 真流转到 pending」「r16 待办只数 pending 且 assignee 是我」；e2e「db 我的待办：pending 且 assignee 是我」 |
+| [04-detail-timeline.png](docs/ui/r16/04-detail-timeline.png) | **详情时间线**：真审批 #6，03→04 间真发 `POST /api/approvals/6/delegate`（bob→carol），状态仍「待审批」但当前审批人变 carol；时间线 `提交 → 转交` 两步，动作用中文标签、意见逐字可读 | audit「r16 delegate 不改状态（真 HTTP 读回）」「r16 delegate 真换 assignee」「r16 步骤 order 连号」；e2e「delegate 真换 assignee」 |
+| [05-approved.png](docs/ui/r16/05-approved.png) | **审批通过态**：04→05 间真发 `POST /api/approvals/6/approve`（carol），状态「已通过」、时间线三步 `提交→转交→通过`、操作区显示「当前身份在此单上无可用操作（终态）」 | audit「r16 approve 真流转到 approved」「r16 已通过再审批 -> 400」；e2e「已结单再审批抛错」 |
+| [06-narrow.png](docs/ui/r16/06-narrow.png) | 窄屏 488×1100（`?narrow=1`）：**十二药丸单行不折行**（第十一枚白板 + 第十二枚审批均完整可见）、徽章独占下一行；身份框 / 三视角 / 列表 / 详情时间线纵排 | 无独立数字断言（CSS 断点，确定性钉态，逐张目验；十二 tab 壳基线同批重拍） |
+| [07-error.png](docs/ui/r16/07-error.png) | 错误态（语义化文案 + 操作提示 + 「重试」按钮，钉态） | 无独立断言（4xx 由 audit r16 节锁定）；`?shot=approval-error` |
 
 ### r15 矩阵：[docs/ui/r15/](docs/ui/r15/README.md) —— 白板画布与 AI 建板（M7 收官，共 7 张 + 1 份真实导出 .md；返工 #1 同批重拍，seed 实 id #8/#9）：
 
@@ -246,7 +258,7 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 | [18-board-switched-project.png](docs/ui/r4/18-board-switched-project.png) | **返工 #1·D 证据**：项目切换深链 → 第二项目看板（下拉选中态） | audit「GET /api/projects -> 200」多项目读回 UI 形态 |
 | [19-board-card-moved-ui.png](docs/ui/r4/19-board-card-moved-ui.png) | **返工 #1·A4 全路径②**：建卡 → 真实移动 → 两侧列重排 | audit「PATCH 卡跨列移动 -> 200」+ 两侧重排 UI 形态 |
 
-### 壳基线：[docs/ui/shell/](docs/ui/shell/README.md) —— **十一 tab** 激活态（r4 返工 #1 B 固化，shot.ps1 自动拍摄；r6 新增「表格」→ 六张；**r8 新增「文档」→ 七张**；r9 徽章推进；**r10 新增「AI 工作台」→ 八张**；r11 徽章推进同批重拍；**r12 新增「知识库」→ 九张**，补 `knowledge-tab-active.png` 并同批重拍旧八张；r13 对话流/产物变更 → 九张同批重拍；**r14 新增「导图」→ 十张**；**r15 新增「白板」→ 十一张**，补 `whiteboard-tab-active.png` 并同批重拍旧十张，与 r14 基线逐位全异）：工作台 / 待办 / 日程 / 项目 / 看板 / 表格 / 文档 / AI 工作台 / 知识库 / 导图 / 白板各 1 张（r2/r3/r4 U1-1 三轮连漏的流程性终结）。
+### 壳基线：[docs/ui/shell/](docs/ui/shell/README.md) —— **十二 tab** 激活态（r4 返工 #1 B 固化，shot.ps1 自动拍摄；r6 新增「表格」→ 六张；**r8 新增「文档」→ 七张**；r9 徽章推进；**r10 新增「AI 工作台」→ 八张**；r11 徽章推进同批重拍；**r12 新增「知识库」→ 九张**，补 `knowledge-tab-active.png` 并同批重拍旧八张；r13 对话流/产物变更 → 九张同批重拍；**r14 新增「导图」→ 十张**；**r15 新增「白板」→ 十一张**；**r16 新增「审批」→ 十二张**，补 `approval-tab-active.png` 并同批重拍旧十一张，与 r15 基线逐位全异）：工作台 / 待办 / 日程 / 项目 / 看板 / 表格 / 文档 / AI 工作台 / 知识库 / 导图 / 白板 / 审批各 1 张（r2/r3/r4 U1-1 三轮连漏的流程性终结）。
 
 ### r3 矩阵：[docs/ui/r3/](docs/ui/r3/README.md) —— 日程页月视图 + 联动徽标 + 工作台今日日程（共 11 张，返工 #1 修正 06/10 + 补 11）：
 
@@ -285,10 +297,10 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 
 ### 断言规模（每轮更新，下降 = 回归 = 冻结发版）
 
-- e2e **1331** 项（服务离线口径 1331，api 在线时 HTTP 冒烟节 +1 = 1332）：迁移一致性 7 · settings 9 · todo CRUD 15 · 输入校验 13 · 状态机 10 · 汇总计数 7 · raw schema 4 · 迁移幂等 3 · 日程契约与守卫 28 · 循环实例化 14 · 区间查询装配 12 · v2→v3 迁移+双向联动 18 · schedules CRUD 26 · 看板排序规则（reorderPositions）12 · 看板名称守卫 6 · v3→v4 迁移+看板数据层 33 · 看板统计口径（computeBoardStats）35 · 看板 CSV 台账（buildBoardCsvContent）36 · 字段类型引擎（validateFieldValue / coerceFieldValue / compareValues）86 · 记录数据归一与查询装配（normalizeRecordData / queryRecords）25 · 看板导出文件名（buildBoardCsvFileName · U2-2）6 · v4→v5 迁移+多维表格数据层 44 · 视图 spec 归一（normalizeViewSpec）31（r7 新增）· 按视图查询口径（多字段 AND / 多级排序 / 投影）21（r7 新增）· CSV 导入口径（parseCsvText / planCsvImport / 零半态）43（r7 新增）· v5→v6 迁移+视图数据层（持久化 / 原子导入）43（r7 新增）· **块类型引擎（normalizeBlockContent / canConvertBlockType / 拆合装配）64（r8 新增）· v6→v7 迁移+文档数据层（持久化 / 拆合移动 / 全文装配）65（r8 新增）· Markdown 双向引擎（markdownToBlocks / blocksToMarkdown / 未知语法降级）36（r9 新增）· Markdown 导入计划（normalizeMarkdownImportPayload / planMarkdownImport / 零半态）25（r9 新增）· AI 修订语义（instruction 守卫 / planRevisionApply / mock 录制回放）20（r9 新增）· 导入数据层（importBlocks 单事务整体替换 / 零半态 / 持久化 / 往返）12（r9 新增）· schema v7→v8 迁移与对话数据层（conversations / messages / artifacts）33（r10 新增）· 工具契约与脚本规划口径（TOOL_NAMES / 规划 / 汇总）34（r10 新增）· 工具注册表与真实服务层调用（ToolRegistry）26（r10 新增）· mock-planner 与工具调用录制回放（≥15 用例）9（r10 新增）· 对话编排与产物（executeChat）13（r10 新增）· **r11 契约（产物类型 / 上下文窗口 / 行内 diff）24（r11 新增）· r9 U2 行内增删改 diff 11（r11 新增）· r11 跨轮指代消解 12（r11 新增）· r11 三类产物生成器 13（r11 新增）· r11 工具链扩展真服务层 14（r11 新增）· r11 多轮上下文编排与回放扩充 22（r11 新增）· **schema v8→v9 知识库数据层 23（r12 新增）· 分块引擎 chunkText 19（r12 新增）· TF-IDF 检索引擎 searchChunks 20（r12 新增）· search_knowledge 工具真检索 5（r12 新增）· **r13 RAG 契约与意图识别 15 · 检索注入与引用装配 30 · executeChat 编排与引用落库 24 · RAG 回放评测集 5（共 74，r13 新增）· r14 Markdown↔树双向转换/守卫/折叠 35 · r14 schema v10 与 mindmaps 数据层 25（共 60，r14 新增）· r15 白板守卫/归一 32 · r15 重叠避让 13 · r15 mock AI 建板 9 · r15 Markdown 导出 7 · r15 画布坐标换算 6 · r15 schema v11 与白板数据层 38（共 105，r15 新增）** · r15 返工#1 +5（AI 建板全量画布零重叠与既有坐标回写 3 · 列表 itemCount 逐板独立 2）
-- HTTP audit **1111** 项（服务就绪 1 · health/settings 5 · todo 新建 12 · 列表详情 7 · 状态流转 9 · summary 11 · 删除 6 · 未知路由 1 · schedules CRUD 36 · 双向联动 22 · 循环实例 over HTTP 23 · projects CRUD 25 · board columns CRUD 20 · cards CRUD + 跨列移动 50 · board stats + CSV export 84 · tables / fields / records（r6）86 · views + CSV import（r7）119 · documents + blocks（r8）117 · Markdown import/export + AI revise（r9）67 · AI workbench: tools / conversations / chat / artifacts（r10）80 · **AI workbench r11: multi-turn context / artifact generators / extended tools 81（r11 新增）· Knowledge r12: ingest / TF-IDF search / source refs / 4xx 56（r12 新增）· RAG r13: citations / traceback / no-hit / 4xx 43（r13 新增）· **Mindmap r14: CRUD / tree / content / 4xx 54（r14 新增）· Whiteboard r15: boards / items / batch move / ai-create / export.md / 4xx 80（r15 新增）· r15 返工 +11（AI 建板全量画布零重叠 / 既有坐标回写 / HTTP 真读回 7 · 列表 itemCount 逐板独立 2 · 复现板 CRUD 清理 2）** · schedules 删除 5）
+- e2e **1464** 项（服务离线口径 1464，api 在线时 HTTP 冒烟节 +1 = 1465）：迁移一致性 7 · settings 9 · todo CRUD 15 · 输入校验 13 · 状态机 10 · 汇总计数 7 · raw schema 4 · 迁移幂等 3 · 日程契约与守卫 28 · 循环实例化 14 · 区间查询装配 12 · v2→v3 迁移+双向联动 18 · schedules CRUD 26 · 看板排序规则（reorderPositions）12 · 看板名称守卫 6 · v3→v4 迁移+看板数据层 33 · 看板统计口径（computeBoardStats）35 · 看板 CSV 台账（buildBoardCsvContent）36 · 字段类型引擎（validateFieldValue / coerceFieldValue / compareValues）86 · 记录数据归一与查询装配（normalizeRecordData / queryRecords）25 · 看板导出文件名（buildBoardCsvFileName · U2-2）6 · v4→v5 迁移+多维表格数据层 44 · 视图 spec 归一（normalizeViewSpec）31（r7 新增）· 按视图查询口径（多字段 AND / 多级排序 / 投影）21（r7 新增）· CSV 导入口径（parseCsvText / planCsvImport / 零半态）43（r7 新增）· v5→v6 迁移+视图数据层（持久化 / 原子导入）43（r7 新增）· **块类型引擎（normalizeBlockContent / canConvertBlockType / 拆合装配）64（r8 新增）· v6→v7 迁移+文档数据层（持久化 / 拆合移动 / 全文装配）65（r8 新增）· Markdown 双向引擎（markdownToBlocks / blocksToMarkdown / 未知语法降级）36（r9 新增）· Markdown 导入计划（normalizeMarkdownImportPayload / planMarkdownImport / 零半态）25（r9 新增）· AI 修订语义（instruction 守卫 / planRevisionApply / mock 录制回放）20（r9 新增）· 导入数据层（importBlocks 单事务整体替换 / 零半态 / 持久化 / 往返）12（r9 新增）· schema v7→v8 迁移与对话数据层（conversations / messages / artifacts）33（r10 新增）· 工具契约与脚本规划口径（TOOL_NAMES / 规划 / 汇总）34（r10 新增）· 工具注册表与真实服务层调用（ToolRegistry）26（r10 新增）· mock-planner 与工具调用录制回放（≥15 用例）9（r10 新增）· 对话编排与产物（executeChat）13（r10 新增）· **r11 契约（产物类型 / 上下文窗口 / 行内 diff）24（r11 新增）· r9 U2 行内增删改 diff 11（r11 新增）· r11 跨轮指代消解 12（r11 新增）· r11 三类产物生成器 13（r11 新增）· r11 工具链扩展真服务层 14（r11 新增）· r11 多轮上下文编排与回放扩充 22（r11 新增）· **schema v8→v9 知识库数据层 23（r12 新增）· 分块引擎 chunkText 19（r12 新增）· TF-IDF 检索引擎 searchChunks 20（r12 新增）· search_knowledge 工具真检索 5（r12 新增）· **r13 RAG 契约与意图识别 15 · 检索注入与引用装配 30 · executeChat 编排与引用落库 24 · RAG 回放评测集 5（共 74，r13 新增）· r14 Markdown↔树双向转换/守卫/折叠 35 · r14 schema v10 与 mindmaps 数据层 25（共 60，r14 新增）· r15 白板守卫/归一 32 · r15 重叠避让 13 · r15 mock AI 建板 9 · r15 Markdown 导出 7 · r15 画布坐标换算 6 · r15 schema v11 与白板数据层 38（共 105，r15 新增）** · r15 返工#1 +5（AI 建板全量画布零重叠与既有坐标回写 3 · 列表 itemCount 逐板独立 2）· **r16 审批状态机/步骤/三视角/schema v12 数据层 133（r16 新增）**
+- HTTP audit **1214** 项（服务就绪 1 · health/settings 5 · todo 新建 12 · 列表详情 7 · 状态流转 9 · summary 11 · 删除 6 · 未知路由 1 · schedules CRUD 36 · 双向联动 22 · 循环实例 over HTTP 23 · projects CRUD 25 · board columns CRUD 20 · cards CRUD + 跨列移动 50 · board stats + CSV export 84 · tables / fields / records（r6）86 · views + CSV import（r7）119 · documents + blocks（r8）117 · Markdown import/export + AI revise（r9）67 · AI workbench: tools / conversations / chat / artifacts（r10）80 · **AI workbench r11: multi-turn context / artifact generators / extended tools 81（r11 新增）· Knowledge r12: ingest / TF-IDF search / source refs / 4xx 56（r12 新增）· RAG r13: citations / traceback / no-hit / 4xx 43（r13 新增）· **Mindmap r14: CRUD / tree / content / 4xx 54（r14 新增）· Whiteboard r15: boards / items / batch move / ai-create / export.md / 4xx 80（r15 新增）· r15 返工 +11（AI 建板全量画布零重叠 / 既有坐标回写 / HTTP 真读回 7 · 列表 itemCount 逐板独立 2 · 复现板 CRUD 清理 2）· **Approval r16: CRUD / submit / approve / reject / delegate / withdraw / 三视角 / 4xx 103（r16 新增）** · schedules 删除 5）
 - typecheck 5 包全绿（strict + noUncheckedIndexedAccess；shared / db / web / api / **agent(r9 新增)**）
-- CI：ubuntu / windows / macos 三平台 verify 门禁 + tag 触发 Release；CI 的 HTTP smoke 静态正则随 schema 版本号同步放宽为 `(2|3|4|5|6|7|8|9|10|11)`（v0.0.6 教训）
+- CI：ubuntu / windows / macos 三平台 verify 门禁 + tag 触发 Release；CI 的 HTTP smoke 静态正则随 schema 版本号同步放宽为 `(2|3|4|5|6|7|8|9|10|11|12)`（v0.0.6 教训）
 - r6 规模变化：e2e 288 → 449（+161）· audit 313 → 403（+90）；**无一条断言被删**（只涨不缩，宪法第四条）
 - r7 规模变化：e2e 449 → 587（+138）· audit 403 → 522（+119）；**无一条断言被删**（只涨不缩，宪法第四条）。随版本增长只更新了 **6 条既有断言的期望值**（迁移队列最高版本 5→6：`[3,4,5]`→`[3,4,5,6]`、`[4,5]`→`[4,5,6]`、`[5]`→`[5,6]`、构造越界队列 1..6→1..7，以及 audit 两处 `health.schemaVersion` 5→6），另有 2 条 e2e 断言的**标签文字**（4/5 → 6）同步，条数不变。
 - r8 规模变化：e2e 587 → **716（+129）**· audit 522 → **639（+117）**；**无一条断言被删**（只涨不缩，宪法第四条）。随 v6→v7 迁移只更新了 **6 条既有断言的期望值**（`[3,4,5,6]`→`[3,4,5,6,7]`、`[4,5,6]`→`[4,5,6,7]`、`[5,6]`→`[5,6,7]`、`[6]`→`[6,7]`、构造越界队列 1..7→1..8）与 audit 两处 `health.schemaVersion` 6→7；另有 8 条 e2e 断言的**标签文字**（4 条「v2/v3/v4/v5 旧库补跑 v6」→ 补 v7、3 条「CURRENT_SCHEMA_VERSION（6）」→（7）、1 条「重启后 user_version 仍为 6」→ 7）同步，条数不变。
@@ -305,11 +317,12 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 
 - r15 规模变化：e2e 1221 → **1326（+105）**· audit 1020 → **1100（+80）**；**无一条断言被删**（只涨不缩，宪法第四条）。新增 e2e 一节（白板守卫/归一 32 + 重叠避让 13 + mock AI 建板 9 + Markdown 导出 7 + 画布坐标换算 6 + schema v11 与 whiteboards/whiteboard_items 数据层 38）与一节 audit（80 条真 HTTP：whiteboards/items CRUD + 批量移动真落库 + ai-create 真生成 7 便签且布局不重叠 + 同主题确定性 + export.md 字节装配 + 4xx：空/超长标题·非法类型·越界坐标·非法颜色·越权 board_id·跨白板条目·重复 id·非法主题·非数字 id / 清理）。随 v10→v11 迁移只更新 **17 条既有断言的期望值/构造队列**（e2e 越界构造队列追加 v12、v2~v8 旧库补跑队列末追加 v11 共 8 条、raw14 user_version 10→11、audit 两处 `health.schemaVersion` 10→11）与 14 条标签文字，条数不变；CI smoke 正则同步为 `(2|3|4|5|6|7|8|9|10|11)`；typecheck 仍 5 包。
 - r15 返工#1 规模变化：e2e 1326 → **1331（+5）**· audit 1100 → **1111（+11）**；**无一条断言被删**（只涨不缩，宪法第四条）。新增断言锁 A（AI 建板后全量画布含既有条目两两无重叠、既有条目避让坐标真回写落库，e2e+3 / audit+7）与 B（白板列表 itemCount 逐板独立、不串用选中板条目数，e2e+2 / audit+2）。变异红相：删掉 `aiCreateWhiteboard` 写回循环 → e2e 1327 通过/2 红、audit 1106 通过/2 红；逐字节还原（SHA `0D21EECC…`）后双套件全绿。typecheck 仍 5 包。
-- 核心概念逐轮条目见下一节（r1~r15）。
+- r16 规模变化：e2e 1331 → **1464（+133）**· audit 1111 → **1214（+103）**；**无一条断言被删**（只涨不缩，宪法第四条）。新增 e2e 一节（shared 审批五态/转移表/守卫 25 · planApprovalAction 与可用动作 28 · 三视角纯函数 9 · schema v12 与审批数据层 71 = 133）与一节 audit（103 条真 HTTP：approvals CRUD / 抄送 / submit / delegate 不改状态但换 assignee / approve / reject / withdraw / 三视角 / 4xx：非 assignee 操作·已结单再审批·非法流转·非法类型·越权 id·非法视角·缺 actor / 级联清理）。随 v11→v12 迁移只更新 **12 条既有断言的期望值/构造队列**（e2e 越界构造队列 1..12→1..13 1 条、v2~v8 旧库补跑队列末追加 12 共 7 条、raw14/raw15 `user_version` 11→12 共 2 条、audit 两处 `health.schemaVersion` 11→12 共 2 条）与若干标签文字，条数不变；CI smoke 正则同步为 `(2|3|4|5|6|7|8|9|10|11|12)`；typecheck 仍 5 包。**变异红相 1 组**：把 shared `planApprovalAction` 的 delegate 改回不换 assignee → e2e 3 红（delegate 真换 assignee / 数据层 delegate 真改 assignee / 转交后旧 assignee 不能审批）、audit 4 红（delegate 真换 assignee / 旧 assignee 审批 200≠400 / POST approve 400≠200 / approved 期望失配）；逐字节还原（SHA `5B3F0945…C80AB7`）后双套件全绿。
+- 核心概念逐轮条目见下一节（r1~r16）。
 
-### 核心概念（逐轮累积，r1~r15 已落地的部分）
+### 核心概念（逐轮累积，r1~r16 已落地的部分）
 
-- **迁移纪律**：schema 变更只走 `packages/db/src/schema.ts` 的 `MIGRATIONS` 队列（v1 settings → v2 todos → v3 schedules → v4 projects/board_columns/cards → v5 tables/fields/records → v6 views → v7 documents/blocks → **v8 conversations/messages/artifacts → v9 knowledge_docs/knowledge_chunks**），`user_version` 管理，重开幂等、旧库原地升级只补跑缺失版本
+- **迁移纪律**：schema 变更只走 `packages/db/src/schema.ts` 的 `MIGRATIONS` 队列（v1 settings → v2 todos → v3 schedules → v4 projects/board_columns/cards → v5 tables/fields/records → v6 views → v7 documents/blocks → **v8 conversations/messages/artifacts → v9 knowledge_docs/knowledge_chunks** → v10 mindmaps → v11 whiteboards/whiteboard_items → **v12 approvals/approval_steps/approval_cc**），`user_version` 管理，重开幂等、旧库原地升级只补跑缺失版本
 - **状态机集中**：待办状态流转（open/done/archived）定义在 `packages/shared`，非法流转服务层与路由层双层拒绝
 - **汇总计数唯一入口**：今/明/周 + 四象限计数只写在 `computeTodoSummary`（shared 纯函数），api 下发、UI 消费同一口径
 - **循环实例化唯一入口**：daily/weekly/monthly 展开规则只写在 `computeRepeatInstances`（shared 纯函数，含月末收敛与实例封顶）；区间查询装配只写在 `assembleRangeSchedules`
@@ -401,6 +414,7 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 - **思维导图 Markdown 双视图唯一转换入口**（r14）：`packages/shared` 集中 `parseMarkdownToTree` / `treeToMarkdown` / `toggleNodeCollapse`，`#` 标题按层级成树、列表按缩进成子节点、代码围栏整段保留、未知语法降级 text 节点逐字不丢；`raw` + `blankBefore` + `trailingBlanks` 保证 md→tree→md 逐字节往返；确定性节点 id 让折叠态可复现。schema v10 建 `mindmaps(id/title/content_markdown/created_at/updated_at)`，Markdown 源逐字落库、树只现算不落库；api 提供 CRUD / `GET /:id/tree` / `PUT /:id/content`（空内容·NUL 非法 Markdown·越权 id 全有 4xx 断言），web「导图」tab 左编辑右树、编辑即时同步并可折叠/展开；十 tab 壳基线同批重拍，标题层级变平的变异红相由 e2e/audit 双向锁定
 
 - **白板画布布局唯一入口**（r15）：`packages/shared` 集中 `normalizeWhiteboardItem`（类型白名单 / 坐标尺寸边界 / 内容 NUL 与上限 / 颜色 hex 唯一守卫）、`collisionResolve`（按 y→x→原序落位，重叠下移到冲突项底部 + 固定间距，幂等）、`planAiWhiteboard`（按主题脚本化生成 7 张便签，零 token 零随机）、`buildWhiteboardMarkdown`（按 y→x→id 视觉顺序装配）、`screenToCanvasPoint`/`canvasToScreenPoint`/`clampWhiteboardScale`（画布坐标换算唯一口径）；api/web 零算法分支。schema v11 建 `whiteboards(id/title/created_at)` + `whiteboard_items(id/board_id/type/x/y/w/h/content/color/created_at/updated_at)`，批量移动先全量校验再避让、单事务落库、越权零半态；api 提供 boards/items CRUD + `POST /:id/items/move` + `POST /:id/ai-create` + `GET /:id/export.md`（越权 board_id / 非法类型 / 越界坐标全有 4xx 断言）；web「白板」tab 无限画布（拖拽平移 / 滚轮与按钮缩放）/ 便签 CRUD / AI 建板 / 导出，十一 tab 壳基线同批重拍；避让规则改坏的变异红相由 e2e/audit 双向锁定
+- **审批状态机唯一入口**（r16）：`packages/shared` 集中 `APPROVAL_TRANSITIONS`（draft→pending→approved/rejected/withdrawn，终态零出边；delegate 不改状态、只换 assignee，pending→pending 不在转移表）、`canTransitionApproval` / `assertValidApprovalTransition` / `assertValidApprovalAction`、`planApprovalAction`（角色守卫 + 产出 nextStatus/nextAssignee/stepAssignee 唯一计划）、`availableApprovalActions`（UI 按钮可见性）、`selectApprovalsForView`（我的待办/我发起的/抄送我的唯一过滤口径）；api 五动作共用一条装配路径、零流转分支。schema v12 建 `approvals(id/title/type/applicant_id/status/current_assignee/created_at/updated_at)` + `approval_steps(id/approval_id/order/assignee/action/comment/acted_at)` + `approval_cc(id/approval_id/cc_user/created_at, UNIQUE)`；db `actOnApproval` 按 shared 计划单事务更新状态与步骤、4xx 零半态；web「审批」tab 发起表单/三视角/时间线/操作按钮/抄送提示，十二 tab 壳基线同批重拍；delegate 不换 assignee 的变异红相由 e2e/audit 双向锁定
 
 ## 明确不做（当前阶段）
 

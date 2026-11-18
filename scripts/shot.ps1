@@ -14,6 +14,7 @@
 #   powershell -File scripts\shot.ps1 shots -Round r13 # capture r13 RAG chat / citation cards / traceback / no-hit states
 #   powershell -File scripts\shot.ps1 shots -Round r14 # capture r14 mindmap markdown / tree / collapse states
 #   powershell -File scripts\shot.ps1 shots -Round r15 # capture r15 whiteboard canvas / notes / drag / ai / export states
+#   powershell -File scripts\shot.ps1 shots -Round r16 # capture r16 approval form / todo / timeline / approved states
 #   powershell -File scripts\shot.ps1 shots -Round r11 -Shot 08-docs-diff-inline # rework#1: re-capture ONLY the diff-inline evidence (no other matrix/shell re-shot)
 #   powershell -File scripts\shot.ps1 down            # stop servers
 #   powershell -File scripts\shot.ps1 status          # show port status
@@ -32,11 +33,12 @@
 # r12: a NINTH tab (knowledge) was added -> the baseline now captures nine active states.
 # r14: a TENTH tab (mindmap) was added -> the baseline now captures ten active states.
 # r15: an ELEVENTH tab (whiteboard) was added -> the baseline now captures eleven active states.
+# r16: a TWELFTH tab (approval) was added -> the baseline now captures twelve active states.
 param(
   [Parameter(Position = 0)]
   [ValidateSet("up", "shots", "down", "status", "all")]
   [string]$Action = "status",
-  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15")]
+  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16")]
   [string]$Round = "r1",
   [Parameter()]
   [string]$Shot = ""
@@ -131,6 +133,7 @@ function Find-Browser {
 # r12: the NINTH tab (knowledge) was added -> nine active states in one batch.
 # r14: the TENTH tab (mindmap) was added -> ten active states in one batch.
 # r15: the ELEVENTH tab (whiteboard) was added -> eleven active states in one batch.
+# r16: the TWELFTH tab (approval) was added -> twelve active states in one batch.
 function Invoke-ShellBaseline {
   param([string]$BrowserPath)
   $shellDir = Join-Path $Root "docs\ui\shell"
@@ -147,7 +150,8 @@ function Invoke-ShellBaseline {
     @{ page = "chat";      file = "chat-tab-active" },
     @{ page = "knowledge"; file = "knowledge-tab-active" },
     @{ page = "mindmap";   file = "mindmap-tab-active" },
-    @{ page = "whiteboard"; file = "whiteboard-tab-active" }
+    @{ page = "whiteboard"; file = "whiteboard-tab-active" },
+    @{ page = "approval";   file = "approval-tab-active" }
   )
   foreach ($t in $tabs) {
     $url = "http://127.0.0.1:$WebPort/"
@@ -672,6 +676,31 @@ function Invoke-Shots {
     }
   }
 
+  # r16: REAL approvals via HTTP. A1 stays pending for the todo list; A2 is
+  # submitted at seed, then delegated (03->04) and approved (04->05) between
+  # captures, so the timeline screenshots reflect real state-machine transitions.
+  # All Chinese is \uXXXX escaped (ASCII-only file, PS 5.1 safe).
+  $r16A1Id = 0
+  $r16A2Id = 0
+  if ($Round -eq "r16") {
+    try {
+      $r16A1Body = [System.Text.Encoding]::UTF8.GetBytes('{"title":"r16 \u8bf7\u5047\u5ba1\u6279","type":"leave","applicantId":"alice","currentAssignee":"bob","cc":["dave"]}')
+      $r16A1 = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/approvals" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body $r16A1Body
+      $r16A1Id = $r16A1.id
+      $r16A2Body = [System.Text.Encoding]::UTF8.GetBytes('{"title":"r16 \u62a5\u9500\u5ba1\u6279","type":"expense","applicantId":"alice","currentAssignee":"bob","cc":["erin"]}')
+      $r16A2 = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/approvals" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body $r16A2Body
+      $r16A2Id = $r16A2.id
+      $r16Submit = [System.Text.Encoding]::UTF8.GetBytes('{"actor":"alice","comment":"\u8bf7\u5ba1\u6279"}')
+      Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/approvals/$r16A2Id/submit" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body $r16Submit | Out-Null
+      Write-Output "seeded r16 approvals A1=$r16A1Id A2=$r16A2Id (A2 submitted)"
+    } catch {
+      Write-Output "warn: r16 seed failed ($($_.Exception.Message)) - live approval shots may show empty state"
+    }
+  }
+
   # r13: REAL knowledge docs + RAG conversations via HTTP. The hit and no-hit
   # chats are seeded before capture so every citation card shows real citations;
   # the jump shot uses the cited doc/chunk ids from the chat response itself.
@@ -823,6 +852,19 @@ function Invoke-Shots {
       @{ name = "05-export";           url = "$r15Base&shot=whiteboard-export"; width = 1280; height = 800 },
       @{ name = "06-narrow";           url = "$r15Base&narrow=1"; width = 488; height = 1100 },
       @{ name = "07-error";            url = "http://127.0.0.1:$WebPort/?page=whiteboard&shot=whiteboard-error"; width = 1280; height = 800 }
+    )
+  } elseif ($Round -eq "r16") {
+    # 01 = pinned empty; 02 = first-use form; 03/04/05 = ONE real approval,
+    # real submit/delegate/approve between captures; 06 = narrow seam; 07 = error.
+    $r16Base = "http://127.0.0.1:$WebPort/?page=approval"
+    $shots = @(
+      @{ name = "01-approval-empty";   url = "$r16Base&shot=approval-empty"; width = 1280; height = 800 },
+      @{ name = "02-approval-form";    url = "$r16Base&shot=approval-form"; width = 1280; height = 800 },
+      @{ name = "03-todo-list";        url = "$r16Base&view=todo&actor=bob&shot=approval-todo"; width = 1280; height = 800 },
+      @{ name = "04-detail-timeline";  url = "$r16Base&approvalId=$r16A2Id&actor=carol&shot=approval-detail"; width = 1280; height = 800 },
+      @{ name = "05-approved";         url = "$r16Base&approvalId=$r16A2Id&actor=carol&shot=approval-approved"; width = 1280; height = 800 },
+      @{ name = "06-narrow";           url = "$r16Base&view=todo&actor=bob&narrow=1"; width = 488; height = 1100 },
+      @{ name = "07-error";            url = "$r16Base&shot=approval-error"; width = 1280; height = 800 }
     )
   } elseif ($Round -eq "r14") {
     # 01 = pinned empty state; 02/03/04 = ONE real seeded mindmap, three views
@@ -1155,6 +1197,43 @@ function Invoke-Shots {
       }
     }
 
+    if ($Round -eq "r16" -and $s.name -eq "02-approval-form") {
+      if ($r16A1Id -gt 0) {
+        try {
+          $r16Submit = [System.Text.Encoding]::UTF8.GetBytes('{"actor":"alice","comment":"\u8bf7\u5ba1\u6279"}')
+          $r16Submitted = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/approvals/$r16A1Id/submit" -Method Post `
+            -ContentType "application/json; charset=utf-8" -Body $r16Submit
+          Write-Output "r16 real submit: A1=$r16A1Id -> $($r16Submitted.status)"
+        } catch {
+          Write-Output "warn: r16 submit between 02/03 failed ($($_.Exception.Message))"
+        }
+      }
+    }
+    if ($Round -eq "r16" -and $s.name -eq "03-todo-list") {
+      if ($r16A2Id -gt 0) {
+        try {
+          $r16Delegate = [System.Text.Encoding]::UTF8.GetBytes('{"actor":"bob","targetAssignee":"carol","comment":"\u4ea4\u7ed9 carol"}')
+          $r16Delegated = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/approvals/$r16A2Id/delegate" -Method Post `
+            -ContentType "application/json; charset=utf-8" -Body $r16Delegate
+          Write-Output "r16 real delegate: A2=$r16A2Id -> $($r16Delegated.currentAssignee) status=$($r16Delegated.status)"
+        } catch {
+          Write-Output "warn: r16 delegate between 03/04 failed ($($_.Exception.Message))"
+        }
+      }
+    }
+    if ($Round -eq "r16" -and $s.name -eq "04-detail-timeline") {
+      if ($r16A2Id -gt 0) {
+        try {
+          $r16Approve = [System.Text.Encoding]::UTF8.GetBytes('{"actor":"carol","comment":"\u540c\u610f"}')
+          $r16Approved = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/approvals/$r16A2Id/approve" -Method Post `
+            -ContentType "application/json; charset=utf-8" -Body $r16Approve
+          Write-Output "r16 real approve: A2=$r16A2Id -> $($r16Approved.status)"
+        } catch {
+          Write-Output "warn: r16 approve between 04/05 failed ($($_.Exception.Message))"
+        }
+      }
+    }
+
     # r8 (r3 B lesson): between 07 (before) and 08 (after) a REAL split happens
     # over POST /api/blocks/:id/split. 07 shows one paragraph; 08 shows two blocks
     # with consecutive positions. Hashes of 07/08 must differ.
@@ -1335,7 +1414,21 @@ function Invoke-Shots {
   # seed todo, so repeat runs stay deterministic.
   # r5: delete both seeded projects (by id - the script stays ASCII) and the two
   # seeded todos.
-  if ($Round -eq "r15") {
+  if ($Round -eq "r16") {
+    # r16: delete only the two approvals this run seeded (steps + cc cascade).
+    try {
+      if ($r16A1Id -gt 0) {
+        Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/approvals/$r16A1Id" -Method Delete | Out-Null
+        Write-Output "cleaned seeded r16 approval=$r16A1Id"
+      }
+      if ($r16A2Id -gt 0) {
+        Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/approvals/$r16A2Id" -Method Delete | Out-Null
+        Write-Output "cleaned seeded r16 approval=$r16A2Id"
+      }
+    } catch {
+      Write-Output "warn: r16 cleanup failed ($($_.Exception.Message))"
+    }
+  } elseif ($Round -eq "r15") {
     # r15: delete only the two whiteboards this run seeded (items cascade), so
     # repeat runs stay deterministic and the shell baseline shows first-use empty.
     try {

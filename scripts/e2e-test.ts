@@ -206,6 +206,34 @@ import {
   canvasToScreenPoint,
   clampWhiteboardScale,
   type WhiteboardItem,
+  APPROVAL_STATUSES,
+  APPROVAL_TRANSITIONS,
+  APPROVAL_ACTIONS,
+  APPROVAL_TYPES,
+  APPROVAL_TYPE_LABELS,
+  APPROVAL_STATUS_LABELS,
+  APPROVAL_ACTION_LABELS,
+  APPROVAL_VIEWS,
+  MAX_APPROVAL_TITLE,
+  MAX_APPROVAL_COMMENT,
+  MAX_APPROVAL_USER,
+  isApprovalStatus,
+  isApprovalAction,
+  isApprovalView,
+  assertValidApprovalTitle,
+  assertValidApprovalType,
+  assertValidApprovalUser,
+  assertValidApprovalComment,
+  assertValidApprovalTransition,
+  assertValidApprovalAction,
+  canTransitionApproval,
+  planApprovalAction,
+  availableApprovalActions,
+  selectApprovalsForView,
+  type ApprovalStatus,
+  type ApprovalAction,
+  type Approval,
+  type ApprovalStep,
 } from "@xieflow/shared";
 import type { TodoStatus } from "@xieflow/shared";
 import {
@@ -338,6 +366,7 @@ try {
         { version: 10, name: "j", up: [] },
         { version: 11, name: "k", up: [] },
         { version: 12, name: "l", up: [] },
+        { version: 13, name: "m", up: [] },
       ]),
     "队列超出 SCHEMA_VERSION：一致性校验抛错",
   );
@@ -725,8 +754,8 @@ try {
     const v3Migrated = openDatabaseRaw({ path: v3Path });
     eq(
       v3Migrated.appliedMigrations,
-      [3, 4, 5, 6, 7, 8, 9, 10, 11],
-      "v2 旧库重开补跑 v3+v4+v5+v6+v7+v8+v9+v10+v11 迁移（真实 PRAGMA 升级路径，r15 起队列追加 v11）",
+      [3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+      "v2 旧库重开补跑 v3+v4+v5+v6+v7+v8+v9+v10+v11+v12 迁移（真实 PRAGMA 升级路径，r16 起队列追加 v12）",
     );
     const tables = v3Migrated.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -951,8 +980,8 @@ try {
     const v4Open = openDatabaseRaw({ path: v4Path });
     eq(
       v4Open.appliedMigrations,
-      [4, 5, 6, 7, 8, 9, 10, 11],
-      "v3 旧库重开只补跑 v4+v5+v6+v7+v8+v9+v10+v11 迁移（真实 PRAGMA 升级路径）",
+      [4, 5, 6, 7, 8, 9, 10, 11, 12],
+      "v3 旧库重开只补跑 v4+v5+v6+v7+v8+v9+v10+v11+v12 迁移（真实 PRAGMA 升级路径）",
     );
     const tables = v4Open.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -963,7 +992,7 @@ try {
     eq(
       (v4Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（11）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（12）",
     );
     const rawDb: SqliteDatabase = v4Open.raw;
     throws(
@@ -1610,7 +1639,7 @@ try {
     v4Open2.raw.exec("PRAGMA user_version = 4");
     v4Open2.raw.close();
     const v5Open = openDatabaseRaw({ path: v5Path });
-    eq(v5Open.appliedMigrations, [5, 6, 7, 8, 9, 10, 11], "v4 旧库重开只补跑 v5+v6+v7+v8+v9+v10+v11 迁移（真实 PRAGMA 升级路径）");
+    eq(v5Open.appliedMigrations, [5, 6, 7, 8, 9, 10, 11, 12], "v4 旧库重开只补跑 v5+v6+v7+v8+v9+v10+v11+v12 迁移（真实 PRAGMA 升级路径）");
     const tableNames = v5Open.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
       .map((r) => String((r as unknown as { name: unknown }).name));
@@ -1620,7 +1649,7 @@ try {
     eq(
       (v5Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（11）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（12）",
     );
     const rawDb5: SqliteDatabase = v5Open.raw;
     throws(
@@ -2329,7 +2358,7 @@ try {
     v5Open.raw.exec("PRAGMA user_version = 5");
     v5Open.raw.close();
     const v6Open = openDatabaseRaw({ path: v6Path });
-    eq(v6Open.appliedMigrations, [6, 7, 8, 9, 10, 11], "v5 旧库重开只补跑 v6+v7+v8+v9+v10+v11 迁移（真实 PRAGMA 升级路径）");
+    eq(v6Open.appliedMigrations, [6, 7, 8, 9, 10, 11, 12], "v5 旧库重开只补跑 v6+v7+v8+v9+v10+v11+v12 迁移（真实 PRAGMA 升级路径）");
     const tableNames = v6Open.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
       .map((r) => String((r as unknown as { name: unknown }).name));
@@ -2337,7 +2366,7 @@ try {
     eq(
       (v6Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（11）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（12）",
     );
     const rawDb6: SqliteDatabase = v6Open.raw;
     eq(
@@ -2476,7 +2505,7 @@ try {
     eq(
       (reopened.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "重启后 user_version 仍为 11",
+      "重启后 user_version 仍为 12",
     );
     eq(JSON.stringify(reopened.db.listViews(tbl.id)), beforeViews, "视图持久化：重启前后 spec 逐字节相等");
     eq(
@@ -2609,11 +2638,11 @@ try {
     oldOpen.raw.exec("PRAGMA user_version = 6");
     oldOpen.raw.close();
     const v7Open = openDatabaseRaw({ path: v7Path });
-    eq(v7Open.appliedMigrations, [7, 8, 9, 10, 11], "v6 旧库重开补跑 v7+v8+v9+v10+v11 迁移（真实 PRAGMA 升级路径）");
+    eq(v7Open.appliedMigrations, [7, 8, 9, 10, 11, 12], "v6 旧库重开补跑 v7+v8+v9+v10+v11+v12 迁移（真实 PRAGMA 升级路径）");
     eq(
       (v7Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（11）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（12）",
     );
     const tables = (v7Open.raw.all(
       "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('documents','blocks') ORDER BY name",
@@ -2997,11 +3026,11 @@ try {
     old10.raw.exec("PRAGMA user_version = 7");
     old10.raw.close();
     const v8 = openDatabaseRaw({ path: p10Path });
-    eq(v8.appliedMigrations, [8, 9, 10, 11], "v7 旧库重开只补跑 v8+v9+v10 迁移（真实 PRAGMA 升级路径）");
+    eq(v8.appliedMigrations, [8, 9, 10, 11, 12], "v7 旧库重开只补跑 v8+v9+v10+v11+v12 迁移（真实 PRAGMA 升级路径）");
     eq(
       (v8.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（11）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（12）",
     );
     const t10 = v8.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -3413,11 +3442,11 @@ try {
     old.raw.exec("PRAGMA user_version = 8");
     old.raw.close();
     const v9 = openDatabaseRaw({ path: p });
-    eq(v9.appliedMigrations, [9, 10, 11], "v8 旧库重开只补跑 v9+v10+v11 迁移（真实 PRAGMA 升级路径）");
+    eq(v9.appliedMigrations, [9, 10, 11, 12], "v8 旧库重开只补跑 v9+v10+v11+v12 迁移（真实 PRAGMA 升级路径）");
     eq(
       (v9.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（11）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（12）",
     );
     const tables = v9.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -3809,7 +3838,7 @@ try {
     eq(reopened14.getMindmap(1)!.contentMarkdown, "# 根\n- 子", "导图关库重开不丢（Markdown 源逐字节）");
     reopened14.close();
     const raw14 = openDatabaseRaw({ path: `scripts/.tmp-e2e/r14-raw-${Date.now()}.db` });
-    eq((raw14.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 11, "真实 PRAGMA user_version=11");
+    eq((raw14.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 12, "真实 PRAGMA user_version=12");
     eq(
       raw14.raw.all("PRAGMA table_info(mindmaps)").map((r) => String((r as unknown as { name: unknown }).name)),
       ["id", "title", "content_markdown", "created_at", "updated_at"],
@@ -3992,7 +4021,7 @@ try {
     eq(r15.listWhiteboardItems(1)[0]!.content, "关库不丢", "白板条目关库重开不丢（逐字）");
     r15.close();
     const raw15 = openDatabaseRaw({ path: `scripts/.tmp-e2e/r15-raw-${Date.now()}.db` });
-    eq((raw15.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 11, "真实 PRAGMA user_version=11");
+    eq((raw15.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 12, "真实 PRAGMA user_version=12");
     eq(
       raw15.raw.all("PRAGMA table_info(whiteboards)").map((r) => String((r as unknown as { name: unknown }).name)),
       ["id", "title", "created_at"],
@@ -4006,7 +4035,220 @@ try {
     raw15.raw.close();
   }
 
-  // 49. HTTP 冒烟 /api/health
+  // 50. r16：审批状态机（集中 shared）/ 步骤流转 / 三视角 / schema v12 数据层（TDD：先断言，后实现）
+  section("r16 审批：状态机 / 步骤流转 / 三视角 / schema v12 数据层");
+  {
+    // shared：枚举、转移表与守卫（状态机唯一入口，api/web 零流转分支）
+    eq(APPROVAL_STATUSES, ["draft", "pending", "approved", "rejected", "withdrawn"], "审批状态集合恰为五态");
+    eq(APPROVAL_TRANSITIONS.draft, ["pending"], "draft 只允许提交进入 pending");
+    eq(APPROVAL_TRANSITIONS.pending, ["approved", "rejected", "withdrawn"], "pending 可批准/驳回/撤回");
+    eq(APPROVAL_TRANSITIONS.approved, [], "approved 是终态（零出边）");
+    eq(APPROVAL_TRANSITIONS.rejected, [], "rejected 是终态（零出边）");
+    eq(APPROVAL_TRANSITIONS.withdrawn, [], "withdrawn 是终态（零出边）");
+    eq(APPROVAL_ACTIONS, ["submit", "approve", "reject", "delegate", "withdraw"], "审批动作集合恰为五类");
+    eq(APPROVAL_TYPES, ["leave", "expense", "purchase", "other"], "审批类型集合恰为四类");
+    eq(APPROVAL_VIEWS, ["todo", "initiated", "cc"], "三视角集合逐字锁定");
+    eq(isApprovalStatus("pending"), true, "pending 是合法状态");
+    eq(isApprovalStatus("sleep"), false, "未知状态被拒");
+    eq(isApprovalAction("delegate"), true, "delegate 是合法动作");
+    eq(isApprovalAction(42), false, "数字不是合法动作");
+    eq(isApprovalView("cc"), true, "cc 是合法视角");
+    eq(isApprovalView("all"), false, "未知视角被拒");
+    eq(APPROVAL_TYPE_LABELS.leave, "请假", "请假类型中文标签");
+    eq(APPROVAL_STATUS_LABELS.pending, "待审批", "pending 中文标签");
+    eq(APPROVAL_ACTION_LABELS.delegate, "转交", "delegate 中文标签");
+    throws(() => assertValidApprovalTitle(""), "空审批标题守卫抛错");
+    throws(() => assertValidApprovalTitle("   "), "纯空白审批标题守卫抛错");
+    throws(() => assertValidApprovalTitle("x".repeat(MAX_APPROVAL_TITLE + 1)), "超长审批标题守卫抛错");
+    throws(() => assertValidApprovalTitle("a\u0000b"), "含 NUL 审批标题守卫抛错");
+    noThrow(() => assertValidApprovalTitle("x".repeat(MAX_APPROVAL_TITLE)), "恰为上限标题合法");
+    throws(() => assertValidApprovalType("x"), "非法审批类型守卫抛错");
+    noThrow(() => assertValidApprovalType("expense"), "合法审批类型通过");
+    throws(() => assertValidApprovalUser(""), "空审批人守卫抛错");
+    throws(() => assertValidApprovalUser("x".repeat(MAX_APPROVAL_USER + 1)), "超长审批人守卫抛错");
+    throws(() => assertValidApprovalComment("x".repeat(MAX_APPROVAL_COMMENT + 1)), "超长审批意见守卫抛错");
+
+    eq(canTransitionApproval("draft", "pending"), true, "状态机：draft→pending 合法");
+    eq(canTransitionApproval("draft", "approved"), false, "状态机：draft→approved 非法");
+    eq(canTransitionApproval("pending", "approved"), true, "状态机：pending→approved 合法");
+    eq(canTransitionApproval("pending", "rejected"), true, "状态机：pending→rejected 合法");
+    eq(canTransitionApproval("pending", "withdrawn"), true, "状态机：pending→withdrawn 合法");
+    eq(canTransitionApproval("approved", "pending"), false, "状态机：终态不能回到 pending");
+    eq(canTransitionApproval("pending", "pending"), false, "状态机：转交不改状态（pending→pending 不在转移表）");
+    noThrow(() => assertValidApprovalTransition("draft", "pending"), "合法流转断言不抛错");
+    throws(() => assertValidApprovalTransition("rejected", "approved"), "非法流转断言抛错");
+
+    // planApprovalAction：所有动作的结果与拒绝口径集中一处
+    const draftCtx = { status: "draft" as const, applicantId: "alice", currentAssignee: "bob", actor: "alice" };
+    const pendingCtx = { status: "pending" as const, applicantId: "alice", currentAssignee: "bob", actor: "bob" };
+    const submitPlan = planApprovalAction("submit", draftCtx);
+    eq(submitPlan, { action: "submit", nextStatus: "pending", nextAssignee: "bob", stepAssignee: "alice" }, "submit：draft→pending，assignee 不变");
+    throws(() => planApprovalAction("submit", { ...draftCtx, actor: "bob" }), "非发起人不能提交");
+    throws(() => planApprovalAction("approve", draftCtx), "draft 不能直接审批");
+    eq(planApprovalAction("approve", pendingCtx).nextStatus, "approved", "approve：pending→approved");
+    eq(planApprovalAction("approve", pendingCtx).nextAssignee, "bob", "approve 不改 assignee");
+    eq(planApprovalAction("reject", pendingCtx).nextStatus, "rejected", "reject：pending→rejected");
+    const delegatePlan = planApprovalAction("delegate", { ...pendingCtx, targetAssignee: "carol" });
+    eq(delegatePlan.nextStatus, "pending", "delegate 不改状态（唯一规则）");
+    eq(delegatePlan.nextAssignee, "carol", "delegate 真换 assignee");
+    eq(delegatePlan.stepAssignee, "carol", "delegate 步骤记新 assignee");
+    throws(() => planApprovalAction("delegate", { ...pendingCtx, targetAssignee: "bob" }), "转交目标不能与当前 assignee 相同");
+    throws(() => planApprovalAction("delegate", pendingCtx), "转交缺目标抛错");
+    throws(() => planApprovalAction("approve", { ...pendingCtx, actor: "carol" }), "非 assignee 审批被拒");
+    throws(() => planApprovalAction("reject", { ...pendingCtx, actor: "carol" }), "非 assignee 驳回被拒");
+    throws(() => planApprovalAction("delegate", { ...pendingCtx, actor: "carol", targetAssignee: "dave" }), "非 assignee 转交被拒");
+    eq(planApprovalAction("withdraw", { ...pendingCtx, actor: "alice" }).nextStatus, "withdrawn", "发起人撤回：pending→withdrawn");
+    throws(() => planApprovalAction("withdraw", pendingCtx), "非发起人不能撤回");
+    throws(() => planApprovalAction("approve", { ...pendingCtx, status: "approved" }), "已通过再审批抛错");
+    throws(() => planApprovalAction("reject", { ...pendingCtx, status: "rejected" }), "已驳回再审批抛错");
+    throws(() => planApprovalAction("approve", { ...pendingCtx, status: "withdrawn" }), "已撤回再审批抛错");
+    throws(() => planApprovalAction("sleep", pendingCtx), "非法动作抛错");
+    noThrow(() => assertValidApprovalAction("approve", pendingCtx), "assertValidApprovalAction：合法动作通过");
+    throws(() => assertValidApprovalAction("approve", { ...pendingCtx, actor: "carol" }), "assertValidApprovalAction：非 assignee 抛错");
+    eq(availableApprovalActions(draftCtx), ["submit"], "草稿态仅发起人可提交");
+    eq(availableApprovalActions(pendingCtx), ["approve", "reject", "delegate"], "待审态当前 assignee 三动作");
+    eq(availableApprovalActions({ ...pendingCtx, actor: "alice" }), ["withdraw"], "待审态发起人仅可撤回");
+    eq(availableApprovalActions({ ...pendingCtx, status: "approved" }), [], "终态无可用动作");
+
+    // 三视角纯函数（web/api 共用同一过滤口径）
+    const mkA = (id: number, applicantId: string, currentAssignee: string, status: ApprovalStatus): Approval => ({
+      id, title: `审批${id}`, type: "leave", applicantId, status, currentAssignee,
+      createdAt: "t", updatedAt: "t",
+    });
+    const viewAll = [mkA(1, "alice", "bob", "pending"), mkA(2, "alice", "bob", "approved"), mkA(3, "carol", "bob", "pending")];
+    const ccMap: Record<number, readonly string[]> = { 1: ["dave"], 2: ["dave", "erin"] };
+    eq(selectApprovalsForView({ approvals: viewAll, ccByApproval: ccMap, view: "todo", actor: "bob" }).map((a) => a.id), [1, 3], "我的待办：只数 pending 且 assignee 是我");
+    eq(selectApprovalsForView({ approvals: viewAll, ccByApproval: ccMap, view: "todo", actor: "alice" }).map((a) => a.id), [], "我的待办：已通过的不算待办");
+    eq(selectApprovalsForView({ approvals: viewAll, ccByApproval: ccMap, view: "initiated", actor: "alice" }).map((a) => a.id), [1, 2], "我发起的：按 applicant 过滤（含终态）");
+    eq(selectApprovalsForView({ approvals: viewAll, ccByApproval: ccMap, view: "initiated", actor: "carol" }).map((a) => a.id), [3], "我发起的：另一发起人独立");
+    eq(selectApprovalsForView({ approvals: viewAll, ccByApproval: ccMap, view: "cc", actor: "dave" }).map((a) => a.id), [1, 2], "抄送我的：按 cc 名单过滤");
+    eq(selectApprovalsForView({ approvals: viewAll, ccByApproval: ccMap, view: "cc", actor: "erin" }).map((a) => a.id), [2], "抄送我的：单人命中");
+    throws(() => selectApprovalsForView({ approvals: viewAll, ccByApproval: ccMap, view: "all" as never, actor: "bob" }), "非法视角抛错");
+    throws(() => selectApprovalsForView({ approvals: viewAll, ccByApproval: ccMap, view: "todo", actor: "" }), "空用户抛错");
+
+    // schema v12 与审批数据层（真迁移、真落库、真事务、真三视角）
+    const adb = freshDb();
+    eq(adb.listApprovals().length, 0, "新库审批列表为空");
+    const a1 = adb.createApproval({
+      title: "r16 请假审批", type: "leave", applicantId: "alice", currentAssignee: "bob", cc: ["dave"],
+    });
+    ok(a1.id > 0, "createApproval 返回自增 id");
+    eq(a1.status, "draft", "新建审批初始状态 draft");
+    eq(a1.title, "r16 请假审批", "审批标题读回");
+    eq(a1.type, "leave", "审批类型读回");
+    eq(a1.applicantId, "alice", "申请人读回");
+    eq(a1.currentAssignee, "bob", "初始审批人读回");
+    throws(() => adb.createApproval({ title: "", type: "leave", applicantId: "a", currentAssignee: "b" }), "数据层拒绝空标题审批");
+    throws(() => adb.createApproval({ title: "x", type: "x", applicantId: "a", currentAssignee: "b" }), "数据层拒绝非法审批类型");
+    throws(() => adb.createApproval({ title: "x", type: "leave", applicantId: "a", currentAssignee: "" }), "数据层拒绝空审批人");
+    eq(adb.getApproval(a1.id)!.id, a1.id, "getApproval 按 id 命中");
+    eq(adb.getApproval(999999), null, "getApproval 不存在返回 null");
+    eq(adb.listApprovalCc(a1.id), ["dave"], "createApproval 抄送人真落库");
+    adb.addApprovalCc(a1.id, "erin");
+    eq(adb.listApprovalCc(a1.id), ["dave", "erin"], "addApprovalCc 追加抄送人");
+    throws(() => adb.addApprovalCc(a1.id, "dave"), "重复抄送人被拒（UNIQUE）");
+    eq(adb.listApprovalCc(999999), [], "越权 id 抄送列表为空");
+    eq(adb.listApprovalSteps(a1.id).length, 0, "草稿态无步骤（提交才产生第一步）");
+
+    const submitted = adb.actOnApproval(a1.id, "submit", "alice", { comment: "请审批" })!;
+    eq(submitted.status, "pending", "submit 真流转到 pending");
+    const steps1: ApprovalStep[] = adb.listApprovalSteps(a1.id);
+    eq(steps1.length, 1, "提交产生 1 条步骤");
+    eq(steps1[0]!.action, "submit", "第一步动作为 submit");
+    eq(steps1[0]!.order, 0, "第一步 order=0");
+    eq(steps1[0]!.assignee, "alice", "提交步骤 assignee 为操作人");
+    eq(steps1[0]!.comment, "请审批", "步骤审批意见逐字落库");
+    throws(() => adb.actOnApproval(a1.id, "approve", "carol", { comment: "越权" }), "非 assignee 审批在数据层被拒");
+    eq(adb.getApproval(a1.id)!.status, "pending", "非法操作后状态未变（零半态）");
+    eq(adb.listApprovalSteps(a1.id).length, 1, "非法操作未写步骤（零半态）");
+
+    const delegated = adb.actOnApproval(a1.id, "delegate", "bob", { targetAssignee: "carol", comment: "交给 carol" })!;
+    eq(delegated.status, "pending", "数据层 delegate 不改状态");
+    eq(delegated.currentAssignee, "carol", "数据层 delegate 真改 assignee");
+    const steps2 = adb.listApprovalSteps(a1.id);
+    eq(steps2.length, 2, "转交产生第二步");
+    eq(steps2[1]!.action, "delegate", "第二步动作为 delegate");
+    eq(steps2[1]!.assignee, "carol", "转交步骤记新 assignee");
+    eq(steps2[1]!.order, 1, "第二步 order=1 连号");
+    throws(() => adb.actOnApproval(a1.id, "approve", "bob", {}), "转交后旧 assignee 不能审批");
+
+    const approved = adb.actOnApproval(a1.id, "approve", "carol", { comment: "同意" })!;
+    eq(approved.status, "approved", "approve 真流转到 approved");
+    eq(adb.listApprovalSteps(a1.id).length, 3, "审批产生第三步");
+    throws(() => adb.actOnApproval(a1.id, "approve", "carol", {}), "已结单再审批抛错");
+    throws(() => adb.actOnApproval(a1.id, "reject", "carol", {}), "已结单再驳回抛错");
+    throws(() => adb.actOnApproval(a1.id, "delegate", "carol", { targetAssignee: "dave" }), "已结单不能再转交");
+    const approvedSnapshot = JSON.stringify(adb.getApproval(a1.id));
+    eq(approvedSnapshot, JSON.stringify(adb.getApproval(a1.id)), "4xx 后审批快照逐字节不变");
+
+    const a2 = adb.createApproval({ title: "r16 报销审批", type: "expense", applicantId: "alice", currentAssignee: "bob", cc: ["dave"] });
+    adb.actOnApproval(a2.id, "submit", "alice", {});
+    eq(adb.listApprovalsByView("todo", "bob").map((x) => x.id), [a2.id], "db 我的待办：pending 且 assignee 是我");
+    eq(adb.listApprovalsByView("initiated", "alice").map((x) => x.id), [a2.id, a1.id], "db 我发起的：含终态（列表按 id 倒序）");
+    eq(adb.listApprovalsByView("cc", "dave").map((x) => x.id), [a2.id, a1.id], "db 抄送我的：按抄送名单（列表按 id 倒序）");
+    eq(adb.listApprovalsByView("todo", "carol").map((x) => x.id), [], "db 转交后 carol 待审的那单已结，待办为空");
+    throws(() => adb.listApprovalsByView("all" as never, "bob"), "db 非法视角抛错");
+
+    const a3 = adb.createApproval({ title: "r16 驳回", type: "other", applicantId: "frank", currentAssignee: "grace" });
+    adb.actOnApproval(a3.id, "submit", "frank", {});
+    eq(adb.actOnApproval(a3.id, "reject", "grace", { comment: "不批" })!.status, "rejected", "reject 真流转到 rejected");
+    const a4 = adb.createApproval({ title: "r16 撤回", type: "purchase", applicantId: "helen", currentAssignee: "ivan" });
+    adb.actOnApproval(a4.id, "submit", "helen", {});
+    eq(adb.actOnApproval(a4.id, "withdraw", "helen", {})!.status, "withdrawn", "withdraw 真流转到 withdrawn");
+    throws(() => adb.actOnApproval(a4.id, "submit", "helen", {}), "已撤回不能重复提交");
+
+    eq(adb.deleteApproval(a1.id), true, "deleteApproval 命中");
+    eq(adb.listApprovalSteps(a1.id).length, 0, "删审批后步骤级联归零");
+    eq(adb.listApprovalCc(a1.id).length, 0, "删审批后抄送级联归零");
+    eq(adb.deleteApproval(a1.id), false, "重复删除返回 false");
+    adb.updateApprovalTitle(a2.id, "改名报销");
+    eq(adb.getApproval(a2.id)!.title, "改名报销", "updateApprovalTitle 生效");
+    eq(adb.updateApprovalTitle(999999, "x"), null, "updateApprovalTitle 越权 id 返回 null");
+
+    mkdirSync("scripts/.tmp-e2e", { recursive: true });
+    const p16 = `scripts/.tmp-e2e/r16-${Date.now()}.db`;
+    const f16 = openDatabase({ path: p16 });
+    const pa = f16.createApproval({ title: "持久化审批", type: "leave", applicantId: "alice", currentAssignee: "bob", cc: ["dave"] });
+    f16.actOnApproval(pa.id, "submit", "alice", { comment: "保存后重开" });
+    f16.actOnApproval(pa.id, "approve", "bob", {});
+    f16.close();
+    const r16 = openDatabase({ path: p16 });
+    eq(r16.getApproval(pa.id)!.status, "approved", "审批关库重开状态不丢");
+    eq(r16.listApprovalSteps(pa.id).length, 2, "审批步骤关库重开不丢");
+    eq(r16.listApprovalCc(pa.id), ["dave"], "抄送人关库重开不丢");
+    r16.close();
+
+    const raw16 = openDatabaseRaw({ path: `scripts/.tmp-e2e/r16-raw-${Date.now()}.db` });
+    eq((raw16.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 12, "真实 PRAGMA user_version=12");
+    eq(
+      raw16.raw.all("PRAGMA table_info(approvals)").map((r) => String((r as unknown as { name: unknown }).name)),
+      ["id", "title", "type", "applicant_id", "status", "current_assignee", "created_at", "updated_at"],
+      "approvals 表八列由 v12 迁移创建",
+    );
+    eq(
+      raw16.raw.all("PRAGMA table_info(approval_steps)").map((r) => String((r as unknown as { name: unknown }).name)),
+      ["id", "approval_id", "order", "assignee", "action", "comment", "acted_at"],
+      "approval_steps 表七列由 v12 迁移创建（order 列名保留）",
+    );
+    eq(
+      raw16.raw.all("PRAGMA table_info(approval_cc)").map((r) => String((r as unknown as { name: unknown }).name)),
+      ["id", "approval_id", "cc_user", "created_at"],
+      "approval_cc 表四列由 v12 迁移创建",
+    );
+    throws(
+      () => raw16.raw.run("INSERT INTO approvals (title,type,applicant_id,status,current_assignee,created_at,updated_at) VALUES ('x','x','a','draft','b','t','t')"),
+      "approvals.type CHECK 拒绝非法类型（raw 直达 schema 约束）",
+    );
+    throws(
+      () => raw16.raw.run("INSERT INTO approval_steps (approval_id,\"order\",assignee,action,comment,acted_at) VALUES (1,0,'a','sleep','','t')"),
+      "approval_steps.action CHECK 拒绝非法动作",
+    );
+    raw16.raw.close();
+    adb.close();
+    db = null;
+  }
+
+  // 51. HTTP 冒烟 /api/health
   section("HTTP 冒烟 /api/health");
   let httpOk = false;
   let httpNote = "api 服务未运行（pnpm dev:api 后再跑 pnpm test 可覆盖此节）";

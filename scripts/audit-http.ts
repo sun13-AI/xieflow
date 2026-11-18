@@ -120,7 +120,7 @@ async function audit() {
     eq(h.json && h.json.ok, true, "health.ok = true");
     // r4 起动态对表：health.schemaVersion 必须等于迁移队列最高版本（不再硬编码 2/3，
     // r3 v0.0.6 CI 红教训——静态硬编码在每轮迁移后必过期）
-    eq(h.json && h.json.schemaVersion, 11, "health.schemaVersion = 11（r15 迁移后）");
+    eq(h.json && h.json.schemaVersion, 12, "health.schemaVersion = 12（r16 迁移后）");
     const s = await req("GET", "/api/settings");
     eq(s.status, 200, "GET /api/settings -> 200");
     ok(Array.isArray(s.json && s.json.settings), "settings 返回数组");
@@ -217,7 +217,7 @@ async function audit() {
   {
     // health 探针反映 schema v8（r4 起迁移后动态推进）
     const h3 = await req("GET", "/api/health");
-    eq(h3.json && h3.json.schemaVersion, 11, "health.schemaVersion = 11（schedules 节复核）");
+    eq(h3.json && h3.json.schemaVersion, 12, "health.schemaVersion = 12（schedules 节复核）");
 
     const r = await expectStatus(
       "POST",
@@ -2173,6 +2173,130 @@ async function audit() {
     await expectStatus("DELETE", `/api/whiteboards/${b4.json.id}`, undefined, 200, "r15 返工 DELETE 复现白板 -> 200");
     const after = await expectStatus("GET", "/api/whiteboards", undefined, 200, "r15 清理后列表 -> 200");
     eq(after.json.whiteboards.length, 0, "r15 清理后白板归零（无残留）");
+  }
+
+  console.log("\n== Approval r16: CRUD / submit / approve / reject / delegate / withdraw / views / 4xx ==");
+  {
+    const p1 = await expectStatus("POST", "/api/approvals", {
+      title: "r16 \u8bf7\u5047\u5ba1\u6279", type: "leave", applicantId: "alice", currentAssignee: "bob", cc: ["dave"],
+    }, 201, "r16 POST \u5ba1\u6279 -> 201");
+    eq(p1.json && p1.json.title, "r16 \u8bf7\u5047\u5ba1\u6279", "r16 POST \u6807\u9898\u8bfb\u56de");
+    eq(p1.json && p1.json.status, "draft", "r16 \u65b0\u5efa\u72b6\u6001 draft");
+    eq(p1.json && p1.json.applicantId, "alice", "r16 \u7533\u8bf7\u4eba\u8bfb\u56de");
+    eq(p1.json && p1.json.currentAssignee, "bob", "r16 \u521d\u59cb\u5ba1\u6279\u4eba\u8bfb\u56de");
+    ok(p1.json && p1.json.id > 0, "r16 POST \u8fd4\u56de\u81ea\u589e id");
+    const p2 = await expectStatus("POST", "/api/approvals", {
+      title: "r16 \u62a5\u9500\u5ba1\u6279", type: "expense", applicantId: "alice", currentAssignee: "bob", cc: ["dave", "erin"],
+    }, 201, "r16 POST \u7b2c\u4e8c\u5355 -> 201");
+    const list = await expectStatus("GET", "/api/approvals", undefined, 200, "r16 GET \u5ba1\u6279\u5217\u8868 -> 200");
+    eq(list.json.approvals.length, 2, "r16 \u5217\u8868\u542b\u4e24\u5f20\u65b0\u5efa\u5ba1\u6279");
+    const detail = await expectStatus("GET", `/api/approvals/${p1.json.id}`, undefined, 200, "r16 GET \u5ba6\u60c5 -> 200");
+    eq(detail.json && detail.json.id, p1.json.id, "r16 \u5ba6\u60c5 id \u4e00\u81f4");
+    const patched = await expectStatus("PATCH", `/api/approvals/${p1.json.id}`, { title: "r16 \u6539\u540d\u8bf7\u5047" }, 200, "r16 PATCH \u6539\u540d -> 200");
+    eq(patched.json && patched.json.title, "r16 \u6539\u540d\u8bf7\u5047", "r16 PATCH \u6539\u540d\u8bfb\u56de");
+    const ccList = await expectStatus("GET", `/api/approvals/${p1.json.id}/cc`, undefined, 200, "r16 GET \u6284\u9001 -> 200");
+    eq(ccList.json.cc, ["dave"], "r16 \u6284\u9001\u4eba\u771f\u843d\u5e93\u8bfb\u56de");
+    const ccAdded = await expectStatus("POST", `/api/approvals/${p1.json.id}/cc`, { user: "erin" }, 201, "r16 POST \u8ffd\u52a0\u6284\u9001 -> 201");
+    eq(ccAdded.json.cc, ["dave", "erin"], "r16 \u8ffd\u52a0\u6284\u9001\u8bfb\u56de");
+
+    // \u63d0\u4ea4\u2192\u6b65\u9aa4\u2192\u8f6c\u4ea4\u2192\u901a\u8fc7\uff08\u771f HTTP\uff0c\u771f\u843d\u5e93\uff09
+    const submitted = await expectStatus("POST", `/api/approvals/${p1.json.id}/submit`, { actor: "alice", comment: "\u8bf7\u5ba1\u6279" }, 200, "r16 POST submit -> 200");
+    eq(submitted.json && submitted.json.status, "pending", "r16 submit \u771f\u6d41\u8f6c\u5230 pending");
+    const steps1 = await expectStatus("GET", `/api/approvals/${p1.json.id}/steps`, undefined, 200, "r16 GET \u6b65\u9aa4 -> 200");
+    eq(steps1.json.steps.length, 1, "r16 \u63d0\u4ea4\u4ea7\u751f 1 \u6761\u6b65\u9aa4");
+    eq(steps1.json.steps[0].action, "submit", "r16 \u7b2c\u4e00\u6b65 action=submit");
+    eq(steps1.json.steps[0].order, 0, "r16 \u7b2c\u4e00\u6b65 order=0");
+    eq(steps1.json.steps[0].comment, "\u8bf7\u5ba1\u6279", "r16 \u6b65\u9aa4\u610f\u89c1\u9010\u5b57\u843d\u5e93");
+    const readAfterSubmit = await expectStatus("GET", `/api/approvals/${p1.json.id}`, undefined, 200, "r16 \u63d0\u4ea4\u540e\u8be6\u60c5\u56de\u8bfb -> 200");
+    eq(readAfterSubmit.json.status, "pending", "r16 submit \u771f\u843d\u5e93\uff08\u975e\u4e34\u65f6\u6001\uff09");
+
+    // 4xx\uff1a\u975e assignee \u64cd\u4f5c / \u975e\u53d1\u8d77\u4eba\u63d0\u4ea4 / \u975e\u6cd5\u5206\u7c7b
+    await expectStatus("POST", `/api/approvals/${p1.json.id}/approve`, { actor: "carol", comment: "\u8d8a\u6743" }, 400, "r16 \u975e assignee \u5ba1\u6279 -> 400");
+    await expectStatus("POST", `/api/approvals/${p1.json.id}/reject`, { actor: "carol" }, 400, "r16 \u975e assignee \u9a73\u56de -> 400");
+    await expectStatus("POST", `/api/approvals/${p1.json.id}/delegate`, { actor: "carol", targetAssignee: "dave" }, 400, "r16 \u975e assignee \u8f6c\u4ea4 -> 400");
+    await expectStatus("POST", `/api/approvals/${p2.json.id}/submit`, { actor: "bob" }, 400, "r16 \u975e\u53d1\u8d77\u4eba\u63d0\u4ea4 -> 400");
+    const after4xx = await expectStatus("GET", `/api/approvals/${p1.json.id}`, undefined, 200, "r16 4xx \u540e\u4ecd\u53ef\u8bfb -> 200");
+    eq(after4xx.json.status, "pending", "r16 4xx \u540e\u72b6\u6001\u672a\u53d8\uff08\u96f6\u534a\u6001\uff09");
+    const stepsAfter4xx = await expectStatus("GET", `/api/approvals/${p1.json.id}/steps`, undefined, 200, "r16 4xx \u540e\u6b65\u9aa4\u56de\u8bfb -> 200");
+    eq(stepsAfter4xx.json.steps.length, 1, "r16 4xx \u672a\u5199\u5165\u6b65\u9aa4\uff08\u96f6\u534a\u6001\uff09");
+    const submittedP2 = await expectStatus("POST", `/api/approvals/${p2.json.id}/submit`, { actor: "alice" }, 200, "r16 POST \u7b2c\u4e8c\u5355 submit -> 200");
+    eq(submittedP2.json && submittedP2.json.status, "pending", "r16 \u7b2c\u4e8c\u5355\u63d0\u4ea4\u540e\u8fdb\u5165\u5f85\u5ba1");
+
+    const delegated = await expectStatus("POST", `/api/approvals/${p1.json.id}/delegate`, { actor: "bob", targetAssignee: "carol", comment: "\u4ea4\u7ed9 carol" }, 200, "r16 POST delegate -> 200");
+    eq(delegated.json && delegated.json.status, "pending", "r16 delegate \u4e0d\u6539\u72b6\u6001\uff08\u771f HTTP \u8bfb\u56de\uff09");
+    eq(delegated.json && delegated.json.currentAssignee, "carol", "r16 delegate \u771f\u6362 assignee");
+    const steps2 = await expectStatus("GET", `/api/approvals/${p1.json.id}/steps`, undefined, 200, "r16 \u8f6c\u4ea4\u540e\u6b65\u9aa4 -> 200");
+    eq(steps2.json.steps.length, 2, "r16 \u8f6c\u4ea4\u4ea7\u751f\u7b2c\u4e8c\u6b65");
+    eq(steps2.json.steps[1].assignee, "carol", "r16 \u8f6c\u4ea4\u6b65\u9aa4\u8bb0\u65b0 assignee");
+    eq(steps2.json.steps[1].order, 1, "r16 \u6b65\u9aa4 order \u8fde\u53f7");
+    await expectStatus("POST", `/api/approvals/${p1.json.id}/approve`, { actor: "bob" }, 400, "r16 \u8f6c\u4ea4\u540e\u65e7 assignee \u5ba1\u6279 -> 400");
+    const approved = await expectStatus("POST", `/api/approvals/${p1.json.id}/approve`, { actor: "carol", comment: "\u540c\u610f" }, 200, "r16 POST approve -> 200");
+    eq(approved.json && approved.json.status, "approved", "r16 approve \u771f\u6d41\u8f6c\u5230 approved");
+    const finalSteps = await expectStatus("GET", `/api/approvals/${p1.json.id}/steps`, undefined, 200, "r16 \u901a\u8fc7\u540e\u65f6\u95f4\u7ebf -> 200");
+    eq(finalSteps.json.steps.length, 3, "r16 \u901a\u8fc7\u540e\u5171\u4e09\u6b65");
+    eq(finalSteps.json.steps[2].action, "approve", "r16 \u7b2c\u4e09\u6b65 action=approve");
+
+    // \u5df2\u7ed3\u5355\u518d\u5ba1\u6279 -> 400\uff08\u7ec8\u6001\u65e0\u51fa\u8fb9\uff09
+    await expectStatus("POST", `/api/approvals/${p1.json.id}/approve`, { actor: "carol" }, 400, "r16 \u5df2\u901a\u8fc7\u518d\u5ba1\u6279 -> 400");
+    await expectStatus("POST", `/api/approvals/${p1.json.id}/reject`, { actor: "carol" }, 400, "r16 \u5df2\u901a\u8fc7\u518d\u9a73\u56de -> 400");
+    await expectStatus("POST", `/api/approvals/${p1.json.id}/delegate`, { actor: "carol", targetAssignee: "dave" }, 400, "r16 \u5df2\u901a\u8fc7\u518d\u8f6c\u4ea4 -> 400");
+    await expectStatus("POST", `/api/approvals/${p1.json.id}/withdraw`, { actor: "alice" }, 400, "r16 \u5df2\u901a\u8fc7\u518d\u64a4\u56de -> 400");
+    const finalSnapshot = await expectStatus("GET", `/api/approvals/${p1.json.id}`, undefined, 200, "r16 \u7ec8\u6001\u56de\u8bfb -> 200");
+    eq(finalSnapshot.json.status, "approved", "r16 4xx \u540e\u7ec8\u6001\u4ecd\u4e3a approved");
+
+    // \u9a73\u56de\u4e0e\u64a4\u56de\u8def\u5f84
+    const p3 = await expectStatus("POST", "/api/approvals", { title: "r16 \u9a73\u56de", type: "other", applicantId: "frank", currentAssignee: "grace" }, 201, "r16 POST \u9a73\u56de\u5355 -> 201");
+    await expectStatus("POST", `/api/approvals/${p3.json.id}/submit`, { actor: "frank" }, 200, "r16 \u9a73\u56de\u5355\u63d0\u4ea4 -> 200");
+    const rejected = await expectStatus("POST", `/api/approvals/${p3.json.id}/reject`, { actor: "grace", comment: "\u4e0d\u6279" }, 200, "r16 POST reject -> 200");
+    eq(rejected.json && rejected.json.status, "rejected", "r16 reject \u771f\u6d41\u8f6c\u5230 rejected");
+    const p4 = await expectStatus("POST", "/api/approvals", { title: "r16 \u64a4\u56de", type: "purchase", applicantId: "helen", currentAssignee: "ivan" }, 201, "r16 POST \u64a4\u56de\u5355 -> 201");
+    await expectStatus("POST", `/api/approvals/${p4.json.id}/submit`, { actor: "helen" }, 200, "r16 \u64a4\u56de\u5355\u63d0\u4ea4 -> 200");
+    const withdrawn = await expectStatus("POST", `/api/approvals/${p4.json.id}/withdraw`, { actor: "helen" }, 200, "r16 POST withdraw -> 200");
+    eq(withdrawn.json && withdrawn.json.status, "withdrawn", "r16 withdraw \u771f\u6d41\u8f6c\u5230 withdrawn");
+    await expectStatus("POST", `/api/approvals/${p4.json.id}/withdraw`, { actor: "helen" }, 400, "r16 \u91cd\u590d\u64a4\u56de -> 400");
+
+    // \u4e09\u89c6\u89d2\u771f HTTP \u67e5\u8be2
+    const todoBob = await expectStatus("GET", "/api/approvals/view?view=todo&actor=bob", undefined, 200, "r16 \u6211\u7684\u5f85\u529e(bob) -> 200");
+    eq(todoBob.json.approvals.map((x: any) => x.id), [p2.json.id], "r16 \u5f85\u529e\u53ea\u6570 pending \u4e14 assignee \u662f\u6211");
+    const todoCarol = await expectStatus("GET", "/api/approvals/view?view=todo&actor=carol", undefined, 200, "r16 \u6211\u7684\u5f85\u529e(carol) -> 200");
+    eq(todoCarol.json.approvals.length, 0, "r16 \u8f6c\u4ea4\u540e\u5df2\u7ed3\u5355\uff0ccarol \u65e0\u5f85\u529e");
+    const initiatedAlice = await expectStatus("GET", "/api/approvals/view?view=initiated&actor=alice", undefined, 200, "r16 \u6211\u53d1\u8d77\u7684(alice) -> 200");
+    eq(initiatedAlice.json.approvals.map((x: any) => x.id), [p2.json.id, p1.json.id], "r16 \u6211\u53d1\u8d77\u7684\u542b\u7ec8\u6001\uff08\u5217\u8868\u5012\u5e8f\uff09");
+    const ccDave = await expectStatus("GET", "/api/approvals/view?view=cc&actor=dave", undefined, 200, "r16 \u6284\u9001\u6211\u7684(dave) -> 200");
+    eq(ccDave.json.approvals.map((x: any) => x.id), [p2.json.id, p1.json.id], "r16 \u6284\u9001\u6211\u7684\u6309\u540d\u5355\u8fc7\u6ee4\uff08\u5217\u8868\u5012\u5e8f\uff09");
+    const ccErin = await expectStatus("GET", "/api/approvals/view?view=cc&actor=erin", undefined, 200, "r16 \u6284\u9001\u6211\u7684(erin) -> 200");
+    eq(ccErin.json.approvals.map((x: any) => x.id), [p2.json.id, p1.json.id], "r16 \u6284\u9001\u8ffd\u52a0\u540e erin \u547d\u4e2d\u4e24\u5355\uff08\u5217\u8868\u5012\u5e8f\uff09");
+
+    // 4xx\uff1a\u975e\u6cd5\u521b\u5efa / \u975e\u6cd5\u52a8\u4f5c / \u975e\u6cd5\u89c6\u89d2 / \u8d8a\u6743 id / draft \u76f4\u63a5\u5ba1\u6279
+    await expectStatus("POST", "/api/approvals", { title: "", type: "leave", applicantId: "a", currentAssignee: "b" }, 400, "r16 POST \u7a7a\u6807\u9898 -> 400");
+    await expectStatus("POST", "/api/approvals", { title: "x".repeat(201), type: "leave", applicantId: "a", currentAssignee: "b" }, 400, "r16 POST \u8d85\u957f\u6807\u9898 -> 400");
+    await expectStatus("POST", "/api/approvals", { title: "x", type: "sleep", applicantId: "a", currentAssignee: "b" }, 400, "r16 POST \u975e\u6cd5\u7c7b\u578b -> 400");
+    await expectStatus("POST", "/api/approvals", { title: "x", type: "leave", applicantId: "a", currentAssignee: "" }, 400, "r16 POST \u7a7a\u5ba1\u6279\u4eba -> 400");
+    await expectStatus("POST", "/api/approvals", { title: "x", type: "leave", applicantId: "a", currentAssignee: "b", cc: "dave" }, 400, "r16 POST \u6284\u9001\u975e\u6570\u7ec4 -> 400");
+    await expectStatus("POST", "/api/approvals", { title: "x", type: "leave", applicantId: "a", currentAssignee: "b", cc: [42] }, 400, "r16 POST \u6284\u9001\u975e\u5b57\u7b26\u4e32 -> 400");
+    await expectStatus("GET", "/api/approvals/999999", undefined, 404, "r16 GET \u4e0d\u5b58\u5728 id -> 404");
+    await expectStatus("GET", "/api/approvals/not-a-number", undefined, 400, "r16 GET \u975e\u6570\u5b57 id -> 400");
+    await expectStatus("GET", "/api/approvals/999999/steps", undefined, 404, "r16 GET \u8d8a\u6743\u6b65\u9aa4 -> 404");
+    await expectStatus("GET", "/api/approvals/999999/cc", undefined, 404, "r16 GET \u8d8a\u6743\u6284\u9001 -> 404");
+    await expectStatus("GET", "/api/approvals/view?view=all&actor=bob", undefined, 400, "r16 \u975e\u6cd5\u89c6\u89d2 -> 400");
+    await expectStatus("GET", "/api/approvals/view?view=todo", undefined, 400, "r16 \u7f3a actor -> 400");
+    const pDraft = await expectStatus("POST", "/api/approvals", { title: "r16 draft \u76f4\u63a5\u5ba1\u6279", type: "leave", applicantId: "zoe", currentAssignee: "yan" }, 201, "r16 POST draft \u5355 -> 201");
+    await expectStatus("POST", `/api/approvals/${pDraft.json.id}/approve`, { actor: "yan" }, 400, "r16 draft \u76f4\u63a5\u5ba1\u6279 -> 400");
+    await expectStatus("POST", `/api/approvals/${p2.json.id}/submit`, {}, 400, "r16 \u7f3a actor \u63d0\u4ea4 -> 400");
+    await expectStatus("POST", `/api/approvals/${p1.json.id}/delegate`, { actor: "carol", targetAssignee: "carol" }, 400, "r16 \u8f6c\u4ea4\u76ee\u6807\u4e0e\u5f53\u524d\u76f8\u540c -> 400");
+    await expectStatus("POST", `/api/approvals/${p1.json.id}/delegate`, { actor: "carol" }, 400, "r16 \u8f6c\u4ea4\u7f3a\u76ee\u6807 -> 400");
+    await expectStatus("POST", "/api/approvals/999999/submit", { actor: "alice" }, 404, "r16 \u8d8a\u6743 id \u63d0\u4ea4 -> 404");
+    await expectStatus("POST", "/api/approvals/not-a-number/approve", { actor: "bob" }, 400, "r16 \u975e\u6570\u5b57 id \u5ba1\u6279 -> 400");
+    await expectStatus("PATCH", "/api/approvals/999999", { title: "x" }, 404, "r16 PATCH \u8d8a\u6743 id -> 404");
+    await expectStatus("DELETE", "/api/approvals/999999", undefined, 404, "r16 DELETE \u8d8a\u6743 id -> 404");
+    await expectStatus("POST", `/api/approvals/${p4.json.id}/cc`, { user: "" }, 400, "r16 \u7a7a\u6284\u9001\u4eba -> 400");
+
+    // \u6e05\u7406\uff08\u5220\u9664\u5ba1\u6279\uff0c\u6b65\u9aa4/\u6284\u9001\u7ea7\u8054\u5f52\u96f6\uff09
+    for (const id of [p1.json.id, p2.json.id, p3.json.id, p4.json.id, pDraft.json.id]) {
+      await expectStatus("DELETE", `/api/approvals/${id}`, undefined, 200, `r16 DELETE \u5ba1\u6279 ${id} -> 200`);
+    }
+    const after = await expectStatus("GET", "/api/approvals", undefined, 200, "r16 \u6e05\u7406\u540e\u5217\u8868 -> 200");
+    eq(after.json.approvals.length, 0, "r16 \u6e05\u7406\u540e\u5ba1\u6279\u5f52\u96f6\uff08\u65e0\u6b8b\u7559\uff09");
   }
 
   console.log("\n== schedules delete (r3) ==");

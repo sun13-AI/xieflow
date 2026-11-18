@@ -321,7 +321,7 @@ export function assembleRangeSchedules(
 }
 
 /** 数据库 schema 版本号，每轮迁移必须 +1（宪法：禁止手改库文件） */
-export const SCHEMA_VERSION: number = 11;
+export const SCHEMA_VERSION: number = 12;
 
 
 /** 迁移脚本类型：user_version 从 from 升到 to */
@@ -3404,4 +3404,246 @@ export function canvasToScreenPoint(
 export function clampWhiteboardScale(scale: number): number {
   if (typeof scale !== "number" || !Number.isFinite(scale)) return 1;
   return Math.min(WHITEBOARD_MAX_SCALE, Math.max(WHITEBOARD_MIN_SCALE, scale));
+}
+
+// ---- r16（M8 起步）：审批状态机与流转契约（全集中 shared，api/web 零流转分支） ----
+
+/** 审批五态（schema v12 approvals.status CHECK 同源；后三态为终态） */
+export const APPROVAL_STATUSES = ["draft", "pending", "approved", "rejected", "withdrawn"] as const;
+export type ApprovalStatus = (typeof APPROVAL_STATUSES)[number];
+
+/**
+ * 审批状态转移表（唯一口径）：draft→pending→approved/rejected/withdrawn。
+ * 终态零出边；转交 delegate 不改状态、只换 assignee，因此 pending→pending 不在表内。
+ */
+export const APPROVAL_TRANSITIONS: Record<ApprovalStatus, readonly ApprovalStatus[]> = {
+  draft: ["pending"],
+  pending: ["approved", "rejected", "withdrawn"],
+  approved: [],
+  rejected: [],
+  withdrawn: [],
+};
+
+export function canTransitionApproval(from: ApprovalStatus, to: ApprovalStatus): boolean {
+  return APPROVAL_TRANSITIONS[from].includes(to);
+}
+
+export function assertValidApprovalTransition(from: ApprovalStatus, to: ApprovalStatus): void {
+  if (!canTransitionApproval(from, to)) {
+    throw new ValidationError(`非法审批状态流转：${from} → ${to}`);
+  }
+}
+
+export function isApprovalStatus(value: unknown): value is ApprovalStatus {
+  return typeof value === "string" && (APPROVAL_STATUSES as readonly string[]).includes(value);
+}
+
+/** 审批动作集合（schema v12 approval_steps.action CHECK 同源） */
+export const APPROVAL_ACTIONS = ["submit", "approve", "reject", "delegate", "withdraw"] as const;
+export type ApprovalAction = (typeof APPROVAL_ACTIONS)[number];
+
+export function isApprovalAction(value: unknown): value is ApprovalAction {
+  return typeof value === "string" && (APPROVAL_ACTIONS as readonly string[]).includes(value);
+}
+
+/** 审批类型集合（schema v12 approvals.type CHECK 同源） */
+export const APPROVAL_TYPES = ["leave", "expense", "purchase", "other"] as const;
+export type ApprovalType = (typeof APPROVAL_TYPES)[number];
+
+export function isApprovalType(value: unknown): value is ApprovalType {
+  return typeof value === "string" && (APPROVAL_TYPES as readonly string[]).includes(value);
+}
+
+/** 三视角：我的待办 / 我发起的 / 抄送我的 */
+export const APPROVAL_VIEWS = ["todo", "initiated", "cc"] as const;
+export type ApprovalView = (typeof APPROVAL_VIEWS)[number];
+
+export function isApprovalView(value: unknown): value is ApprovalView {
+  return typeof value === "string" && (APPROVAL_VIEWS as readonly string[]).includes(value);
+}
+
+export const APPROVAL_TYPE_LABELS: Readonly<Record<ApprovalType, string>> = {
+  leave: "请假",
+  expense: "报销",
+  purchase: "采购",
+  other: "其它",
+};
+
+export const APPROVAL_STATUS_LABELS: Readonly<Record<ApprovalStatus, string>> = {
+  draft: "草稿",
+  pending: "待审批",
+  approved: "已通过",
+  rejected: "已驳回",
+  withdrawn: "已撤回",
+};
+
+export const APPROVAL_ACTION_LABELS: Readonly<Record<ApprovalAction, string>> = {
+  submit: "提交",
+  approve: "通过",
+  reject: "驳回",
+  delegate: "转交",
+  withdraw: "撤回",
+};
+
+export const MAX_APPROVAL_TITLE = 200;
+export const MAX_APPROVAL_COMMENT = 1000;
+export const MAX_APPROVAL_USER = 100;
+
+export function assertValidApprovalTitle(value: unknown): asserts value is string {
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new ValidationError("审批标题不能为空");
+  }
+  if (value.length > MAX_APPROVAL_TITLE) {
+    throw new ValidationError(`审批标题过长：最多 ${MAX_APPROVAL_TITLE} 字`);
+  }
+  if (value.includes("\u0000")) throw new ValidationError("审批标题含非法控制字符（NUL）");
+}
+
+export function assertValidApprovalType(value: unknown): asserts value is ApprovalType {
+  if (!isApprovalType(value)) {
+    throw new ValidationError(`非法审批类型：${String(value)}`);
+  }
+}
+
+export function assertValidApprovalUser(value: unknown, label = "审批人"): asserts value is string {
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new ValidationError(`${label}不能为空`);
+  }
+  if (value.length > MAX_APPROVAL_USER) {
+    throw new ValidationError(`${label}过长：最多 ${MAX_APPROVAL_USER} 字`);
+  }
+  if (value.includes("\u0000")) throw new ValidationError(`${label}含非法控制字符（NUL）`);
+}
+
+export function assertValidApprovalComment(value: unknown): asserts value is string {
+  if (value === undefined || value === null) return;
+  if (typeof value !== "string") throw new ValidationError("审批意见必须是字符串");
+  if (value.length > MAX_APPROVAL_COMMENT) {
+    throw new ValidationError(`审批意见过长：最多 ${MAX_APPROVAL_COMMENT} 字`);
+  }
+  if (value.includes("\u0000")) throw new ValidationError("审批意见含非法控制字符（NUL）");
+}
+
+/** 审批领域对象（schema v12 三表 camelCase 映射） */
+export interface Approval {
+  readonly id: number;
+  readonly title: string;
+  readonly type: ApprovalType;
+  readonly applicantId: string;
+  readonly status: ApprovalStatus;
+  readonly currentAssignee: string;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export interface ApprovalStep {
+  readonly id: number;
+  readonly approvalId: number;
+  readonly order: number;
+  readonly assignee: string;
+  readonly action: ApprovalAction;
+  readonly comment: string;
+  readonly actedAt: string;
+}
+
+export interface ApprovalCc {
+  readonly id: number;
+  readonly approvalId: number;
+  readonly ccUser: string;
+  readonly createdAt: string;
+}
+
+/** 动作上下文：api/db/web 共用，流转判定只读这几个字段 */
+export interface ApprovalActionContext {
+  readonly status: ApprovalStatus;
+  readonly applicantId: string;
+  readonly currentAssignee: string;
+  readonly actor: string;
+  readonly targetAssignee?: unknown;
+}
+
+/** 动作计划：状态、assignee、步骤归属全由 shared 算出，db 只负责按计划落库 */
+export interface ApprovalActionPlan {
+  readonly action: ApprovalAction;
+  readonly nextStatus: ApprovalStatus;
+  readonly nextAssignee: string;
+  readonly stepAssignee: string;
+}
+
+/**
+ * 审批动作唯一决策入口（r16）：先守卫角色与状态，再产出动作计划。
+ * approve/reject/delegate 只允许当前 assignee；submit/withdraw 只允许发起人；
+ * delegate 只换 assignee（nextStatus === 原状态），不进入转移表。
+ */
+export function planApprovalAction(action: unknown, ctx: ApprovalActionContext): ApprovalActionPlan {
+  if (!isApprovalAction(action)) {
+    throw new ValidationError(`非法审批动作：${String(action)}`);
+  }
+  assertValidApprovalUser(ctx.actor, "操作人");
+  if (!isApprovalStatus(ctx.status)) throw new ValidationError(`非法审批状态：${String(ctx.status)}`);
+
+  if (action === "submit") {
+    if (ctx.status !== "draft") throw new ValidationError(`提交只允许草稿态（当前 ${ctx.status}）`);
+    assertValidApprovalUser(ctx.applicantId, "发起人");
+    if (ctx.actor !== ctx.applicantId) throw new ValidationError("只有发起人可以提交审批");
+    assertValidApprovalTransition(ctx.status, "pending");
+    return { action, nextStatus: "pending", nextAssignee: ctx.currentAssignee, stepAssignee: ctx.actor };
+  }
+  if (action === "approve" || action === "reject") {
+    if (ctx.status !== "pending") throw new ValidationError(`${APPROVAL_ACTION_LABELS[action]}只允许待审态（当前 ${ctx.status}）`);
+    if (ctx.actor !== ctx.currentAssignee) throw new ValidationError("非当前审批人不能操作");
+    const nextStatus: ApprovalStatus = action === "approve" ? "approved" : "rejected";
+    assertValidApprovalTransition(ctx.status, nextStatus);
+    return { action, nextStatus, nextAssignee: ctx.currentAssignee, stepAssignee: ctx.actor };
+  }
+  if (action === "withdraw") {
+    if (ctx.status !== "pending") throw new ValidationError(`撤回只允许待审态（当前 ${ctx.status}）`);
+    assertValidApprovalUser(ctx.applicantId, "发起人");
+    if (ctx.actor !== ctx.applicantId) throw new ValidationError("只有发起人可以撤回审批");
+    assertValidApprovalTransition(ctx.status, "withdrawn");
+    return { action, nextStatus: "withdrawn", nextAssignee: ctx.currentAssignee, stepAssignee: ctx.actor };
+  }
+  // delegate：不改状态，只换 assignee；步骤记新 assignee，便于时间线呈现转交结果
+  if (ctx.status !== "pending") throw new ValidationError(`转交只允许待审态（当前 ${ctx.status}）`);
+  if (ctx.actor !== ctx.currentAssignee) throw new ValidationError("非当前审批人不能转交");
+  assertValidApprovalUser(ctx.targetAssignee, "转交目标");
+  if (ctx.targetAssignee === ctx.currentAssignee) throw new ValidationError("转交目标不能与当前审批人相同");
+  return { action, nextStatus: ctx.status, nextAssignee: ctx.targetAssignee, stepAssignee: ctx.targetAssignee };
+}
+
+export function assertValidApprovalAction(action: unknown, ctx: ApprovalActionContext): asserts action is ApprovalAction {
+  planApprovalAction(action, ctx);
+}
+
+/** UI 按钮可见性唯一口径：逐个试算动作计划，能算出的即当前身份可执行 */
+export function availableApprovalActions(ctx: ApprovalActionContext): ApprovalAction[] {
+  return APPROVAL_ACTIONS.filter((action) => {
+    try {
+      planApprovalAction(action, {
+        ...ctx,
+        targetAssignee: action === "delegate" ? "__probe_target__" : ctx.targetAssignee,
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  });
+}
+
+/** 三视角过滤唯一口径（db 层先装配 cc 名单，再交给本函数；web 不另写分支） */
+export interface ApprovalViewContext {
+  readonly approvals: readonly Approval[];
+  readonly ccByApproval: Readonly<Record<number, readonly string[]>>;
+  readonly view: ApprovalView;
+  readonly actor: string;
+}
+
+export function selectApprovalsForView(ctx: ApprovalViewContext): Approval[] {
+  assertValidApprovalUser(ctx.actor, "当前用户");
+  if (!isApprovalView(ctx.view)) throw new ValidationError(`非法审批视角：${String(ctx.view)}`);
+  return ctx.approvals.filter((a) => {
+    if (ctx.view === "todo") return a.status === "pending" && a.currentAssignee === ctx.actor;
+    if (ctx.view === "initiated") return a.applicantId === ctx.actor;
+    return (ctx.ccByApproval[a.id] ?? []).includes(ctx.actor);
+  });
 }

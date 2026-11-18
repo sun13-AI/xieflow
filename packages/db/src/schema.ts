@@ -256,6 +256,43 @@ export const MIGRATIONS: Migration[] = [
       `CREATE INDEX IF NOT EXISTS idx_whiteboard_items_board ON whiteboard_items (board_id)`,
     ],
   },
+  {
+    version: 12,
+    name: "r16 · approvals / approval_steps / approval_cc 表（M8 第 1 片：审批流引擎）",
+    up: [
+      `CREATE TABLE IF NOT EXISTS approvals (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL CHECK (length(title) > 0),
+        type TEXT NOT NULL CHECK (type IN ('leave','expense','purchase','other')),
+        applicant_id TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('draft','pending','approved','rejected','withdrawn')),
+        current_assignee TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_approvals_status ON approvals (status)`,
+      `CREATE INDEX IF NOT EXISTS idx_approvals_assignee ON approvals (current_assignee)`,
+      `CREATE INDEX IF NOT EXISTS idx_approvals_applicant ON approvals (applicant_id)`,
+      `CREATE TABLE IF NOT EXISTS approval_steps (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        approval_id INTEGER NOT NULL REFERENCES approvals(id) ON DELETE CASCADE,
+        "order" INTEGER NOT NULL,
+        assignee TEXT NOT NULL,
+        action TEXT NOT NULL CHECK (action IN ('submit','approve','reject','delegate','withdraw')),
+        comment TEXT NOT NULL DEFAULT '',
+        acted_at TEXT NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_approval_steps_approval ON approval_steps (approval_id)`,
+      `CREATE TABLE IF NOT EXISTS approval_cc (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        approval_id INTEGER NOT NULL REFERENCES approvals(id) ON DELETE CASCADE,
+        cc_user TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        UNIQUE (approval_id, cc_user)
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_approval_cc_approval ON approval_cc (approval_id)`,
+    ],
+  },
 ];
 
 /** 当前 schema 版本（与 shared 的 SCHEMA_VERSION 保持一致，e2e 会断言二者相等） */
