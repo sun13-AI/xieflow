@@ -6,17 +6,18 @@ on:
   pull_request:
 
 jobs:
-  # Platform tolerance (r18 lead decision): GitHub's macos-latest runner was
-  # repeatedly cancelled by the platform (ubuntu/windows green every time),
-  # which blocked 4 consecutive releases (v0.0.15~v0.0.18). Keep macOS in the
-  # matrix for visibility, but do not let a platform-side cancellation block
-  # a tag release. Real code failures on macOS are still reported in the UI.
-  verify:
-    continue-on-error: ${{ matrix.os == 'macos-latest' }}
+  # Split design (r16 lead decision): GitHub's macos-latest runner was repeatedly
+  # CANCELLED by the platform (ubuntu/windows green every run). Job-level
+  # continue-on-error does NOT cover 'cancelled', so it couldn't unblock release.
+  # Now: verify-core (ubuntu+windows) is the RELEASE GATE; verify-macos runs
+  # independently for visibility only. A platform-side macOS cancel can no
+  # longer block a tagged release. Real code failures on ubuntu/windows still
+  # block release.
+  verify-core:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -38,8 +39,23 @@ jobs:
           # schema version must match the migrations queue (currently 12); assert dynamically instead of hardcoding
           curl -fsS http://127.0.0.1:8787/api/health | grep -Eq '"schemaVersion":(2|3|4|5|6|7|8|9|10|11|12)'
 
+  verify-macos:
+    runs-on: macos-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run test:all
+
   release:
-    needs: verify
+    needs: verify-core
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
