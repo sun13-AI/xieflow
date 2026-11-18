@@ -149,7 +149,8 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r12 | M6 第 1 片：知识库入库与本地检索 | ✅已发版（首轮双通过；TF-IDF 手算核对 + 变异红相 2 组） | v0.0.16 | e2e 1087 · audit 923 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r13 | M6 第 2 片：RAG 对话与引用溯源（M6 收官） | ✅已发版（首轮双通过；引用跳转真点 + lead 修 P4 速查行） | v0.0.17 | e2e 1161 · audit 966 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r14 | M7 第 1 片：思维导图 Markdown 双视图（M7 起步） | ✅已发版（首轮双通过；Markdown↔树 37/37 + 变异红相） | v0.0.18 | e2e 1221 · audit 1020 | 通过（waizhuan）+ UI 通过（阻断岗） |
-| r15 | M7 第 2 片：白板画布（M7 收官） | 🔨研发中 | — | — | — |
+| r15 | M7 第 2 片：白板画布与 AI 建板（M7 收官） | ✅已发版（初验 waizhuan 打回 P1 AI 建板重叠→返工#1 全画布零重叠→复审双通过） | v0.0.19 | e2e 1331 · audit 1111 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r16 | M8 第 1 片：审批流引擎（M8 起步） | 🔨研发中 | — | — | — |
 
 附加交付（r2 内 lead 直做，已入库 8e4fb9b）：
 - 一键启动：start.cmd 双击 / scripts\start.ps1 start|stop|status（三轮全链路验证；期间排掉「僵尸 api 抢 8787」环境坑，非脚本缺陷）
@@ -384,6 +385,25 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
   3. **新增「白板」tab 补该 tab 激活态图**（十一 tab 壳基线）
   4. 双 VERDICT（waizhuan + ui 阻断岗）通过
 - 前置：r14 已发版（v0.0.18）✅
+- **已发版 v0.0.19**（初验 P1 打回→返工全画布零重叠→复审双通过）
+
+### r16 · M8 第 1 片：审批流引擎（M8 起步）
+- 目标：OA 审批流（发起/审批/抄送/转交/撤回）落库 + 最小 UI——M8 起步轮
+- 交付清单：
+  1. schema v11→v12：approvals 表（id/title/type/applicant_id/status/current_assignee/created_at/updated_at）、approval_steps 表（id/approval_id/order/assignee/action/comment/acted_at）、approval_cc 表（抄送人）
+  2. 审批状态机集中 packages/shared：APPROVAL_TRANSITIONS（draft→pending→approved/rejected/withdrawn；转交不改状态只换 assignee）、canTransitionApproval(from, to)、assertValidApprovalAction
+  3. api：approvals CRUD、POST /:id/submit、POST /:id/approve|reject|delegate|withdraw、GET 我的待办/我发起的/抄送我的
+  4. web：新增「审批」tab——发起审批表单 + 待办审批列表 + 审批详情（步骤时间线 + 操作按钮）+ 抄送提示
+  5. 断言：e2e ≥+40（状态机/步骤流转/三种视角查询）、audit ≥+30（含 4xx：非法流转/非当前 assignee 操作/已结单再审批）
+  6. 截图 ≥7：审批空态/发起表单/待办列表/详情时间线/审批通过态/窄屏/错误态
+- 验收标准：
+  1. 全量绿：e2e ≥1371、audit ≥1141，README 双节同步
+  2. 状态机全集中 shared，api 零流转分支；非 assignee 操作被拒有断言
+  3. **新增「审批」tab 补该 tab 激活态图**（十二 tab 壳基线）
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r15 已发版（v0.0.19）✅
+
+### r17（预占）· M8 第 2 片：物资台账与单位任务流转（M8 收官）
 
 ## 历史轮次（r1~r2 已收档，见下方记账区）
 
