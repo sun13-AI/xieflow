@@ -29,6 +29,9 @@ import type {
   KnowledgeChunk,
   KnowledgeSearchChunk,
   Mindmap,
+  Whiteboard,
+  WhiteboardItem,
+  WhiteboardItemType,
 } from "@xieflow/shared";
 import { isFieldType, isBlockType, normalizeBlockContent, isKnowledgeSourceType } from "@xieflow/shared";
 import { REPEATS_ORDER } from "./repeat-order.js";
@@ -367,6 +370,31 @@ export function mapRowToMindmap(row: Row): Mindmap {
     id: Number(row.id),
     title: String(row.title),
     contentMarkdown: String(row.content_markdown),
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+  };
+}
+
+/** r15：whiteboards / whiteboard_items（布局/避让规则全在 shared，这里只做 snake→camel 映射） */
+export function mapRowToWhiteboard(row: Row): Whiteboard {
+  return {
+    id: Number(row.id),
+    title: String(row.title),
+    createdAt: String(row.created_at),
+  };
+}
+
+export function mapRowToWhiteboardItem(row: Row): WhiteboardItem {
+  return {
+    id: Number(row.id),
+    boardId: Number(row.board_id),
+    type: String(row.type) as WhiteboardItemType,
+    x: Number(row.x),
+    y: Number(row.y),
+    w: Number(row.w),
+    h: Number(row.h),
+    content: String(row.content),
+    color: String(row.color),
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
   };

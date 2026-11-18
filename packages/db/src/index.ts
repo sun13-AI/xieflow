@@ -29,6 +29,8 @@ import {
   mapRowToKnowledgeChunk,
   mapRowToKnowledgeSearchChunk,
   mapRowToMindmap,
+  mapRowToWhiteboard,
+  mapRowToWhiteboardItem,
 } from "./mappers.js";
 import type {
   AppSetting,
@@ -62,6 +64,9 @@ import type {
   KnowledgeSearchChunk,
   RagCitation,
   Mindmap,
+  Whiteboard,
+  WhiteboardItem,
+  WhiteboardItemProps,
 } from "@xieflow/shared";
 import {
   canTransitionTodo,
@@ -107,6 +112,10 @@ import {
   assertValidMindmapTitle,
   assertValidMindmapContent,
   assertValidMindmapContentOrEmpty,
+  assertValidWhiteboardTitle,
+  normalizeWhiteboardItem,
+  collisionResolve,
+  planAiWhiteboard,
   ValidationError,
 } from "@xieflow/shared";
 import { REPEATS_ORDER } from "./repeat-order.js";
@@ -1743,5 +1752,173 @@ export class XieFlowDb {
 
   deleteMindmap(id: number): boolean {
     return this.db.run("DELETE FROM mindmaps WHERE id = ?", [id]).changes > 0;
+  }
+
+  // ---- r15：白板画布数据层（whiteboards / whiteboard_items；布局/避让规则全在 shared） ----
+
+  createWhiteboard(input: { readonly title: unknown }): Whiteboard {
+    assertValidWhiteboardTitle(input.title);
+    const now = new Date().toISOString();
+    const res = this.db.run("INSERT INTO whiteboards (title, created_at) VALUES (?, ?)", [input.title, now]);
+    const row = this.db.get("SELECT * FROM whiteboards WHERE id = ?", [res.lastInsertRowid]);
+    if (!row) throw new Error("白板写入后读回失败");
+    return mapRowToWhiteboard(row);
+  }
+
+  getWhiteboard(id: number): Whiteboard | null {
+    const row = this.db.get("SELECT * FROM whiteboards WHERE id = ?", [id]);
+    return row ? mapRowToWhiteboard(row) : null;
+  }
+
+  listWhiteboards(): Whiteboard[] {
+    return this.db.all("SELECT * FROM whiteboards ORDER BY id DESC").map(mapRowToWhiteboard);
+  }
+
+  updateWhiteboardTitle(id: number, title: unknown): Whiteboard | null {
+    assertValidWhiteboardTitle(title);
+    if (this.getWhiteboard(id) === null) return null;
+    this.db.run("UPDATE whiteboards SET title = ? WHERE id = ?", [title, id]);
+    return this.getWhiteboard(id);
+  }
+
+  deleteWhiteboard(id: number): boolean {
+    return this.db.run("DELETE FROM whiteboards WHERE id = ?", [id]).changes > 0;
+  }
+
+  /** 越权 board_id → null（api 映射 404）；非法 type/坐标 → shared ValidationError（api 映射 400） */
+  createWhiteboardItem(
+    boardId: number,
+    input: WhiteboardItemProps & { readonly type?: unknown },
+  ): WhiteboardItem | null {
+    if (this.getWhiteboard(boardId) === null) return null;
+    const item = normalizeWhiteboardItem(input.type, input);
+    const now = new Date().toISOString();
+    const res = this.db.run(
+      "INSERT INTO whiteboard_items (board_id, type, x, y, w, h, content, color, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      [boardId, item.type, item.x, item.y, item.w, item.h, item.content, item.color, now, now],
+    );
+    const row = this.db.get("SELECT * FROM whiteboard_items WHERE id = ?", [res.lastInsertRowid]);
+    if (!row) throw new Error("白板条目写入后读回失败");
+    return mapRowToWhiteboardItem(row);
+  }
+
+  getWhiteboardItem(id: number): WhiteboardItem | null {
+    const row = this.db.get("SELECT * FROM whiteboard_items WHERE id = ?", [id]);
+    return row ? mapRowToWhiteboardItem(row) : null;
+  }
+
+  /** 视觉顺序（y→x→id）稳定返回，导出 Markdown 与 UI 渲染口径一致 */
+  listWhiteboardItems(boardId: number): WhiteboardItem[] {
+    return this.db
+      .all("SELECT * FROM whiteboard_items WHERE board_id = ? ORDER BY y ASC, x ASC, id ASC", [boardId])
+      .map(mapRowToWhiteboardItem);
+  }
+
+  updateWhiteboardItem(id: number, input: WhiteboardItemProps & { readonly type?: unknown }): WhiteboardItem | null {
+    const current = this.getWhiteboardItem(id);
+    if (!current) return null;
+    const item = normalizeWhiteboardItem(input.type ?? current.type, {
+      x: input.x ?? current.x,
+      y: input.y ?? current.y,
+      w: input.w ?? current.w,
+      h: input.h ?? current.h,
+      content: input.content ?? current.content,
+      color: input.color ?? current.color,
+    });
+    const now = new Date().toISOString();
+    this.db.run(
+      "UPDATE whiteboard_items SET type = ?, x = ?, y = ?, w = ?, h = ?, content = ?, color = ?, updated_at = ? WHERE id = ?",
+      [item.type, item.x, item.y, item.w, item.h, item.content, item.color, now, id],
+    );
+    return this.getWhiteboardItem(id);
+  }
+
+  deleteWhiteboardItem(id: number): boolean {
+    return this.db.run("DELETE FROM whiteboard_items WHERE id = ?", [id]).changes > 0;
+  }
+
+  /**
+   * 批量移动（x/y 变更审计）：先全量校验（越权/重复/非法坐标）→ shared 重叠避让 → 单事务落库。
+   * 任一异常 ROLLBACK 且调用前坐标不变（零半态）；返回本次要求移动的条目（新坐标）。
+   */
+  moveWhiteboardItems(
+    boardId: number,
+    moves: readonly { readonly id: unknown; readonly x: unknown; readonly y: unknown }[],
+  ): WhiteboardItem[] | null {
+    if (!Array.isArray(moves) || moves.length === 0) {
+      throw new ValidationError("批量移动列表不能为空");
+    }
+    const ids: number[] = [];
+    for (const move of moves) {
+      const id = Number(move?.id);
+      if (!Number.isInteger(id) || id <= 0) throw new ValidationError(`非法批量移动条目 id：${String(move?.id)}`);
+      if (ids.includes(id)) throw new ValidationError(`批量移动条目 id 重复：${id}`);
+      if (move.x === undefined || move.y === undefined) throw new ValidationError("批量移动必须提供 x 与 y");
+      ids.push(id);
+    }
+    const all = this.listWhiteboardItems(boardId);
+    if (ids.some((id) => !all.some((it) => it.id === id))) return null;
+    const moveById = new Map(moves.map((move) => [Number(move.id), move]));
+    const merged = all.map((item) => {
+      const move = moveById.get(item.id);
+      if (!move) return item;
+      const normalized = normalizeWhiteboardItem(item.type, {
+        x: move.x, y: move.y, w: item.w, h: item.h, content: item.content, color: item.color,
+      });
+      return { ...item, ...normalized };
+    });
+    const resolved = collisionResolve(merged).items;
+    const now = new Date().toISOString();
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      for (const item of resolved) {
+        if (!moveById.has(item.id)) continue;
+        this.db.run("UPDATE whiteboard_items SET x = ?, y = ?, updated_at = ? WHERE id = ?", [item.x, item.y, now, item.id]);
+      }
+      this.db.exec("COMMIT");
+    } catch (err) {
+      this.db.exec("ROLLBACK");
+      throw err;
+    }
+    return resolved.filter((item) => moveById.has(item.id));
+  }
+
+  /** mock AI 建板：按主题生成 5-8 便签，与既有条目一起过 shared 避让后单事务落库 */
+  aiCreateWhiteboard(boardId: number, theme: unknown): WhiteboardItem[] | null {
+    if (this.getWhiteboard(boardId) === null) return null;
+    const plan = planAiWhiteboard(theme as string);
+    if (plan.items.length < 5 || plan.items.length > 8) {
+      throw new ValidationError("AI 建板草稿数量越界（应 5-8）");
+    }
+    const existing = this.listWhiteboardItems(boardId);
+    const drafts = plan.items.map((draft, i) => ({
+      rect: { id: -(i + 1), x: draft.x, y: draft.y, w: draft.w, h: draft.h },
+      type: draft.type, content: draft.content, color: draft.color,
+    }));
+    const resolved = collisionResolve([
+      ...existing.map((it) => ({ id: it.id, x: it.x, y: it.y, w: it.w, h: it.h })),
+      ...drafts.map((d) => d.rect),
+    ]).items;
+    const now = new Date().toISOString();
+    const inserted: WhiteboardItem[] = [];
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      for (let i = 0; i < drafts.length; i += 1) {
+        const rect = resolved[existing.length + i]!;
+        const draft = drafts[i]!;
+        const res = this.db.run(
+          "INSERT INTO whiteboard_items (board_id, type, x, y, w, h, content, color, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          [boardId, draft.type, rect.x, rect.y, rect.w, rect.h, draft.content, draft.color, now, now],
+        );
+        const row = this.db.get("SELECT * FROM whiteboard_items WHERE id = ?", [res.lastInsertRowid]);
+        if (!row) throw new Error("AI 建板条目写入后读回失败");
+        inserted.push(mapRowToWhiteboardItem(row));
+      }
+      this.db.exec("COMMIT");
+    } catch (err) {
+      this.db.exec("ROLLBACK");
+      throw err;
+    }
+    return inserted;
   }
 }

@@ -231,6 +231,31 @@ export const MIGRATIONS: Migration[] = [
       )`,
     ],
   },
+  {
+    version: 11,
+    name: "r15 · whiteboards / whiteboard_items 表（M7 第 2 片：白板画布与 AI 建板）",
+    up: [
+      `CREATE TABLE IF NOT EXISTS whiteboards (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL CHECK (length(title) > 0),
+        created_at TEXT NOT NULL
+      )`,
+      `CREATE TABLE IF NOT EXISTS whiteboard_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        board_id INTEGER NOT NULL REFERENCES whiteboards(id) ON DELETE CASCADE,
+        type TEXT NOT NULL CHECK (type IN ('note','text','shape')),
+        x REAL NOT NULL,
+        y REAL NOT NULL,
+        w REAL NOT NULL,
+        h REAL NOT NULL,
+        content TEXT NOT NULL DEFAULT '',
+        color TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_whiteboard_items_board ON whiteboard_items (board_id)`,
+    ],
+  },
 ];
 
 /** 当前 schema 版本（与 shared 的 SCHEMA_VERSION 保持一致，e2e 会断言二者相等） */

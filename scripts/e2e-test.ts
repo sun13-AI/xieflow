@@ -184,6 +184,28 @@ import {
   toggleNodeCollapse,
   type MindmapTree,
   type MindmapNode,
+  WHITEBOARD_ITEM_TYPES,
+  MAX_WHITEBOARD_TITLE,
+  MAX_WHITEBOARD_CONTENT,
+  WHITEBOARD_COORD_MIN,
+  WHITEBOARD_COORD_MAX,
+  WHITEBOARD_SIZE_MIN,
+  WHITEBOARD_SIZE_MAX,
+  WHITEBOARD_COLLISION_GAP,
+  WHITEBOARD_MIN_SCALE,
+  WHITEBOARD_MAX_SCALE,
+  assertValidWhiteboardTitle,
+  assertValidWhiteboardTheme,
+  isWhiteboardItemType,
+  normalizeWhiteboardItem,
+  whiteboardItemsOverlap,
+  collisionResolve,
+  planAiWhiteboard,
+  buildWhiteboardMarkdown,
+  screenToCanvasPoint,
+  canvasToScreenPoint,
+  clampWhiteboardScale,
+  type WhiteboardItem,
 } from "@xieflow/shared";
 import type { TodoStatus } from "@xieflow/shared";
 import {
@@ -315,6 +337,7 @@ try {
         { version: 9, name: "i", up: [] },
         { version: 10, name: "j", up: [] },
         { version: 11, name: "k", up: [] },
+        { version: 12, name: "l", up: [] },
       ]),
     "队列超出 SCHEMA_VERSION：一致性校验抛错",
   );
@@ -702,8 +725,8 @@ try {
     const v3Migrated = openDatabaseRaw({ path: v3Path });
     eq(
       v3Migrated.appliedMigrations,
-      [3, 4, 5, 6, 7, 8, 9, 10],
-      "v2 旧库重开补跑 v3+v4+v5+v6+v7+v8+v9+v10 迁移（真实 PRAGMA 升级路径，r14 起队列追加 v10）",
+      [3, 4, 5, 6, 7, 8, 9, 10, 11],
+      "v2 旧库重开补跑 v3+v4+v5+v6+v7+v8+v9+v10+v11 迁移（真实 PRAGMA 升级路径，r15 起队列追加 v11）",
     );
     const tables = v3Migrated.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -928,8 +951,8 @@ try {
     const v4Open = openDatabaseRaw({ path: v4Path });
     eq(
       v4Open.appliedMigrations,
-      [4, 5, 6, 7, 8, 9, 10],
-      "v3 旧库重开只补跑 v4+v5+v6+v7+v8+v9+v10 迁移（真实 PRAGMA 升级路径）",
+      [4, 5, 6, 7, 8, 9, 10, 11],
+      "v3 旧库重开只补跑 v4+v5+v6+v7+v8+v9+v10+v11 迁移（真实 PRAGMA 升级路径）",
     );
     const tables = v4Open.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -940,7 +963,7 @@ try {
     eq(
       (v4Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（10）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（11）",
     );
     const rawDb: SqliteDatabase = v4Open.raw;
     throws(
@@ -1587,7 +1610,7 @@ try {
     v4Open2.raw.exec("PRAGMA user_version = 4");
     v4Open2.raw.close();
     const v5Open = openDatabaseRaw({ path: v5Path });
-    eq(v5Open.appliedMigrations, [5, 6, 7, 8, 9, 10], "v4 旧库重开只补跑 v5+v6+v7+v8+v9+v10 迁移（真实 PRAGMA 升级路径）");
+    eq(v5Open.appliedMigrations, [5, 6, 7, 8, 9, 10, 11], "v4 旧库重开只补跑 v5+v6+v7+v8+v9+v10+v11 迁移（真实 PRAGMA 升级路径）");
     const tableNames = v5Open.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
       .map((r) => String((r as unknown as { name: unknown }).name));
@@ -1597,7 +1620,7 @@ try {
     eq(
       (v5Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（10）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（11）",
     );
     const rawDb5: SqliteDatabase = v5Open.raw;
     throws(
@@ -2306,7 +2329,7 @@ try {
     v5Open.raw.exec("PRAGMA user_version = 5");
     v5Open.raw.close();
     const v6Open = openDatabaseRaw({ path: v6Path });
-    eq(v6Open.appliedMigrations, [6, 7, 8, 9, 10], "v5 旧库重开只补跑 v6+v7+v8+v9+v10 迁移（真实 PRAGMA 升级路径）");
+    eq(v6Open.appliedMigrations, [6, 7, 8, 9, 10, 11], "v5 旧库重开只补跑 v6+v7+v8+v9+v10+v11 迁移（真实 PRAGMA 升级路径）");
     const tableNames = v6Open.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
       .map((r) => String((r as unknown as { name: unknown }).name));
@@ -2314,7 +2337,7 @@ try {
     eq(
       (v6Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（10）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（11）",
     );
     const rawDb6: SqliteDatabase = v6Open.raw;
     eq(
@@ -2453,7 +2476,7 @@ try {
     eq(
       (reopened.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "重启后 user_version 仍为 10",
+      "重启后 user_version 仍为 11",
     );
     eq(JSON.stringify(reopened.db.listViews(tbl.id)), beforeViews, "视图持久化：重启前后 spec 逐字节相等");
     eq(
@@ -2586,11 +2609,11 @@ try {
     oldOpen.raw.exec("PRAGMA user_version = 6");
     oldOpen.raw.close();
     const v7Open = openDatabaseRaw({ path: v7Path });
-    eq(v7Open.appliedMigrations, [7, 8, 9, 10], "v6 旧库重开补跑 v7+v8+v9+v10 迁移（真实 PRAGMA 升级路径）");
+    eq(v7Open.appliedMigrations, [7, 8, 9, 10, 11], "v6 旧库重开补跑 v7+v8+v9+v10+v11 迁移（真实 PRAGMA 升级路径）");
     eq(
       (v7Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（10）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（11）",
     );
     const tables = (v7Open.raw.all(
       "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('documents','blocks') ORDER BY name",
@@ -2974,11 +2997,11 @@ try {
     old10.raw.exec("PRAGMA user_version = 7");
     old10.raw.close();
     const v8 = openDatabaseRaw({ path: p10Path });
-    eq(v8.appliedMigrations, [8, 9, 10], "v7 旧库重开只补跑 v8+v9+v10 迁移（真实 PRAGMA 升级路径）");
+    eq(v8.appliedMigrations, [8, 9, 10, 11], "v7 旧库重开只补跑 v8+v9+v10 迁移（真实 PRAGMA 升级路径）");
     eq(
       (v8.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（10）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（11）",
     );
     const t10 = v8.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -3390,11 +3413,11 @@ try {
     old.raw.exec("PRAGMA user_version = 8");
     old.raw.close();
     const v9 = openDatabaseRaw({ path: p });
-    eq(v9.appliedMigrations, [9, 10], "v8 旧库重开只补跑 v9+v10 迁移（真实 PRAGMA 升级路径）");
+    eq(v9.appliedMigrations, [9, 10, 11], "v8 旧库重开只补跑 v9+v10+v11 迁移（真实 PRAGMA 升级路径）");
     eq(
       (v9.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（10）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（11）",
     );
     const tables = v9.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -3786,7 +3809,7 @@ try {
     eq(reopened14.getMindmap(1)!.contentMarkdown, "# 根\n- 子", "导图关库重开不丢（Markdown 源逐字节）");
     reopened14.close();
     const raw14 = openDatabaseRaw({ path: `scripts/.tmp-e2e/r14-raw-${Date.now()}.db` });
-    eq((raw14.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 10, "真实 PRAGMA user_version=10");
+    eq((raw14.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 11, "真实 PRAGMA user_version=11");
     eq(
       raw14.raw.all("PRAGMA table_info(mindmaps)").map((r) => String((r as unknown as { name: unknown }).name)),
       ["id", "title", "content_markdown", "created_at", "updated_at"],
@@ -3795,7 +3818,169 @@ try {
     raw14.raw.close();
   }
 
-  // 47. HTTP 冒烟 /api/health
+  // 48. r15：白板画布（布局规则 / 重叠避让 / AI 建板 / 导出 / schema v11 数据层）
+  section("r15 白板：布局归一 / 重叠避让 / AI 建板 / 导出 / schema v11 数据层");
+  {
+    // shared：类型集合与守卫
+    eq(WHITEBOARD_ITEM_TYPES, ["note", "text", "shape"], "item 类型集合恰为 note/text/shape");
+    eq(isWhiteboardItemType("note"), true, "note 是合法 item 类型");
+    eq(isWhiteboardItemType("line"), false, "line 不是合法 item 类型");
+    eq(isWhiteboardItemType(42), false, "数字不是合法 item 类型");
+    eq(MAX_WHITEBOARD_TITLE, 200, "白板标题上限与 shared 常量一致");
+    eq(MAX_WHITEBOARD_CONTENT, 20000, "便签内容上限与 shared 常量一致");
+    throws(() => assertValidWhiteboardTitle(""), "白板空标题守卫抛错");
+    throws(() => assertValidWhiteboardTitle("   "), "白板纯空白标题守卫抛错");
+    throws(() => assertValidWhiteboardTitle("x".repeat(MAX_WHITEBOARD_TITLE + 1)), "白板超长标题守卫抛错");
+    noThrow(() => assertValidWhiteboardTitle("x".repeat(MAX_WHITEBOARD_TITLE)), "白板标题恰为上限值合法");
+    throws(() => assertValidWhiteboardTheme(""), "AI 建板空主题守卫抛错");
+    throws(() => assertValidWhiteboardTheme("a\u0000b"), "AI 建板含 NUL 主题守卫抛错");
+
+    // normalizeWhiteboardItem：唯一归一入口
+    const n1 = normalizeWhiteboardItem("note", { x: 10, y: 20 });
+    eq(n1.type, "note", "归一：type 保留");
+    eq(n1.x, 10, "归一：x 保留");
+    eq(n1.y, 20, "归一：y 保留");
+    eq(n1.w, 180, "归一：note 缺省宽 180");
+    eq(n1.h, 140, "归一：note 缺省高 140");
+    eq(n1.content, "", "归一：缺省内容为空串");
+    eq(n1.color, "#FEF3C7", "归一：note 缺省暖黄底色");
+    eq(normalizeWhiteboardItem("text", {}).w, 260, "归一：text 缺省宽 260");
+    eq(normalizeWhiteboardItem("shape", {}).color, "#D1FAE5", "归一：shape 缺省绿色");
+    eq(normalizeWhiteboardItem("note", { x: 1, y: 2, w: 200, h: 100, content: "hi", color: "#123456" }).content, "hi", "归一：显式内容保留");
+    throws(() => normalizeWhiteboardItem("line", {}), "归一：非法 item 类型抛错");
+    throws(() => normalizeWhiteboardItem("note", { x: WHITEBOARD_COORD_MAX + 1 }), "归一：x 越上界抛错");
+    throws(() => normalizeWhiteboardItem("note", { y: WHITEBOARD_COORD_MIN - 1 }), "归一：y 越下界抛错");
+    throws(() => normalizeWhiteboardItem("note", { w: WHITEBOARD_SIZE_MIN - 1 }), "归一：宽过小抛错");
+    throws(() => normalizeWhiteboardItem("note", { h: WHITEBOARD_SIZE_MAX + 1 }), "归一：高过大抛错");
+    throws(() => normalizeWhiteboardItem("note", { x: Number.NaN }), "归一：NaN 坐标抛错");
+    throws(() => normalizeWhiteboardItem("note", { content: "a\u0000b" }), "归一：含 NUL 内容抛错");
+    throws(() => normalizeWhiteboardItem("note", { content: "x".repeat(MAX_WHITEBOARD_CONTENT + 1) }), "归一：超长内容抛错");
+    throws(() => normalizeWhiteboardItem("note", { color: "red" }), "归一：非法颜色抛错");
+    eq(normalizeWhiteboardItem("note", { x: 10, y: 20 }), normalizeWhiteboardItem("note", { x: 10, y: 20 }), "归一：同输入逐字段相等（确定性）");
+
+    // 重叠判定与避让（唯一规则，api/web 零算法分支）
+    eq(whiteboardItemsOverlap({ x: 0, y: 0, w: 100, h: 100 }, { x: 50, y: 50, w: 100, h: 100 }), true, "重叠判定：交叉为真");
+    eq(whiteboardItemsOverlap({ x: 0, y: 0, w: 100, h: 100 }, { x: 100, y: 0, w: 100, h: 100 }), false, "重叠判定：贴边不算重叠");
+    eq(whiteboardItemsOverlap({ x: 0, y: 0, w: 100, h: 100 }, { x: 200, y: 200, w: 10, h: 10 }), false, "重叠判定：分离为假");
+    const resolved = collisionResolve([
+      { id: 1, x: 100, y: 100, w: 180, h: 140 },
+      { id: 2, x: 100, y: 100, w: 180, h: 140 },
+      { id: 3, x: 100, y: 100, w: 180, h: 140 },
+    ]);
+    eq(resolved.items.length, 3, "避让：条目数不变");
+    eq(resolved.items[0]!.y, 100, "避让：第一个原位不动");
+    eq(resolved.items[1]!.y, 100 + 140 + WHITEBOARD_COLLISION_GAP, "避让：第二个下移到第一个下方 + 间距");
+    eq(resolved.items[2]!.y, 100 + 2 * (140 + WHITEBOARD_COLLISION_GAP), "避让：第三个继续下移");
+    eq(resolved.movedIds, [2, 3], "避让：返回被移动的 id 清单");
+    eq(resolved.items[0]!.x, 100, "避让：x 不被改动");
+    eq(resolved.items.every((a, i) => resolved.items.slice(i + 1).every((b) => !whiteboardItemsOverlap(a, b))), true, "避让后任意两条目互不重叠");
+    eq(collisionResolve([{ id: 1, x: 0, y: 0, w: 100, h: 100 }, { id: 2, x: 100, y: 0, w: 100, h: 100 }]).movedIds, [], "避让：贴边不触发移动");
+    eq(collisionResolve(resolved.items).movedIds, [], "避让：幂等（再跑一次零移动）");
+    eq(collisionResolve([]).items.length, 0, "避让：空数组返回空");
+
+    // mock AI 建板
+    const plan1 = planAiWhiteboard("产品发布会");
+    const plan2 = planAiWhiteboard("产品发布会");
+    ok(plan1.items.length >= 5 && plan1.items.length <= 8, "AI 建板生成 5-8 个便签");
+    eq(plan1.theme, "产品发布会", "AI 建板主题回显");
+    eq(plan1, plan2, "AI 建板：同主题确定性（零随机零 token）");
+    eq(plan1.items.every((it) => it.type === "note"), true, "AI 建板条目全是 note 便签");
+    eq(plan1.items.every((it) => it.content.includes("产品发布会")), true, "AI 建板每条便签内容含真实主题");
+    eq(plan1.items.every((it, i) => plan1.items.slice(i + 1).every((other) => !whiteboardItemsOverlap(it, other))), true, "AI 建板布局互不重叠");
+    ok(planAiWhiteboard("团队周会").items[0]!.content.includes("团队周会"), "AI 建板：换主题内容随之变化");
+    eq(new Set(plan1.items.map((it) => it.content)).size, plan1.items.length, "AI 建板便签内容互不重复");
+    eq(collisionResolve(plan1.items).movedIds, [], "AI 建板布局经避让判定为零移动");
+
+    // Markdown 导出
+    const wbItem = (id: number, x: number, y: number, content: string, type: WhiteboardItem["type"] = "note"): WhiteboardItem => ({
+      id, boardId: 1, type, x, y, w: 180, h: 140, content, color: "", createdAt: "t", updatedAt: "t",
+    });
+    const md1 = buildWhiteboardMarkdown("周会白板", [wbItem(2, 0, 100, "第二条"), wbItem(1, 0, 0, "第一条")]);
+    ok(md1.startsWith("# 周会白板\n"), "导出 Markdown 以白板标题为 H1");
+    ok(md1.indexOf("第一条") < md1.indexOf("第二条"), "导出 Markdown 按 y 坐标排序（视觉顺序）");
+    ok(md1.includes("## 便签 #1") && md1.includes("## 便签 #2"), "导出 Markdown 每条目一个二级标题");
+    ok(md1.includes("(0, 0)"), "导出 Markdown 含真实坐标");
+    eq(buildWhiteboardMarkdown("空板", []), "# 空板\n\n> 导出自协流 XieFlow 白板 · 共 0 个条目\n", "导出 Markdown：空板只有标题与计数");
+    ok(buildWhiteboardMarkdown("含图", [wbItem(1, 0, 0, "形", "shape")]).includes("## 图形 #1"), "导出 Markdown 区分 shape 类型标签");
+    ok(buildWhiteboardMarkdown("长文", [wbItem(1, 0, 0, "第一行\n第二行")]).includes("第一行\n第二行"), "导出 Markdown 内容逐字保留多行");
+
+    // 画布坐标换算（共享纯函数，web 零数学分支）
+    const vp = { x: 40, y: -20, scale: 1.5 };
+    eq(screenToCanvasPoint(340, 130, 100, 50, vp), { x: (340 - 100 - 40) / 1.5, y: (130 - 50 + 20) / 1.5 }, "屏幕→画布换算含平移与缩放");
+    const canvasPt = screenToCanvasPoint(340, 130, 100, 50, vp);
+    eq(canvasToScreenPoint(canvasPt.x, canvasPt.y, 100, 50, vp), { x: 340, y: 130 }, "画布→屏幕换算与上一步互逆");
+    eq(screenToCanvasPoint(240, 90, 100, 50, { x: 0, y: 0, scale: 1 }), { x: 140, y: 40 }, "单位缩放且零平移时坐标即视口内偏移");
+    eq(clampWhiteboardScale(0.01), WHITEBOARD_MIN_SCALE, "缩放下限被钉住");
+    eq(clampWhiteboardScale(99), WHITEBOARD_MAX_SCALE, "缩放上限被钉住");
+    eq(clampWhiteboardScale(1.25), 1.25, "合法缩放原值返回");
+
+    // schema v11 与白板数据层
+    const wdb = freshDb();
+    eq(wdb.listWhiteboards().length, 0, "新库白板列表为空");
+    const wb1 = wdb.createWhiteboard({ title: "r15 白板" });
+    ok(wb1.id > 0, "createWhiteboard 返回自增 id");
+    eq(wb1.title, "r15 白板", "白板标题读回");
+    eq(wdb.listWhiteboards().length, 1, "listWhiteboards 读到一张白板");
+    eq(wdb.getWhiteboard(wb1.id)!.id, wb1.id, "getWhiteboard 按 id 命中");
+    eq(wdb.getWhiteboard(999999), null, "getWhiteboard 不存在返回 null");
+    throws(() => wdb.createWhiteboard({ title: "" }), "数据层拒绝空标题白板");
+    eq(wdb.updateWhiteboardTitle(wb1.id, "改名白板")!.title, "改名白板", "updateWhiteboardTitle 生效");
+    eq(wdb.updateWhiteboardTitle(999999, "x"), null, "updateWhiteboardTitle 越权 id 返回 null");
+    eq(wdb.createWhiteboardItem(999999, { type: "note" }), null, "数据层拒绝越权 board_id（null→api 404）");
+    const it1 = wdb.createWhiteboardItem(wb1.id, { type: "note", x: 10, y: 20, content: "便签甲" })!;
+    ok(it1.id > 0, "createWhiteboardItem 返回自增 id");
+    eq(it1.boardId, wb1.id, "条目 boardId 回显");
+    eq(it1.type, "note", "条目 type 回显");
+    eq(it1.content, "便签甲", "条目 content 逐字回显");
+    const it2 = wdb.createWhiteboardItem(wb1.id, { type: "text", x: 10, y: 20, content: "便签乙" })!;
+    eq(wdb.listWhiteboardItems(wb1.id).length, 2, "listWhiteboardItems 读到两条");
+    eq(wdb.getWhiteboardItem(it1.id)!.id, it1.id, "getWhiteboardItem 命中");
+    eq(wdb.getWhiteboardItem(999999), null, "getWhiteboardItem 不存在返回 null");
+    throws(() => wdb.createWhiteboardItem(wb1.id, { type: "line" }), "数据层拒绝非法 item 类型");
+    throws(() => wdb.createWhiteboardItem(wb1.id, { type: "note", x: WHITEBOARD_COORD_MAX + 1 }), "数据层拒绝越界坐标");
+    eq(wdb.updateWhiteboardItem(it1.id, { content: "改后内容" })!.content, "改后内容", "updateWhiteboardItem 改内容生效");
+    throws(() => wdb.updateWhiteboardItem(it1.id, { y: WHITEBOARD_COORD_MIN - 1 }), "数据层拒绝越界改坐标");
+    const moved = wdb.moveWhiteboardItems(wb1.id, [{ id: it1.id, x: 500, y: 500 }, { id: it2.id, x: 500, y: 500 }])!;
+    eq(moved.length, 2, "批量移动返回两条");
+    eq(moved.find((it) => it.id === it2.id)!.y > 500, true, "批量移动后重叠条目被避让下移");
+    eq(wdb.moveWhiteboardItems(wb1.id, [{ id: 999999, x: 1, y: 1 }]), null, "批量移动含越权 id 返回 null（零半态）");
+    eq(wdb.getWhiteboardItem(it1.id)!.y, 500, "越权批量移动失败后既有坐标未被改动（零半态）");
+    const aiItems = wdb.aiCreateWhiteboard(wb1.id, "季度复盘")!;
+    ok(aiItems.length >= 5 && aiItems.length <= 8, "数据层 AI 建板真生成 5-8 条");
+    eq(wdb.listWhiteboardItems(wb1.id).length, 2 + aiItems.length, "AI 建板条目真落库");
+    eq(wdb.aiCreateWhiteboard(999999, "x"), null, "AI 建板越权 board_id 返回 null");
+    eq(wdb.deleteWhiteboardItem(it1.id), true, "deleteWhiteboardItem 命中");
+    eq(wdb.deleteWhiteboardItem(it1.id), false, "deleteWhiteboardItem 重复删除返回 false");
+    eq(wdb.deleteWhiteboard(wb1.id), true, "deleteWhiteboard 命中后子条目级联删除");
+    eq(wdb.listWhiteboardItems(wb1.id).length, 0, "删白板后条目归零（ON DELETE CASCADE）");
+    eq(wdb.deleteWhiteboard(wb1.id), false, "deleteWhiteboard 重复删除返回 false");
+
+    mkdirSync("scripts/.tmp-e2e", { recursive: true });
+    const p15 = `scripts/.tmp-e2e/r15-${Date.now()}.db`;
+    const f15 = openDatabase({ path: p15 });
+    const pw = f15.createWhiteboard({ title: "持久化" });
+    f15.createWhiteboardItem(pw.id, { type: "note", x: 7, y: 9, content: "关库不丢" });
+    f15.close();
+    const r15 = openDatabase({ path: p15 });
+    eq(r15.listWhiteboards().length, 1, "白板关库重开不丢（列表）");
+    eq(r15.listWhiteboardItems(1)[0]!.content, "关库不丢", "白板条目关库重开不丢（逐字）");
+    r15.close();
+    const raw15 = openDatabaseRaw({ path: `scripts/.tmp-e2e/r15-raw-${Date.now()}.db` });
+    eq((raw15.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 11, "真实 PRAGMA user_version=11");
+    eq(
+      raw15.raw.all("PRAGMA table_info(whiteboards)").map((r) => String((r as unknown as { name: unknown }).name)),
+      ["id", "title", "created_at"],
+      "whiteboards 表列结构由 v11 迁移创建",
+    );
+    eq(
+      raw15.raw.all("PRAGMA table_info(whiteboard_items)").map((r) => String((r as unknown as { name: unknown }).name)),
+      ["id", "board_id", "type", "x", "y", "w", "h", "content", "color", "created_at", "updated_at"],
+      "whiteboard_items 表列结构由 v11 迁移创建",
+    );
+    raw15.raw.close();
+  }
+
+  // 49. HTTP 冒烟 /api/health
   section("HTTP 冒烟 /api/health");
   let httpOk = false;
   let httpNote = "api 服务未运行（pnpm dev:api 后再跑 pnpm test 可覆盖此节）";

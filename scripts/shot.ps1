@@ -13,6 +13,7 @@
 #   powershell -File scripts\shot.ps1 shots -Round r12 # capture r12 knowledge ingest / TF-IDF search / source refs states
 #   powershell -File scripts\shot.ps1 shots -Round r13 # capture r13 RAG chat / citation cards / traceback / no-hit states
 #   powershell -File scripts\shot.ps1 shots -Round r14 # capture r14 mindmap markdown / tree / collapse states
+#   powershell -File scripts\shot.ps1 shots -Round r15 # capture r15 whiteboard canvas / notes / drag / ai / export states
 #   powershell -File scripts\shot.ps1 shots -Round r11 -Shot 08-docs-diff-inline # rework#1: re-capture ONLY the diff-inline evidence (no other matrix/shell re-shot)
 #   powershell -File scripts\shot.ps1 down            # stop servers
 #   powershell -File scripts\shot.ps1 status          # show port status
@@ -30,11 +31,12 @@
 # r11: multi-turn context / artifact generators / 12-tool pagination states.
 # r12: a NINTH tab (knowledge) was added -> the baseline now captures nine active states.
 # r14: a TENTH tab (mindmap) was added -> the baseline now captures ten active states.
+# r15: an ELEVENTH tab (whiteboard) was added -> the baseline now captures eleven active states.
 param(
   [Parameter(Position = 0)]
   [ValidateSet("up", "shots", "down", "status", "all")]
   [string]$Action = "status",
-  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14")]
+  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15")]
   [string]$Round = "r1",
   [Parameter()]
   [string]$Shot = ""
@@ -128,6 +130,7 @@ function Find-Browser {
 # r10: the EIGHTH tab (chat / AI workbench) was added -> eight active states in one batch.
 # r12: the NINTH tab (knowledge) was added -> nine active states in one batch.
 # r14: the TENTH tab (mindmap) was added -> ten active states in one batch.
+# r15: the ELEVENTH tab (whiteboard) was added -> eleven active states in one batch.
 function Invoke-ShellBaseline {
   param([string]$BrowserPath)
   $shellDir = Join-Path $Root "docs\ui\shell"
@@ -143,7 +146,8 @@ function Invoke-ShellBaseline {
     @{ page = "docs";      file = "docs-tab-active" },
     @{ page = "chat";      file = "chat-tab-active" },
     @{ page = "knowledge"; file = "knowledge-tab-active" },
-    @{ page = "mindmap";   file = "mindmap-tab-active" }
+    @{ page = "mindmap";   file = "mindmap-tab-active" },
+    @{ page = "whiteboard"; file = "whiteboard-tab-active" }
   )
   foreach ($t in $tabs) {
     $url = "http://127.0.0.1:$WebPort/"
@@ -633,6 +637,41 @@ function Invoke-Shots {
     }
   }
 
+  # r15: REAL whiteboards + notes + ai-create via HTTP. Shot 02/03 share one real
+  # board (03 gets a real POST /items/move between captures); 04 uses a second
+  # board filled by the mock ai-create endpoint. All Chinese is \uXXXX escaped.
+  $r15BoardId = 0
+  $r15AiBoardId = 0
+  $r15NoteIds = @()
+  if ($Round -eq "r15") {
+    try {
+      $r15TitleBytes = [System.Text.Encoding]::UTF8.GetBytes('{"title":"r15 \u767d\u677f\u6f14\u793a"}')
+      $r15Board = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/whiteboards" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body $r15TitleBytes
+      $r15BoardId = $r15Board.id
+      $r15Notes = @(
+        '{"type":"note","x":80,"y":80,"content":"\u4ea7\u54c1\u65b9\u5411"}',
+        '{"type":"note","x":340,"y":80,"content":"\u672c\u5468\u4efb\u52a1"}',
+        '{"type":"note","x":600,"y":80,"content":"\u98ce\u9669\u4e0e\u4f9d\u8d56"}'
+      )
+      foreach ($seed15 in $r15Notes) {
+        $note15 = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/whiteboards/$r15BoardId/items" -Method Post `
+          -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes($seed15))
+        $r15NoteIds += $note15.id
+      }
+      $r15AiTitleBytes = [System.Text.Encoding]::UTF8.GetBytes('{"title":"r15 AI \u5efa\u677f"}')
+      $r15AiBoard = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/whiteboards" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body $r15AiTitleBytes
+      $r15AiBoardId = $r15AiBoard.id
+      $r15AiBytes = [System.Text.Encoding]::UTF8.GetBytes('{"theme":"\u5b63\u5ea6\u590d\u76d8"}')
+      $r15Ai = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/whiteboards/$r15AiBoardId/ai-create" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body $r15AiBytes
+      Write-Output "seeded r15 board=$r15BoardId notes=$($r15NoteIds -join ',') aiBoard=$r15AiBoardId aiCount=$($r15Ai.count)"
+    } catch {
+      Write-Output "warn: r15 seed failed ($($_.Exception.Message)) - live whiteboard shots may show empty state"
+    }
+  }
+
   # r13: REAL knowledge docs + RAG conversations via HTTP. The hit and no-hit
   # chats are seeded before capture so every citation card shows real citations;
   # the jump shot uses the cited doc/chunk ids from the chat response itself.
@@ -770,7 +809,22 @@ function Invoke-Shots {
     }
   }
 
-  if ($Round -eq "r14") {
+  if ($Round -eq "r15") {
+    # 01 = pinned first-use empty; 02/03 = ONE real board with 3 real notes,
+    # 03 after a REAL batch move between captures; 04 = mock AI board (7 notes);
+    # 05 = real GET /export.md notice + real .md bytes on disk; 06 = narrow seam;
+    # 07 = pinned error. All Chinese in seed is \uXXXX escaped above.
+    $r15Base = "http://127.0.0.1:$WebPort/?page=whiteboard&boardId=$r15BoardId"
+    $shots = @(
+      @{ name = "01-whiteboard-empty"; url = "http://127.0.0.1:$WebPort/?page=whiteboard&shot=whiteboard-empty"; width = 1280; height = 800 },
+      @{ name = "02-board-notes";      url = "$r15Base&shot=whiteboard-notes"; width = 1280; height = 800 },
+      @{ name = "03-after-drag";       url = "$r15Base&shot=whiteboard-dragged"; width = 1280; height = 800 },
+      @{ name = "04-ai-created";       url = "http://127.0.0.1:$WebPort/?page=whiteboard&boardId=$r15AiBoardId&shot=whiteboard-ai"; width = 1280; height = 800 },
+      @{ name = "05-export";           url = "$r15Base&shot=whiteboard-export"; width = 1280; height = 800 },
+      @{ name = "06-narrow";           url = "$r15Base&narrow=1"; width = 488; height = 1100 },
+      @{ name = "07-error";            url = "http://127.0.0.1:$WebPort/?page=whiteboard&shot=whiteboard-error"; width = 1280; height = 800 }
+    )
+  } elseif ($Round -eq "r14") {
     # 01 = pinned empty state; 02/03/04 = ONE real seeded mindmap, three views
     # (Markdown editor / parsed tree / collapsed branch); 05 = narrow seam;
     # 06 = pinned error state. All Chinese in seed is \uXXXX escaped above.
@@ -1074,6 +1128,33 @@ function Invoke-Shots {
     $kb = [math]::Round((Get-Item $out).Length / 1KB)
     Write-Output "shot ok: $($s.name).png ($kb KB)"
 
+    # r15 (r3 B lesson): 02 -> 03 a REAL batch move persists a note at new coords;
+    # 03 -> 05 real export.md bytes are saved beside the matrix as landing evidence.
+    # 04 uses a separate AI-seeded board, so its data differs from 02/03 by design.
+    if ($Round -eq "r15" -and $s.name -eq "02-board-notes") {
+      if ($r15BoardId -and $r15NoteIds.Count -gt 0) {
+        try {
+          $r15MoveBody = '{"moves":[{"id":' + $r15NoteIds[0] + ',"x":120,"y":300}]}'
+          $r15Moved = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/whiteboards/$r15BoardId/items/move" -Method Post `
+            -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes($r15MoveBody))
+          Write-Output "r15 real move: id=$($r15Moved.items[0].id) -> ($($r15Moved.items[0].x),$($r15Moved.items[0].y))"
+        } catch {
+          Write-Output "warn: r15 move between 02/03 failed ($($_.Exception.Message))"
+        }
+      }
+    }
+    if ($Round -eq "r15" -and $s.name -eq "03-after-drag") {
+      if ($r15BoardId) {
+        try {
+          $r15MdPath = Join-Path $UiDir "whiteboard-export.md"
+          Invoke-WebRequest -Uri "http://127.0.0.1:$ApiPort/api/whiteboards/$r15BoardId/export.md" -OutFile $r15MdPath
+          Write-Output "r15 real export: $((Get-Item $r15MdPath).Length) bytes -> whiteboard-export.md"
+        } catch {
+          Write-Output "warn: r15 export download failed ($($_.Exception.Message))"
+        }
+      }
+    }
+
     # r8 (r3 B lesson): between 07 (before) and 08 (after) a REAL split happens
     # over POST /api/blocks/:id/split. 07 shows one paragraph; 08 shows two blocks
     # with consecutive positions. Hashes of 07/08 must differ.
@@ -1254,7 +1335,22 @@ function Invoke-Shots {
   # seed todo, so repeat runs stay deterministic.
   # r5: delete both seeded projects (by id - the script stays ASCII) and the two
   # seeded todos.
-  if ($Round -eq "r14") {
+  if ($Round -eq "r15") {
+    # r15: delete only the two whiteboards this run seeded (items cascade), so
+    # repeat runs stay deterministic and the shell baseline shows first-use empty.
+    try {
+      if ($r15BoardId -gt 0) {
+        Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/whiteboards/$r15BoardId" -Method Delete | Out-Null
+        Write-Output "cleaned seeded r15 board=$r15BoardId"
+      }
+      if ($r15AiBoardId -gt 0) {
+        Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/whiteboards/$r15AiBoardId" -Method Delete | Out-Null
+        Write-Output "cleaned seeded r15 ai board=$r15AiBoardId"
+      }
+    } catch {
+      Write-Output "warn: r15 cleanup failed ($($_.Exception.Message))"
+    }
+  } elseif ($Round -eq "r14") {
     # r14: delete only the mindmap this run seeded (repeat runs stay deterministic).
     try {
       if ($r14MapId -gt 0) {

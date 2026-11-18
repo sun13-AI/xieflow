@@ -54,6 +54,7 @@ import {
   normalizeTracebackChunkId,
   assembleDocumentText,
   parseMarkdownToTree,
+  buildWhiteboardMarkdown,
   type RevisionRequest,
   type Schedule,
   type FieldType,
@@ -1965,6 +1966,172 @@ app.put("/api/mindmaps/:id/content", async (req, reply) => {
     const map = requireDb().updateMindmapContent(id, body.contentMarkdown);
     if (!map) return reply.code(404).send({ error: `导图不存在：${id}` });
     return map;
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+/**
+ * r15 白板（M7 收官）：whiteboards / items CRUD + 批量移动 + mock AI 建板 + Markdown 导出。
+ * 布局归一 / 重叠避让 / 建板脚本 / 导出装配全集中 shared，路由层只做 400/404 映射与装配。
+ */
+interface WhiteboardItemBody {
+  type?: unknown;
+  x?: unknown;
+  y?: unknown;
+  w?: unknown;
+  h?: unknown;
+  content?: unknown;
+  color?: unknown;
+}
+
+app.post("/api/whiteboards", async (req, reply) => {
+  try {
+    const body = (req.body ?? {}) as { title?: unknown };
+    return reply.code(201).send(requireDb().createWhiteboard({ title: body.title }));
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.get("/api/whiteboards", async () => ({ whiteboards: requireDb().listWhiteboards() }));
+
+app.get("/api/whiteboards/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const board = requireDb().getWhiteboard(id);
+    if (!board) return reply.code(404).send({ error: `白板不存在：${id}` });
+    return board;
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.patch("/api/whiteboards/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const body = (req.body ?? {}) as { title?: unknown };
+    const board = requireDb().updateWhiteboardTitle(id, body.title);
+    if (!board) return reply.code(404).send({ error: `白板不存在：${id}` });
+    return board;
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.delete("/api/whiteboards/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    if (!requireDb().deleteWhiteboard(id)) return reply.code(404).send({ error: `白板不存在：${id}` });
+    return { deleted: true, id };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.post("/api/whiteboards/:id/items", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const body = (req.body ?? {}) as WhiteboardItemBody;
+    const item = requireDb().createWhiteboardItem(id, body);
+    if (!item) return reply.code(404).send({ error: `白板不存在：${id}` });
+    return reply.code(201).send(item);
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.get("/api/whiteboards/:id/items", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    if (!requireDb().getWhiteboard(id)) return reply.code(404).send({ error: `白板不存在：${id}` });
+    return { items: requireDb().listWhiteboardItems(id) };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+/** 批量移动：路由层只装配 moves，越权/非法坐标/避让全在 shared + db 服务层 */
+app.post("/api/whiteboards/:id/items/move", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const body = (req.body ?? {}) as { moves?: unknown };
+    const moves = body.moves as { id: unknown; x: unknown; y: unknown }[] | undefined;
+    if (!Array.isArray(moves)) throw new ValidationError("moves 必须是数组");
+    const items = requireDb().moveWhiteboardItems(id, moves);
+    if (!items) return reply.code(404).send({ error: `白板或条目不存在：${id}` });
+    return { items, count: items.length };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.get("/api/whiteboards/:id/items/:itemId", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const itemId = parseId((req.params as { itemId: string }).itemId);
+    const item = requireDb().getWhiteboardItem(itemId);
+    if (!item || item.boardId !== id) return reply.code(404).send({ error: `条目不存在：${itemId}` });
+    return item;
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.patch("/api/whiteboards/:id/items/:itemId", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const itemId = parseId((req.params as { itemId: string }).itemId);
+    const current = requireDb().getWhiteboardItem(itemId);
+    if (!current || current.boardId !== id) return reply.code(404).send({ error: `条目不存在：${itemId}` });
+    const body = (req.body ?? {}) as WhiteboardItemBody;
+    const item = requireDb().updateWhiteboardItem(itemId, body);
+    if (!item) return reply.code(404).send({ error: `条目不存在：${itemId}` });
+    return item;
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.delete("/api/whiteboards/:id/items/:itemId", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const itemId = parseId((req.params as { itemId: string }).itemId);
+    const current = requireDb().getWhiteboardItem(itemId);
+    if (!current || current.boardId !== id) return reply.code(404).send({ error: `条目不存在：${itemId}` });
+    if (!requireDb().deleteWhiteboardItem(itemId)) return reply.code(404).send({ error: `条目不存在：${itemId}` });
+    return { deleted: true, id: itemId };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+/** mock AI 建板：按主题生成 5-8 便签（零 token）；脚本生成只在 shared 一处 */
+app.post("/api/whiteboards/:id/ai-create", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const body = (req.body ?? {}) as { theme?: unknown };
+    const items = requireDb().aiCreateWhiteboard(id, body.theme);
+    if (!items) return reply.code(404).send({ error: `白板不存在：${id}` });
+    return reply.code(201).send({ boardId: id, theme: body.theme, items, count: items.length });
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+/** GET 导出 .md：唯一装配入口 = shared buildWhiteboardMarkdown；中文名走 RFC 5987 */
+app.get("/api/whiteboards/:id/export.md", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const store = requireDb();
+    const board = store.getWhiteboard(id);
+    if (!board) return reply.code(404).send({ error: `白板不存在：${id}` });
+    const md = buildWhiteboardMarkdown(board.title, store.listWhiteboardItems(id));
+    const fileName = `xieflow-whiteboard-${id}.md`;
+    return reply
+      .header("content-type", "text/markdown; charset=utf-8")
+      .header("content-disposition", `attachment; filename="${fileName}"; filename*=UTF-8''${encodeURIComponent(board.title)}.md`)
+      .send(md);
   } catch (err) {
     return toErrorReply(err, reply);
   }

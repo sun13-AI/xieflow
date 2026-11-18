@@ -321,7 +321,7 @@ export function assembleRangeSchedules(
 }
 
 /** 数据库 schema 版本号，每轮迁移必须 +1（宪法：禁止手改库文件） */
-export const SCHEMA_VERSION: number = 10;
+export const SCHEMA_VERSION: number = 11;
 
 
 /** 迁移脚本类型：user_version 从 from 升到 to */
@@ -3134,4 +3134,269 @@ export function toggleNodeCollapse(collapsedIds: readonly string[], nodeId: stri
   return collapsedIds.includes(nodeId)
     ? collapsedIds.filter((id) => id !== nodeId)
     : [...collapsedIds, nodeId];
+}
+
+// ---- r15（M7 收官）：白板画布布局规则（归一 / 重叠避让 / mock 建板 / 导出 / 坐标换算全集中 shared，api/web 零算法分支） ----
+
+/** 白板条目类型集合（schema v11 whiteboard_items.type CHECK 同源） */
+export const WHITEBOARD_ITEM_TYPES = ["note", "text", "shape"] as const;
+export type WhiteboardItemType = (typeof WHITEBOARD_ITEM_TYPES)[number];
+
+/** 标题 / 内容 / 坐标 / 尺寸 / 缩放边界（api 400 守卫、UI 计数同源） */
+export const MAX_WHITEBOARD_TITLE = 200;
+export const MAX_WHITEBOARD_THEME = 200;
+export const MAX_WHITEBOARD_CONTENT = 20000;
+export const WHITEBOARD_COORD_MIN = -100000;
+export const WHITEBOARD_COORD_MAX = 100000;
+export const WHITEBOARD_SIZE_MIN = 20;
+export const WHITEBOARD_SIZE_MAX = 2000;
+/** 重叠避让固定间距（唯一口径，web/api 不另设值） */
+export const WHITEBOARD_COLLISION_GAP = 16;
+export const WHITEBOARD_MIN_SCALE = 0.4;
+export const WHITEBOARD_MAX_SCALE = 2.5;
+
+/** 白板领域对象（schema v11 whiteboards / whiteboard_items 表 camelCase 映射） */
+export interface Whiteboard {
+  readonly id: number;
+  readonly title: string;
+  readonly createdAt: string;
+}
+
+export interface WhiteboardItem {
+  readonly id: number;
+  readonly boardId: number;
+  readonly type: WhiteboardItemType;
+  readonly x: number;
+  readonly y: number;
+  readonly w: number;
+  readonly h: number;
+  readonly content: string;
+  readonly color: string;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+/** 归一化输入：所有字段 unknown，守卫失败即抛 ValidationError（api 映射 400） */
+export interface WhiteboardItemProps {
+  readonly x?: unknown;
+  readonly y?: unknown;
+  readonly w?: unknown;
+  readonly h?: unknown;
+  readonly content?: unknown;
+  readonly color?: unknown;
+}
+
+export interface NormalizedWhiteboardItem {
+  readonly type: WhiteboardItemType;
+  readonly x: number;
+  readonly y: number;
+  readonly w: number;
+  readonly h: number;
+  readonly content: string;
+  readonly color: string;
+}
+
+export function isWhiteboardItemType(value: unknown): value is WhiteboardItemType {
+  return typeof value === "string" && (WHITEBOARD_ITEM_TYPES as readonly string[]).includes(value);
+}
+
+export function assertValidWhiteboardTitle(value: unknown): asserts value is string {
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new ValidationError("白板标题不能为空");
+  }
+  if (value.length > MAX_WHITEBOARD_TITLE) {
+    throw new ValidationError(`白板标题过长：最多 ${MAX_WHITEBOARD_TITLE} 字`);
+  }
+}
+
+/** AI 建板主题守卫（mock 脚本化生成，零 token；主题是真输入不是摆设） */
+export function assertValidWhiteboardTheme(value: unknown): asserts value is string {
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new ValidationError("AI 建板主题不能为空");
+  }
+  if (value.length > MAX_WHITEBOARD_THEME) {
+    throw new ValidationError(`AI 建板主题过长：最多 ${MAX_WHITEBOARD_THEME} 字`);
+  }
+  if (value.includes("\u0000")) {
+    throw new ValidationError("AI 建板主题含非法控制字符（NUL）");
+  }
+}
+
+const WHITEBOARD_DEFAULT_SIZE: Readonly<Record<WhiteboardItemType, { w: number; h: number; color: string }>> = {
+  note: { w: 180, h: 140, color: "#FEF3C7" },
+  text: { w: 260, h: 90, color: "#DBEAFE" },
+  shape: { w: 160, h: 120, color: "#D1FAE5" },
+};
+
+const WHITEBOARD_COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
+
+function whiteboardNumber(value: unknown, fallback: number, min: number, max: number, name: string): number {
+  if (value === undefined || value === null) return fallback;
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new ValidationError(`${name} 必须是有限数值`);
+  }
+  if (value < min || value > max) {
+    throw new ValidationError(`${name} 越界：允许 ${min} ~ ${max}`);
+  }
+  return value;
+}
+
+/**
+ * 白板条目唯一归一入口（r15）：类型白名单 + 坐标/尺寸数值与边界 + 内容上限/NUL + 颜色 hex。
+ * 缺省尺寸与底色按 type 取 shared 常量；api/web 不得另写分支。
+ */
+export function normalizeWhiteboardItem(type: unknown, props: WhiteboardItemProps = {}): NormalizedWhiteboardItem {
+  if (!isWhiteboardItemType(type)) {
+    throw new ValidationError(`非法白板条目类型：${String(type)}`);
+  }
+  const defaults = WHITEBOARD_DEFAULT_SIZE[type];
+  const x = whiteboardNumber(props.x, 0, WHITEBOARD_COORD_MIN, WHITEBOARD_COORD_MAX, "x");
+  const y = whiteboardNumber(props.y, 0, WHITEBOARD_COORD_MIN, WHITEBOARD_COORD_MAX, "y");
+  const w = whiteboardNumber(props.w, defaults.w, WHITEBOARD_SIZE_MIN, WHITEBOARD_SIZE_MAX, "w");
+  const h = whiteboardNumber(props.h, defaults.h, WHITEBOARD_SIZE_MIN, WHITEBOARD_SIZE_MAX, "h");
+  const content = props.content === undefined || props.content === null ? "" : props.content;
+  if (typeof content !== "string") throw new ValidationError("条目内容必须是字符串");
+  if (content.length > MAX_WHITEBOARD_CONTENT) {
+    throw new ValidationError(`条目内容过长：最多 ${MAX_WHITEBOARD_CONTENT} 字`);
+  }
+  if (content.includes("\u0000")) throw new ValidationError("条目内容含非法控制字符（NUL）");
+  const color = props.color === undefined || props.color === null || props.color === "" ? defaults.color : props.color;
+  if (typeof color !== "string" || !WHITEBOARD_COLOR_RE.test(color)) {
+    throw new ValidationError("条目颜色必须是 #RRGGBB 格式");
+  }
+  return { type, x, y, w, h, content, color };
+}
+
+/** 矩形相交判定（贴边不算重叠；唯一口径） */
+export interface WhiteboardRect {
+  readonly id?: number;
+  readonly x: number;
+  readonly y: number;
+  readonly w: number;
+  readonly h: number;
+}
+
+export function whiteboardItemsOverlap(a: WhiteboardRect, b: WhiteboardRect): boolean {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+export interface CollisionResolveResult<T extends WhiteboardRect> {
+  readonly items: T[];
+  readonly movedIds: number[];
+}
+
+/**
+ * 重叠避让唯一规则（r15）：按 (y, x, 原序) 依次落位，遇重叠则下移到冲突项底部 + WHITEBOARD_COLLISION_GAP，
+ * 直到无重叠；返回原序数组（保留原对象其它字段）与被移动 id 清单。幂等：对已解算结果再跑一次零移动。
+ */
+export function collisionResolve<T extends WhiteboardRect>(items: readonly T[]): CollisionResolveResult<T> {
+  const out: T[] = items.slice();
+  const placed: WhiteboardRect[] = [];
+  const movedIds: number[] = [];
+  const order = items
+    .map((item, index) => ({ item, index }))
+    .sort((a, b) => a.item.y - b.item.y || a.item.x - b.item.x || a.index - b.index);
+  for (const { item, index } of order) {
+    let next: T = item;
+    let guard = 0;
+    while (guard < 1000) {
+      const hit = placed.find((p) => whiteboardItemsOverlap(next, p));
+      if (!hit) break;
+      next = { ...next, y: hit.y + hit.h + WHITEBOARD_COLLISION_GAP };
+      guard += 1;
+    }
+    if (guard >= 1000) throw new ValidationError("重叠避让次数超限（布局不可解）");
+    placed.push(next);
+    out[index] = next;
+    if (next.y !== item.y) movedIds.push(item.id ?? index);
+  }
+  return { items: out, movedIds };
+}
+
+/** mock AI 建板草稿（带确定性草稿 id，落库时替换为真实自增 id） */
+export interface AiWhiteboardDraft extends NormalizedWhiteboardItem {
+  readonly id: number;
+}
+
+export interface AiWhiteboardPlan {
+  readonly theme: string;
+  readonly items: AiWhiteboardDraft[];
+}
+
+const AI_WHITEBOARD_COLORS = ["#FEF3C7", "#DBEAFE", "#D1FAE5", "#FCE7F3", "#EDE9FE"] as const;
+
+/**
+ * mock 建板（r15）：按主题脚本化生成 7 张便签（零 token / 零随机），3 列网格排布天然不重叠，
+ * 并过一遍 shared `collisionResolve` 保证规则同源。换真实模型只换本函数一处注入。
+ */
+export function planAiWhiteboard(theme: string): AiWhiteboardPlan {
+  assertValidWhiteboardTheme(theme);
+  const bodies = [
+    `主题：${theme} —— 本次要讨论的核心议题`,
+    `目标：明确「${theme}」的交付范围与成功标准`,
+    `受众：谁会用到「${theme}」，他们最在意什么`,
+    `方案：实现「${theme}」的关键路径与取舍`,
+    `资源：完成「${theme}」需要的人手与依赖`,
+    `风险：「${theme}」推进中的阻塞点与备选方案`,
+    `下一步：「${theme}」本周要落实的三个动作`,
+  ];
+  const drafts: AiWhiteboardDraft[] = bodies.map((content, i) => ({
+    id: i + 1,
+    type: "note" as const,
+    x: 80 + (i % 3) * 220,
+    y: 80 + Math.floor(i / 3) * 180,
+    w: 180,
+    h: 140,
+    content,
+    color: AI_WHITEBOARD_COLORS[i % AI_WHITEBOARD_COLORS.length]!,
+  }));
+  return { theme, items: collisionResolve(drafts).items };
+}
+
+const WHITEBOARD_TYPE_LABELS: Readonly<Record<WhiteboardItemType, string>> = {
+  note: "便签",
+  text: "文本",
+  shape: "图形",
+};
+
+/** 白板 → Markdown：按 (y, x, id) 视觉顺序装配，坐标/尺寸/颜色/类型逐项呈现，内容逐字保留 */
+export function buildWhiteboardMarkdown(title: string, items: readonly WhiteboardItem[]): string {
+  const sorted = items.slice().sort((a, b) => a.y - b.y || a.x - b.x || a.id - b.id);
+  const lines: string[] = [`# ${title}`, "", `> 导出自协流 XieFlow 白板 · 共 ${items.length} 个条目`, ""];
+  for (const item of sorted) {
+    lines.push(`## ${WHITEBOARD_TYPE_LABELS[item.type]} #${item.id}`);
+    lines.push("");
+    lines.push(`- 位置：(${item.x}, ${item.y}) · 尺寸：${item.w}×${item.h} · 颜色：${item.color || "默认"}`);
+    lines.push("");
+    lines.push(item.content.trim() === "" ? "（空条目）" : item.content);
+    lines.push("");
+  }
+  return `${lines.join("\n").replace(/\n+$/, "")}\n`;
+}
+
+/** 无限画布视口（平移 x/y 像素 + 缩放 scale） */
+export interface WhiteboardViewport {
+  readonly x: number;
+  readonly y: number;
+  readonly scale: number;
+}
+
+/** 屏幕坐标 → 画布坐标：(screen - rect - pan) / scale（web 拖拽只调本函数，零数学分支） */
+export function screenToCanvasPoint(
+  screenX: number, screenY: number, rectLeft: number, rectTop: number, viewport: WhiteboardViewport,
+): { x: number; y: number } {
+  return { x: (screenX - rectLeft - viewport.x) / viewport.scale, y: (screenY - rectTop - viewport.y) / viewport.scale };
+}
+
+/** 画布坐标 → 屏幕坐标（上式的逆运算；拖拽落位用） */
+export function canvasToScreenPoint(
+  canvasX: number, canvasY: number, rectLeft: number, rectTop: number, viewport: WhiteboardViewport,
+): { x: number; y: number } {
+  return { x: canvasX * viewport.scale + rectLeft + viewport.x, y: canvasY * viewport.scale + rectTop + viewport.y };
+}
+
+/** 缩放钳制（非法值回落到 1） */
+export function clampWhiteboardScale(scale: number): number {
+  if (typeof scale !== "number" || !Number.isFinite(scale)) return 1;
+  return Math.min(WHITEBOARD_MAX_SCALE, Math.max(WHITEBOARD_MIN_SCALE, scale));
 }

@@ -22,6 +22,7 @@ import {
   blocksToMarkdown,
   buildDocumentMdFileName,
   treeToMarkdown,
+  whiteboardItemsOverlap,
 } from "@xieflow/shared";
 import { createMockProvider, MOCK_PROVIDER_ID } from "@xieflow/agent";
 
@@ -119,7 +120,7 @@ async function audit() {
     eq(h.json && h.json.ok, true, "health.ok = true");
     // r4 起动态对表：health.schemaVersion 必须等于迁移队列最高版本（不再硬编码 2/3，
     // r3 v0.0.6 CI 红教训——静态硬编码在每轮迁移后必过期）
-    eq(h.json && h.json.schemaVersion, 10, "health.schemaVersion = 10（r14 迁移后）");
+    eq(h.json && h.json.schemaVersion, 11, "health.schemaVersion = 11（r15 迁移后）");
     const s = await req("GET", "/api/settings");
     eq(s.status, 200, "GET /api/settings -> 200");
     ok(Array.isArray(s.json && s.json.settings), "settings 返回数组");
@@ -216,7 +217,7 @@ async function audit() {
   {
     // health 探针反映 schema v8（r4 起迁移后动态推进）
     const h3 = await req("GET", "/api/health");
-    eq(h3.json && h3.json.schemaVersion, 10, "health.schemaVersion = 10（schedules 节复核）");
+    eq(h3.json && h3.json.schemaVersion, 11, "health.schemaVersion = 11（schedules 节复核）");
 
     const r = await expectStatus(
       "POST",
@@ -2053,6 +2054,104 @@ async function audit() {
     await expectStatus("DELETE", `/api/mindmaps/${m1.json.id}`, undefined, 404, "r14 DELETE 重复同一 id -> 404");
     const after = await expectStatus("GET", "/api/mindmaps", undefined, 200, "r14 清理后列表 -> 200");
     eq(after.json.mindmaps.length, 0, "r14 清理后导图归零（无残留）");
+  }
+
+  console.log("\n== Whiteboard r15: boards / items / move / ai-create / export / 4xx ==");
+  {
+    const b1 = await expectStatus("POST", "/api/whiteboards", { title: "r15 白板" }, 201, "r15 POST 白板 -> 201");
+    eq(b1.json && b1.json.title, "r15 白板", "r15 POST 白板 title 读回");
+    ok(b1.json && b1.json.id > 0, "r15 POST 白板返回自增 id");
+    const b2 = await expectStatus("POST", "/api/whiteboards", { title: "r15 AI 白板" }, 201, "r15 POST AI 白板 -> 201");
+    const list = await expectStatus("GET", "/api/whiteboards", undefined, 200, "r15 GET 白板列表 -> 200");
+    ok(Array.isArray(list.json && list.json.whiteboards), "r15 列表返回 whiteboards 数组");
+    eq(list.json.whiteboards.length, 2, "r15 列表含两张新建白板");
+    const get = await expectStatus("GET", `/api/whiteboards/${b1.json.id}`, undefined, 200, "r15 GET 白板详情 -> 200");
+    eq(get.json && get.json.id, b1.json.id, "r15 详情 id 一致");
+    const patchedBoard = await expectStatus("PATCH", `/api/whiteboards/${b1.json.id}`, { title: "r15 改名白板" }, 200, "r15 PATCH 白板改名 -> 200");
+    eq(patchedBoard.json && patchedBoard.json.title, "r15 改名白板", "r15 PATCH 改名读回");
+
+    // items CRUD（真实落库）
+    const it1 = await expectStatus("POST", `/api/whiteboards/${b1.json.id}/items`, { type: "note", x: 10, y: 20, content: "第一张便签" }, 201, "r15 POST 便签 -> 201");
+    eq(it1.json && it1.json.type, "note", "r15 便签 type 回显");
+    eq(it1.json && it1.json.x, 10, "r15 便签 x 回显");
+    eq(it1.json && it1.json.content, "第一张便签", "r15 便签 content 逐字读回");
+    eq(it1.json && it1.json.color, "#FEF3C7", "r15 便签缺省色由 shared 归一");
+    const it2 = await expectStatus("POST", `/api/whiteboards/${b1.json.id}/items`, { type: "text", x: 10, y: 20, content: "第二张文本" }, 201, "r15 POST 文本 -> 201");
+    eq(it2.json && it2.json.w, 260, "r15 text 缺省宽由 shared 归一");
+    const itemsList = await expectStatus("GET", `/api/whiteboards/${b1.json.id}/items`, undefined, 200, "r15 GET 条目列表 -> 200");
+    eq(itemsList.json && itemsList.json.items.length, 2, "r15 列表含两条新建条目");
+    const itemGet = await expectStatus("GET", `/api/whiteboards/${b1.json.id}/items/${it1.json.id}`, undefined, 200, "r15 GET 条目详情 -> 200");
+    eq(itemGet.json && itemGet.json.id, it1.json.id, "r15 条目详情 id 一致");
+    const patchedItem = await expectStatus("PATCH", `/api/whiteboards/${b1.json.id}/items/${it1.json.id}`, { content: "改后便签" }, 200, "r15 PATCH 条目内容 -> 200");
+    eq(patchedItem.json && patchedItem.json.content, "改后便签", "r15 PATCH 条目内容读回");
+    eq(patchedItem.json && patchedItem.json.type, "note", "r15 PATCH 不改 type");
+
+    // 批量移动：越权/避让/落库
+    const moved = await expectStatus("POST", `/api/whiteboards/${b1.json.id}/items/move`, { moves: [{ id: it1.json.id, x: 500, y: 500 }, { id: it2.json.id, x: 500, y: 500 }] }, 200, "r15 POST 批量移动 -> 200");
+    eq(moved.json && moved.json.count, 2, "r15 批量移动返回两条");
+    const moved2 = moved.json.items.find((x: any) => x.id === it2.json.id);
+    ok(moved2 && moved2.y > 500, "r15 批量移动后重叠条目被避让下移");
+    const afterMove = await expectStatus("GET", `/api/whiteboards/${b1.json.id}/items`, undefined, 200, "r15 移动后回读 -> 200");
+    eq(afterMove.json.items.find((x: any) => x.id === it2.json.id).y, moved2.y, "r15 批量移动真落库（不是临时态）");
+
+    // Markdown 导出：真 HTTP 字节装配
+    const exported = await reqText(`/api/whiteboards/${b1.json.id}/export.md`);
+    eq(exported.status, 200, "r15 GET export.md -> 200");
+    ok(exported.text.startsWith("# r15 改名白板\n"), "r15 导出 Markdown 以白板标题为 H1");
+    ok(exported.text.includes("改后便签"), "r15 导出 Markdown 含真实条目内容");
+    ok((exported.headers.get("content-type") ?? "").includes("text/markdown"), "r15 导出 content-type 为 text/markdown");
+    ok((exported.headers.get("content-disposition") ?? "").includes("attachment"), "r15 导出 content-disposition 为附件");
+
+    // mock AI 建板：5-8 便签 / 主题真实注入 / 不重叠 / 真落库
+    const ai = await expectStatus("POST", `/api/whiteboards/${b2.json.id}/ai-create`, { theme: "季度复盘" }, 201, "r15 POST ai-create -> 201");
+    eq(ai.json && ai.json.theme, "季度复盘", "r15 AI 建板主题回显");
+    ok(ai.json.count >= 5 && ai.json.count <= 8, "r15 AI 建板真生成 5-8 便签");
+    eq(ai.json.items.every((x: any) => x.type === "note"), true, "r15 AI 建板条目全是 note");
+    eq(ai.json.items.every((x: any) => x.content.includes("季度复盘")), true, "r15 AI 建板内容含真实主题");
+    eq(ai.json.items.every((x: any, i: number) => ai.json.items.slice(i + 1).every((y: any) => !whiteboardItemsOverlap(x, y))), true, "r15 AI 建板布局不重叠");
+    const aiList = await expectStatus("GET", `/api/whiteboards/${b2.json.id}/items`, undefined, 200, "r15 AI 建板后回读条目 -> 200");
+    eq(aiList.json.items.length, ai.json.count, "r15 AI 建板条目真落库");
+    const b3 = await expectStatus("POST", "/api/whiteboards", { title: "r15 AI 确定性" }, 201, "r15 POST 第三张白板 -> 201");
+    const ai2 = await expectStatus("POST", `/api/whiteboards/${b3.json.id}/ai-create`, { theme: "季度复盘" }, 201, "r15 POST 同主题 ai-create -> 201");
+    eq(ai2.json.items.map((x: any) => x.content), ai.json.items.map((x: any) => x.content), "r15 AI 建板同主题确定性（零随机）");
+
+    // 4xx：越权 board_id / 非法 item 类型 / 越界坐标 / 非法主题 / 重复 id
+    await expectStatus("POST", "/api/whiteboards", { title: "" }, 400, "r15 POST 空标题白板 -> 400");
+    await expectStatus("POST", "/api/whiteboards", { title: "x".repeat(201) }, 400, "r15 POST 超长标题白板 -> 400");
+    await expectStatus("POST", `/api/whiteboards/${b1.json.id}/items`, { type: "line" }, 400, "r15 POST 非法 item 类型 -> 400");
+    await expectStatus("POST", `/api/whiteboards/${b1.json.id}/items`, { type: "note", x: 100001 }, 400, "r15 POST x 越上界 -> 400");
+    await expectStatus("POST", `/api/whiteboards/${b1.json.id}/items`, { type: "note", y: -100001 }, 400, "r15 POST y 越下界 -> 400");
+    await expectStatus("POST", `/api/whiteboards/${b1.json.id}/items`, { type: "note", w: 19 }, 400, "r15 POST 宽过小 -> 400");
+    await expectStatus("POST", `/api/whiteboards/${b1.json.id}/items`, { type: "note", color: "red" }, 400, "r15 POST 非法颜色 -> 400");
+    await expectStatus("POST", "/api/whiteboards/999999/items", { type: "note" }, 404, "r15 POST 越权 board_id -> 404");
+    await expectStatus("GET", "/api/whiteboards/999999/items", undefined, 404, "r15 GET 越权 board_id 条目 -> 404");
+    await expectStatus("GET", `/api/whiteboards/${b1.json.id}/items/999999`, undefined, 404, "r15 GET 不存在条目 -> 404");
+    await expectStatus("GET", `/api/whiteboards/${b2.json.id}/items/${it1.json.id}`, undefined, 404, "r15 跨白板取条目 -> 404");
+    await expectStatus("PATCH", `/api/whiteboards/${b1.json.id}/items/${it1.json.id}`, { x: 100001 }, 400, "r15 PATCH 越界坐标 -> 400");
+    await expectStatus("PATCH", `/api/whiteboards/${b1.json.id}/items/${it1.json.id}`, { type: "line" }, 400, "r15 PATCH 非法类型 -> 400");
+    await expectStatus("PATCH", `/api/whiteboards/999999/items/${it1.json.id}`, { content: "x" }, 404, "r15 PATCH 越权 board_id -> 404");
+    await expectStatus("DELETE", `/api/whiteboards/${b2.json.id}/items/${it1.json.id}`, undefined, 404, "r15 跨白板删条目 -> 404");
+    await expectStatus("POST", `/api/whiteboards/${b1.json.id}/items/move`, { moves: [{ id: 999999, x: 1, y: 1 }] }, 404, "r15 批量移动越权条目 -> 404");
+    await expectStatus("POST", `/api/whiteboards/${b1.json.id}/items/move`, { moves: [{ id: it1.json.id, x: 100001, y: 1 }] }, 400, "r15 批量移动越界坐标 -> 400");
+    await expectStatus("POST", `/api/whiteboards/${b1.json.id}/items/move`, { moves: [{ id: it1.json.id, x: 1, y: 1 }, { id: it1.json.id, x: 2, y: 2 }] }, 400, "r15 批量移动重复 id -> 400");
+    await expectStatus("POST", `/api/whiteboards/${b1.json.id}/items/move`, { moves: "bad" }, 400, "r15 批量移动非数组 -> 400");
+    await expectStatus("POST", "/api/whiteboards/not-a-number/ai-create", { theme: "x" }, 400, "r15 ai-create 非数字 id -> 400");
+    await expectStatus("POST", `/api/whiteboards/${b2.json.id}/ai-create`, { theme: "" }, 400, "r15 ai-create 空主题 -> 400");
+    await expectStatus("POST", `/api/whiteboards/${b2.json.id}/ai-create`, { theme: "a\u0000b" }, 400, "r15 ai-create NUL 主题 -> 400");
+    await expectStatus("POST", `/api/whiteboards/${b2.json.id}/ai-create`, { theme: "x".repeat(201) }, 400, "r15 ai-create 超长主题 -> 400");
+    await expectStatus("POST", "/api/whiteboards/999999/ai-create", { theme: "x" }, 404, "r15 ai-create 越权 board_id -> 404");
+    await expectStatus("GET", "/api/whiteboards/999999/export.md", undefined, 404, "r15 导出越权 board_id -> 404");
+    await expectStatus("GET", "/api/whiteboards/not-a-number", undefined, 400, "r15 GET 非数字白板 id -> 400");
+    await expectStatus("DELETE", "/api/whiteboards/999999", undefined, 404, "r15 DELETE 不存在白板 -> 404");
+    const after4xx = await expectStatus("GET", `/api/whiteboards/${b1.json.id}/items`, undefined, 200, "r15 4xx 后条目仍可读 -> 200");
+    ok(after4xx.json.items.length >= 2, "r15 4xx 后既有条目未被半路改写");
+
+    // 清理（删除白板级联删条目）
+    await expectStatus("DELETE", `/api/whiteboards/${b1.json.id}`, undefined, 200, "r15 DELETE 白板 A -> 200");
+    await expectStatus("DELETE", `/api/whiteboards/${b2.json.id}`, undefined, 200, "r15 DELETE 白板 B -> 200");
+    await expectStatus("DELETE", `/api/whiteboards/${b3.json.id}`, undefined, 200, "r15 DELETE 白板 C -> 200");
+    const after = await expectStatus("GET", "/api/whiteboards", undefined, 200, "r15 清理后列表 -> 200");
+    eq(after.json.whiteboards.length, 0, "r15 清理后白板归零（无残留）");
   }
 
   console.log("\n== schedules delete (r3) ==");
