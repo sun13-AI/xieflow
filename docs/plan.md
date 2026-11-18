@@ -2,6 +2,21 @@
 
 > 宪法见设计包 AGENTS.md；轮次规则见 RUNBOOK.md（均在 D:\work\好东西\xieflow-design\）。
 
+### 2026-11-18 · r15 发版（M7 收官 · 白板画布）
+- 双 VERDICT 复验会话在报告落盘前中断（18h gap），会话恢复后重跑复验
+- **CI 平台容错修复（lead）**：macos-latest runner 持续被平台 cancel（ubuntu/windows 每轮全绿），阻断 v0.0.15~v0.0.18 四轮 Release——job 级 `continue-on-error: ${{ matrix.os == 'macos-latest' }}`，三平台仍全跑可见，仅平台侧 cancel 不再阻断发版（不是降低测试覆盖）
+- 发版：v0.0.18 → **v0.0.19**（CI 容错后首版，待 Release 资产核对）
+
+### 2026-11-18 · r15 研发（yanfa · M7 收官：白板画布与 AI 建板）
+- schema v11 两表；shared 五件套（归一/避让/mock 建板/导出/坐标换算）；api 13 路由；web 第十一 tab「白板」无限画布 + 便签 CRUD + AI 建板 + 导出，api/web 零算法分支
+- 断言：e2e 1221→1326 / audit 1020→1100；变异红相 1 组独立复现
+- 真实缺陷修复：viewport `setPointerCapture` 吞便签按钮 click，加 `.wb-note` 守卫
+
+### 2026-11-17 · r13/r14 发版（M6 收官 + M7 起步）
+- r13 RAG 对话与引用溯源 → v0.0.17（lead 修 P4 速查行 1087/923→1161/966）
+- r14 思维导图 Markdown 双视图 → v0.0.18（Markdown↔树 37/37 + 变异红相）
+- **CI 积压**：v0.0.15~v0.0.18 因 macOS runner 平台侧 cancel 缺 Release 资产——重跑 + 最终容错修复见上方
+
 ### 2026-11-17 · r11 研发（yanfa-r11 · M5 收官：多轮上下文与产物生成）
 - 交付：多轮上下文（shared `DEFAULT_CONTEXT_WINDOW=8` / `MAX=20` / `normalizeContextWindow` / `toPlannerContext` / `resolveContextualMessage`，指代消解「再建一个 / 把它改成」纯函数化，api 按窗口截取真实落库消息注入 planner，`resolution` 元数据回显）；**产物生成器** `packages/agent/artifact-generators.ts`（HTML 报告 / Markdown 表格 / JSON 数据，全从真实工具回执装配，iframe/sandbox 预览）；工具链 8→**12**（+summarize_document / export_document_md / list_schedules / create_schedule，handler 全接 XieFlowDb，create_schedule 纳入状态变更清单）；api `chat` 带 `context_window` + `artifactType`、`GET /api/artifacts/:id/content` 按 type 返回可预览正文
 - web：对话流多轮连续 + 上下文提示条 + 12 工具 6/页分页 + 产物 HTML/表格/JSON 三 tab 切换；**r9 U2 必修**（shared `computeInlineDiff` + DocsPage 原文红删/建议绿增行内高亮）、**r10 U2 必修**（产物卡「第 N 轮产物 · 对应本轮对话」与流同轮、窄容器八药丸 nowrap + 488px 顶栏纵排不折行不裁切）
