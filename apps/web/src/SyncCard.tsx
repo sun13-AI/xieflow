@@ -47,12 +47,12 @@ function pinnedState(shot: string): SyncView | null {
     entityId: "r19-sync-demo",
     currentVersion: 2,
     fields: [
-      { field: "title", local: "本地改：季度复盘（本机）", remote: "远端改：季度复盘（服务端）" },
+      { field: "title", local: "季度复盘", remote: "季度规划" },
       { field: "status", local: "open", remote: "done" },
     ],
-    base: { title: "季度复盘", status: "open" },
-    local: { title: "本地改：季度复盘（本机）", status: "open" },
-    remote: { title: "远端改：季度复盘（服务端）", status: "done" },
+    base: { title: "季度目标", status: "open" },
+    local: { title: "季度复盘", status: "open" },
+    remote: { title: "季度规划", status: "done" },
   };
   if (shot === "sync-idle") return { ...EMPTY, lastSyncAt: now, totalVersions: 6 };
   if (shot === "sync-pending") return { ...EMPTY, lastSyncAt: earlier, pending: 3, totalVersions: 6 };
@@ -212,10 +212,11 @@ export default function SyncCard() {
                 ))}
               </tbody>
             </table>
+            <p className="sync-modal-warning" data-state="sync-modal-warning">选边将按所选版本写入并递增版本号；另一侧改动会被覆盖，且不可撤销。</p>
             <div className="sync-modal-actions">
               <button type="button" className="sync-btn" data-side="local" onClick={() => void resolve("local")}>保留本地</button>
               <button type="button" className="sync-btn sync-btn-primary" data-side="remote" onClick={() => void resolve("remote")}>保留远端</button>
-              <button type="button" className="sync-btn" onClick={() => setView((v) => ({ ...v, modalOpen: false }))}>稍后处理</button>
+              <button type="button" className="sync-btn sync-btn-quiet" onClick={() => setView((v) => ({ ...v, modalOpen: false }))}>稍后处理</button>
             </div>
           </div>
         </div>

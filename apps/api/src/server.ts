@@ -2749,12 +2749,12 @@ app.post("/api/sync/apply", async (req, reply) => {
 app.get("/api/sync/status", async () => {
   const store = requireDb();
   const versions = store.listEntityVersions();
-  const latest = store.listChanges(0, 1);
+  const latest = store.listLatestChange();
   return {
     versions,
     total: versions.length,
-    lastChangeId: latest.length > 0 ? latest[0]!.id : 0,
-    lastChangeAt: latest.length > 0 ? latest[0]!.createdAt : null,
+    lastChangeId: latest ? latest.id : 0,
+    lastChangeAt: latest ? latest.createdAt : null,
     schemaVersion: CURRENT_SCHEMA_VERSION,
   };
 });

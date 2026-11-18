@@ -2484,6 +2484,12 @@ export class XieFlowDb {
       .map(mapRowToChangeRecord);
   }
 
+  /** 全表最新一条变更（status 的 lastChangeId/lastChangeAt 唯一口径）：id DESC LIMIT 1，api 零排序分支 */
+  listLatestChange(): ChangeRecord | null {
+    const row = this.db.get("SELECT * FROM change_log ORDER BY id DESC LIMIT 1");
+    return row ? mapRowToChangeRecord(row) : null;
+  }
+
   getEntityVersion(entityType: string, entityId: string): EntityVersion | null {
     const row = this.db.get(
       "SELECT entity_type, entity_id, version, updated_at FROM entity_versions WHERE entity_type = ? AND entity_id = ?",

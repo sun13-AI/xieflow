@@ -3582,7 +3582,9 @@ pre.docs-print-block.docs-code {
 .sync-diff-table th { background: #f8fafc; color: #475569; }
 .sync-diff-local { background: #eff6ff; color: #1d4ed8; }
 .sync-diff-remote { background: #f0fdf4; color: #15803d; }
-.sync-modal-actions { display: flex; gap: 10px; margin-top: 16px; justify-content: flex-end; }
+.sync-modal-warning { margin: 12px 0 0; padding: 8px 10px; border-radius: 6px; border: 1px solid #fed7aa; background: #fff7ed; color: #9a3412; font-size: 12px; }
+.sync-btn-quiet { color: #94a3b8; border-color: #e2e8f0; }
+.sync-modal-actions { display: flex; gap: 10px; margin-top: 12px; justify-content: flex-end; }
 .force-narrow .sync-modal { width: 96vw; padding: 14px; }
 .force-narrow .sync-diff-table { font-size: 11px; }
 .force-narrow .sync-actions { flex-direction: column; align-items: flex-start; }

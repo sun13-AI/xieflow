@@ -4807,6 +4807,9 @@ try {
     eq(sdb.listChanges(0, 50), sdb.listChanges(0, 50), "r19 同一 since 重复拉结果逐字节一致（幂等）");
     eq(sdb.getChangeAtVersion("todo", "1", 1)?.payload.title, "A", "r19 按版本回读基线载荷");
     eq(sdb.getLatestChange("todo", "1")?.version, 2, "r19 最新变更读回版本 2");
+    eq(sdb.listLatestChange()?.id, a2.applied.id, "r19 status 语义：listLatestChange 取最新 id 而非最早（2 条变更）");
+    eq(sdb.listLatestChange()?.createdAt, a2.applied.createdAt, "r19 status 语义：listLatestChange 取最后写入时间");
+    ok((sdb.listLatestChange()?.id ?? 0) > sdb.listChanges(0, 1)[0]!.id, "r19 status 语义：全表最新不等于 listChanges(0,1) 的最早一条");
 
     // 乐观锁冲突：期望版本过期 → SyncConflictError 带准确冲突字段
     let conflictErr: unknown = null;
@@ -4829,17 +4832,24 @@ try {
     ok(!resolved.idempotent, "r19 选边是真新变更（非幂等重放）");
     const cleanConflict = detectConflict({ title: "L", status: "open" }, { title: "L", status: "open" }, { title: "L", status: "open" });
     eq(cleanConflict.conflicts, [], "r19 选边后三方比较无冲突（再同步干净）");
+    eq(sdb.listLatestChange()?.id, resolved.applied.id, "r19 status 语义：3 条变更后 listLatestChange 仍取最新 id");
     raw19.raw.close();
 
     // 渲染层结构断言：同步卡在设置页内，不新增 tab；所有请求走 apiFetch
     const syncSrc = readFileSync("apps/web/src/SyncCard.tsx", "utf8");
     const appSrc = readFileSync("apps/web/src/App.tsx", "utf8");
+    const serverSrc = readFileSync("apps/api/src/server.ts", "utf8");
+    ok(/store\.listLatestChange\(\)/.test(serverSrc), "r19 status 走 db.listLatestChange（api 零排序分支）");
+    ok(!/store\.listChanges\(\s*0\s*,\s*1\s*\)/.test(serverSrc), "r19 status 不再用 listChanges(0,1) 误取最早一条");
     ok(/<SyncCard\s*\/>/.test(appSrc), "r19 工作台设置区渲染多端同步卡");
     ok(!/(^|[^A-Za-z])fetch\s*\(/.test(syncSrc), "r19 同步卡无裸 fetch（统一 apiFetch）");
     ok(/\bapiFetch\b/.test(syncSrc), "r19 同步卡经 apiFetch 发请求（401 清态链路一致）");
     eq((appSrc.match(/data-tab="/g) ?? []).length, 14, "r19 tab 数量仍为 14（同步卡不占 tab）");
     ok(/r19 · 多端同步与冲突处理（M9 收官）/.test(appSrc), "r19 徽章推进到 M9 收官");
     ok(/sync-modal/.test(syncSrc) && /data-side="local"/.test(syncSrc) && /data-side="remote"/.test(syncSrc), "r19 冲突弹窗提供本地/远端两个选边按钮");
+    ok(/sync-modal-warning/.test(syncSrc) && /不可撤销/.test(syncSrc), "r19 返工#1 选边后果提示前置（写入递增且不可撤销）");
+    ok(/sync-btn-quiet/.test(syncSrc), "r19 返工#1 稍后处理按钮弱化（与两个主选区分）");
+    ok(/local: "季度复盘"/.test(syncSrc) && /remote: "季度规划"/.test(syncSrc), "r19 返工#1 title 两版核心文案不同（钉态冲突自洽）");
   }
 
   // 54. HTTP 冒烟 /api/health

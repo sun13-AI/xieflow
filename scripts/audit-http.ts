@@ -2632,7 +2632,8 @@ async function audit() {
     ok(a1.json && a1.json.applied.id > 0, "r19 真写 change_log 返回自增 id");
     const st1 = await req("GET", "/api/sync/status");
     eq(st1.json && st1.json.total, 1, "r19 status 实体版本数=1");
-    ok(st1.json && st1.json.lastChangeId > 0, "r19 status 回带最后变更 id");
+    eq(st1.json && st1.json.lastChangeId, a1.json && a1.json.applied.id, "r19 status 回带最后变更 id（精确=最新一条）");
+    eq(st1.json && st1.json.lastChangeAt, a1.json && a1.json.applied.createdAt, "r19 status 回带最后变更时间（精确=最新一条）");
 
     // 增量拉取幂等 + since/limit
     const pull1 = await expectStatus("GET", "/api/sync/changes?since=0&limit=50", undefined, 200, "r19 增量拉取 -> 200");
@@ -2704,6 +2705,9 @@ async function audit() {
     eq(replay.json && replay.json.idempotent, true, "r19 幂等重放标 idempotent=true");
     const finalPull = await req("GET", "/api/sync/changes?since=0&limit=50");
     eq(finalPull.json && finalPull.json.count, 6, "r19 幂等重放/409 冲突不新增日志（两实体共 6 次成功写入）");
+    const st6 = await req("GET", "/api/sync/status");
+    eq(st6.json && st6.json.lastChangeId, resolved.json && resolved.json.applied.id, "r19 6 条变更后 status.lastChangeId=最新 id（非最早）");
+    eq(st6.json && st6.json.lastChangeAt, resolved.json && resolved.json.applied.createdAt, "r19 6 条变更后 status.lastChangeAt=最后写入时间");
 
     // 远端模式：匿名 401 / 带 token 200 / 普通用户越权 403
     const adminU = "r19_sync_admin";
