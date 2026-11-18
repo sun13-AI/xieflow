@@ -158,7 +158,8 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r15 | M7 第 2 片：白板画布与 AI 建板（M7 收官） | ✅已发版（初验 waizhuan 打回 P1 AI 建板重叠→返工#1 全画布零重叠→复审双通过） | v0.0.19 | e2e 1331 · audit 1111 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r16 | M8 第 1 片：审批流引擎（M8 起步） | ✅已发版（首轮双通过；多角色审批 44/44 + CI 二次容错拆 job） | v0.0.21 | e2e 1464 · audit 1214 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r17 | M8 第 2 片：物资台账与单位任务（M8 收官） | ✅已发版（首轮双通过；物资/任务 44/44 + 变异红相 2 组） | v0.0.22 | e2e 1552 · audit 1302 | 通过（waizhuan）+ UI 通过（阻断岗） |
-| r18 | M9 第 1 片：账号与网络版服务（M9 起步） | 🔨研发中 | — | — | — |
+| r18 | M9 第 1 片：账号与网络版服务（M9 起步） | ✅已发版（初验 waizhuan 打回 P1 remote 401 死路→返工#1 13 页统一 apiFetch→复审双通过） | v0.0.23 | e2e 1638 · audit 1376 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r19 | M9 第 2 片：多端同步与冲突处理（M9 收官） | 🔨研发中 | — | — | — |
 
 附加交付（r2 内 lead 直做，已入库 8e4fb9b）：
 - 一键启动：start.cmd 双击 / scripts\start.ps1 start|stop|status（三轮全链路验证；期间排掉「僵尸 api 抢 8787」环境坑，非脚本缺陷）
@@ -432,7 +433,23 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 - 前置：r17 已发版（v0.0.22）✅
 - 危险区注意：认证实现不得引入真实外部 IdP/密钥（危险区）；token 仅本地随机生成，不写任何密钥文件
 
-### r19（预占）· M9 第 2 片：多端同步与冲突处理（M9 收官）
+### r19 · M9 第 2 片：多端同步与冲突处理（M9 收官）
+- 目标：网络版多端数据同步——变更日志 + 增量拉取 + 乐观锁冲突检测——M9 收官轮（CRDT 实时协同留 M10 前评估，本轮做「最后写入 wins + 冲突提示」）
+- 交付清单：
+  1. schema v14→v15：change_log 表（id/entity_type/entity_id/operation/payload/user_id/created_at/version）、entity_versions 表（entity_type/entity_id/version 乐观锁）
+  2. 同步规则集中 packages/shared：applyChangeSet(local, remote)（增量合并，冲突标记）、detectConflict(base, local, remote)（三方比较，返回冲突字段列表）、nextVersion(current)
+  3. api：GET /api/sync/changes?since=&limit=（增量变更日志）、POST /api/sync/apply（带期望 version 的乐观锁写入，409 冲突）、GET /api/sync/status（各实体版本摘要）
+  4. web：设置页加「多端同步」卡（最近同步时间/未同步变更数/冲突列表 + 手动同步按钮）；冲突时弹窗展示本地 vs 远端差异供用户选边
+  5. 断言：e2e ≥+35（三方合并/冲突检测/版本递增/幂等应用）、audit ≥+30（含 409 冲突/非法 since/越权 change）
+  6. 截图 ≥7：同步卡空闲/有未同步/冲突列表/冲突弹窗/同步成功后/窄屏/错误态
+- 验收标准：
+  1. 全量绿：e2e ≥1673、audit ≥1406，README 双节同步
+  2. 真造「本地改 A + 远端改 B」冲突场景 → 409 + 冲突字段列表准确（waizhuan 会手算）；选择一边后版本递增且再同步无冲突
+  3. 增量拉取幂等（同一 since 重复拉结果一致）
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r18 已发版（v0.0.23）✅
+
+### r20（预占）· M10 第 1 片：离线模式与移动端适配（M10 起步）
 
 ## 历史轮次（r1~r2 已收档，见下方记账区）
 
