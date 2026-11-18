@@ -56,6 +56,8 @@ import {
   parseMarkdownToTree,
   buildWhiteboardMarkdown,
   isApprovalView,
+  isUnitTaskStatus,
+  isAssetTxType,
   type RevisionRequest,
   type Schedule,
   type FieldType,
@@ -2275,6 +2277,192 @@ app.post("/api/approvals/:id/approve", async (req, reply) => runApprovalAction("
 app.post("/api/approvals/:id/reject", async (req, reply) => runApprovalAction("reject", req, reply));
 app.post("/api/approvals/:id/delegate", async (req, reply) => runApprovalAction("delegate", req, reply));
 app.post("/api/approvals/:id/withdraw", async (req, reply) => runApprovalAction("withdraw", req, reply));
+
+/**
+ * r17 物资台账与单位任务（M8 收官）：
+ * assets CRUD + 出入库流水（shared applyAssetTransaction + db 单事务零半态）
+ * unit_tasks CRUD + 状态流转（shared canTransitionUnitTask）+ 树查询（shared buildTaskTree）。
+ * 路由层只做装配与 400/404 映射，库存与状态规则零分支。
+ */
+interface AssetBody {
+  name?: unknown;
+  category?: unknown;
+  quantity?: unknown;
+  unit?: unknown;
+  location?: unknown;
+  custodian?: unknown;
+  type?: unknown;
+  from?: unknown;
+  to?: unknown;
+  operator?: unknown;
+  assetId?: unknown;
+}
+
+app.post("/api/assets", async (req, reply) => {
+  try {
+    const body = (req.body ?? {}) as AssetBody;
+    return reply.code(201).send(requireDb().createAsset({
+      name: body.name, category: body.category, quantity: body.quantity,
+      unit: body.unit, location: body.location, custodian: body.custodian,
+    }));
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.get("/api/assets", async () => ({ assets: requireDb().listAssets() }));
+
+app.get("/api/assets/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const asset = requireDb().getAsset(id);
+    if (!asset) return reply.code(404).send({ error: `物资不存在：${id}` });
+    return asset;
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.patch("/api/assets/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const body = (req.body ?? {}) as AssetBody;
+    const asset = requireDb().updateAsset(id, {
+      name: body.name, category: body.category, unit: body.unit,
+      location: body.location, custodian: body.custodian,
+    });
+    if (!asset) return reply.code(404).send({ error: `物资不存在：${id}` });
+    return asset;
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.delete("/api/assets/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    if (!requireDb().deleteAsset(id)) return reply.code(404).send({ error: `物资不存在：${id}` });
+    return { deleted: true, id };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+/** 出入库/转移统一入口：类型合法性由 shared 守卫，账实一致由 db 单事务保障 */
+app.post("/api/assets/:id/transactions", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const body = (req.body ?? {}) as AssetBody;
+    if (!isAssetTxType(body.type)) throw new ValidationError(`非法流水类型：${String(body.type)}`);
+    const tx = requireDb().applyAssetTx(id, {
+      type: body.type, quantity: body.quantity,
+      from: body.from, to: body.to, operator: body.operator,
+    });
+    return reply.code(201).send(tx);
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+/** 流水查询：按物资 id 过滤或全量；静态段 /api/asset-transactions 独立于 /:id */
+app.get("/api/asset-transactions", async (req, reply) => {
+  try {
+    const q = req.query as { assetId?: unknown };
+    if (q.assetId !== undefined) {
+      const assetId = parseId(String(q.assetId));
+      if (requireDb().getAsset(assetId) === null) return reply.code(404).send({ error: `物资不存在：${assetId}` });
+      return { transactions: requireDb().listAssetTransactions(assetId) };
+    }
+    return { transactions: requireDb().listAssetTransactions() };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.get("/api/assets/:id/transactions", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    if (requireDb().getAsset(id) === null) return reply.code(404).send({ error: `物资不存在：${id}` });
+    return { transactions: requireDb().listAssetTransactions(id) };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+interface UnitTaskBody {
+  title?: unknown;
+  assigneeUnit?: unknown;
+  status?: unknown;
+  dueDate?: unknown;
+  parentId?: unknown;
+  to?: unknown;
+}
+
+app.post("/api/unit-tasks", async (req, reply) => {
+  try {
+    const body = (req.body ?? {}) as UnitTaskBody;
+    return reply.code(201).send(requireDb().createUnitTask({
+      title: body.title, assigneeUnit: body.assigneeUnit, status: body.status,
+      dueDate: body.dueDate, parentId: body.parentId,
+    }));
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.get("/api/unit-tasks", async () => ({ tasks: requireDb().listUnitTasks() }));
+
+/** 静态段 /tree 必须在 /:id 之前，否则被动态 id 吞掉 */
+app.get("/api/unit-tasks/tree", async () => ({ tree: requireDb().getUnitTaskTree() }));
+
+app.get("/api/unit-tasks/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const task = requireDb().getUnitTask(id);
+    if (!task) return reply.code(404).send({ error: `任务不存在：${id}` });
+    return task;
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.patch("/api/unit-tasks/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const body = (req.body ?? {}) as UnitTaskBody;
+    const task = requireDb().updateUnitTask(id, {
+      title: body.title, assigneeUnit: body.assigneeUnit, dueDate: body.dueDate,
+    });
+    if (!task) return reply.code(404).send({ error: `任务不存在：${id}` });
+    return task;
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.delete("/api/unit-tasks/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    if (!requireDb().deleteUnitTask(id)) return reply.code(404).send({ error: `任务不存在：${id}` });
+    return { deleted: true, id };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+/** 状态流转唯一入口：目标状态合法性由 shared isUnitTaskStatus/canTransitionUnitTask 守卫 */
+app.post("/api/unit-tasks/:id/transition", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const body = (req.body ?? {}) as UnitTaskBody;
+    if (!isUnitTaskStatus(body.to)) throw new ValidationError(`非法任务状态：${String(body.to)}`);
+    const task = requireDb().transitionUnitTask(id, body.to);
+    if (!task) return reply.code(404).send({ error: `任务不存在：${id}` });
+    return task;
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
 
 const stop = async () => {
   await app.close();

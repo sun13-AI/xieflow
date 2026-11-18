@@ -15,6 +15,7 @@
 #   powershell -File scripts\shot.ps1 shots -Round r14 # capture r14 mindmap markdown / tree / collapse states
 #   powershell -File scripts\shot.ps1 shots -Round r15 # capture r15 whiteboard canvas / notes / drag / ai / export states
 #   powershell -File scripts\shot.ps1 shots -Round r16 # capture r16 approval form / todo / timeline / approved states
+#   powershell -File scripts\shot.ps1 shots -Round r17 # capture r17 assets / transactions / unit task tree states
 #   powershell -File scripts\shot.ps1 shots -Round r11 -Shot 08-docs-diff-inline # rework#1: re-capture ONLY the diff-inline evidence (no other matrix/shell re-shot)
 #   powershell -File scripts\shot.ps1 down            # stop servers
 #   powershell -File scripts\shot.ps1 status          # show port status
@@ -34,11 +35,12 @@
 # r14: a TENTH tab (mindmap) was added -> the baseline now captures ten active states.
 # r15: an ELEVENTH tab (whiteboard) was added -> the baseline now captures eleven active states.
 # r16: a TWELFTH tab (approval) was added -> the baseline now captures twelve active states.
+# r17: TWO tabs (assets + unit-tasks) were added -> the baseline now captures fourteen active states.
 param(
   [Parameter(Position = 0)]
   [ValidateSet("up", "shots", "down", "status", "all")]
   [string]$Action = "status",
-  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16")]
+  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17")]
   [string]$Round = "r1",
   [Parameter()]
   [string]$Shot = ""
@@ -134,6 +136,7 @@ function Find-Browser {
 # r14: the TENTH tab (mindmap) was added -> ten active states in one batch.
 # r15: the ELEVENTH tab (whiteboard) was added -> eleven active states in one batch.
 # r16: the TWELFTH tab (approval) was added -> twelve active states in one batch.
+# r17: the THIRTEENTH/FOURTEENTH tabs (assets + unit-tasks) were added -> fourteen active states.
 function Invoke-ShellBaseline {
   param([string]$BrowserPath)
   $shellDir = Join-Path $Root "docs\ui\shell"
@@ -151,7 +154,9 @@ function Invoke-ShellBaseline {
     @{ page = "knowledge"; file = "knowledge-tab-active" },
     @{ page = "mindmap";   file = "mindmap-tab-active" },
     @{ page = "whiteboard"; file = "whiteboard-tab-active" },
-    @{ page = "approval";   file = "approval-tab-active" }
+    @{ page = "approval";   file = "approval-tab-active" },
+    @{ page = "assets";     file = "assets-tab-active" },
+    @{ page = "unit-tasks"; file = "unit-tasks-tab-active" }
   )
   foreach ($t in $tabs) {
     $url = "http://127.0.0.1:$WebPort/"
@@ -701,6 +706,33 @@ function Invoke-Shots {
     }
   }
 
+  # r17: REAL assets + unit tasks via HTTP. One asset is inbounded/outbounded
+  # between captures so the timeline reflects real ledger transactions; one
+  # parent/child task pair is seeded, then the child transitions to done.
+  # All Chinese is \uXXXX escaped (ASCII-only file, PS 5.1 safe).
+  $r17AssetId = 0
+  $r17TaskId = 0
+  $r17ChildId = 0
+  if ($Round -eq "r17") {
+    try {
+      $r17AssetBody = [System.Text.Encoding]::UTF8.GetBytes('{"name":"r17 \u6295\u5f71\u4eea","category":"equipment","quantity":5,"unit":"\u53f0","location":"\u4ed3\u5e93A","custodian":"\u5f20\u4e09"}')
+      $r17Asset = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/assets" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body $r17AssetBody
+      $r17AssetId = $r17Asset.id
+      $r17TaskBody = [System.Text.Encoding]::UTF8.GetBytes('{"title":"r17 \u5e74\u5ea6\u5ba1\u8ba1","assigneeUnit":"\u5ba1\u8ba1\u90e8","dueDate":"2026-12-31"}')
+      $r17Task = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/unit-tasks" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body $r17TaskBody
+      $r17TaskId = $r17Task.id
+      $r17ChildBody = [System.Text.Encoding]::UTF8.GetBytes('{"title":"r17 \u5ba1\u8ba1\u5b50\u9879","assigneeUnit":"\u5ba1\u8ba1\u4e8c\u7ec4","parentId":' + $r17TaskId + '}')
+      $r17Child = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/unit-tasks" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body $r17ChildBody
+      $r17ChildId = $r17Child.id
+      Write-Output "seeded r17 asset=$r17AssetId task=$r17TaskId"
+    } catch {
+      Write-Output "warn: r17 seed failed ($($_.Exception.Message)) - live shots may show empty state"
+    }
+  }
+
   # r13: REAL knowledge docs + RAG conversations via HTTP. The hit and no-hit
   # chats are seeded before capture so every citation card shows real citations;
   # the jump shot uses the cited doc/chunk ids from the chat response itself.
@@ -865,6 +897,22 @@ function Invoke-Shots {
       @{ name = "05-approved";         url = "$r16Base&approvalId=$r16A2Id&actor=carol&shot=approval-approved"; width = 1280; height = 800 },
       @{ name = "06-narrow";           url = "$r16Base&view=todo&actor=bob&narrow=1"; width = 488; height = 1100 },
       @{ name = "07-error";            url = "$r16Base&shot=approval-error"; width = 1280; height = 800 }
+    )
+  } elseif ($Round -eq "r17") {
+    # 01 = pinned empty; 02 = first-use form; 03 = real asset ledger; 04 = real
+    # transaction timeline (in/out between captures); 05 = real task tree;
+    # 06 = after real task transition; 07 = narrow seam; 08 = pinned error.
+    $r17AssetsBase = "http://127.0.0.1:$WebPort/?page=assets"
+    $r17TasksBase = "http://127.0.0.1:$WebPort/?page=unit-tasks"
+    $shots = @(
+      @{ name = "01-assets-empty";      url = "$r17AssetsBase&shot=assets-empty"; width = 1280; height = 800 },
+      @{ name = "02-assets-form";       url = "$r17AssetsBase&shot=assets-form"; width = 1280; height = 800 },
+      @{ name = "03-assets-ledger";     url = "$r17AssetsBase&assetId=$r17AssetId&shot=assets-list"; width = 1280; height = 800 },
+      @{ name = "04-tx-timeline";       url = "$r17AssetsBase&assetId=$r17AssetId&shot=assets-timeline"; width = 1280; height = 800 },
+      @{ name = "05-unit-tasks-tree";   url = "$r17TasksBase&shot=tasks-tree"; width = 1280; height = 800 },
+      @{ name = "06-task-transitioned"; url = "$r17TasksBase&taskId=$r17TaskId&shot=tasks-transitioned"; width = 1280; height = 800 },
+      @{ name = "07-narrow";            url = "$r17AssetsBase&narrow=1"; width = 488; height = 1100 },
+      @{ name = "08-error";             url = "$r17AssetsBase&shot=assets-error"; width = 1280; height = 800 }
     )
   } elseif ($Round -eq "r14") {
     # 01 = pinned empty state; 02/03/04 = ONE real seeded mindmap, three views
@@ -1234,6 +1282,36 @@ function Invoke-Shots {
       }
     }
 
+    if ($Round -eq "r17" -and $s.name -eq "03-assets-ledger") {
+      if ($r17AssetId -gt 0) {
+        try {
+          $r17In = [System.Text.Encoding]::UTF8.GetBytes('{"type":"in","quantity":3,"to":"\u4ed3\u5e93A","operator":"\u5165\u5e93\u5458"}')
+          Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/assets/$r17AssetId/transactions" -Method Post `
+            -ContentType "application/json; charset=utf-8" -Body $r17In | Out-Null
+          $r17Out = [System.Text.Encoding]::UTF8.GetBytes('{"type":"out","quantity":2,"from":"\u4ed3\u5e93A","operator":"\u51fa\u5e93\u5458"}')
+          Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/assets/$r17AssetId/transactions" -Method Post `
+            -ContentType "application/json; charset=utf-8" -Body $r17Out | Out-Null
+          Write-Output "r17 real in/out: asset=$r17AssetId -> 2 transactions"
+        } catch {
+          Write-Output "warn: r17 in/out between 03/04 failed ($($_.Exception.Message))"
+        }
+      }
+    }
+    if ($Round -eq "r17" -and $s.name -eq "05-unit-tasks-tree") {
+      if ($r17ChildId -gt 0) {
+        try {
+          $r17Start = [System.Text.Encoding]::UTF8.GetBytes('{"to":"in_progress"}')
+          Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/unit-tasks/$r17ChildId/transition" -Method Post `
+            -ContentType "application/json; charset=utf-8" -Body $r17Start | Out-Null
+          $r17Done = [System.Text.Encoding]::UTF8.GetBytes('{"to":"done"}')
+          Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/unit-tasks/$r17ChildId/transition" -Method Post `
+            -ContentType "application/json; charset=utf-8" -Body $r17Done | Out-Null
+          Write-Output "r17 real transition: child=$r17ChildId -> done"
+        } catch {
+          Write-Output "warn: r17 transition between 05/06 failed ($($_.Exception.Message))"
+        }
+      }
+    }
     # r8 (r3 B lesson): between 07 (before) and 08 (after) a REAL split happens
     # over POST /api/blocks/:id/split. 07 shows one paragraph; 08 shows two blocks
     # with consecutive positions. Hashes of 07/08 must differ.
@@ -1428,7 +1506,20 @@ function Invoke-Shots {
     } catch {
       Write-Output "warn: r16 cleanup failed ($($_.Exception.Message))"
     }
-  } elseif ($Round -eq "r15") {
+  } elseif ($Round -eq "r17") {
+    # r17: delete only the asset and tasks this run seeded (transactions cascade).
+    try {
+      if ($r17AssetId -gt 0) {
+        Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/assets/$r17AssetId" -Method Delete | Out-Null
+        Write-Output "cleaned seeded r17 asset=$r17AssetId"
+      }
+      if ($r17TaskId -gt 0) {
+        Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/unit-tasks/$r17TaskId" -Method Delete | Out-Null
+        Write-Output "cleaned seeded r17 task=$r17TaskId"
+      }
+    } catch {
+      Write-Output "warn: r17 cleanup failed ($($_.Exception.Message))"
+    }  } elseif ($Round -eq "r15") {
     # r15: delete only the two whiteboards this run seeded (items cascade), so
     # repeat runs stay deterministic and the shell baseline shows first-use empty.
     try {

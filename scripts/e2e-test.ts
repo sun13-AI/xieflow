@@ -234,6 +234,33 @@ import {
   type ApprovalAction,
   type Approval,
   type ApprovalStep,
+  ASSET_CATEGORIES,
+  ASSET_CATEGORY_LABELS,
+  ASSET_TX_TYPES,
+  ASSET_TX_TYPE_LABELS,
+  UNIT_TASK_STATUSES,
+  UNIT_TASK_STATUS_LABELS,
+  UNIT_TASK_TRANSITIONS,
+  isAssetCategory,
+  isAssetTxType,
+  isUnitTaskStatus,
+  assertValidAssetName,
+  assertValidAssetCategory,
+  assertValidAssetText,
+  assertValidQuantity,
+  assertValidAssetTxType,
+  assertValidAssetOperator,
+  assertValidUnitTaskTitle,
+  assertValidUnit,
+  assertValidUnitTaskTransition,
+  canTransitionUnitTask,
+  applyAssetTransaction,
+  buildTaskTree,
+  type Asset,
+  type AssetTxInput,
+  type AssetTransaction,
+  type UnitTask,
+  type UnitTaskTreeNode,
 } from "@xieflow/shared";
 import type { TodoStatus } from "@xieflow/shared";
 import {
@@ -367,6 +394,7 @@ try {
         { version: 11, name: "k", up: [] },
         { version: 12, name: "l", up: [] },
         { version: 13, name: "m", up: [] },
+        { version: 14, name: "n", up: [] },
       ]),
     "队列超出 SCHEMA_VERSION：一致性校验抛错",
   );
@@ -754,8 +782,8 @@ try {
     const v3Migrated = openDatabaseRaw({ path: v3Path });
     eq(
       v3Migrated.appliedMigrations,
-      [3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
-      "v2 旧库重开补跑 v3+v4+v5+v6+v7+v8+v9+v10+v11+v12 迁移（真实 PRAGMA 升级路径，r16 起队列追加 v12）",
+      [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+      "v2 旧库重开补跑 v3+v4+v5+v6+v7+v8+v9+v10+v11+v12+v13 迁移（真实 PRAGMA 升级路径，r17 起队列追加 v13）",
     );
     const tables = v3Migrated.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -980,8 +1008,8 @@ try {
     const v4Open = openDatabaseRaw({ path: v4Path });
     eq(
       v4Open.appliedMigrations,
-      [4, 5, 6, 7, 8, 9, 10, 11, 12],
-      "v3 旧库重开只补跑 v4+v5+v6+v7+v8+v9+v10+v11+v12 迁移（真实 PRAGMA 升级路径）",
+      [4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+      "v3 旧库重开只补跑 v4+v5+v6+v7+v8+v9+v10+v11+v12+v13 迁移（真实 PRAGMA 升级路径）",
     );
     const tables = v4Open.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -992,7 +1020,7 @@ try {
     eq(
       (v4Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（12）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（13）",
     );
     const rawDb: SqliteDatabase = v4Open.raw;
     throws(
@@ -1639,7 +1667,7 @@ try {
     v4Open2.raw.exec("PRAGMA user_version = 4");
     v4Open2.raw.close();
     const v5Open = openDatabaseRaw({ path: v5Path });
-    eq(v5Open.appliedMigrations, [5, 6, 7, 8, 9, 10, 11, 12], "v4 旧库重开只补跑 v5+v6+v7+v8+v9+v10+v11+v12 迁移（真实 PRAGMA 升级路径）");
+    eq(v5Open.appliedMigrations, [5, 6, 7, 8, 9, 10, 11, 12, 13], "v4 旧库重开只补跑 v5+v6+v7+v8+v9+v10+v11+v12+v13 迁移（真实 PRAGMA 升级路径）");
     const tableNames = v5Open.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
       .map((r) => String((r as unknown as { name: unknown }).name));
@@ -1649,7 +1677,7 @@ try {
     eq(
       (v5Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（12）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（13）",
     );
     const rawDb5: SqliteDatabase = v5Open.raw;
     throws(
@@ -2358,7 +2386,7 @@ try {
     v5Open.raw.exec("PRAGMA user_version = 5");
     v5Open.raw.close();
     const v6Open = openDatabaseRaw({ path: v6Path });
-    eq(v6Open.appliedMigrations, [6, 7, 8, 9, 10, 11, 12], "v5 旧库重开只补跑 v6+v7+v8+v9+v10+v11+v12 迁移（真实 PRAGMA 升级路径）");
+    eq(v6Open.appliedMigrations, [6, 7, 8, 9, 10, 11, 12, 13], "v5 旧库重开只补跑 v6+v7+v8+v9+v10+v11+v12+v13 迁移（真实 PRAGMA 升级路径）");
     const tableNames = v6Open.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
       .map((r) => String((r as unknown as { name: unknown }).name));
@@ -2366,7 +2394,7 @@ try {
     eq(
       (v6Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（12）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（13）",
     );
     const rawDb6: SqliteDatabase = v6Open.raw;
     eq(
@@ -2505,7 +2533,7 @@ try {
     eq(
       (reopened.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "重启后 user_version 仍为 12",
+      "重启后 user_version 仍为 13",
     );
     eq(JSON.stringify(reopened.db.listViews(tbl.id)), beforeViews, "视图持久化：重启前后 spec 逐字节相等");
     eq(
@@ -2638,11 +2666,11 @@ try {
     oldOpen.raw.exec("PRAGMA user_version = 6");
     oldOpen.raw.close();
     const v7Open = openDatabaseRaw({ path: v7Path });
-    eq(v7Open.appliedMigrations, [7, 8, 9, 10, 11, 12], "v6 旧库重开补跑 v7+v8+v9+v10+v11+v12 迁移（真实 PRAGMA 升级路径）");
+    eq(v7Open.appliedMigrations, [7, 8, 9, 10, 11, 12, 13], "v6 旧库重开补跑 v7+v8+v9+v10+v11+v12+v13 迁移（真实 PRAGMA 升级路径）");
     eq(
       (v7Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（12）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（13）",
     );
     const tables = (v7Open.raw.all(
       "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('documents','blocks') ORDER BY name",
@@ -3026,11 +3054,11 @@ try {
     old10.raw.exec("PRAGMA user_version = 7");
     old10.raw.close();
     const v8 = openDatabaseRaw({ path: p10Path });
-    eq(v8.appliedMigrations, [8, 9, 10, 11, 12], "v7 旧库重开只补跑 v8+v9+v10+v11+v12 迁移（真实 PRAGMA 升级路径）");
+    eq(v8.appliedMigrations, [8, 9, 10, 11, 12, 13], "v7 旧库重开只补跑 v8+v9+v10+v11+v12+v13 迁移（真实 PRAGMA 升级路径）");
     eq(
       (v8.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（12）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（13）",
     );
     const t10 = v8.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -3442,11 +3470,11 @@ try {
     old.raw.exec("PRAGMA user_version = 8");
     old.raw.close();
     const v9 = openDatabaseRaw({ path: p });
-    eq(v9.appliedMigrations, [9, 10, 11, 12], "v8 旧库重开只补跑 v9+v10+v11+v12 迁移（真实 PRAGMA 升级路径）");
+    eq(v9.appliedMigrations, [9, 10, 11, 12, 13], "v8 旧库重开只补跑 v9+v10+v11+v12+v13 迁移（真实 PRAGMA 升级路径）");
     eq(
       (v9.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（12）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（13）",
     );
     const tables = v9.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -3838,7 +3866,7 @@ try {
     eq(reopened14.getMindmap(1)!.contentMarkdown, "# 根\n- 子", "导图关库重开不丢（Markdown 源逐字节）");
     reopened14.close();
     const raw14 = openDatabaseRaw({ path: `scripts/.tmp-e2e/r14-raw-${Date.now()}.db` });
-    eq((raw14.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 12, "真实 PRAGMA user_version=12");
+    eq((raw14.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 13, "真实 PRAGMA user_version=13");
     eq(
       raw14.raw.all("PRAGMA table_info(mindmaps)").map((r) => String((r as unknown as { name: unknown }).name)),
       ["id", "title", "content_markdown", "created_at", "updated_at"],
@@ -4021,7 +4049,7 @@ try {
     eq(r15.listWhiteboardItems(1)[0]!.content, "关库不丢", "白板条目关库重开不丢（逐字）");
     r15.close();
     const raw15 = openDatabaseRaw({ path: `scripts/.tmp-e2e/r15-raw-${Date.now()}.db` });
-    eq((raw15.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 12, "真实 PRAGMA user_version=12");
+    eq((raw15.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 13, "真实 PRAGMA user_version=13");
     eq(
       raw15.raw.all("PRAGMA table_info(whiteboards)").map((r) => String((r as unknown as { name: unknown }).name)),
       ["id", "title", "created_at"],
@@ -4219,7 +4247,7 @@ try {
     r16.close();
 
     const raw16 = openDatabaseRaw({ path: `scripts/.tmp-e2e/r16-raw-${Date.now()}.db` });
-    eq((raw16.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 12, "真实 PRAGMA user_version=12");
+    eq((raw16.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 13, "真实 PRAGMA user_version=13");
     eq(
       raw16.raw.all("PRAGMA table_info(approvals)").map((r) => String((r as unknown as { name: unknown }).name)),
       ["id", "title", "type", "applicant_id", "status", "current_assignee", "created_at", "updated_at"],
@@ -4248,7 +4276,177 @@ try {
     db = null;
   }
 
-  // 51. HTTP 冒烟 /api/health
+  // 51. r17：物资台账与单位任务流转（库存规则 / 状态机 / 任务树 / schema v13 数据层）
+  section("r17 物资台账与单位任务：库存规则 / 状态机 / 任务树 / schema v13 数据层");
+  {
+    // 51a. 单位任务状态机（集中 shared）
+    eq(UNIT_TASK_STATUSES, ["pending", "in_progress", "blocked", "done", "cancelled"], "五态集合与 schema v13 CHECK 同源");
+    eq(UNIT_TASK_TRANSITIONS.pending, ["in_progress", "blocked", "cancelled"], "pending 出边三项");
+    eq(UNIT_TASK_TRANSITIONS.in_progress, ["done", "blocked", "cancelled"], "in_progress 出边三项");
+    eq(UNIT_TASK_TRANSITIONS.blocked, ["in_progress", "cancelled"], "blocked 出边两项");
+    eq(UNIT_TASK_TRANSITIONS.done, [], "done 终态零出边");
+    eq(UNIT_TASK_TRANSITIONS.cancelled, [], "cancelled 终态零出边");
+    ok(canTransitionUnitTask("pending", "in_progress"), "pending→in_progress 合法");
+    ok(canTransitionUnitTask("in_progress", "done"), "in_progress→done 合法");
+    ok(canTransitionUnitTask("blocked", "in_progress"), "blocked→in_progress 可恢复");
+    ok(!canTransitionUnitTask("done", "in_progress"), "done→in_progress 拒绝");
+    ok(!canTransitionUnitTask("cancelled", "pending"), "cancelled→pending 拒绝");
+    ok(!canTransitionUnitTask("pending", "done"), "pending 直接 done 拒绝");
+    throws(() => assertValidUnitTaskTransition("done", "pending"), "done 回退抛错");
+    ok(isUnitTaskStatus("blocked") && !isUnitTaskStatus("sleeping"), "状态类型守卫正确");
+
+    // 51b. 库存规则 applyAssetTransaction（纯函数 / 负库存拒绝 / 转移位置校验）
+    const sampleAsset: Asset = {
+      id: 1, name: "笔记本电脑", category: "equipment", quantity: 10,
+      unit: "台", location: "仓库A", custodian: "张三", createdAt: "2026-01-01T00:00:00.000Z",
+    };
+    const afterIn = applyAssetTransaction(sampleAsset, { type: "in", quantity: 5, to: "仓库A", operator: "李四" });
+    eq(afterIn.quantity, 15, "入库 5：10→15");
+    eq(afterIn.location, "仓库A", "入库 to 更新位置");
+    eq(sampleAsset.quantity, 10, "入库不改入参（纯函数）");
+    const afterOut = applyAssetTransaction(sampleAsset, { type: "out", quantity: 3, from: "仓库A", operator: "李四" });
+    eq(afterOut.quantity, 7, "出库 3：10→7");
+    eq(sampleAsset.quantity, 10, "出库不改入参（纯函数）");
+    eq(applyAssetTransaction(sampleAsset, { type: "out", quantity: 10, operator: "x" }).quantity, 0, "出库到 0 允许");
+    throws(() => applyAssetTransaction(sampleAsset, { type: "out", quantity: 11, operator: "x" }), "负库存拒绝（11>10）");
+    throws(() => applyAssetTransaction(sampleAsset, { type: "in", quantity: -1, operator: "x" }), "入库负数拒绝");
+    throws(() => applyAssetTransaction(sampleAsset, { type: "in", quantity: 1.5, operator: "x" }), "非整数数量拒绝");
+    throws(() => applyAssetTransaction(sampleAsset, { type: "in", quantity: 1, operator: "" }), "空操作人拒绝");
+    const afterTransfer = applyAssetTransaction(sampleAsset, { type: "transfer", quantity: 1, from: "仓库A", to: "仓库B", operator: "王五" });
+    eq(afterTransfer.quantity, 10, "转移不改总量");
+    eq(afterTransfer.location, "仓库B", "转移更新位置到 to");
+    throws(() => applyAssetTransaction(sampleAsset, { type: "transfer", quantity: 1, from: "仓库C", to: "仓库B", operator: "x" }), "来源位置不匹配拒绝");
+    throws(() => applyAssetTransaction(sampleAsset, { type: "transfer", quantity: 1, to: "仓库B", operator: "x" }), "转移缺来源拒绝");
+    eq(ASSET_CATEGORIES.length, 5, "物资分类五种");
+    eq(ASSET_TX_TYPES, ["in", "out", "transfer"], "流水类型三种");
+    ok(isAssetCategory("office") && !isAssetCategory("unknown"), "分类守卫正确");
+    ok(isAssetTxType("transfer") && !isAssetTxType("move"), "流水类型守卫正确");
+    throws(() => assertValidAssetName(""), "空物资名拒绝");
+    throws(() => assertValidAssetCategory("unknown" as never), "非法分类抛错");
+    throws(() => assertValidQuantity(0), "数量 0 抛错");
+    throws(() => assertValidAssetTxType("move" as never), "非法流水类型抛错");
+
+    // 51c. 任务树装配 buildTaskTree（层级 / 孤儿父节点 / 环路检测 / 确定性）
+    const flatTasks: UnitTask[] = [
+      { id: 1, title: "总目标", assigneeUnit: "总部", status: "in_progress", dueDate: null, parentId: null },
+      { id: 2, title: "子任务A", assigneeUnit: "研发部", status: "pending", dueDate: null, parentId: 1 },
+      { id: 3, title: "子任务A-1", assigneeUnit: "小组", status: "pending", dueDate: null, parentId: 2 },
+      { id: 4, title: "独立任务", assigneeUnit: "行政部", status: "done", dueDate: null, parentId: 99 },
+    ];
+    const tree = buildTaskTree(flatTasks);
+    eq(tree.length, 2, "两棵根树（孤儿父节点按根处理）");
+    eq(tree[0]!.id, 1, "根节点按 id 升序 1 在前");
+    eq(tree[0]!.children.length, 1, "根 1 有一个子节点");
+    eq(tree[0]!.children[0]!.id, 2, "子节点 id=2");
+    eq(tree[0]!.children[0]!.children[0]!.id, 3, "三层嵌套 id=3");
+    eq(tree[1]!.id, 4, "孤儿任务 4 作为独立根");
+    eq(flatTasks.length, 4, "装配不改入参数组（纯函数）");
+    throws(
+      () => buildTaskTree([
+        { id: 1, title: "A", assigneeUnit: "u", status: "pending", dueDate: null, parentId: 2 },
+        { id: 2, title: "B", assigneeUnit: "u", status: "pending", dueDate: null, parentId: 1 },
+      ]),
+      "环路任务树抛错",
+    );
+    eq(buildTaskTree([]).length, 0, "空任务列表装配为空树");
+    eq(UNIT_TASK_STATUS_LABELS.blocked, "受阻", "状态中文标签正确");
+
+    // 51d. schema v13 与数据层（真迁移、真落库、真事务、零半态）
+    const raw17 = openDatabaseRaw({ path: ":memory:" });
+    eq((raw17.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 13, "新库 user_version=13");
+    eq(
+      raw17.raw.all("PRAGMA table_info(assets)").map((r) => String((r as unknown as { name: unknown }).name)),
+      ["id", "name", "category", "quantity", "unit", "location", "custodian", "created_at"],
+      "assets 表八列由 v13 迁移创建",
+    );
+    eq(
+      raw17.raw.all("PRAGMA table_info(asset_transactions)").map((r) => String((r as unknown as { name: unknown }).name)),
+      ["id", "asset_id", "type", "quantity", "from", "to", "operator", "created_at"],
+      "asset_transactions 表八列（from/to 列名保留）",
+    );
+    eq(
+      raw17.raw.all("PRAGMA table_info(unit_tasks)").map((r) => String((r as unknown as { name: unknown }).name)),
+      ["id", "title", "assignee_unit", "status", "due_date", "parent_id", "created_at"],
+      "unit_tasks 表七列（parent_id 可空）",
+    );
+    throws(
+      () => raw17.raw.run("INSERT INTO assets (name,category,quantity,unit,location,custodian,created_at) VALUES ('x','x',1,'p','l','c','t')"),
+      "assets.category CHECK 拒绝非法分类",
+    );
+    throws(
+      () => raw17.raw.run('INSERT INTO asset_transactions (asset_id,type,quantity,"from","to",operator,created_at) VALUES (1,\'sleep\',1,\'\',\'\',\'x\',\'t\')'),
+      "asset_transactions.type CHECK 拒绝非法类型",
+    );
+    throws(
+      () => raw17.raw.run("INSERT INTO unit_tasks (title,assignee_unit,status,due_date,parent_id,created_at) VALUES ('x','u','sleep',NULL,NULL,'t')"),
+      "unit_tasks.status CHECK 拒绝非法状态",
+    );
+    raw17.raw.close();
+
+    const rdb = freshDb();
+    eq(rdb.listAssets().length, 0, "新库物资列表为空");
+    const a1 = rdb.createAsset({ name: "投影仪", category: "equipment", quantity: 5, unit: "台", location: "仓库A", custodian: "张三" });
+    eq(a1.quantity, 5, "建账初始库存 5");
+    eq(a1.category, "equipment", "物资分类回读");
+    const a2 = rdb.createAsset({ name: "打印纸", category: "office", quantity: 100, unit: "包", location: "仓库B", custodian: "李四" });
+    eq(rdb.listAssets().length, 2, "两笔物资真落库");
+    const tx1 = rdb.applyAssetTx(a1.id, { type: "in", quantity: 3, to: "仓库A", operator: "王五" });
+    eq(tx1.type, "in", "入库流水类型回读");
+    eq(rdb.getAsset(a1.id)!.quantity, 8, "入库后库存真回写 8");
+    const tx2 = rdb.applyAssetTx(a1.id, { type: "out", quantity: 2, from: "仓库A", operator: "赵六" });
+    eq(rdb.getAsset(a1.id)!.quantity, 6, "出库后库存真回写 6");
+    const tx3 = rdb.applyAssetTx(a1.id, { type: "transfer", quantity: 1, from: "仓库A", to: "仓库B", operator: "王五" });
+    eq(tx3.type, "transfer", "转移流水类型回读");
+    eq(rdb.getAsset(a1.id)!.location, "仓库B", "转移后位置真回写");
+    eq(rdb.getAsset(a1.id)!.quantity, 6, "转移不改库存总量");
+    eq(rdb.listAssetTransactions(a1.id).length, 3, "该物资三条流水");
+    eq(rdb.listAssetTransactions().length, 3, "全量流水三条");
+    const qtyBeforeReject = rdb.getAsset(a1.id)!.quantity;
+    throws(() => rdb.applyAssetTx(a1.id, { type: "out", quantity: 999, operator: "x" }), "数据层拒绝负库存出库");
+    eq(rdb.getAsset(a1.id)!.quantity, qtyBeforeReject, "4xx 后库存未变（零半态）");
+    eq(rdb.listAssetTransactions(a1.id).length, 3, "4xx 后未写入流水（零半态）");
+    throws(() => rdb.applyAssetTx(999999, { type: "in", quantity: 1, operator: "x" }), "越权 asset_id 拒绝");
+
+    const t1 = rdb.createUnitTask({ title: "年度审计", assigneeUnit: "审计部", dueDate: "2026-12-31" });
+    eq(t1.status, "pending", "任务默认 pending");
+    eq(t1.dueDate, "2026-12-31", "到期日回读");
+    const t2 = rdb.createUnitTask({ title: "审计子项", assigneeUnit: "审计部", parentId: t1.id });
+    eq(t2.parentId, t1.id, "父任务 id 回读");
+    throws(() => rdb.createUnitTask({ title: "x", assigneeUnit: "u", parentId: 999999 }), "父任务不存在拒绝");
+    const t2Progressed = rdb.transitionUnitTask(t2.id, "in_progress")!;
+    eq(t2Progressed.status, "in_progress", "任务流转到进行中");
+    throws(() => rdb.transitionUnitTask(t2.id, "pending"), "in_progress 不能回退 pending");
+    const doneTask = rdb.transitionUnitTask(t2.id, "done")!;
+    eq(doneTask.status, "done", "in_progress→done 合法");
+    throws(() => rdb.transitionUnitTask(t2.id, "pending"), "终态不可回退");
+    throws(() => rdb.transitionUnitTask(t2.id, "sleep"), "非法状态拒绝");
+    const treeFromDb = rdb.getUnitTaskTree();
+    eq(treeFromDb.length, 1, "数据层任务树一根");
+    eq(treeFromDb[0]!.children[0]!.id, t2.id, "数据层任务树层级正确");
+    throws(() => rdb.createUnitTask({ title: "", assigneeUnit: "u" }), "空任务标题拒绝");
+    throws(() => rdb.createUnitTask({ title: "x", assigneeUnit: "u", dueDate: "not-a-date" }), "非法到期日拒绝");
+
+    // 关库重开不丢（真文件库持久化）
+    mkdirSync("scripts/.tmp-e2e", { recursive: true });
+    const p17 = `scripts/.tmp-e2e/r17-${Date.now()}.db`;
+    const f17 = openDatabase({ path: p17 });
+    const pa = f17.createAsset({ name: "持久化物资", category: "material", quantity: 4, unit: "箱", location: "仓库C", custodian: "张三" });
+    f17.applyAssetTx(pa.id, { type: "in", quantity: 2, to: "仓库C", operator: "李四" });
+    f17.createUnitTask({ title: "持久化任务", assigneeUnit: "后勤部", dueDate: "2026-12-01" });
+    f17.close();
+    const rdb2 = openDatabase({ path: p17 });
+    eq(rdb2.getAsset(pa.id)!.quantity, 6, "物资关库重开库存不丢");
+    eq(rdb2.listAssetTransactions(pa.id).length, 1, "流水关库重开不丢");
+    eq(rdb2.listUnitTasks()[0]!.title, "持久化任务", "任务关库重开不丢");
+    eq(rdb2.deleteAsset(pa.id), true, "删物资真删");
+    eq(rdb2.listAssetTransactions(pa.id).length, 0, "级联删除流水归零");
+    rdb2.close();
+    eq(rdb.deleteAsset(a1.id), true, "内存库删物资真删");
+    rdb.close();
+    db = null;
+  }
+
+  // 52. HTTP 冒烟 /api/health
   section("HTTP 冒烟 /api/health");
   let httpOk = false;
   let httpNote = "api 服务未运行（pnpm dev:api 后再跑 pnpm test 可覆盖此节）";

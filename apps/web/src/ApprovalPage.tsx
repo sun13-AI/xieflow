@@ -10,6 +10,8 @@ import {
   APPROVAL_TYPE_LABELS,
   APPROVAL_STATUS_LABELS,
   APPROVAL_ACTION_LABELS,
+  APPROVAL_ACTION_ROLE_LABELS,
+  APPROVAL_ACTION_STATUS_AFTER,
   APPROVAL_VIEWS,
   availableApprovalActions,
   isApprovalView,
@@ -289,7 +291,11 @@ export default function ApprovalPage() {
           ))}
         </div>
         {state.approvals.length === 0 ? (
-          <p className="empty" data-state="approval-empty-list">这里还没有审批——点「＋ 新建审批」发起第一单。</p>
+          <p className="empty" data-state="approval-empty-list">
+            {selected !== null
+              ? "本视角已清空——右侧仍可查看最近选中的审批详情。"
+              : "这里还没有审批——点「＋ 新建审批」发起第一单。"}
+          </p>
         ) : (
           <ul className="ap-list" data-state="approval-list">
             {state.approvals.map((a) => (
@@ -326,18 +332,25 @@ export default function ApprovalPage() {
             <div className="ap-actions" data-state="approval-actions">
               {actions.length === 0 ? (
                 <span className="ap-no-action">当前身份在此单上无可用操作（终态或需切换身份）</span>
-              ) : actions.map((a) => (
-                <button
-                  key={a}
-                  type="button"
-                  className={`btn${a === "approve" ? " btn-primary" : ""}`}
-                  data-action={`ap-${a}`}
-                  onClick={() => void doAction(a)}
-                  disabled={busy}
-                >
-                  {APPROVAL_ACTION_LABELS[a]}
-                </button>
-              ))}
+              ) : (
+                <>
+                  <p className="ap-consequence" data-state="approval-consequence">
+                    操作后果：通过 / 驳回后本单进入终态、不可撤销；转交后你不再持有该待办；撤回仅发起人可用。
+                  </p>
+                  {actions.map((a) => (
+                    <button
+                      key={a}
+                      type="button"
+                      className={`btn${a === "approve" ? " btn-primary" : ""}`}
+                      data-action={`ap-${a}`}
+                      onClick={() => void doAction(a)}
+                      disabled={busy}
+                    >
+                      {APPROVAL_ACTION_LABELS[a]}
+                    </button>
+                  ))}
+                </>
+              )}
             </div>
             {actions.includes("delegate") && (
               <input
@@ -366,7 +379,10 @@ export default function ApprovalPage() {
                       <span className="ap-step-order">{step.order + 1}</span>
                       <span className="ap-step-body">
                         <strong>{APPROVAL_ACTION_LABELS[step.action]}</strong>
-                        <span> · {step.assignee} · {APPROVAL_STATUS_LABELS[selected.status]}</span>
+                        <span>
+                          {" · "}{APPROVAL_ACTION_ROLE_LABELS[step.action]} {step.assignee}
+                          {" · 当时"} {APPROVAL_STATUS_LABELS[APPROVAL_ACTION_STATUS_AFTER[step.action]]}
+                        </span>
                         {step.comment !== "" && <span className="ap-step-comment">「{step.comment}」</span>}
                         <time>{step.actedAt}</time>
                       </span>

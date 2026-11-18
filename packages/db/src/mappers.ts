@@ -38,6 +38,12 @@ import type {
   ApprovalCc,
   ApprovalType,
   ApprovalAction,
+  Asset,
+  AssetTransaction,
+  AssetTxType,
+  AssetCategory,
+  UnitTask,
+  UnitTaskStatus,
 } from "@xieflow/shared";
 import { isFieldType, isBlockType, normalizeBlockContent, isKnowledgeSourceType } from "@xieflow/shared";
 import { REPEATS_ORDER } from "./repeat-order.js";
@@ -442,5 +448,42 @@ export function mapRowToApprovalCc(row: Row): ApprovalCc {
     approvalId: Number(row.approval_id),
     ccUser: String(row.cc_user),
     createdAt: String(row.created_at),
+  };
+}
+
+export function mapRowToAsset(row: Row): Asset {
+  return {
+    id: Number(row.id),
+    name: String(row.name),
+    category: String(row.category) as AssetCategory,
+    quantity: Number(row.quantity),
+    unit: String(row.unit),
+    location: String(row.location),
+    custodian: String(row.custodian),
+    createdAt: String(row.created_at),
+  };
+}
+
+export function mapRowToAssetTransaction(row: Row): AssetTransaction {
+  return {
+    id: Number(row.id),
+    assetId: Number(row.asset_id),
+    type: String(row.type) as AssetTxType,
+    quantity: Number(row.quantity),
+    from: String(row.from ?? ""),
+    to: String(row.to ?? ""),
+    operator: String(row.operator),
+    createdAt: String(row.created_at),
+  };
+}
+
+export function mapRowToUnitTask(row: Row): UnitTask {
+  return {
+    id: Number(row.id),
+    title: String(row.title),
+    assigneeUnit: String(row.assignee_unit),
+    status: String(row.status) as UnitTaskStatus,
+    dueDate: row.due_date === null || row.due_date === undefined ? null : String(row.due_date),
+    parentId: row.parent_id === null || row.parent_id === undefined ? null : Number(row.parent_id),
   };
 }

@@ -293,6 +293,45 @@ export const MIGRATIONS: Migration[] = [
       `CREATE INDEX IF NOT EXISTS idx_approval_cc_approval ON approval_cc (approval_id)`,
     ],
   },
+  {
+    version: 13,
+    name: "r17 · assets / asset_transactions / unit_tasks 表（M8 第 2 片：物资台账与单位任务流转）",
+    up: [
+      `CREATE TABLE IF NOT EXISTS assets (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL CHECK (length(name) > 0),
+        category TEXT NOT NULL CHECK (category IN ('office','equipment','material','furniture','other')),
+        quantity INTEGER NOT NULL DEFAULT 0 CHECK (quantity >= 0),
+        unit TEXT NOT NULL,
+        location TEXT NOT NULL,
+        custodian TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_assets_category ON assets (category)`,
+      `CREATE TABLE IF NOT EXISTS asset_transactions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+        type TEXT NOT NULL CHECK (type IN ('in','out','transfer')),
+        quantity INTEGER NOT NULL CHECK (quantity > 0),
+        "from" TEXT NOT NULL DEFAULT '',
+        "to" TEXT NOT NULL DEFAULT '',
+        operator TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_asset_transactions_asset ON asset_transactions (asset_id)`,
+      `CREATE TABLE IF NOT EXISTS unit_tasks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL CHECK (length(title) > 0),
+        assignee_unit TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('pending','in_progress','blocked','done','cancelled')),
+        due_date TEXT,
+        parent_id INTEGER REFERENCES unit_tasks(id) ON DELETE SET NULL,
+        created_at TEXT NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_unit_tasks_status ON unit_tasks (status)`,
+      `CREATE INDEX IF NOT EXISTS idx_unit_tasks_parent ON unit_tasks (parent_id)`,
+    ],
+  },
 ];
 
 /** 当前 schema 版本（与 shared 的 SCHEMA_VERSION 保持一致，e2e 会断言二者相等） */

@@ -8,6 +8,7 @@
 // r14：+ 导图页（M7 第 1 片：Markdown 双视图），壳基线扩为十 tab。
 // r15：+ 白板页（M7 第 2 片：无限画布 / 便签 / AI 建板），壳基线扩为十一 tab。
 // r16：+ 审批页（M8 第 1 片：发起 / 三视角 / 时间线 / 操作），壳基线扩为十二 tab。
+// r17：+ 物资页 + 单位任务页（M8 收官），壳基线扩为十四 tab。
 // 截图状态真实存在：加载中 / 空数据 / 正常 / 错误 / 窄屏（?narrow=1 显式钉态）
 import { useEffect, useState } from "react";
 import type { AppSetting, Schedule, Todo } from "@xieflow/shared";
@@ -22,13 +23,15 @@ import KnowledgePage from "./KnowledgePage";
 import MindmapPage from "./MindmapPage";
 import WhiteboardPage from "./WhiteboardPage";
 import ApprovalPage from "./ApprovalPage";
+import AssetsPage from "./AssetsPage";
+import UnitTasksPage from "./UnitTasksPage";
 
 type LoadState =
   | { phase: "loading" }
   | { phase: "error"; message: string }
   | { phase: "ready"; settings: AppSetting[]; schemaVersion: number; todaySchedules: Schedule[]; todos: Todo[] };
 
-type PageTab = "home" | "todos" | "schedules" | "projects" | "board" | "bases" | "docs" | "chat" | "knowledge" | "mindmap" | "whiteboard" | "approval";
+type PageTab = "home" | "todos" | "schedules" | "projects" | "board" | "bases" | "docs" | "chat" | "knowledge" | "mindmap" | "whiteboard" | "approval" | "assets" | "unit-tasks";
 
 /** 健康检查 + 今日日程（工作台卡片数据源；日程查询失败不阻塞工作台） */
 async function fetchHealth(): Promise<{
@@ -105,7 +108,11 @@ export default function App() {
                         ? "whiteboard"
                         : page === "approval"
                           ? "approval"
-                          : "home";
+                          : page === "assets"
+                            ? "assets"
+                            : page === "unit-tasks"
+                              ? "unit-tasks"
+                              : "home";
   });
   const [state, setState] = useState<LoadState>(() => {
     // 截图脚本用 ?shot= 钉住特定状态（真实状态都存在，参数只为确定性捕获）
@@ -120,7 +127,7 @@ export default function App() {
       return {
         phase: "ready",
         settings: [{ key: "company.name", value: "协流示例公司", updatedAt: now.toISOString() }],
-        schemaVersion: 12,
+        schemaVersion: 13,
         todaySchedules: workbenchTodaySeed(now),
         todos: [],
       };
@@ -152,7 +159,7 @@ export default function App() {
   const todoById = new Map(state.phase === "ready" ? state.todos.map((t) => [t.id, t]) : []);
 
   return (
-    <main className={tab === "bases" || tab === "docs" || tab === "chat" || tab === "knowledge" || tab === "mindmap" || tab === "whiteboard" || tab === "approval" ? "shell shell-wide" : "shell"}>
+    <main className={tab === "bases" || tab === "docs" || tab === "chat" || tab === "knowledge" || tab === "mindmap" || tab === "whiteboard" || tab === "approval" || tab === "assets" || tab === "unit-tasks" ? "shell shell-wide" : "shell"}>
       <header className="topbar">
         <span className="logo">协流 XieFlow</span>
         <nav className="tabs" data-state="tabs">
@@ -252,8 +259,24 @@ export default function App() {
           >
             审批
           </button>
+          <button
+            type="button"
+            className={`tab ${tab === "assets" ? "tab-active" : ""}`}
+            data-tab="assets"
+            onClick={() => setTab("assets")}
+          >
+            物资
+          </button>
+          <button
+            type="button"
+            className={`tab ${tab === "unit-tasks" ? "tab-active" : ""}`}
+            data-tab="unit-tasks"
+            onClick={() => setTab("unit-tasks")}
+          >
+            单位任务
+          </button>
         </nav>
-        <span className="badge">r16 · 审批流引擎（M8 起步）</span>
+        <span className="badge">r17 · 物资台账与单位任务流转（M8 收官）</span>
       </header>
 
       {tab === "todos" ? (
@@ -278,6 +301,10 @@ export default function App() {
         <WhiteboardPage />
       ) : tab === "approval" ? (
         <ApprovalPage />
+      ) : tab === "assets" ? (
+        <AssetsPage />
+      ) : tab === "unit-tasks" ? (
+        <UnitTasksPage />
       ) : (
         <>
           {state.phase === "loading" && (
@@ -340,7 +367,7 @@ export default function App() {
                   <dt>schema 版本</dt>
                   <dd>v{state.schemaVersion}</dd>
                   <dt>里程碑</dt>
-                  <dd>M8 组织管理（起步）</dd>
+                  <dd>M8 组织管理（收官）</dd>
                 </dl>
               </section>
             </>

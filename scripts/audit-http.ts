@@ -120,7 +120,7 @@ async function audit() {
     eq(h.json && h.json.ok, true, "health.ok = true");
     // r4 起动态对表：health.schemaVersion 必须等于迁移队列最高版本（不再硬编码 2/3，
     // r3 v0.0.6 CI 红教训——静态硬编码在每轮迁移后必过期）
-    eq(h.json && h.json.schemaVersion, 12, "health.schemaVersion = 12（r16 迁移后）");
+    eq(h.json && h.json.schemaVersion, 13, "health.schemaVersion = 13（r17 迁移后）");
     const s = await req("GET", "/api/settings");
     eq(s.status, 200, "GET /api/settings -> 200");
     ok(Array.isArray(s.json && s.json.settings), "settings 返回数组");
@@ -217,7 +217,7 @@ async function audit() {
   {
     // health 探针反映 schema v8（r4 起迁移后动态推进）
     const h3 = await req("GET", "/api/health");
-    eq(h3.json && h3.json.schemaVersion, 12, "health.schemaVersion = 12（schedules 节复核）");
+    eq(h3.json && h3.json.schemaVersion, 13, "health.schemaVersion = 13（schedules 节复核）");
 
     const r = await expectStatus(
       "POST",
@@ -2297,6 +2297,143 @@ async function audit() {
     }
     const after = await expectStatus("GET", "/api/approvals", undefined, 200, "r16 \u6e05\u7406\u540e\u5217\u8868 -> 200");
     eq(after.json.approvals.length, 0, "r16 \u6e05\u7406\u540e\u5ba1\u6279\u5f52\u96f6\uff08\u65e0\u6b8b\u7559\uff09");
+  }
+
+  console.log("\n== Assets / UnitTasks r17: 物资台账 / 出入库 / 任务树 / 状态流转 / 4xx ==");
+  {
+    // ---- 物资建账与 CRUD ----
+    const a1 = await expectStatus("POST", "/api/assets", {
+      name: "r17 投影仪", category: "equipment", quantity: 5, unit: "台", location: "仓库A", custodian: "张三",
+    }, 201, "r17 POST 物资 -> 201");
+    eq(a1.json && a1.json.name, "r17 投影仪", "r17 POST 物资名回读");
+    eq(a1.json && a1.json.quantity, 5, "r17 建账初始库存 5");
+    ok(a1.json && a1.json.id > 0, "r17 POST 返回自增 id");
+    const a2 = await expectStatus("POST", "/api/assets", {
+      name: "r17 打印纸", category: "office", quantity: 100, unit: "包", location: "仓库B", custodian: "李四",
+    }, 201, "r17 POST 第二笔物资 -> 201");
+    const listAssets = await expectStatus("GET", "/api/assets", undefined, 200, "r17 GET 物资列表 -> 200");
+    eq(listAssets.json.assets.length, 2, "r17 列表含两笔新物资");
+    const detailAsset = await expectStatus("GET", `/api/assets/${a1.json.id}`, undefined, 200, "r17 GET 物资详情 -> 200");
+    eq(detailAsset.json && detailAsset.json.id, a1.json.id, "r17 详情 id 一致");
+    const patchedAsset = await expectStatus("PATCH", `/api/assets/${a1.json.id}`, { custodian: "王五" }, 200, "r17 PATCH 物资保管人 -> 200");
+    eq(patchedAsset.json && patchedAsset.json.custodian, "王五", "r17 PATCH 保管人回读");
+
+    // ---- 出入库流水（真 HTTP，真落库，零半态） ----
+    const txIn = await expectStatus("POST", `/api/assets/${a1.json.id}/transactions`, {
+      type: "in", quantity: 3, to: "仓库A", operator: "入库员",
+    }, 201, "r17 POST 入库 -> 201");
+    eq(txIn.json && txIn.json.type, "in", "r17 入库流水类型回读");
+    const afterIn = await expectStatus("GET", `/api/assets/${a1.json.id}`, undefined, 200, "r17 入库后详情回读 -> 200");
+    eq(afterIn.json.quantity, 8, "r17 入库真落库 5→8");
+    const txOut = await expectStatus("POST", `/api/assets/${a1.json.id}/transactions`, {
+      type: "out", quantity: 2, from: "仓库A", operator: "出库员",
+    }, 201, "r17 POST 出库 -> 201");
+    eq(txOut.json && txOut.json.type, "out", "r17 出库流水类型回读");
+    const afterOut = await expectStatus("GET", `/api/assets/${a1.json.id}`, undefined, 200, "r17 出库后详情回读 -> 200");
+    eq(afterOut.json.quantity, 6, "r17 出库真落库 8→6");
+
+    // 4xx：负库存 / 非法类型 / 越权 asset_id / 缺操作人（零半态）
+    await expectStatus("POST", `/api/assets/${a1.json.id}/transactions`, {
+      type: "out", quantity: 999, operator: "x",
+    }, 400, "r17 负库存出库 -> 400");
+    await expectStatus("POST", `/api/assets/${a1.json.id}/transactions`, {
+      type: "sleep", quantity: 1, operator: "x",
+    }, 400, "r17 非法流水类型 -> 400");
+    await expectStatus("POST", "/api/assets/999999/transactions", {
+      type: "in", quantity: 1, operator: "x",
+    }, 400, "r17 越权 asset_id 流水 -> 400");
+    await expectStatus("POST", `/api/assets/${a1.json.id}/transactions`, {
+      type: "in", quantity: 1,
+    }, 400, "r17 缺操作人 -> 400");
+    const afterReject = await expectStatus("GET", `/api/assets/${a1.json.id}`, undefined, 200, "r17 4xx 后库存回读 -> 200");
+    eq(afterReject.json.quantity, 6, "r17 4xx 后库存未变（零半态）");
+    const txListAfterReject = await expectStatus("GET", `/api/assets/${a1.json.id}/transactions`, undefined, 200, "r17 4xx 后流水回读 -> 200");
+    eq(txListAfterReject.json.transactions.length, 2, "r17 4xx 后未写流水（零半态）");
+
+    // 转移：位置改到仓库B，库存不变
+    const txTransfer = await expectStatus("POST", `/api/assets/${a1.json.id}/transactions`, {
+      type: "transfer", quantity: 1, from: "仓库A", to: "仓库B", operator: "调拨员",
+    }, 201, "r17 POST 转移 -> 201");
+    eq(txTransfer.json && txTransfer.json.type, "transfer", "r17 转移流水类型回读");
+    const afterTransfer = await expectStatus("GET", `/api/assets/${a1.json.id}`, undefined, 200, "r17 转移后详情回读 -> 200");
+    eq(afterTransfer.json.location, "仓库B", "r17 转移真改位置");
+    eq(afterTransfer.json.quantity, 6, "r17 转移不改库存");
+    await expectStatus("POST", `/api/assets/${a1.json.id}/transactions`, {
+      type: "transfer", quantity: 1, from: "仓库C", to: "仓库D", operator: "x",
+    }, 400, "r17 来源位置不匹配 -> 400");
+    const txByAsset = await expectStatus("GET", "/api/asset-transactions?assetId=" + a1.json.id, undefined, 200, "r17 GET 按物资查流水 -> 200");
+    eq(txByAsset.json.transactions.length, 3, "r17 该物资三条流水");
+    const txAll = await expectStatus("GET", "/api/asset-transactions", undefined, 200, "r17 GET 全量流水 -> 200");
+    eq(txAll.json.transactions.length, 3, "r17 全量流水三条");
+    await expectStatus("GET", "/api/asset-transactions?assetId=999999", undefined, 404, "r17 越权流水查询 -> 404");
+
+    // ---- 单位任务 CRUD + 状态流转 + 树 ----
+    const t1 = await expectStatus("POST", "/api/unit-tasks", {
+      title: "r17 年度审计", assigneeUnit: "审计部", dueDate: "2026-12-31",
+    }, 201, "r17 POST 任务 -> 201");
+    eq(t1.json && t1.json.status, "pending", "r17 任务默认 pending");
+    ok(t1.json && t1.json.id > 0, "r17 POST 任务返回自增 id");
+    const t2 = await expectStatus("POST", "/api/unit-tasks", {
+      title: "r17 审计子项", assigneeUnit: "审计二组", parentId: t1.json.id,
+    }, 201, "r17 POST 子任务 -> 201");
+    eq(t2.json && t2.json.parentId, t1.json.id, "r17 子任务父 id 回读");
+    const tList = await expectStatus("GET", "/api/unit-tasks", undefined, 200, "r17 GET 任务列表 -> 200");
+    eq(tList.json.tasks.length, 2, "r17 列表含两条任务");
+    const tDetail = await expectStatus("GET", `/api/unit-tasks/${t1.json.id}`, undefined, 200, "r17 GET 任务详情 -> 200");
+    eq(tDetail.json && tDetail.json.id, t1.json.id, "r17 任务详情 id 一致");
+    const tPatch = await expectStatus("PATCH", `/api/unit-tasks/${t2.json.id}`, { title: "r17 改名子项" }, 200, "r17 PATCH 任务改名 -> 200");
+    eq(tPatch.json && tPatch.json.title, "r17 改名子项", "r17 PATCH 改名回读");
+    const tStarted = await expectStatus("POST", `/api/unit-tasks/${t2.json.id}/transition`, { to: "in_progress" }, 200, "r17 POST 流转进行中 -> 200");
+    eq(tStarted.json && tStarted.json.status, "in_progress", "r17 流转到 in_progress");
+    const tDone = await expectStatus("POST", `/api/unit-tasks/${t2.json.id}/transition`, { to: "done" }, 200, "r17 POST 流转完成 -> 200");
+    eq(tDone.json && tDone.json.status, "done", "r17 流转到 done");
+
+    // 4xx：非法流转 / 终态回退 / 非法状态 / 越权 id / 空标题 / 父任务不存在
+    await expectStatus("POST", `/api/unit-tasks/${t2.json.id}/transition`, { to: "pending" }, 400, "r17 终态回退 -> 400");
+    await expectStatus("POST", `/api/unit-tasks/${t2.json.id}/transition`, { to: "sleep" }, 400, "r17 非法状态 -> 400");
+    await expectStatus("POST", `/api/unit-tasks/${t1.json.id}/transition`, { to: "done" }, 400, "r17 pending 直接 done -> 400");
+    await expectStatus("POST", "/api/unit-tasks/999999/transition", { to: "in_progress" }, 404, "r17 越权任务流转 -> 404");
+    await expectStatus("POST", "/api/unit-tasks", { title: "", assigneeUnit: "u" }, 400, "r17 POST 空标题 -> 400");
+    await expectStatus("POST", "/api/unit-tasks", { title: "x", assigneeUnit: "", }, 400, "r17 POST 空责任单位 -> 400");
+    await expectStatus("POST", "/api/unit-tasks", { title: "x", assigneeUnit: "u", dueDate: "bad" }, 400, "r17 POST 非法到期日 -> 400");
+    await expectStatus("POST", "/api/unit-tasks", { title: "x", assigneeUnit: "u", parentId: 999999 }, 400, "r17 POST 父任务不存在 -> 400");
+    await expectStatus("GET", "/api/unit-tasks/999999", undefined, 404, "r17 GET 越权任务 -> 404");
+    await expectStatus("PATCH", "/api/unit-tasks/999999", { title: "x" }, 404, "r17 PATCH 越权任务 -> 404");
+    await expectStatus("DELETE", "/api/unit-tasks/999999", undefined, 404, "r17 DELETE 越权任务 -> 404");
+
+    // 4xx 后状态未变（零半态）
+    const afterTask4xx = await expectStatus("GET", `/api/unit-tasks/${t2.json.id}`, undefined, 200, "r17 任务 4xx 后回读 -> 200");
+    eq(afterTask4xx.json.status, "done", "r17 4xx 后任务状态未变（零半态）");
+
+    // 树查询
+    const tree = await expectStatus("GET", "/api/unit-tasks/tree", undefined, 200, "r17 GET 任务树 -> 200");
+    eq(tree.json.tree.length, 1, "r17 任务树一根");
+    eq(tree.json.tree[0].children.length, 1, "r17 根有一个子节点");
+    eq(tree.json.tree[0].children[0].id, t2.json.id, "r17 树子节点 id 正确");
+
+    // 物资 4xx
+    await expectStatus("POST", "/api/assets", { name: "", category: "office", quantity: 1, unit: "p", location: "l", custodian: "c" }, 400, "r17 POST 空物资名 -> 400");
+    await expectStatus("POST", "/api/assets", { name: "x", category: "unknown", quantity: 1, unit: "p", location: "l", custodian: "c" }, 400, "r17 POST 非法分类 -> 400");
+    await expectStatus("POST", "/api/assets", { name: "x", category: "office", quantity: -1, unit: "p", location: "l", custodian: "c" }, 400, "r17 POST 负初始库存 -> 400");
+    await expectStatus("GET", "/api/assets/999999", undefined, 404, "r17 GET 越权物资 -> 404");
+    await expectStatus("PATCH", "/api/assets/999999", { custodian: "x" }, 404, "r17 PATCH 越权物资 -> 404");
+    await expectStatus("DELETE", "/api/assets/999999", undefined, 404, "r17 DELETE 越权物资 -> 404");
+    await expectStatus("GET", "/api/assets/not-a-number", undefined, 400, "r17 GET 非数字物资 id -> 400");
+    await expectStatus("POST", "/api/unit-tasks/not-a-number/transition", { to: "done" }, 400, "r17 非数字任务 id 流转 -> 400");
+
+    // 清理（删除物资/任务，流水级联归零）
+    for (const id of [a1.json.id, a2.json.id]) {
+      await expectStatus("DELETE", `/api/assets/${id}`, undefined, 200, `r17 DELETE 物资 ${id} -> 200`);
+    }
+    const afterAssets = await expectStatus("GET", "/api/assets", undefined, 200, "r17 清理后物资列表 -> 200");
+    eq(afterAssets.json.assets.length, 0, "r17 清理后物资归零");
+    const afterTx = await expectStatus("GET", "/api/asset-transactions", undefined, 200, "r17 清理后流水 -> 200");
+    eq(afterTx.json.transactions.length, 0, "r17 级联删除流水归零");
+    for (const id of [t1.json.id, t2.json.id]) {
+      await expectStatus("DELETE", `/api/unit-tasks/${id}`, undefined, 200, `r17 DELETE 任务 ${id} -> 200`);
+    }
+    const afterTasks = await expectStatus("GET", "/api/unit-tasks", undefined, 200, "r17 清理后任务列表 -> 200");
+    eq(afterTasks.json.tasks.length, 0, "r17 清理后任务归零");
   }
 
   console.log("\n== schedules delete (r3) ==");

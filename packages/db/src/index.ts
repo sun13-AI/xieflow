@@ -35,6 +35,9 @@ import {
   mapRowToApproval,
   mapRowToApprovalStep,
   mapRowToApprovalCc,
+  mapRowToAsset,
+  mapRowToAssetTransaction,
+  mapRowToUnitTask,
 } from "./mappers.js";
 import type {
   AppSetting,
@@ -76,6 +79,12 @@ import type {
   ApprovalStep,
   ApprovalCc,
   ApprovalView,
+  Asset,
+  AssetTxInput,
+  AssetTransaction,
+  UnitTask,
+  UnitTaskStatus,
+  UnitTaskTreeNode,
 } from "@xieflow/shared";
 import {
   canTransitionTodo,
@@ -133,6 +142,18 @@ import {
   planApprovalAction,
   isApprovalView,
   selectApprovalsForView,
+  assertValidAssetName,
+  assertValidAssetCategory,
+  assertValidAssetText,
+  assertValidQuantity,
+  assertValidAssetOperator,
+  assertValidAssetTxType,
+  assertValidUnitTaskTitle,
+  assertValidUnit,
+  assertValidUnitTaskTransition,
+  isUnitTaskStatus,
+  applyAssetTransaction,
+  buildTaskTree,
   ValidationError,
 } from "@xieflow/shared";
 import { REPEATS_ORDER } from "./repeat-order.js";
@@ -2093,5 +2114,197 @@ export class XieFlowDb {
       (ccByApproval[r.approval_id] ??= []).push(String(r.cc_user));
     }
     return selectApprovalsForView({ approvals: this.listApprovals(), ccByApproval, view, actor });
+  }
+
+  // ---- r17：物资台账与单位任务数据层（库存增减/任务流转规则全在 shared，本层只装配 + 单事务落库） ----
+
+  createAsset(input: {
+    readonly name: unknown;
+    readonly category: unknown;
+    readonly quantity: unknown;
+    readonly unit: unknown;
+    readonly location: unknown;
+    readonly custodian: unknown;
+  }): Asset {
+    assertValidAssetName(input.name);
+    assertValidAssetCategory(input.category);
+    if (typeof input.quantity !== "number" || !Number.isInteger(input.quantity) || input.quantity < 0) {
+      throw new ValidationError("初始库存必须是非负整数");
+    }
+    assertValidAssetText(input.unit, "计量单位");
+    assertValidAssetText(input.location, "存放位置");
+    assertValidAssetText(input.custodian, "保管人");
+    const res = this.db.run(
+      "INSERT INTO assets (name, category, quantity, unit, location, custodian, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      [input.name, input.category, input.quantity, input.unit, input.location, input.custodian, new Date().toISOString()],
+    );
+    const row = this.db.get("SELECT * FROM assets WHERE id = ?", [Number(res.lastInsertRowid)]);
+    if (!row) throw new Error("物资写入后读回失败");
+    return mapRowToAsset(row);
+  }
+
+  getAsset(id: number): Asset | null {
+    const row = this.db.get("SELECT * FROM assets WHERE id = ?", [id]);
+    return row ? mapRowToAsset(row) : null;
+  }
+
+  listAssets(): Asset[] {
+    return this.db.all("SELECT * FROM assets ORDER BY id DESC").map(mapRowToAsset);
+  }
+
+  updateAsset(id: number, input: {
+    readonly name?: unknown;
+    readonly category?: unknown;
+    readonly unit?: unknown;
+    readonly location?: unknown;
+    readonly custodian?: unknown;
+  }): Asset | null {
+    if (this.getAsset(id) === null) return null;
+    if (input.name !== undefined) assertValidAssetName(input.name);
+    if (input.category !== undefined) assertValidAssetCategory(input.category);
+    if (input.unit !== undefined) assertValidAssetText(input.unit, "计量单位");
+    if (input.location !== undefined) assertValidAssetText(input.location, "存放位置");
+    if (input.custodian !== undefined) assertValidAssetText(input.custodian, "保管人");
+    const next = {
+      name: input.name ?? this.getAsset(id)!.name,
+      category: input.category ?? this.getAsset(id)!.category,
+      unit: input.unit ?? this.getAsset(id)!.unit,
+      location: input.location ?? this.getAsset(id)!.location,
+      custodian: input.custodian ?? this.getAsset(id)!.custodian,
+    };
+    this.db.run(
+      "UPDATE assets SET name = ?, category = ?, unit = ?, location = ?, custodian = ? WHERE id = ?",
+      [next.name, next.category, next.unit, next.location, next.custodian, id],
+    );
+    return this.getAsset(id);
+  }
+
+  deleteAsset(id: number): boolean {
+    return this.db.run("DELETE FROM assets WHERE id = ?", [id]).changes > 0;
+  }
+
+  /**
+   * 出入库流水唯一落库入口：先按 shared 规则算新库存（负库存/来源不匹配抛错），
+   * 再单事务更新物资 + 追加流水；任一步失败整笔回滚（零半态）。
+   */
+  applyAssetTx(assetId: number, input: AssetTxInput): AssetTransaction {
+    const asset = this.getAsset(assetId);
+    if (!asset) throw new ValidationError(`物资不存在：${assetId}`);
+    assertValidAssetTxType(input.type);
+    assertValidQuantity(input.quantity, "流水数量");
+    assertValidAssetOperator(input.operator);
+    const next = applyAssetTransaction(asset, input);
+    const from = input.from === undefined || input.from === null ? "" : input.from;
+    const to = input.to === undefined || input.to === null ? "" : input.to;
+    if (typeof from !== "string" || typeof to !== "string") throw new ValidationError("流水来源/目标必须是字符串");
+    const now = new Date().toISOString();
+    this.db.exec("BEGIN IMMEDIATE");
+    let txId = 0;
+    try {
+      this.db.run("UPDATE assets SET quantity = ?, location = ? WHERE id = ?", [next.quantity, next.location, assetId]);
+      const res = this.db.run(
+        'INSERT INTO asset_transactions (asset_id, type, quantity, "from", "to", operator, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [assetId, input.type, input.quantity, from, to, input.operator, now],
+      );
+      txId = Number(res.lastInsertRowid);
+      this.db.exec("COMMIT");
+    } catch (err) {
+      this.db.exec("ROLLBACK");
+      throw err;
+    }
+    const row = this.db.get("SELECT * FROM asset_transactions WHERE id = ?", [txId]);
+    if (!row) throw new Error("流水写入后读回失败");
+    return mapRowToAssetTransaction(row);
+  }
+
+  listAssetTransactions(assetId?: number): AssetTransaction[] {
+    if (assetId === undefined) {
+      return this.db.all("SELECT * FROM asset_transactions ORDER BY id DESC").map(mapRowToAssetTransaction);
+    }
+    return this.db
+      .all("SELECT * FROM asset_transactions WHERE asset_id = ? ORDER BY id DESC", [assetId])
+      .map(mapRowToAssetTransaction);
+  }
+
+  createUnitTask(input: {
+    readonly title: unknown;
+    readonly assigneeUnit: unknown;
+    readonly status?: unknown;
+    readonly dueDate?: unknown;
+    readonly parentId?: unknown;
+  }): UnitTask {
+    assertValidUnitTaskTitle(input.title);
+    assertValidUnit(input.assigneeUnit, "责任单位");
+    const status = input.status === undefined || input.status === null ? "pending" : input.status;
+    if (!isUnitTaskStatus(status)) throw new ValidationError(`非法任务状态：${String(status)}`);
+    const dueDate: string | null = input.dueDate === undefined || input.dueDate === null ? null : String(input.dueDate);
+    assertValidDueDate(dueDate);
+    let parentId: number | null = null;
+    if (input.parentId !== undefined && input.parentId !== null) {
+      if (typeof input.parentId !== "number" || !Number.isInteger(input.parentId)) {
+        throw new ValidationError("父任务 id 必须是整数");
+      }
+      if (this.getUnitTask(input.parentId) === null) throw new ValidationError(`父任务不存在：${input.parentId}`);
+      parentId = input.parentId;
+    }
+    const res = this.db.run(
+      "INSERT INTO unit_tasks (title, assignee_unit, status, due_date, parent_id, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+      [input.title, input.assigneeUnit, status, dueDate, parentId, new Date().toISOString()],
+    );
+    const row = this.db.get("SELECT * FROM unit_tasks WHERE id = ?", [Number(res.lastInsertRowid)]);
+    if (!row) throw new Error("任务写入后读回失败");
+    return mapRowToUnitTask(row);
+  }
+
+  getUnitTask(id: number): UnitTask | null {
+    const row = this.db.get("SELECT * FROM unit_tasks WHERE id = ?", [id]);
+    return row ? mapRowToUnitTask(row) : null;
+  }
+
+  listUnitTasks(): UnitTask[] {
+    return this.db.all("SELECT * FROM unit_tasks ORDER BY id ASC").map(mapRowToUnitTask);
+  }
+
+  transitionUnitTask(id: number, to: unknown): UnitTask | null {
+    const current = this.getUnitTask(id);
+    if (!current) return null;
+    if (!isUnitTaskStatus(to)) throw new ValidationError(`非法任务状态：${String(to)}`);
+    assertValidUnitTaskTransition(current.status, to);
+    this.db.run("UPDATE unit_tasks SET status = ? WHERE id = ?", [to, id]);
+    return this.getUnitTask(id);
+  }
+
+  updateUnitTask(id: number, input: {
+    readonly title?: unknown;
+    readonly assigneeUnit?: unknown;
+    readonly dueDate?: unknown;
+  }): UnitTask | null {
+    const current = this.getUnitTask(id);
+    if (!current) return null;
+    if (input.title !== undefined) assertValidUnitTaskTitle(input.title);
+    if (input.assigneeUnit !== undefined) assertValidUnit(input.assigneeUnit, "责任单位");
+    if (input.dueDate !== undefined) assertValidDueDate(input.dueDate ?? null);
+    const nextDueDate: string | null = input.dueDate === undefined
+      ? current.dueDate
+      : (input.dueDate === null ? null : String(input.dueDate));
+    this.db.run(
+      "UPDATE unit_tasks SET title = ?, assignee_unit = ?, due_date = ? WHERE id = ?",
+      [
+        input.title ?? current.title,
+        input.assigneeUnit ?? current.assigneeUnit,
+        nextDueDate,
+        id,
+      ],
+    );
+    return this.getUnitTask(id);
+  }
+
+  deleteUnitTask(id: number): boolean {
+    return this.db.run("DELETE FROM unit_tasks WHERE id = ?", [id]).changes > 0;
+  }
+
+  /** 任务树装配唯一入口：读全表交给 shared buildTaskTree（环路/孤儿父节点规则同源） */
+  getUnitTaskTree(): UnitTaskTreeNode[] {
+    return buildTaskTree(this.listUnitTasks());
   }
 }

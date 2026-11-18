@@ -321,7 +321,7 @@ export function assembleRangeSchedules(
 }
 
 /** 数据库 schema 版本号，每轮迁移必须 +1（宪法：禁止手改库文件） */
-export const SCHEMA_VERSION: number = 12;
+export const SCHEMA_VERSION: number = 13;
 
 
 /** 迁移脚本类型：user_version 从 from 升到 to */
@@ -3485,6 +3485,22 @@ export const APPROVAL_ACTION_LABELS: Readonly<Record<ApprovalAction, string>> = 
   withdraw: "撤回",
 };
 
+/** 时间线步骤展示口径（r16 U2-1）：每步的操作者角色语义与该步完成后的状态 */
+export const APPROVAL_ACTION_ROLE_LABELS: Readonly<Record<ApprovalAction, string>> = {
+  submit: "发起人",
+  approve: "操作人",
+  reject: "操作人",
+  delegate: "接收人",
+  withdraw: "发起人",
+};
+export const APPROVAL_ACTION_STATUS_AFTER: Readonly<Record<ApprovalAction, ApprovalStatus>> = {
+  submit: "pending",
+  approve: "approved",
+  reject: "rejected",
+  delegate: "pending",
+  withdraw: "withdrawn",
+};
+
 export const MAX_APPROVAL_TITLE = 200;
 export const MAX_APPROVAL_COMMENT = 1000;
 export const MAX_APPROVAL_USER = 100;
@@ -3646,4 +3662,218 @@ export function selectApprovalsForView(ctx: ApprovalViewContext): Approval[] {
     if (ctx.view === "initiated") return a.applicantId === ctx.actor;
     return (ctx.ccByApproval[a.id] ?? []).includes(ctx.actor);
   });
+}
+
+// ---- r17（M8 收官）：物资台账与单位任务流转（全集中 shared，api/web 零规则分支） ----
+
+/** 物资分类白名单（schema v13 assets.category CHECK 同源） */
+export const ASSET_CATEGORIES = ["office", "equipment", "material", "furniture", "other"] as const;
+export type AssetCategory = (typeof ASSET_CATEGORIES)[number];
+export const ASSET_CATEGORY_LABELS: Readonly<Record<AssetCategory, string>> = {
+  office: "办公用品", equipment: "设备器材", material: "物料", furniture: "家具", other: "其它",
+};
+
+/** 出入库流水类型（schema v13 asset_transactions.type CHECK 同源） */
+export const ASSET_TX_TYPES = ["in", "out", "transfer"] as const;
+export type AssetTxType = (typeof ASSET_TX_TYPES)[number];
+export const ASSET_TX_TYPE_LABELS: Readonly<Record<AssetTxType, string>> = {
+  in: "入库", out: "出库", transfer: "转移",
+};
+
+/** 单位任务状态（schema v13 unit_tasks.status CHECK 同源） */
+export const UNIT_TASK_STATUSES = ["pending", "in_progress", "blocked", "done", "cancelled"] as const;
+export type UnitTaskStatus = (typeof UNIT_TASK_STATUSES)[number];
+export const UNIT_TASK_STATUS_LABELS: Readonly<Record<UnitTaskStatus, string>> = {
+  pending: "待启动", in_progress: "进行中", blocked: "受阻", done: "已完成", cancelled: "已取消",
+};
+
+/**
+ * 单位任务状态转移表（唯一口径）：
+ * pending→in_progress/blocked/cancelled；in_progress→done/blocked/cancelled；
+ * blocked→in_progress/cancelled；done/cancelled 终态零出边。
+ */
+export const UNIT_TASK_TRANSITIONS: Record<UnitTaskStatus, readonly UnitTaskStatus[]> = {
+  pending: ["in_progress", "blocked", "cancelled"],
+  in_progress: ["done", "blocked", "cancelled"],
+  blocked: ["in_progress", "cancelled"],
+  done: [],
+  cancelled: [],
+};
+
+export function canTransitionUnitTask(from: UnitTaskStatus, to: UnitTaskStatus): boolean {
+  return UNIT_TASK_TRANSITIONS[from].includes(to);
+}
+
+export function assertValidUnitTaskTransition(from: UnitTaskStatus, to: UnitTaskStatus): void {
+  if (!canTransitionUnitTask(from, to)) {
+    throw new ValidationError(`非法单位任务状态流转：${from} → ${to}`);
+  }
+}
+
+export function isUnitTaskStatus(value: unknown): value is UnitTaskStatus {
+  return typeof value === "string" && (UNIT_TASK_STATUSES as readonly string[]).includes(value);
+}
+
+export function isAssetCategory(value: unknown): value is AssetCategory {
+  return typeof value === "string" && (ASSET_CATEGORIES as readonly string[]).includes(value);
+}
+
+export function isAssetTxType(value: unknown): value is AssetTxType {
+  return typeof value === "string" && (ASSET_TX_TYPES as readonly string[]).includes(value);
+}
+
+export const MAX_ASSET_NAME = 200;
+export const MAX_ASSET_TEXT = 200;
+export const MAX_ASSET_OPERATOR = 100;
+export const MAX_UNIT_TASK_TITLE = 200;
+export const MAX_UNIT_TASK_UNIT = 100;
+
+function assertNonEmptyText(value: unknown, label: string, max: number): asserts value is string {
+  if (typeof value !== "string" || value.trim() === "") throw new ValidationError(`${label}不能为空`);
+  if (value.length > max) throw new ValidationError(`${label}过长：最多 ${max} 字`);
+  if (value.includes("\u0000")) throw new ValidationError(`${label}含非法控制字符（NUL）`);
+}
+
+export function assertValidAssetName(value: unknown): asserts value is string {
+  assertNonEmptyText(value, "物资名称", MAX_ASSET_NAME);
+}
+export function assertValidAssetCategory(value: unknown): asserts value is AssetCategory {
+  if (!isAssetCategory(value)) throw new ValidationError(`非法物资分类：${String(value)}`);
+}
+export function assertValidAssetText(value: unknown, label: string): asserts value is string {
+  assertNonEmptyText(value, label, MAX_ASSET_TEXT);
+}
+export function assertValidQuantity(value: unknown, label = "数量"): asserts value is number {
+  if (typeof value !== "number" || !Number.isFinite(value)) throw new ValidationError(`${label}必须是有限数字`);
+  if (!Number.isInteger(value)) throw new ValidationError(`${label}必须是整数`);
+  if (value <= 0) throw new ValidationError(`${label}必须大于 0`);
+}
+export function assertValidAssetTxType(value: unknown): asserts value is AssetTxType {
+  if (!isAssetTxType(value)) throw new ValidationError(`非法流水类型：${String(value)}`);
+}
+export function assertValidAssetOperator(value: unknown): asserts value is string {
+  assertNonEmptyText(value, "操作人", MAX_ASSET_OPERATOR);
+}
+export function assertValidUnitTaskTitle(value: unknown): asserts value is string {
+  assertNonEmptyText(value, "任务标题", MAX_UNIT_TASK_TITLE);
+}
+export function assertValidUnit(value: unknown, label = "单位"): asserts value is string {
+  assertNonEmptyText(value, label, MAX_UNIT_TASK_UNIT);
+}
+/** 物资领域对象（schema v13 assets 表 camelCase 映射） */
+export interface Asset {
+  readonly id: number;
+  readonly name: string;
+  readonly category: AssetCategory;
+  readonly quantity: number;
+  readonly unit: string;
+  readonly location: string;
+  readonly custodian: string;
+  readonly createdAt: string;
+}
+
+/** 出入库流水领域对象（schema v13 asset_transactions 表 camelCase 映射） */
+export interface AssetTransaction {
+  readonly id: number;
+  readonly assetId: number;
+  readonly type: AssetTxType;
+  readonly quantity: number;
+  readonly from: string;
+  readonly to: string;
+  readonly operator: string;
+  readonly createdAt: string;
+}
+
+/** 单位任务领域对象（schema v13 unit_tasks 表 camelCase 映射） */
+export interface UnitTask {
+  readonly id: number;
+  readonly title: string;
+  readonly assigneeUnit: string;
+  readonly status: UnitTaskStatus;
+  readonly dueDate: string | null;
+  readonly parentId: number | null;
+}
+
+/** 任务树节点：任务本体 + 子节点（层级装配唯一产物）；children 在装配过程中可排序 */
+export interface UnitTaskTreeNode extends UnitTask {
+  children: UnitTaskTreeNode[];
+}
+
+/** 流水输入（不含 id/assetId/createdAt，由 db 装配） */
+export interface AssetTxInput {
+  readonly type: unknown;
+  readonly quantity: unknown;
+  readonly from?: unknown;
+  readonly to?: unknown;
+  readonly operator: unknown;
+}
+
+/**
+ * 库存增减唯一规则（纯函数）：入库加、出库减（负库存拒绝）、转移不改总量只换位置。
+ * 转移要求来源位置与当前库存位置一致，防止凭空调拨；入/出库的 from/to 只作台账记录。
+ * 返回新物资对象（不改入参），db 层按返回值单事务写回。
+ */
+export function applyAssetTransaction(asset: Asset, tx: AssetTxInput): Asset {
+  assertValidAssetTxType(tx.type);
+  assertValidQuantity(tx.quantity, "流水数量");
+  assertValidAssetOperator(tx.operator);
+  const qty = tx.quantity as number;
+  if (tx.type === "in") {
+    const to = tx.to === undefined || tx.to === null ? "" : tx.to;
+    if (typeof to !== "string") throw new ValidationError("入库目标位置必须是字符串");
+    assertValidAssetText(to, "入库目标位置");
+    return { ...asset, quantity: asset.quantity + qty, location: to };
+  }
+  if (tx.type === "out") {
+    const next = asset.quantity - qty;
+    if (next < 0) {
+      throw new ValidationError(`库存不足：${asset.name} 当前 ${asset.quantity} ${asset.unit}，出库 ${qty}`);
+    }
+    return { ...asset, quantity: next };
+  }
+  // transfer：不改数量，位置从 from 换到 to；来源必须与当前位置一致
+  if (tx.from === undefined || tx.from === null || tx.to === undefined || tx.to === null) {
+    throw new ValidationError("转移必须提供来源与目标位置");
+  }
+  if (typeof tx.from !== "string" || typeof tx.to !== "string") {
+    throw new ValidationError("转移位置必须是字符串");
+  }
+  assertValidAssetText(tx.from, "来源位置");
+  assertValidAssetText(tx.to, "目标位置");
+  if (tx.from !== asset.location) {
+    throw new ValidationError(`转移来源位置不匹配：当前 ${asset.location}，来源 ${tx.from}`);
+  }
+  return { ...asset, location: tx.to };
+}
+
+/**
+ * 任务树装配唯一规则（纯函数）：parent_id 可空，指向不存在的父节点按根节点处理；
+ * 环路（A→B→A）抛错防止无限递归；同级按 id 升序保证确定性。
+ */
+export function buildTaskTree(tasks: readonly UnitTask[]): UnitTaskTreeNode[] {
+  const byId = new Map<number, UnitTaskTreeNode>();
+  for (const t of tasks) byId.set(t.id, { ...t, children: [] });
+  const roots: UnitTaskTreeNode[] = [];
+  for (const t of tasks) {
+    const node = byId.get(t.id)!;
+    if (t.parentId === null || !byId.has(t.parentId)) {
+      roots.push(node);
+      continue;
+    }
+    // 环路检测：沿 parent 链向上走，遇到回到自身即报错
+    const seen = new Set<number>([t.id]);
+    let cursor: number | null = t.parentId;
+    while (cursor !== null) {
+      if (seen.has(cursor)) throw new ValidationError(`任务树存在环路：任务 ${t.id}`);
+      seen.add(cursor);
+      cursor = byId.get(cursor)?.parentId ?? null;
+    }
+    byId.get(t.parentId)!.children.push(node);
+  }
+  const sortNodes = (nodes: UnitTaskTreeNode[]): UnitTaskTreeNode[] => {
+    nodes.sort((a, b) => a.id - b.id);
+    for (const n of nodes) n.children = sortNodes(n.children);
+    return nodes;
+  };
+  return sortNodes(roots);
 }
