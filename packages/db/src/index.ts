@@ -30,6 +30,7 @@ import {
   mapRowToKnowledgeSearchChunk,
   mapRowToMindmap,
   mapRowToWhiteboard,
+  mapRowToWhiteboardSummary,
   mapRowToWhiteboardItem,
 } from "./mappers.js";
 import type {
@@ -65,6 +66,7 @@ import type {
   RagCitation,
   Mindmap,
   Whiteboard,
+  WhiteboardSummary,
   WhiteboardItem,
   WhiteboardItemProps,
 } from "@xieflow/shared";
@@ -1770,8 +1772,12 @@ export class XieFlowDb {
     return row ? mapRowToWhiteboard(row) : null;
   }
 
-  listWhiteboards(): Whiteboard[] {
-    return this.db.all("SELECT * FROM whiteboards ORDER BY id DESC").map(mapRowToWhiteboard);
+  listWhiteboards(): WhiteboardSummary[] {
+    return this.db
+      .all(
+        "SELECT w.*, (SELECT COUNT(*) FROM whiteboard_items i WHERE i.board_id = w.id) AS item_count FROM whiteboards w ORDER BY w.id DESC",
+      )
+      .map(mapRowToWhiteboardSummary);
   }
 
   updateWhiteboardTitle(id: number, title: unknown): Whiteboard | null {
@@ -1903,6 +1909,18 @@ export class XieFlowDb {
     const inserted: WhiteboardItem[] = [];
     this.db.exec("BEGIN IMMEDIATE");
     try {
+      // r15 返工#1（A）：避让可能移动「既有条目」。同一事务内把回写后的坐标落库，
+      // 否则既有条目留在旧坐标 → AI 便签与其重叠（waizhuan P1 根因）。零半态：写回与 INSERT 同 COMMIT/ROLLBACK。
+      for (let i = 0; i < existing.length; i += 1) {
+        const before = existing[i]!;
+        const rect = resolved[i]!;
+        if (rect.x !== before.x || rect.y !== before.y) {
+          this.db.run(
+            "UPDATE whiteboard_items SET x = ?, y = ?, updated_at = ? WHERE id = ?",
+            [rect.x, rect.y, now, before.id],
+          );
+        }
+      }
       for (let i = 0; i < drafts.length; i += 1) {
         const rect = resolved[existing.length + i]!;
         const draft = drafts[i]!;

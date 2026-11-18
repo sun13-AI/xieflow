@@ -4,7 +4,7 @@
 // 截图钉态：?page=whiteboard&shot=whiteboard-empty|whiteboard-loading|whiteboard-error|whiteboard-notes|whiteboard-dragged|whiteboard-ai|whiteboard-export
 // ?boardId= 深链选中真实白板；?narrow=1 显式钉窄屏。
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Whiteboard, WhiteboardItem, WhiteboardViewport } from "@xieflow/shared";
+import type { Whiteboard, WhiteboardSummary, WhiteboardItem, WhiteboardViewport } from "@xieflow/shared";
 import {
   screenToCanvasPoint,
   canvasToScreenPoint,
@@ -21,7 +21,7 @@ interface WhiteboardQuery {
 type BoardState =
   | { phase: "loading" }
   | { phase: "error"; message: string }
-  | ({ phase: "ready" } & { boards: Whiteboard[] });
+  | ({ phase: "ready" } & { boards: WhiteboardSummary[] });
 
 const PINNED = new Set(["whiteboard-loading", "whiteboard-error", "whiteboard-empty"]);
 const INITIAL_VIEWPORT: WhiteboardViewport = { x: 40, y: 40, scale: 1 };
@@ -85,7 +85,7 @@ export default function WhiteboardPage() {
 
   const refresh = useCallback(async () => {
     try {
-      const data = await getJson<{ whiteboards: Whiteboard[] }>("/api/whiteboards");
+      const data = await getJson<{ whiteboards: WhiteboardSummary[] }>("/api/whiteboards");
       setState({ phase: "ready", boards: data.whiteboards });
       return data.whiteboards;
     } catch (err) {
@@ -173,6 +173,7 @@ export default function WhiteboardPage() {
       })) as WhiteboardItem;
       setItems((prev) => [...prev, created]);
       setNotice(`已建便签 #${created.id}`);
+      await refresh();
     } catch (err) {
       setNotice(err instanceof Error ? err.message : String(err));
     } finally {
@@ -200,6 +201,7 @@ export default function WhiteboardPage() {
       await deleteJson(`/api/whiteboards/${selectedId}/items/${id}`);
       setItems((prev) => prev.filter((it) => it.id !== id));
       setNotice(`已删除便签 #${id}`);
+      await refresh();
     } catch (err) {
       setNotice(err instanceof Error ? err.message : String(err));
     } finally {
@@ -225,6 +227,7 @@ export default function WhiteboardPage() {
       setItems((prev) => [...prev, ...data.items]);
       setNotice(`AI 建板完成：按「${themeDraft.trim()}」生成 ${data.count} 张便签（mock 零 token）`);
       setThemeDraft("");
+      await refresh();
     } catch (err) {
       setNotice(err instanceof Error ? err.message : String(err));
     } finally {
@@ -393,7 +396,7 @@ export default function WhiteboardPage() {
               <li key={b.id} className={`wb-list-item${b.id === selectedId ? " wb-list-active" : ""}`}>
                 <button type="button" className="wb-list-btn" data-board-id={b.id} onClick={() => setSelectedId(b.id)}>
                   <span className="wb-list-title">{b.title}</span>
-                  <span className="wb-list-meta">#{b.id} · {items.length} 个条目</span>
+                  <span className="wb-list-meta">#{b.id} · {b.itemCount} 个条目</span>
                 </button>
                 <button type="button" className="wb-del" data-board-id={b.id} onClick={() => void removeBoard(b.id)} disabled={busy}>删</button>
               </li>
@@ -465,6 +468,7 @@ export default function WhiteboardPage() {
         </div>
         <div className="wb-status">
           <span>画布：{items.length} 个条目 · 平移 ({Math.round(viewport.x)}, {Math.round(viewport.y)}) · 缩放 {Math.round(viewport.scale * 100)}%</span>
+          <span className="wb-pan-hint" data-state="wb-pan-hint">拖动画布可平移查看视口外便签 · 滚轮 / ± 缩放</span>
           {notice !== "" && <span className="wb-notice" data-state="whiteboard-notice">{notice}</span>}
         </div>
       </div>

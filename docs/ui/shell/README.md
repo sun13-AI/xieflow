@@ -43,9 +43,11 @@
 
 ## r15 哈希自查（十一张互异，与 r14 基线逐位全异）
 
-`workbench=CC7B840C` · `todos=8156999C` · `schedules=7C207393` · `projects=C43FAE9C` ·
+`workbench=0383DADC` · `todos=8156999C` · `schedules=7C207393` · `projects=C43FAE9C` ·
 `board=314F520E` · `bases=3C782558` · `docs=52458F27` · `chat=FAFD3FF5` · `knowledge=1637C3F3` ·
-`mindmap=344726B6` · `whiteboard=D764DC2E` —— **11/11 互异**。
+`mindmap=344726B6` · `whiteboard=65970CAF` —— **11/11 互异**。
+
+> r15 返工 #1 同批重拍：`workbench` 因页面内联实时 `last_health_check` 时间戳变化、`whiteboard` 因新增「拖动画布可平移」状态条提示，两者与 r15 首轮字节不同；其余九张逐字节未变。两者均已 `read_image` 目验，十一药丸与徽章无折行、无乱码、无塌陷。
 
 r14 基线为 `181780C7 / 8D8E3E01 / 6ACFD18D / 61E7B03B / 1F291832 / 85BED3EA / 87C09668 / 0BCD5179 / 36A6C61E / 15B9BB97`（十张）；
 r15 十一张全部同批重拍且逐位全异（徽章 r15 + 工作台 v11/M7 收官 + 新增第十一 tab），新第十一张 `whiteboard-tab-active` 与矩阵任一图不同字节。

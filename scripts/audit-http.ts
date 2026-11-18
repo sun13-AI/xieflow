@@ -2115,6 +2115,26 @@ async function audit() {
     const ai2 = await expectStatus("POST", `/api/whiteboards/${b3.json.id}/ai-create`, { theme: "季度复盘" }, 201, "r15 POST 同主题 ai-create -> 201");
     eq(ai2.json.items.map((x: any) => x.content), ai.json.items.map((x: any) => x.content), "r15 AI 建板同主题确定性（零随机）");
 
+    // r15 返工#1（A）：waizhuan 原始复现路径——板上已有 note (120,300) 再 ai-create，
+    // HTTP 回读「全量画布」两两无重叠，且既有条目避让后坐标真回写落库。
+    const b4 = await expectStatus("POST", "/api/whiteboards", { title: "r15 返工 AI 重叠复现" }, 201, "r15 返工 POST 复现白板 -> 201");
+    const old4 = await expectStatus("POST", `/api/whiteboards/${b4.json.id}/items`, { type: "note", x: 120, y: 300, content: "既有便签" }, 201, "r15 返工 POST 既有便签 -> 201");
+    const ai4 = await expectStatus("POST", `/api/whiteboards/${b4.json.id}/ai-create`, { theme: "季度复盘" }, 201, "r15 返工 POST ai-create -> 201");
+    const full4 = await expectStatus("GET", `/api/whiteboards/${b4.json.id}/items`, undefined, 200, "r15 返工 GET 全量条目 -> 200");
+    eq(full4.json.items.length, 1 + ai4.json.count, "r15 返工全量条目数 = 既有 + AI 新增");
+    eq(
+      full4.json.items.every((x: any, i: number) => full4.json.items.slice(i + 1).every((y: any) => !whiteboardItemsOverlap(x, y))),
+      true,
+      "r15 返工 AI 建板后全量画布（含既有条目）两两无重叠",
+    );
+    const old4After = full4.json.items.find((x: any) => x.id === old4.json.id);
+    ok(old4After && old4After.y > 300, "r15 返工 AI 建板把避让后的既有条目坐标回写落库");
+    const boards4 = await expectStatus("GET", "/api/whiteboards", undefined, 200, "r15 返工 GET 白板列表 -> 200");
+    const sum4 = boards4.json.whiteboards.find((w: any) => w.id === b4.json.id);
+    eq(sum4 && sum4.itemCount, full4.json.items.length, "r15 返工列表 itemCount 为该板真实条目数（侧栏 3↔7 回归锁）");
+    const sumAi = boards4.json.whiteboards.find((w: any) => w.id === b2.json.id);
+    eq(sumAi && sumAi.itemCount, ai.json.count, "r15 返工 AI 板 itemCount 独立反映自身 7 条（非选中板计数串台）");
+
     // 4xx：越权 board_id / 非法 item 类型 / 越界坐标 / 非法主题 / 重复 id
     await expectStatus("POST", "/api/whiteboards", { title: "" }, 400, "r15 POST 空标题白板 -> 400");
     await expectStatus("POST", "/api/whiteboards", { title: "x".repeat(201) }, 400, "r15 POST 超长标题白板 -> 400");
@@ -2150,6 +2170,7 @@ async function audit() {
     await expectStatus("DELETE", `/api/whiteboards/${b1.json.id}`, undefined, 200, "r15 DELETE 白板 A -> 200");
     await expectStatus("DELETE", `/api/whiteboards/${b2.json.id}`, undefined, 200, "r15 DELETE 白板 B -> 200");
     await expectStatus("DELETE", `/api/whiteboards/${b3.json.id}`, undefined, 200, "r15 DELETE 白板 C -> 200");
+    await expectStatus("DELETE", `/api/whiteboards/${b4.json.id}`, undefined, 200, "r15 返工 DELETE 复现白板 -> 200");
     const after = await expectStatus("GET", "/api/whiteboards", undefined, 200, "r15 清理后列表 -> 200");
     eq(after.json.whiteboards.length, 0, "r15 清理后白板归零（无残留）");
   }

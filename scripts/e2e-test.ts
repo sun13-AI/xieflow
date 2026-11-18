@@ -3949,6 +3949,32 @@ try {
     ok(aiItems.length >= 5 && aiItems.length <= 8, "数据层 AI 建板真生成 5-8 条");
     eq(wdb.listWhiteboardItems(wb1.id).length, 2 + aiItems.length, "AI 建板条目真落库");
     eq(wdb.aiCreateWhiteboard(999999, "x"), null, "AI 建板越权 board_id 返回 null");
+
+    // r15 返工#1（A）：复现 waizhuan 路径——板上已有便签 (120,300) + AI 建板「季度复盘」
+    // 断言「全量画布」（既有 + 新增）两两无重叠，且避让后的既有坐标真回写落库。
+    const wbOverlap = wdb.createWhiteboard({ title: "r15 返工 AI 重叠复现" })!;
+    const oldNote = wdb.createWhiteboardItem(wbOverlap.id, { type: "note", x: 120, y: 300, content: "既有便签" })!;
+    const aiOverlap = wdb.aiCreateWhiteboard(wbOverlap.id, "季度复盘")!;
+    const fullAfterAi = wdb.listWhiteboardItems(wbOverlap.id);
+    eq(fullAfterAi.length, 1 + aiOverlap.length, "AI 建板后全量条目数 = 既有 + 新增");
+    eq(
+      fullAfterAi.every((a, i) => fullAfterAi.slice(i + 1).every((b) => !whiteboardItemsOverlap(a, b))),
+      true,
+      "AI 建板后全量画布（含既有条目）两两无重叠",
+    );
+    eq(wdb.getWhiteboardItem(oldNote.id)!.y > 300, true, "AI 建板把避让后的既有条目坐标回写落库");
+    const boardSummaries = wdb.listWhiteboards();
+    eq(
+      boardSummaries.find((w) => w.id === wbOverlap.id)!.itemCount,
+      fullAfterAi.length,
+      "白板列表 itemCount 与 AI 建板后该板真实条目数一致（侧栏计数不串台）",
+    );
+    eq(
+      boardSummaries.find((w) => w.id === wb1.id)!.itemCount,
+      wdb.listWhiteboardItems(wb1.id).length,
+      "白板列表 itemCount 逐板独立（不复用选中板条目数）",
+    );
+
     eq(wdb.deleteWhiteboardItem(it1.id), true, "deleteWhiteboardItem 命中");
     eq(wdb.deleteWhiteboardItem(it1.id), false, "deleteWhiteboardItem 重复删除返回 false");
     eq(wdb.deleteWhiteboard(wb1.id), true, "deleteWhiteboard 命中后子条目级联删除");

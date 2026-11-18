@@ -3162,6 +3162,11 @@ export interface Whiteboard {
   readonly createdAt: string;
 }
 
+/** 白板列表摘要：itemCount 由数据层按板聚合，侧栏逐板显示自己的条目数（r15 返工#1 B） */
+export interface WhiteboardSummary extends Whiteboard {
+  readonly itemCount: number;
+}
+
 export interface WhiteboardItem {
   readonly id: number;
   readonly boardId: number;

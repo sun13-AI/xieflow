@@ -30,6 +30,7 @@ import type {
   KnowledgeSearchChunk,
   Mindmap,
   Whiteboard,
+  WhiteboardSummary,
   WhiteboardItem,
   WhiteboardItemType,
 } from "@xieflow/shared";
@@ -382,6 +383,10 @@ export function mapRowToWhiteboard(row: Row): Whiteboard {
     title: String(row.title),
     createdAt: String(row.created_at),
   };
+}
+
+export function mapRowToWhiteboardSummary(row: Row): WhiteboardSummary {
+  return { ...mapRowToWhiteboard(row), itemCount: Number(row.item_count) };
 }
 
 export function mapRowToWhiteboardItem(row: Row): WhiteboardItem {

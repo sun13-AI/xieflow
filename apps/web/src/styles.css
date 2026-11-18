@@ -3236,6 +3236,8 @@ pre.docs-print-block.docs-code {
   font-size: 11px;
   color: #6b7280;
 }
+.wb-pan-hint { color: #9ca3af; }
+.force-narrow .wb-pan-hint { flex-basis: 100%; }
 .wb-notice {
   padding: 4px 8px;
   background: #eff6ff;
