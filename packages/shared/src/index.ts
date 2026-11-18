@@ -4095,3 +4095,235 @@ export function applyChangeSet(
   return { applied, duplicates, conflicts: [...conflictEntities].sort() };
 }
 
+// ---- r20（M10 起步）：离线队列与 PWA（规则唯一口径，api / web 零算法分支） ----
+
+/** 队列在 localStorage 的键（浏览器与测试内存库共用同一接口） */
+export const OFFLINE_QUEUE_KEY = "xieflow.offline.queue";
+/** 队列容量上限：超出丢弃最早条目，避免无限膨胀 */
+export const OFFLINE_QUEUE_MAX = 100;
+/** 服务端按序重放端点（客户端「立即同步」唯一入口） */
+export const OFFLINE_REPLAY_PATH = "/api/offline/replay";
+/** 可重放的 HTTP 方法白名单（GET 只读不入队） */
+export const OFFLINE_REPLAY_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
+export type OfflineReplayMethod = (typeof OFFLINE_REPLAY_METHODS)[number];
+/** 离线入队的语义状态：202 Accepted（不伪装 200 成功落库） */
+export const OFFLINE_QUEUED_STATUS = 202;
+/** 离线入队响应标记头：调用方可据此区分「已入队」与「已落库」 */
+export const OFFLINE_HEADER = "x-xieflow-offline";
+/** 队列变化 / 连接状态变化的广播事件（顶栏徽标与圆点监听） */
+export const OFFLINE_QUEUE_EVENT = "xieflow:offline-queue-changed";
+export const OFFLINE_CONNECTION_EVENT = "xieflow:connection-changed";
+/** SW 静态缓存名带轮次：升级即换名，旧缓存由 activate 清理 */
+export const PWA_CACHE_NAME = "xieflow-static-v20";
+
+/** 队列条目：一条被离线拦截的业务 API 写请求 */
+export interface OfflineQueueItem {
+  readonly id: string;
+  readonly method: OfflineReplayMethod;
+  readonly path: string;
+  readonly body: Record<string, unknown> | null;
+  readonly createdAt: string;
+}
+
+/** 最小 Storage 接口：window.localStorage 与测试内存库都满足 */
+export interface OfflineStorage {
+  getItem(key: string): string | null;
+  setItem(key: string, value: string): void;
+  removeItem?(key: string): void;
+}
+
+/** 离线语义响应描述（web 层据此构造真正的 Response，规则仍唯一在 shared） */
+export interface OfflineQueuedResponseSpec {
+  readonly status: number;
+  readonly headers: Record<string, string>;
+  readonly body: {
+    readonly offline: boolean;
+    readonly queued: boolean;
+    readonly id: string;
+    readonly path: string;
+    readonly method: OfflineReplayMethod;
+    readonly message: string;
+  };
+}
+
+export function isOfflineMethod(value: unknown): value is OfflineReplayMethod {
+  return typeof value === "string" && (OFFLINE_REPLAY_METHODS as readonly string[]).includes(value);
+}
+
+/**
+ * 路径白名单唯一口径：只接受本应用 /api 相对路径；拒绝外部绝对 URL、协议相对地址、
+ * 认证入口（离线登录无意义）与重放端点自身（防递归）。查询串允许。
+ */
+export function offlineQueuePathAllowed(value: unknown): value is string {
+  if (typeof value !== "string" || value.length === 0 || value.length > 256) return false;
+  if (!value.startsWith("/api/")) return false;
+  if (value.includes("//") || value.includes("\\") || /\s/.test(value)) return false;
+  if (value === OFFLINE_REPLAY_PATH || value.startsWith(`${OFFLINE_REPLAY_PATH}?`)) return false;
+  if (value.startsWith("/api/auth/") || value === "/api/health") return false;
+  return true;
+}
+
+/** 队列条目的唯一归一 + 校验入口（入队 / 重放 / HTTP 端点共用同一规则） */
+export function normalizeOfflineQueueItem(value: unknown): OfflineQueueItem {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new ValidationError("非法离线队列条目：须为对象");
+  }
+  const raw = value as Record<string, unknown>;
+  if (typeof raw.id !== "string" || !/^[A-Za-z0-9_.:-]{1,64}$/.test(raw.id)) {
+    throw new ValidationError(`非法队列条目 id：${String(raw.id)}`);
+  }
+  if (!isOfflineMethod(raw.method)) {
+    throw new ValidationError(`非法队列条目方法：${String(raw.method)}`);
+  }
+  if (!offlineQueuePathAllowed(raw.path)) {
+    throw new ValidationError(`非法队列条目路径：${String(raw.path)}`);
+  }
+  if (typeof raw.createdAt !== "string" || raw.createdAt.length === 0 || Number.isNaN(Date.parse(raw.createdAt))) {
+    throw new ValidationError(`非法队列条目时间戳：${String(raw.createdAt)}`);
+  }
+  let body: Record<string, unknown> | null = null;
+  if (raw.body !== undefined && raw.body !== null) {
+    let parsed: unknown = raw.body;
+    if (typeof parsed === "string") {
+      try {
+        parsed = JSON.parse(parsed);
+      } catch {
+        throw new ValidationError("非法队列条目载荷：JSON 解析失败");
+      }
+    }
+    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new ValidationError("非法队列条目载荷：须为对象");
+    }
+    body = { ...(parsed as Record<string, unknown>) };
+  }
+  return { id: raw.id, method: raw.method, path: raw.path, body, createdAt: raw.createdAt };
+}
+
+export function assertValidOfflineQueueItem(value: unknown): asserts value is OfflineQueueItem {
+  normalizeOfflineQueueItem(value);
+}
+
+/** 整批重放请求校验：一条非法全批拒绝（零半态，绝不放行半批） */
+export function assertValidOfflineReplayRequest(value: unknown): asserts value is { items: readonly OfflineQueueItem[] } {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new ValidationError("非法重放请求：须为对象");
+  }
+  const raw = value as Record<string, unknown>;
+  if (!Array.isArray(raw.items)) throw new ValidationError("非法重放请求：items 须为数组");
+  if (raw.items.length > OFFLINE_QUEUE_MAX) {
+    throw new ValidationError(`非法重放请求：一次最多重放 ${OFFLINE_QUEUE_MAX} 条`);
+  }
+  for (const item of raw.items) normalizeOfflineQueueItem(item);
+}
+
+/** 是否应把此次请求离线入队：离线 + 写方法 + 本应用白名单路径，三者同时成立 */
+export function shouldQueueOffline(method: string, path: string, offline: boolean): boolean {
+  if (!offline || !isOfflineMethod(method) || method === "GET") return false;
+  return offlineQueuePathAllowed(path);
+}
+
+/** 读取队列：坏数据条目直接丢弃（不让一条坏 JSON 卡死整条队列），其余按持久化顺序返回 */
+export function loadOfflineQueue(storage: OfflineStorage): OfflineQueueItem[] {
+  let text: string | null = null;
+  try {
+    text = storage.getItem(OFFLINE_QUEUE_KEY);
+  } catch {
+    return [];
+  }
+  if (!text) return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(parsed)) return [];
+  const items: OfflineQueueItem[] = [];
+  for (const raw of parsed) {
+    try {
+      items.push(normalizeOfflineQueueItem(raw));
+    } catch {
+      /* 丢弃单条坏条目，保证队列可用 */
+    }
+  }
+  return items;
+}
+
+export function saveOfflineQueue(storage: OfflineStorage, items: readonly OfflineQueueItem[]): void {
+  storage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(items));
+}
+
+/** 入队：未给 id / createdAt 时自动生成；超限丢最早条目 */
+export function enqueueOffline(
+  storage: OfflineStorage,
+  input: { id?: string; method: OfflineReplayMethod; path: string; body?: unknown; createdAt?: string },
+): OfflineQueueItem {
+  const item = normalizeOfflineQueueItem({
+    id: input.id ?? `q-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    method: input.method,
+    path: input.path,
+    body: input.body ?? null,
+    createdAt: input.createdAt ?? new Date().toISOString(),
+  });
+  const items = loadOfflineQueue(storage);
+  items.push(item);
+  if (items.length > OFFLINE_QUEUE_MAX) items.splice(0, items.length - OFFLINE_QUEUE_MAX);
+  saveOfflineQueue(storage, items);
+  return item;
+}
+
+/** 出队：按 id 精确移除，重复出队返回 null（幂等） */
+export function dequeueOffline(storage: OfflineStorage, id: string): OfflineQueueItem | null {
+  const items = loadOfflineQueue(storage);
+  const index = items.findIndex((i) => i.id === id);
+  if (index < 0) return null;
+  const [removed] = items.splice(index, 1);
+  saveOfflineQueue(storage, items);
+  return removed ?? null;
+}
+
+export function peekOfflineQueue(storage: OfflineStorage): OfflineQueueItem[] {
+  return loadOfflineQueue(storage);
+}
+
+export function clearOfflineQueue(storage: OfflineStorage): void {
+  try {
+    storage.removeItem?.(OFFLINE_QUEUE_KEY);
+  } catch {
+    /* ignore */
+  }
+  saveOfflineQueue(storage, []);
+}
+
+/**
+ * 重放计划唯一口径：先整批校验（零半态），再按 createdAt 升序、同刻按 id 排序，
+ * 返回副本（不改入参）。api 端点与 web「立即同步」共用本函数，顺序不会两处不一致。
+ */
+export function planOfflineReplay(items: readonly OfflineQueueItem[]): OfflineQueueItem[] {
+  assertValidOfflineReplayRequest({ items });
+  return [...items].sort((a, b) => {
+    if (a.createdAt !== b.createdAt) return a.createdAt < b.createdAt ? -1 : 1;
+    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+  });
+}
+
+/** 离线入队的语义响应：web 层用这些字段构造真 Response，状态/文案规则只在 shared */
+export function buildOfflineQueuedResponse(item: OfflineQueueItem): OfflineQueuedResponseSpec {
+  return {
+    status: OFFLINE_QUEUED_STATUS,
+    headers: {
+      "content-type": "application/json; charset=utf-8",
+      [OFFLINE_HEADER]: "queued",
+      "x-xieflow-queue-id": item.id,
+    },
+    body: {
+      offline: true,
+      queued: true,
+      id: item.id,
+      path: item.path,
+      method: item.method,
+      message: "当前离线：操作已存入待同步队列，恢复网络后点「立即同步」自动重发。",
+    },
+  };
+}
+

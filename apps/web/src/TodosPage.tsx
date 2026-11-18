@@ -13,7 +13,7 @@ import {
   type TodoStatus,
   type TodoSummary,
 } from "@xieflow/shared";
-import { SERVICE_DOWN_MESSAGE, fetchJsonOrThrow, apiFetch } from "./httpClient";
+import { SERVICE_DOWN_MESSAGE, fetchJsonOrThrow, apiFetch, isOfflineQueuedResponse, OFFLINE_QUEUED_MESSAGE } from "./httpClient";
 
 const QUADRANTS: Quadrant[] = ["q1", "q2", "q3", "q4"];
 
@@ -78,6 +78,7 @@ export default function TodosPage() {
     dueDate: "",
   });
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [offlineNotice, setOfflineNotice] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
 
   const shot = useMemo(
@@ -145,6 +146,14 @@ export default function TodosPage() {
           dueDate: draft.dueDate === "" ? null : draft.dueDate,
         }),
       });
+      if (isOfflineQueuedResponse(res)) {
+        // r20：离线写请求已进 shared 队列（localStorage 持久化），不是失败
+        setModalOpen(false);
+        setDraft({ title: "", quadrant: "q1", dueDate: "" });
+        setOfflineNotice(OFFLINE_QUEUED_MESSAGE);
+        setSubmitError(null);
+        return;
+      }
       const data = (await fetchJsonOrThrow(res)) as { error?: string } | null;
       if (res.status !== 201) {
         setSubmitError(data?.error ?? "新建失败，请稍后重试");
@@ -208,6 +217,9 @@ export default function TodosPage() {
 
   return (
     <div className="todos-page" data-state="todo-ready">
+      {offlineNotice !== null && (
+        <p className="offline-queued-notice" data-state="todo-offline-queued" role="status">{offlineNotice}</p>
+      )}
       {/* 今/明/周汇总计数卡 */}
       <div className="summary-row">
         <div className="summary-card" data-summary="today">

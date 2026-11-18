@@ -5,6 +5,13 @@
 // 401 清 localStorage token 并跳 ?page=login&reason=401）；此处仅做再导出，避免两处实现。
 export { apiFetch } from "./authClient";
 export const SERVICE_DOWN_MESSAGE = "服务未启动或网络异常，请稍后重试";
+import { OFFLINE_HEADER, OFFLINE_QUEUED_STATUS } from "@xieflow/shared";
+
+/** r20：apiFetch 在离线时把写请求入队并返回 202 + 标记头；调用方据此显示「已入队」而非「失败」 */
+export function isOfflineQueuedResponse(res: Response): boolean {
+  return res.status === OFFLINE_QUEUED_STATUS && res.headers.get(OFFLINE_HEADER) === "queued";
+}
+export const OFFLINE_QUEUED_MESSAGE = "当前离线，操作已存入待同步队列；恢复网络后点「立即同步」重发。";
 
 export async function fetchJsonOrThrow(res: Response): Promise<unknown> {
   if (res.status >= 500) throw new Error(SERVICE_DOWN_MESSAGE);

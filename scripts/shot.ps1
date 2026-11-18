@@ -18,6 +18,7 @@
 #   powershell -File scripts\shot.ps1 shots -Round r17 # capture r17 assets / transactions / unit task tree states
 #   powershell -File scripts\shot.ps1 shots -Round r18 # capture r18 login / register / logout / 401 / mode switch states
 #   powershell -File scripts\shot.ps1 shots -Round r19 # capture r19 multi-device sync card / conflict modal states
+#   powershell -File scripts\shot.ps1 shots -Round r20 # capture r20 PWA / online-offline / replay / mobile 390px states
 #   powershell -File scripts\shot.ps1 shots -Round r11 -Shot 08-docs-diff-inline # rework#1: re-capture ONLY the diff-inline evidence (no other matrix/shell re-shot)
 #   powershell -File scripts\shot.ps1 down            # stop servers
 #   powershell -File scripts\shot.ps1 status          # show port status
@@ -42,7 +43,7 @@ param(
   [Parameter(Position = 0)]
   [ValidateSet("up", "shots", "down", "status", "all")]
   [string]$Action = "status",
-  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19")]
+  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20")]
   [string]$Round = "r1",
   [Parameter()]
   [string]$Shot = ""
@@ -944,6 +945,20 @@ function Invoke-Shots {
       @{ name = "06-settings-mode";   url = "http://127.0.0.1:$WebPort/?shot=mode-settings"; width = 1280; height = 900 },
       @{ name = "07-narrow";          url = "$r18LoginBase&narrow=1"; width = 488; height = 900 },
       @{ name = "08-logged-in";       url = "http://127.0.0.1:$WebPort/?shot=ready&auth=in"; width = 1280; height = 900 }
+    )
+  } elseif ($Round -eq "r20") {
+    # r20 (M10 start): all seven states are deterministic ?shot= pins on the workbench
+    # shell (no new tab). Real offline/queue/replay behavior is locked by audit-http
+    # and by headless CDP offline emulation in the yanfa report.
+    $r20Base = "http://127.0.0.1:$WebPort/"
+    $shots = @(
+      @{ name = "01-manifest-install"; url = "$r20Base`?shot=pwa-install"; width = 1280; height = 900 },
+      @{ name = "02-sw-registered";    url = "$r20Base`?shot=sw-ready"; width = 1280; height = 900 },
+      @{ name = "03-net-online";       url = "$r20Base`?shot=net-online"; width = 1280; height = 900 },
+      @{ name = "04-net-offline-queue";url = "$r20Base`?shot=offline-queue"; width = 1280; height = 900 },
+      @{ name = "05-replay-success";   url = "$r20Base`?shot=replay-success"; width = 1280; height = 900 },
+      @{ name = "06-mobile-390";       url = "$r20Base`?shot=offline-queue"; width = 390; height = 844 },
+      @{ name = "07-net-error";        url = "$r20Base`?shot=offline-error"; width = 1280; height = 900 }
     )
   } elseif ($Round -eq "r19") {
     # r19: sync card lives inside the workbench settings area (no new tab).

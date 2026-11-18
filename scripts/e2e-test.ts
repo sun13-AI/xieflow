@@ -277,6 +277,32 @@ import {
   applyChangeSet,
   SyncConflictError,
   type ChangeRecord,
+  // r20：离线队列与 PWA（队列 / 离线语义 / 重放顺序 / 本地图标）
+  OFFLINE_QUEUE_KEY,
+  OFFLINE_QUEUE_MAX,
+  OFFLINE_REPLAY_PATH,
+  OFFLINE_REPLAY_METHODS,
+  OFFLINE_QUEUED_STATUS,
+  OFFLINE_HEADER,
+  OFFLINE_QUEUE_EVENT,
+  OFFLINE_CONNECTION_EVENT,
+  PWA_CACHE_NAME,
+  isOfflineMethod,
+  assertValidOfflineQueueItem,
+  normalizeOfflineQueueItem,
+  assertValidOfflineReplayRequest,
+  shouldQueueOffline,
+  offlineQueuePathAllowed,
+  loadOfflineQueue,
+  saveOfflineQueue,
+  enqueueOffline,
+  dequeueOffline,
+  peekOfflineQueue,
+  clearOfflineQueue,
+  planOfflineReplay,
+  buildOfflineQueuedResponse,
+  type OfflineStorage,
+  type OfflineQueueItem,
 } from "@xieflow/shared";
 import type { TodoStatus } from "@xieflow/shared";
 import { pbkdf2Sync } from "node:crypto";
@@ -4845,11 +4871,150 @@ try {
     ok(!/(^|[^A-Za-z])fetch\s*\(/.test(syncSrc), "r19 同步卡无裸 fetch（统一 apiFetch）");
     ok(/\bapiFetch\b/.test(syncSrc), "r19 同步卡经 apiFetch 发请求（401 清态链路一致）");
     eq((appSrc.match(/data-tab="/g) ?? []).length, 14, "r19 tab 数量仍为 14（同步卡不占 tab）");
-    ok(/r19 · 多端同步与冲突处理（M9 收官）/.test(appSrc), "r19 徽章推进到 M9 收官");
+    ok(!/r19 · 多端同步与冲突处理（M9 收官）/.test(appSrc), "r19 旧徽章已由 r20 替换（无残留）");
     ok(/sync-modal/.test(syncSrc) && /data-side="local"/.test(syncSrc) && /data-side="remote"/.test(syncSrc), "r19 冲突弹窗提供本地/远端两个选边按钮");
     ok(/sync-modal-warning/.test(syncSrc) && /不可撤销/.test(syncSrc), "r19 返工#1 选边后果提示前置（写入递增且不可撤销）");
     ok(/sync-btn-quiet/.test(syncSrc), "r19 返工#1 稍后处理按钮弱化（与两个主选区分）");
     ok(/local: "季度复盘"/.test(syncSrc) && /remote: "季度规划"/.test(syncSrc), "r19 返工#1 title 两版核心文案不同（钉态冲突自洽）");
+  }
+
+  // 56. r20：离线队列与 PWA（TDD 先红：shared 规则 + 离线语义 + 渲染层结构）
+  section("r20 离线队列与 PWA：入队 / 出队 / 按序重放 / 离线语义 / 状态判定");
+  {
+    // 唯一口径常量（api / web 共用，避免散落魔法值）
+    eq(OFFLINE_QUEUE_KEY, "xieflow.offline.queue", "r20 队列 localStorage 键固定");
+    eq(OFFLINE_QUEUE_MAX, 100, "r20 队列容量上限 100 条");
+    eq([...OFFLINE_REPLAY_METHODS], ["GET", "POST", "PUT", "PATCH", "DELETE"], "r20 允许重放的方法白名单固定顺序");
+    eq(OFFLINE_REPLAY_PATH, "/api/offline/replay", "r20 服务端重放端点路径固定");
+    eq(OFFLINE_QUEUED_STATUS, 202, "r20 离线入队返回 202 Accepted（语义化，不伪装 200 成功）");
+    eq(OFFLINE_HEADER, "x-xieflow-offline", "r20 离线响应标记头固定");
+    eq(OFFLINE_QUEUE_EVENT, "xieflow:offline-queue-changed", "r20 队列变更广播事件固定");
+    eq(OFFLINE_CONNECTION_EVENT, "xieflow:connection-changed", "r20 连接状态变更广播事件固定");
+    eq(PWA_CACHE_NAME, "xieflow-static-v20", "r20 SW 静态缓存名带轮次（升级即换名，不污染旧缓存）");
+
+    // 条目守卫：非法队列项在入队源头被拒（HTTP 层同一守卫 → 400）
+    ok(isOfflineMethod("POST"), "r20 isOfflineMethod 认 POST");
+    ok(isOfflineMethod("DELETE"), "r20 isOfflineMethod 认 DELETE");
+    ok(!isOfflineMethod("TRACE"), "r20 isOfflineMethod 拒绝 TRACE");
+    ok(!isOfflineMethod("post"), "r20 isOfflineMethod 拒绝小写方法（归一前必须大写）");
+    const goodItem: OfflineQueueItem = {
+      id: "q1", method: "POST", path: "/api/todos",
+      body: { title: "A", quadrant: "q1" }, createdAt: "2026-11-18T10:00:00.000Z",
+    };
+    noThrow(() => assertValidOfflineQueueItem(goodItem), "r20 合法队列项通过守卫");
+    throws(() => assertValidOfflineQueueItem({ ...goodItem, id: "" }), "r20 空 id 队列项被拒");
+    throws(() => assertValidOfflineQueueItem({ ...goodItem, method: "TRACE" }), "r20 非法方法队列项被拒");
+    throws(() => assertValidOfflineQueueItem({ ...goodItem, path: "https://evil.example/api/todos" }), "r20 外部绝对 URL 队列项被拒");
+    throws(() => assertValidOfflineQueueItem({ ...goodItem, path: OFFLINE_REPLAY_PATH }), "r20 重放端点自身入队被拒（防递归）");
+    throws(() => assertValidOfflineQueueItem({ ...goodItem, body: [1, 2] }), "r20 数组载荷队列项被拒");
+    throws(() => assertValidOfflineQueueItem({ ...goodItem, createdAt: "not-a-date" }), "r20 非法时间戳队列项被拒");
+    eq(
+      normalizeOfflineQueueItem({ id: "q9", method: "POST", path: "/api/todos", body: '{"title":"B"}', createdAt: goodItem.createdAt }),
+      { id: "q9", method: "POST", path: "/api/todos", body: { title: "B" }, createdAt: goodItem.createdAt },
+      "r20 JSON 字符串载荷归一为对象（apiFetch init.body 直接入队）",
+    );
+    noThrow(() => assertValidOfflineReplayRequest({ items: [goodItem] }), "r20 合法重放请求通过守卫");
+    throws(() => assertValidOfflineReplayRequest({ items: "nope" }), "r20 items 非数组重放请求被拒");
+    throws(() => assertValidOfflineReplayRequest({ items: [goodItem, { ...goodItem, id: "" }] }), "r20 整批校验：一条非法全批拒绝（零半态）");
+
+    // 离线语义：只有「离线 + 变更方法 + 本应用 /api 路径」才入队
+    ok(shouldQueueOffline("POST", "/api/todos", true), "r20 离线 POST 业务写请求入队");
+    ok(!shouldQueueOffline("POST", "/api/todos", false), "r20 在线请求绝不入队");
+    ok(!shouldQueueOffline("GET", "/api/todos", true), "r20 只读 GET 不入队（避免陈旧读）");
+    ok(!shouldQueueOffline("POST", "/api/auth/login", true), "r20 认证端点不入队（避免离线登录死循环）");
+    ok(!shouldQueueOffline("POST", OFFLINE_REPLAY_PATH, true), "r20 重放端点自身不入队");
+    ok(!shouldQueueOffline("POST", "https://evil.example/api/todos", true), "r20 外部地址不入队");
+    ok(shouldQueueOffline("PATCH", "/api/todos/12", true), "r20 离线 PATCH 入队");
+    ok(shouldQueueOffline("DELETE", "/api/todos/12", true), "r20 离线 DELETE 入队");
+    ok(offlineQueuePathAllowed("/api/todos?x=1"), "r20 带查询串的本应用路径允许");
+    ok(!offlineQueuePathAllowed("//evil/api/todos"), "r20 协议相对地址拒绝");
+
+    // 队列持久化：enqueue / dequeue / peek / clear 全部走注入的 Storage（浏览器 localStorage / 测试内存库同接口）
+    const qstoreData = new Map<string, string>();
+    const qstore: OfflineStorage = {
+      getItem: (k) => qstoreData.get(k) ?? null,
+      setItem: (k, v) => { qstoreData.set(k, v); },
+      removeItem: (k) => { qstoreData.delete(k); },
+    };
+    eq(loadOfflineQueue(qstore), [], "r20 空存储读出空队列");
+    const enq1 = enqueueOffline(qstore, goodItem);
+    eq(enq1.id, "q1", "r20 enqueue 返回带 id 的条目");
+    eq(loadOfflineQueue(qstore).length, 1, "r20 enqueue 真写 localStorage");
+    ok(qstoreData.has(OFFLINE_QUEUE_KEY), "r20 队列持久化在约定键上");
+    const enq2 = enqueueOffline(qstore, {
+      id: "q2", method: "PATCH", path: "/api/todos/1", body: { title: "B" }, createdAt: "2026-11-18T10:01:00.000Z",
+    });
+    eq(peekOfflineQueue(qstore).map((i) => i.id), ["q1", "q2"], "r20 peek 保持入队 FIFO 顺序");
+    eq(dequeueOffline(qstore, "q1")?.id, "q1", "r20 dequeue 返回被移除条目");
+    eq(peekOfflineQueue(qstore).map((i) => i.id), ["q2"], "r20 dequeue 后队列只剩余项");
+    eq(dequeueOffline(qstore, "q1"), null, "r20 重复 dequeue 返回 null（幂等）");
+    eq(loadOfflineQueue(qstore)[0]?.id, enq2.id, "r20 重新读取仍是持久化后的队列");
+    // 容量封顶：超出上限丢弃最早条目，不无限膨胀
+    for (let i = 0; i < OFFLINE_QUEUE_MAX + 5; i++) {
+      enqueueOffline(qstore, {
+        id: `cap-${i}`, method: "POST", path: "/api/todos", body: { title: `c${i}` },
+        createdAt: `2026-11-18T11:${String(Math.floor(i / 60)).padStart(2, "0")}:${String(i % 60).padStart(2, "0")}.000Z`,
+      });
+    }
+    eq(peekOfflineQueue(qstore).length, OFFLINE_QUEUE_MAX, "r20 队列容量封顶（不无限增长）");
+    ok(!peekOfflineQueue(qstore).some((i) => i.id === "q2"), "r20 超限时丢最早条目");
+    clearOfflineQueue(qstore);
+    eq(loadOfflineQueue(qstore), [], "r20 clear 队列归零");
+
+    // 按序重放：createdAt 升序（同刻按 id），整批校验通过才返回副本；非法项零半态
+    const late = { ...goodItem, id: "late", createdAt: "2026-11-18T12:00:00.000Z" };
+    const early = { ...goodItem, id: "early", createdAt: "2026-11-18T09:00:00.000Z" };
+    const orderInput = [late, early];
+    const ordered = planOfflineReplay(orderInput);
+    eq(ordered.map((i) => i.id), ["early", "late"], "r20 replay 按 createdAt 升序串行重发（变异红相目标）");
+    ok(ordered !== orderInput && ordered[0] !== late, "r20 planOfflineReplay 返回副本不改入参");
+    throws(() => planOfflineReplay([goodItem, { ...goodItem, id: "" }]), "r20 重放计划整批校验（一条非法即全批拒绝）");
+    eq(planOfflineReplay([goodItem]).length, 1, "r20 单条合法重放计划通过");
+
+    // 语义化离线响应：202 + 标记头 + 队列 id + 可读文案，调用方 res.ok 不误判为成功落库
+    const queued = buildOfflineQueuedResponse(goodItem);
+    eq(queued.status, 202, "r20 离线入队响应状态 202");
+    eq(queued.headers[OFFLINE_HEADER], "queued", "r20 离线响应带 x-xieflow-offline=queued");
+    eq(queued.headers["x-xieflow-queue-id"], "q1", "r20 离线响应回带队列 id");
+    eq(queued.body.queued, true, "r20 离线响应体 queued=true");
+    eq(queued.body.id, "q1", "r20 离线响应体 id 与条目一致");
+    ok(queued.body.message.includes("离线"), "r20 离线响应给出人话提示");
+
+    // 渲染层与 PWA 结构断言（证据另见 docs/ui/r20 截图矩阵）
+    const indexHtml = readFileSync("apps/web/index.html", "utf8");
+    const manifest = JSON.parse(readFileSync("apps/web/public/manifest.json", "utf8")) as Record<string, unknown>;
+    const swSrc = readFileSync("apps/web/public/sw.js", "utf8");
+    const appSrc = readFileSync("apps/web/src/App.tsx", "utf8");
+    const cssSrc = readFileSync("apps/web/src/styles.css", "utf8");
+    const authSrc = readFileSync("apps/web/src/authClient.ts", "utf8");
+    const statusSrc = readFileSync("apps/web/src/OfflineStatus.tsx", "utf8");
+    const serverSrc = readFileSync("apps/api/src/server.ts", "utf8");
+    eq(manifest.name, "协流 XieFlow", "r20 manifest 名称与产品一致");
+    eq(manifest.display, "standalone", "r20 manifest display=standalone（可安装 PWA）");
+    eq(manifest.start_url, "/", "r20 manifest start_url 根路径");
+    ok(Array.isArray(manifest.icons) && (manifest.icons as { src: string }[]).length >= 2, "r20 manifest 至少两种尺寸图标");
+    ok((manifest.icons as { src: string }[]).every((i) => i.src.startsWith("/icons/")), "r20 图标全为本地 /icons/ 路径");
+    ok(!JSON.stringify(manifest).includes("http"), "r20 manifest 零外部 URL（禁 CDN）");
+    ok(/rel="manifest"/.test(indexHtml), "r20 index.html 链接 manifest");
+    ok(/theme-color/.test(indexHtml), "r20 index.html 声明主题色（安装栏外观）");
+    ok(/no-sw=1/.test(indexHtml), "r20 SW 注册提供测试禁用开关（不干扰 e2e/audit）");
+    ok(/serviceWorker/.test(indexHtml), "r20 index.html 注册 Service Worker");
+    ok(/CACHE_FIRST_PATHS/.test(swSrc) && /cache-first/i.test(swSrc), "r20 SW 静态资源 cache-first");
+    ok(/NETWORK_FIRST_PATHS/.test(swSrc) && /network-first/i.test(swSrc), "r20 SW API network-first");
+    ok(/OFFLINE_FALLBACK/.test(swSrc), "r20 SW 提供离线 fallback");
+    ok(!/api\/offline\/replay/.test(swSrc), "r20 SW 不缓存重放端点（避免队列请求被吞）");
+    ok(/shouldQueueOffline/.test(authSrc) && /buildOfflineQueuedResponse/.test(authSrc), "r20 apiFetch 用 shared 唯一离线语义");
+    ok(/data-state="net-status"/.test(statusSrc), "r20 顶栏在线状态圆点存在");
+    ok(/data-state="queue-badge"/.test(statusSrc), "r20 顶栏离线队列徽标存在");
+    ok(/data-state="queue-sync"/.test(statusSrc), "r20 立即同步按钮存在");
+    ok(/<OfflineStatus\s*\/>/.test(appSrc), "r20 外壳挂载在线状态组件");
+    ok(/r20 · 离线模式与 PWA/.test(appSrc), "r20 徽章推进到 M10 起步");
+    ok(/@media \(max-width:\s*600px\)/.test(cssSrc), "r20 有 <=600px 移动断点");
+    ok(/overflow-x:\s*hidden/.test(cssSrc), "r20 禁止横向溢出");
+    ok(/min-height:\s*44px/.test(cssSrc), "r20 触摸目标 >=44px");
+    ok(/bottom-nav|net-status/.test(cssSrc), "r20 底栏/状态条样式在场");
+    eq((appSrc.match(/data-tab="/g) ?? []).length, 14, "r20 本轮无新 tab（顶栏/底栏只是布局变化，仍 14 tab）");
+    ok(/app\.post\("\/api\/offline\/replay"/.test(serverSrc), "r20 api 提供真重放端点（队列 4xx 由 audit 锁定）");
   }
 
   // 54. HTTP 冒烟 /api/health

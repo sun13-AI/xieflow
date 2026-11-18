@@ -2,8 +2,27 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#2f6fed" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" href="/icons/icon-192.png" type="image/png" />
     <title>协流 XieFlow</title>
+    <script>
+      /* r20: SW registration. Test/e2e/audit/screenshot runs disable it explicitly
+         (?no-sw=1, ?shot=, ?narrow=) or implicitly (navigator.webdriver). */
+      (function () {
+        try {
+          var q = window.location.search;
+          if (q.indexOf("no-sw=1") >= 0 || q.indexOf("shot=") >= 0 ||
+              q.indexOf("narrow=") >= 0 || q.indexOf("offline=") >= 0) return;
+          if (navigator.webdriver === true) return;
+          if (!("serviceWorker" in navigator)) return;
+          window.addEventListener("load", function () {
+            navigator.serviceWorker.register("/sw.js").catch(function () {});
+          });
+        } catch (err) { /* PWA is additive: never block the app */ }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -11,7 +11,9 @@
 // r17：+ 物资页 + 单位任务页（M8 收官），壳基线扩为十四 tab。
 // r18：+ 登录/注册独立路由（不占 tab）+ 工作台「本机/远端」模式卡 + 401 清假登录态跳登录。
 // r19：+ 工作台设置区「多端同步」卡 + 冲突弹窗选边（不新增 tab，十四 tab 数量不变）。
+// r20：+ 顶栏在线圆点 / 离线队列徽标 / 立即同步 + PWA 离线缓存 + ≤600px 底部导航（无新 tab）。
 import SyncCard from "./SyncCard";
+import OfflineStatus from "./OfflineStatus";
 // 截图状态真实存在：加载中 / 空数据 / 正常 / 错误 / 窄屏（?narrow=1 显式钉态）
 import { useEffect, useState } from "react";
 import type { AppSetting, Schedule, Todo } from "@xieflow/shared";
@@ -369,7 +371,9 @@ export default function App() {
             单位任务
           </button>
         </nav>
-        <span className="badge">r19 · 多端同步与冲突处理（M9 收官）</span>
+        <span className="badge">r20 · 离线模式与 PWA（M10 起步）</span>
+        <OfflineStatus />
+        <button type="button" className="nav-toggle" data-state="nav-toggle" aria-label="展开导航" onClick={() => document.documentElement.classList.toggle("nav-open")}>☰</button>
         <span className="auth-controls" data-state="auth-controls">
           {pinnedToken ? (
             <button type="button" className="auth-top-btn" onClick={logout}>退出登录</button>
@@ -501,7 +505,7 @@ export default function App() {
                   <dt>schema 版本</dt>
                   <dd>v{state.schemaVersion}</dd>
                   <dt>里程碑</dt>
-                  <dd>M9 网络版（收官）</dd>
+                  <dd>M10 多端与单机版（起步）</dd>
                 </dl>
               </section>
             </>

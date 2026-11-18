@@ -23,6 +23,9 @@ import {
   buildDocumentMdFileName,
   treeToMarkdown,
   whiteboardItemsOverlap,
+  OFFLINE_QUEUE_MAX,
+  OFFLINE_REPLAY_PATH,
+  OFFLINE_HEADER,
 } from "@xieflow/shared";
 import { createMockProvider, MOCK_PROVIDER_ID } from "@xieflow/agent";
 
@@ -2742,6 +2745,93 @@ async function audit() {
     await authReq("DELETE", `/api/auth/users/${adminLogin.json.user.id}`, adminToken);
     const finalMode19 = await req("GET", "/api/auth/mode");
     eq(finalMode19.json && finalMode19.json.mode, "local", "r19 终态服务模式回 local");
+  }
+
+  // ---- r20：离线队列服务端重放（按序 / 4xx 非法条目 / 409 重放冲突 / 零半态） ----
+  console.log("\n== Offline r20: replay order / 400 illegal items / 409 replay conflict ==");
+  {
+    const RP = OFFLINE_REPLAY_PATH;
+    const empty = await expectStatus("POST", RP, { items: [] }, 200, "r20 空队列重放 -> 200");
+    eq(empty.json && empty.json.replayed, 0, "r20 空队列重放 replayed=0");
+    eq(empty.json && empty.json.results, [], "r20 空队列重放 results=[]");
+    eq(empty.json && empty.json.conflictIndex, -1, "r20 空队列无冲突 conflictIndex=-1");
+
+    // 非法队列条目：400 且零半态（一条不落库）
+    const before = await req("GET", "/api/todos");
+    const baselineCount = before.json && before.json.todos ? before.json.todos.length : -1;
+    await expectStatus("POST", RP, { items: "nope" }, 400, "r20 items 非数组 -> 400");
+    await expectStatus("POST", RP, {}, 400, "r20 缺 items -> 400");
+    await expectStatus("POST", RP, { items: [{ id: "x", method: "TRACE", path: "/api/todos", body: {}, createdAt: "2026-11-18T10:00:00.000Z" }] }, 400, "r20 非法方法条目 -> 400");
+    await expectStatus("POST", RP, { items: [{ id: "x", method: "POST", path: "https://evil.example/api/todos", body: {}, createdAt: "2026-11-18T10:00:00.000Z" }] }, 400, "r20 外部绝对 URL 条目 -> 400");
+    await expectStatus("POST", RP, { items: [{ id: "x", method: "POST", path: RP, body: {}, createdAt: "2026-11-18T10:00:00.000Z" }] }, 400, "r20 重放端点自身条目 -> 400（防递归）");
+    await expectStatus("POST", RP, { items: [{ id: "", method: "POST", path: "/api/todos", body: {}, createdAt: "2026-11-18T10:00:00.000Z" }] }, 400, "r20 空 id 条目 -> 400");
+    await expectStatus("POST", RP, { items: [{ id: "x", method: "POST", path: "/api/todos", body: [], createdAt: "2026-11-18T10:00:00.000Z" }] }, 400, "r20 数组载荷条目 -> 400");
+    await expectStatus("POST", RP, { items: Array.from({ length: OFFLINE_QUEUE_MAX + 1 }, (_, i) => ({ id: `big-${i}`, method: "POST", path: "/api/todos", body: {}, createdAt: "2026-11-18T10:00:00.000Z" })) }, 400, "r20 超容量批次 -> 400");
+    const afterBad = await req("GET", "/api/todos");
+    eq(afterBad.json && afterBad.json.todos && afterBad.json.todos.length, baselineCount, "r20 非法条目全批拒绝：零半态（一条待办都未写）");
+    eq(afterBad.json && afterBad.json.todos && afterBad.json.todos.filter((t: any) => String(t.title).startsWith("r20 ")).length, 0, "r20 非法条目未产生 r20 探针待办");
+
+    // 按序重放：两条 create（createdAt 乱序提交），结果按 createdAt 升序而非数组顺序
+    const tA = "r20 offline A " + Date.now().toString(36);
+    const tB = "r20 offline B " + Date.now().toString(36);
+    const ordered = await expectStatus("POST", RP, { items: [
+      { id: "late", method: "POST", path: "/api/todos", body: { title: tB, quadrant: "q2" }, createdAt: "2026-11-18T12:00:00.000Z" },
+      { id: "early", method: "POST", path: "/api/todos", body: { title: tA, quadrant: "q1" }, createdAt: "2026-11-18T09:00:00.000Z" },
+    ] }, 200, "r20 两条合法 create 按序重放 -> 200");
+    eq(ordered.json && ordered.json.replayed, 2, "r20 重放 replayed=2");
+    eq(ordered.json && ordered.json.conflictIndex, -1, "r20 合法批次无冲突");
+    eq(ordered.json && ordered.json.results && ordered.json.results[0].id, "early", "r20 首条结果是 createdAt 更早的 early（按序重发）");
+    eq(ordered.json && ordered.json.results && ordered.json.results[1].id, "late", "r20 次条结果是 late（顺序确定）");
+    eq(ordered.json && ordered.json.results && ordered.json.results[0].status, 201, "r20 首条真实落库返回 201");
+    eq(ordered.json && ordered.json.results && ordered.json.results[1].status, 201, "r20 次条真实落库返回 201");
+    ok(ordered.json && ordered.json.results.every((r: any) => r.ok === true), "r20 每条结果 ok=true");
+    const list = await req("GET", "/api/todos");
+    const created = (list.json && list.json.todos ? list.json.todos : []).filter((t: any) => t.title === tA || t.title === tB);
+    eq(created.length, 2, "r20 两条离线待办真落到 api 库");
+    eq(created[0] && created[0].title, tA, "r20 先 createdAt 的待办先落库（真实顺序）");
+
+    // 变更条目重放：PATCH 真改状态；业务 4xx 由条目结果带回、端点返回 400
+    const patched = await expectStatus("POST", RP, { items: [
+      { id: "patch", method: "PATCH", path: `/api/todos/${created[0].id}`, body: { status: "done" }, createdAt: "2026-11-18T13:00:00.000Z" },
+    ] }, 200, "r20 PATCH 重放 -> 200");
+    eq(patched.json && patched.json.results && patched.json.results[0].status, 200, "r20 PATCH 条目真实 HTTP 200");
+    const afterPatch = await req("GET", `/api/todos/${created[0].id}`);
+    eq(afterPatch.json && afterPatch.json.status, "done", "r20 PATCH 重放后状态真改（非伪造回执）");
+    const badBusiness = await expectStatus("POST", RP, { items: [
+      { id: "bad", method: "POST", path: "/api/todos", body: { title: "" }, createdAt: "2026-11-18T14:00:00.000Z" },
+    ] }, 400, "r20 条目被业务守卫拒绝 -> 端点 400");
+    eq(badBusiness.json && badBusiness.json.conflictIndex, 0, "r20 业务 4xx 回带冲突条目下标");
+    ok(badBusiness.json && badBusiness.json.error.length > 0, "r20 业务 4xx 带可读错误");
+
+    // 重放冲突：同一实体两条不同载荷、相同期望版本 → 第一条成功、第二条 409（零半态）
+    const entityId = "r20-replay-conflict-" + Date.now().toString(36);
+    const conflictItems = [
+      { id: "s1", method: "POST", path: "/api/sync/apply", body: { entityType: "todo", entityId, operation: "create", payload: { title: "first" }, expectedVersion: 0 }, createdAt: "2026-11-18T15:00:00.000Z" },
+      { id: "s2", method: "POST", path: "/api/sync/apply", body: { entityType: "todo", entityId, operation: "create", payload: { title: "second" }, expectedVersion: 0 }, createdAt: "2026-11-18T15:01:00.000Z" },
+    ];
+    const conflict = await expectStatus("POST", RP, { items: conflictItems }, 409, "r20 重放中乐观锁冲突 -> 409");
+    eq(conflict.json && conflict.json.conflictIndex, 1, "r20 409 精确指认第二条为冲突条目");
+    eq(conflict.json && conflict.json.results && conflict.json.results.length, 2, "r20 两条结果都回带（含冲突条的状态）");
+    eq(conflict.json && conflict.json.results && conflict.json.results[1].status, 409, "r20 冲突条目结果 status=409");
+    eq(conflict.json && conflict.json.code, "OFFLINE_REPLAY_CONFLICT", "r20 409 code=OFFLINE_REPLAY_CONFLICT");
+    const st = await req("GET", "/api/sync/status");
+    const tracked = (st.json && st.json.versions ? st.json.versions : []).filter((v: any) => v.entityId === entityId);
+    eq(tracked.length, 1, "r20 冲突后只写第一条（零半态：不会有第二条版本）");
+    eq(tracked[0] && tracked[0].version, 1, "r20 冲突实体版本停在 1");
+    const changes = await req("GET", "/api/sync/changes?since=0&limit=200");
+    eq((changes.json && changes.json.changes ? changes.json.changes : []).filter((c: any) => c.entityId === entityId).length, 1, "r20 冲突未产生第二条 change_log");
+
+    // 清理本轮探针待办（保留 r19 既有数据不动）
+    for (const id of created.map((t: any) => t.id)) {
+      await expectStatus("DELETE", `/api/todos/${id}`, undefined, 200, `r20 DELETE 探针待办 ${id} -> 200`);
+    }
+    const finalList = await req("GET", "/api/todos");
+    eq(finalList.json && finalList.json.todos && finalList.json.todos.length, baselineCount, "r20 清理后待办数回到基线");
+    const replayHeaders = await fetch(`${BASE}${RP}`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ items: [] }),
+      signal: AbortSignal.timeout(5000),
+    });
+    eq(replayHeaders.headers.get(OFFLINE_HEADER), null, "r20 在线重放响应不带离线入队标记头（与客户端 202 语义区分）");
   }
 }
 

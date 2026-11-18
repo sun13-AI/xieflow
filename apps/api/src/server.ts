@@ -60,6 +60,8 @@ import {
   isAssetTxType,
   normalizeSince,
   normalizeLimit,
+  planOfflineReplay,
+  assertValidOfflineReplayRequest,
   SyncConflictError,
   type RevisionRequest,
   type Schedule,
@@ -2706,6 +2708,55 @@ function syncErrorReply(err: unknown, reply: FastifyReply): FastifyReply {
   if (err instanceof ValidationError) return reply.code(400).send({ error: err.message });
   return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
 }
+
+/**
+ * r20：离线队列服务端按序重放。规则（条目校验 / 顺序）全在 shared，api 只装配。
+ * 每条用 app.inject 真走既有路由（不复制业务分支）；任一条 >=400 即停在该条，
+ * 回带 conflictIndex 供客户端把「已成功条目出队、冲突条目留队」，零半态。
+ */
+app.post("/api/offline/replay", async (req, reply) => {
+  try {
+    const body = req.body ?? {};
+    assertValidOfflineReplayRequest(body);
+    // planOfflineReplay 再做一次整批校验并按 createdAt 升序排序（唯一顺序口径）
+    const items = planOfflineReplay(body.items);
+    const auth = req.headers.authorization;
+    const forwarded: Record<string, string> = typeof auth === "string" ? { authorization: auth } : {};
+    const results: Array<{ id: string; method: string; path: string; status: number; ok: boolean }> = [];
+    for (const item of items) {
+      const injected = await app.inject({
+        method: item.method,
+        url: item.path,
+        payload: item.body ?? undefined,
+        headers: forwarded,
+      });
+      let payload: { error?: string; code?: string } | null = null;
+      try {
+        payload = injected.json() as { error?: string; code?: string };
+      } catch {
+        /* non-json response */
+      }
+      const result = {
+        id: item.id, method: item.method, path: item.path,
+        status: injected.statusCode, ok: injected.statusCode < 400,
+      };
+      results.push(result);
+      if (injected.statusCode >= 400) {
+        return reply.code(injected.statusCode).send({
+          error: payload?.error ?? `重放失败（HTTP ${injected.statusCode}）`,
+          code: injected.statusCode === 409 ? "OFFLINE_REPLAY_CONFLICT" : "OFFLINE_REPLAY_FAILED",
+          conflictIndex: results.length - 1,
+          replayed: results.filter((r) => r.ok).length,
+          results,
+        });
+      }
+    }
+    return { replayed: results.length, conflictIndex: -1, results };
+  } catch (err) {
+    if (err instanceof ValidationError) return reply.code(400).send({ error: err.message, code: "INVALID_QUEUE_ITEM" });
+    return reply.code(400).send({ error: err instanceof Error ? err.message : String(err), code: "OFFLINE_REPLAY_FAILED" });
+  }
+});
 
 app.get("/api/sync/changes", async (req, reply) => {
   try {

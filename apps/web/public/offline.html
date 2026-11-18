@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#2f6fed" />
+    <title>当前离线 · 协流 XieFlow</title>
+    <style>
+      body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+             background: #f6f7fb; color: #0f172a; }
+      .box { max-width: 460px; background: #fff; border: 1px solid #e2e8f0; border-radius: 14px;
+             padding: 28px 30px; box-shadow: 0 10px 30px rgba(15,23,42,.08); }
+      h1 { font-size: 20px; margin: 0 0 10px; }
+      p { font-size: 14px; line-height: 1.7; color: #475569; margin: 0 0 12px; }
+      button { min-height: 44px; padding: 10px 20px; border: 0; border-radius: 8px; background: #2f6fed;
+               color: #fff; font-size: 14px; cursor: pointer; }
+    </style>
+  </head>
+  <body>
+    <div class="box">
+      <h1>协流 XieFlow · 当前离线</h1>
+      <p>页面内容已缓存。你的写操作会在本地排队，恢复网络后回到应用点「立即同步」即可按序重发。</p>
+      <p>只有首次打开需要联网下载应用外壳；之后可在离线状态查看已缓存页面。</p>
+      <button type="button" onclick="location.href='/'">重新连接</button>
+    </div>
+  </body>
+</html>
