@@ -159,7 +159,8 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r16 | M8 第 1 片：审批流引擎（M8 起步） | ✅已发版（首轮双通过；多角色审批 44/44 + CI 二次容错拆 job） | v0.0.21 | e2e 1464 · audit 1214 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r17 | M8 第 2 片：物资台账与单位任务（M8 收官） | ✅已发版（首轮双通过；物资/任务 44/44 + 变异红相 2 组） | v0.0.22 | e2e 1552 · audit 1302 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r18 | M9 第 1 片：账号与网络版服务（M9 起步） | ✅已发版（初验 waizhuan 打回 P1 remote 401 死路→返工#1 13 页统一 apiFetch→复审双通过） | v0.0.23 | e2e 1638 · audit 1376 | 通过（waizhuan）+ UI 通过（阻断岗） |
-| r19 | M9 第 2 片：多端同步与冲突处理（M9 收官） | 🔨研发中 | — | — | — |
+| r19 | M9 第 2 片：多端同步与冲突处理（M9 收官） | ✅已发版（初验 waizhuan 打回 P2 status 取最早→返工#1 精确最新→复审双通过） | v0.0.24 | e2e 1721 · audit 1442 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r20 | M10 第 1 片：离线模式与 PWA 移动适配（M10 起步） | 🔨研发中 | — | — | — |
 
 附加交付（r2 内 lead 直做，已入库 8e4fb9b）：
 - 一键启动：start.cmd 双击 / scripts\start.ps1 start|stop|status（三轮全链路验证；期间排掉「僵尸 api 抢 8787」环境坑，非脚本缺陷）
@@ -449,7 +450,24 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
   4. 双 VERDICT（waizhuan + ui 阻断岗）通过
 - 前置：r18 已发版（v0.0.23）✅
 
-### r20（预占）· M10 第 1 片：离线模式与移动端适配（M10 起步）
+### r20 · M10 第 1 片：离线模式与 PWA 移动适配（M10 起步）
+- 目标：离线可用 + 移动端适配——Service Worker 缓存 + 离线队列 + PWA manifest + 响应式移动布局——M10 起步轮
+- 交付清单：
+  1. PWA 基础设施：public/manifest.json（name/icons/start_url/display:standalone）、public/sw.js（cache-first 静态资源 + network-first API + 离线 fallback）、index.html link manifest + 注册 SW
+  2. 离线队列集中 packages/shared：offlineQueue 的 enqueue/dequeue/replay（localStorage 持久化，replay 按序重发），apiFetch 检测离线时改入队并返回语义化离线响应
+  3. 在线/离线状态指示：web 顶栏在线圆点 + 离线时 queue 徽标（待重放条数）+ 「立即同步」按钮（replay 队列）
+  4. 移动端适配：≤600px 断点下 tab 栏改底部导航/汉堡菜单、卡片单列、触摸目标 ≥44px、禁止横向溢出
+  5. 断言：e2e ≥+35（队列入出重放/离线语义/状态判定）、audit ≥+25（含 4xx：队列非法条目/重放冲突）
+  6. 截图 ≥7：manifest 安装提示/SW 注册成功/在线态/离线态+队列徽标/重放成功/移动窄屏 390px/错误态
+- 验收标准：
+  1. 全量绿：e2e ≥1756、audit ≥1467，README 双节同步
+  2. 真断网（CDP offline emulation）后操作入队→恢复在线→replay 成功（waizhuan 会真模拟断网）
+  3. 390px 移动视口无横向溢出、触摸目标达标；SW 在 CI/本地不干扰测试（测试环境禁用 SW）
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r19 已发版（v0.0.24）✅
+- 危险区注意：不引外部 CDN/图标依赖，manifest 图标用本地 SVG/PNG
+
+### r21（预占）· M10 第 2 片：单机版打包与一键部署（M10 收官）
 
 ## 历史轮次（r1~r2 已收档，见下方记账区）
 
