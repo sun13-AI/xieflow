@@ -1,0 +1,13 @@
+node_modules
+**/node_modules
+.git
+.gitignore
+release
+data
+*.db
+*.db-*
+docs/ui
+scripts/.tmp-*
+scripts/.shot-*
+*.log
+.DS_Store

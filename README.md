@@ -14,7 +14,7 @@ powershell -File scripts\start.ps1 stop    # 收服务
 # 开发模式：
 pnpm dev:api         # api 服务 http://127.0.0.1:8787
 pnpm dev:web         # web 界面 http://127.0.0.1:5173
-pnpm run test:all    # typecheck + e2e（1803 断言）+ HTTP 审计（1484 断言）
+pnpm run test:all    # typecheck + e2e（1842 断言）+ HTTP 审计（1503 断言）
 ```
 
 ### 打包（对齐 IKanBot 的 pack/dist 语义）
@@ -26,6 +26,12 @@ pnpm run dist        # 上述 + 安装包 release/xieflow-setup-<版本>.zip（�
 
 - 免安装目录：内置 web 静态产物 + api 源码 + 运行时依赖，单端口 8080（web+api 同源），数据落在目录内 `data/`
 - 安装包 = 免安装目录的 zip；安装语义 = 解压到任意位置 → 双击 `start.cmd`（要求 Node.js ≥ 20）
+- r21 增强：`start.sh`（Linux/macOS）+ 首次运行引导（README.txt「双击 start.cmd → 打开 8080」）+ 数据目录自检（首启建 `data/` 并验证可写）
+
+### 部署（r21 · M10 收官：三条路径）
+
+- 网络版（cloud，已上线，remote）· 私有化（`docker/`：多阶段 Dockerfile + docker-compose.yml + 数据卷，XIEFLOW_MODE=remote）· 一体化单机版（portable 目录，local）
+- 完整三路径 + 备份/恢复/搬迁四步 + FAQ 见 [docs/DEPLOY.md](docs/DEPLOY.md)；部署自检 `pwsh scripts/verify-deploy.ps1`（起服务 → health 200 → 关键路由 → 收净，headless）
 
 ## 快速开始（贡献者 / 想研究 agent 流水线的人）
 
@@ -59,10 +65,13 @@ scripts/
   shot-rework.ps1    r4 返工 #1 全路径证据拍摄（17/18/19）
   start.ps1          一键启动/停止
   pack.js            pack（免安装目录）/ dist（setup zip）
+  verify-deploy.ps1  r21 部署自检（起服务 → health 200 → 关键路由 → 收净，headless）
   push-via-api.mjs   GitHub REST API 推送（逐提交 tree 一致性校验）
+docker/              r21 私有化部署：多阶段 Dockerfile + docker-compose.yml + serve.mjs + .dockerignore
 workflows/           agent 编制表与岗位提示词
 docs/
   plan.md            轮次看板与任务单（每轮更新）
+  DEPLOY.md          r21 部署指南：三路径 + 备份/恢复/搬迁四步 + FAQ
   feedback/          研发报告 / 复验报告（VERDICT）/ UI 审查报告
   staff/             agent 员工档案与逐轮履历
   ui/                截图矩阵（逐张对照断言；shell/ 为十四 tab 壳基线）
@@ -71,13 +80,24 @@ docs/
 
 ## 路线图
 
-M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表格 ✅ → M4 文档 ✅ → M5 AI 工作台 ✅ → M6 知识库 RAG（进行中）→ M7 导图+白板 → M8 组织管理 → M9 网络版 → M10 多端与单机版
+M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表格 ✅ → M4 文档 ✅ → M5 AI 工作台 ✅ → M6 知识库 RAG ✅ → M7 导图+白板 ✅ → M8 组织管理 ✅ → M9 网络版 ✅ → M10 多端与单机版 ✅（r21 收官：私有化 docker-compose + 一体化单机版）——**设计总纲 11 个里程碑全部达成**
 
 进度看板：[docs/plan.md](docs/plan.md)
 
 ## 界面与测试对照
 
-按 AGENTS.md 立项规则：**界面更新必须带截图证据（每次，无例外）**，截图与实现同一提交。逐图索引（r1/r2/r3/r4/r5/r6/r7/r8/r9/r10/r11/r12/r13/r14/r15/r16/r17/r18/r19/r19-rework1/r20 矩阵全量、逐张对照断言）：
+按 AGENTS.md 立项规则：**界面更新必须带截图证据（每次，无例外）**，截图与实现同一提交。逐图索引（r1/r2/r3/r4/r5/r6/r7/r8/r9/r10/r11/r12/r13/r14/r15/r16/r17/r18/r19/r19-rework1/r20/r21 矩阵全量、逐张对照断言）：
+
+### r21 矩阵：[docs/ui/r21/](docs/ui/r21/README.md) —— 私有化部署与一体化单机版（M10 收官，共 6 张；本轮未改渲染层，故无新 tab / 无十四 tab 壳基线重拍；01–04 为真实捕获数据的文本渲染，05–06 为真实 8080 部署的 headless 截图）：
+
+| 截图 | 形态 | 对应断言 |
+|---|---|---|
+| [01-docker-topology.png](docs/ui/r21/01-docker-topology.png) | Docker 部署拓扑（Browser → app :8080 → api child :8787 → SQLite → named volume；XIEFLOW_MODE=remote + health 探针） | e2e「r21 Dockerfile 多阶段 / compose 解析 / XIEFLOW_MODE=remote / 8080:8080 / data 卷 / healthcheck」 |
+| [02-startcmd-first-run.png](docs/ui/r21/02-startcmd-first-run.png) | start.cmd 首启（FIRST RUN 引导 + data 自检 + 8080 ready + health 200） | pack → start.cmd 真 boot（web 200 / api health 200 / schema 15）；e2e「首启引导四要素 / 数据目录自检」 |
+| [03-portable-tree.png](docs/ui/r21/03-portable-tree.png) | portable 目录结构（start.cmd + 新增 start.sh + README.txt + data/ + portable-serve.mjs） | e2e「pack.js 生成 start.sh / POSIX shebang / 引导四要素」 |
+| [04-readme-guide.png](docs/ui/r21/04-readme-guide.png) | README.txt 首启引导（双击 start.cmd → 打开 8080 → 数据落 ./data/） | e2e「README.txt 写清双击 start.cmd → 打开 8080 / 引导四要素」 |
+| [05-8080-home.png](docs/ui/r21/05-8080-home.png) | 真实 8080 首页（1280×900，工作台 + 服务模式 + 多端同步卡 + 在线绿点） | portable boot `GET / -> 200`；e2e/audit「契约健康路径 200 / 模式探针 200」的可观察形态 |
+| [06-narrow-488.png](docs/ui/r21/06-narrow-488.png) | 真实 488px 窄屏（`?narrow=1`）：☰ 汉堡 + 底部导航 + 单列卡片 + 无横向溢出 | r1~r20 窄屏 seam；e2e「≤600px / 44px / overflow-x hidden」（本轮未改渲染层） |
 
 ### r20 矩阵：[docs/ui/r20/](docs/ui/r20/README.md) —— 离线模式与 PWA（M10 起步，共 7 张；无新 tab，顶栏状态区与 ≤600px 底部导航只是布局变化；十四 tab 壳基线同批重拍）：
 
@@ -376,8 +396,8 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 
 ### 断言规模（每轮更新，下降 = 回归 = 冻结发版）
 
-- e2e **1803** 项（服务离线口径 1803，api 在线时 HTTP 冒烟节 +1 = 1804）：**r20 离线队列与 PWA 81（r20 新增：唯一常量 9 · 队列项守卫与归一 10 · 入队语义 10 · 持久化 enqueue/dequeue/peek/clear 15 · 按序重放计划 4 · 语义化离线响应 6 · 渲染层/PWA 结构 27；另有 r19 旧徽章替换断言 1）** · **r19 多端同步（三方合并 / 冲突检测 / 版本递增 / 幂等 / schema v15 / 渲染层结构 / 返工#1 status 最新与 UI U2）83（r19 新增 74 + 返工#1 9）** · **r18 返工#1 浏览器入口与 401 清态 13（返工新增）** · **r18 认证与会话 73（r18 新增）** · 迁移一致性 7 · settings 9 · todo CRUD 15 · 输入校验 13 · 状态机 10 · 汇总计数 7 · raw schema 4 · 迁移幂等 3 · 日程契约与守卫 28 · 循环实例化 14 · 区间查询装配 12 · v2→v3 迁移+双向联动 18 · schedules CRUD 26 · 看板排序规则（reorderPositions）12 · 看板名称守卫 6 · v3→v4 迁移+看板数据层 33 · 看板统计口径（computeBoardStats）35 · 看板 CSV 台账（buildBoardCsvContent）36 · 字段类型引擎（validateFieldValue / coerceFieldValue / compareValues）86 · 记录数据归一与查询装配（normalizeRecordData / queryRecords）25 · 看板导出文件名（buildBoardCsvFileName · U2-2）6 · v4→v5 迁移+多维表格数据层 44 · 视图 spec 归一（normalizeViewSpec）31（r7 新增）· 按视图查询口径（多字段 AND / 多级排序 / 投影）21（r7 新增）· CSV 导入口径（parseCsvText / planCsvImport / 零半态）43（r7 新增）· v5→v6 迁移+视图数据层（持久化 / 原子导入）43（r7 新增）· **块类型引擎（normalizeBlockContent / canConvertBlockType / 拆合装配）64（r8 新增）· v6→v7 迁移+文档数据层（持久化 / 拆合移动 / 全文装配）65（r8 新增）· Markdown 双向引擎（markdownToBlocks / blocksToMarkdown / 未知语法降级）36（r9 新增）· Markdown 导入计划（normalizeMarkdownImportPayload / planMarkdownImport / 零半态）25（r9 新增）· AI 修订语义（instruction 守卫 / planRevisionApply / mock 录制回放）20（r9 新增）· 导入数据层（importBlocks 单事务整体替换 / 零半态 / 持久化 / 往返）12（r9 新增）· schema v7→v8 迁移与对话数据层（conversations / messages / artifacts）33（r10 新增）· 工具契约与脚本规划口径（TOOL_NAMES / 规划 / 汇总）34（r10 新增）· 工具注册表与真实服务层调用（ToolRegistry）26（r10 新增）· mock-planner 与工具调用录制回放（≥15 用例）9（r10 新增）· 对话编排与产物（executeChat）13（r10 新增）· **r11 契约（产物类型 / 上下文窗口 / 行内 diff）24（r11 新增）· r9 U2 行内增删改 diff 11（r11 新增）· r11 跨轮指代消解 12（r11 新增）· r11 三类产物生成器 13（r11 新增）· r11 工具链扩展真服务层 14（r11 新增）· r11 多轮上下文编排与回放扩充 22（r11 新增）· **schema v8→v9 知识库数据层 23（r12 新增）· 分块引擎 chunkText 19（r12 新增）· TF-IDF 检索引擎 searchChunks 20（r12 新增）· search_knowledge 工具真检索 5（r12 新增）· **r13 RAG 契约与意图识别 15 · 检索注入与引用装配 30 · executeChat 编排与引用落库 24 · RAG 回放评测集 5（共 74，r13 新增）· r14 Markdown↔树双向转换/守卫/折叠 35 · r14 schema v10 与 mindmaps 数据层 25（共 60，r14 新增）· r15 白板守卫/归一 32 · r15 重叠避让 13 · r15 mock AI 建板 9 · r15 Markdown 导出 7 · r15 画布坐标换算 6 · r15 schema v11 与白板数据层 38（共 105，r15 新增）** · r15 返工#1 +5（AI 建板全量画布零重叠与既有坐标回写 3 · 列表 itemCount 逐板独立 2）· **r16 审批状态机/步骤/三视角/schema v12 数据层 133（r16 新增）**· **r17 库存规则/任务状态机/任务树/schema v13 数据层 88（r17 新增）**
-- HTTP audit **1484** 项（**r20 离线重放 42（r20 新增：空队列 4 · 非法条目 400 与零半态 10 · 按序重放与真落库 10 · PATCH 真改状态 3 · 业务 4xx 3 · 重放冲突 409 与零半态 8 · 清理与标记头 4）** · **r19 多端同步 66（r19 新增 63 + 返工#1 3：changes/status/apply / status 精确最新 id·时间 / 409 冲突字段 / 幂等 / 越权 403 / 非法 since·limit / 全链路）** · **r18 返工#1 浏览器契约真 HTTP 7（返工新增）** · **Auth r18 67（r18 新增）** · 服务就绪 1 · health/settings 5 · todo 新建 12 · 列表详情 7 · 状态流转 9 · summary 11 · 删除 6 · 未知路由 1 · schedules CRUD 36 · 双向联动 22 · 循环实例 over HTTP 23 · projects CRUD 25 · board columns CRUD 20 · cards CRUD + 跨列移动 50 · board stats + CSV export 84 · tables / fields / records（r6）86 · views + CSV import（r7）119 · documents + blocks（r8）117 · Markdown import/export + AI revise（r9）67 · AI workbench: tools / conversations / chat / artifacts（r10）80 · **AI workbench r11: multi-turn context / artifact generators / extended tools 81（r11 新增）· Knowledge r12: ingest / TF-IDF search / source refs / 4xx 56（r12 新增）· RAG r13: citations / traceback / no-hit / 4xx 43（r13 新增）· **Mindmap r14: CRUD / tree / content / 4xx 54（r14 新增）· Whiteboard r15: boards / items / batch move / ai-create / export.md / 4xx 80（r15 新增）· r15 返工 +11（AI 建板全量画布零重叠 / 既有坐标回写 / HTTP 真读回 7 · 列表 itemCount 逐板独立 2 · 复现板 CRUD 清理 2）· **Approval r16: CRUD / submit / approve / reject / delegate / withdraw / 三视角 / 4xx 103（r16 新增）**· **Assets/UnitTasks r17: 台账 / 出入库 / 流水 / 任务树 / 状态流转 / 4xx 88（r17 新增）** · schedules 删除 5）
+- e2e **1842** 项（服务离线口径 1842，api 在线时 HTTP 冒烟节 +1 = 1843）：**r21 私有化部署与单机版 39（r21 新增：部署契约唯一口径 14 · docker/compose 静态解析 13 · portable start.sh/首启引导/数据自检 8 · DEPLOY.md 三路径四步 FAQ 4）** · **r20 离线队列与 PWA 81（r20 新增：唯一常量 9 · 队列项守卫与归一 10 · 入队语义 10 · 持久化 enqueue/dequeue/peek/clear 15 · 按序重放计划 4 · 语义化离线响应 6 · 渲染层/PWA 结构 27；另有 r19 旧徽章替换断言 1）** · **r19 多端同步（三方合并 / 冲突检测 / 版本递增 / 幂等 / schema v15 / 渲染层结构 / 返工#1 status 最新与 UI U2）83（r19 新增 74 + 返工#1 9）** · **r18 返工#1 浏览器入口与 401 清态 13（返工新增）** · **r18 认证与会话 73（r18 新增）** · 迁移一致性 7 · settings 9 · todo CRUD 15 · 输入校验 13 · 状态机 10 · 汇总计数 7 · raw schema 4 · 迁移幂等 3 · 日程契约与守卫 28 · 循环实例化 14 · 区间查询装配 12 · v2→v3 迁移+双向联动 18 · schedules CRUD 26 · 看板排序规则（reorderPositions）12 · 看板名称守卫 6 · v3→v4 迁移+看板数据层 33 · 看板统计口径（computeBoardStats）35 · 看板 CSV 台账（buildBoardCsvContent）36 · 字段类型引擎（validateFieldValue / coerceFieldValue / compareValues）86 · 记录数据归一与查询装配（normalizeRecordData / queryRecords）25 · 看板导出文件名（buildBoardCsvFileName · U2-2）6 · v4→v5 迁移+多维表格数据层 44 · 视图 spec 归一（normalizeViewSpec）31（r7 新增）· 按视图查询口径（多字段 AND / 多级排序 / 投影）21（r7 新增）· CSV 导入口径（parseCsvText / planCsvImport / 零半态）43（r7 新增）· v5→v6 迁移+视图数据层（持久化 / 原子导入）43（r7 新增）· **块类型引擎（normalizeBlockContent / canConvertBlockType / 拆合装配）64（r8 新增）· v6→v7 迁移+文档数据层（持久化 / 拆合移动 / 全文装配）65（r8 新增）· Markdown 双向引擎（markdownToBlocks / blocksToMarkdown / 未知语法降级）36（r9 新增）· Markdown 导入计划（normalizeMarkdownImportPayload / planMarkdownImport / 零半态）25（r9 新增）· AI 修订语义（instruction 守卫 / planRevisionApply / mock 录制回放）20（r9 新增）· 导入数据层（importBlocks 单事务整体替换 / 零半态 / 持久化 / 往返）12（r9 新增）· schema v7→v8 迁移与对话数据层（conversations / messages / artifacts）33（r10 新增）· 工具契约与脚本规划口径（TOOL_NAMES / 规划 / 汇总）34（r10 新增）· 工具注册表与真实服务层调用（ToolRegistry）26（r10 新增）· mock-planner 与工具调用录制回放（≥15 用例）9（r10 新增）· 对话编排与产物（executeChat）13（r10 新增）· **r11 契约（产物类型 / 上下文窗口 / 行内 diff）24（r11 新增）· r9 U2 行内增删改 diff 11（r11 新增）· r11 跨轮指代消解 12（r11 新增）· r11 三类产物生成器 13（r11 新增）· r11 工具链扩展真服务层 14（r11 新增）· r11 多轮上下文编排与回放扩充 22（r11 新增）· **schema v8→v9 知识库数据层 23（r12 新增）· 分块引擎 chunkText 19（r12 新增）· TF-IDF 检索引擎 searchChunks 20（r12 新增）· search_knowledge 工具真检索 5（r12 新增）· **r13 RAG 契约与意图识别 15 · 检索注入与引用装配 30 · executeChat 编排与引用落库 24 · RAG 回放评测集 5（共 74，r13 新增）· r14 Markdown↔树双向转换/守卫/折叠 35 · r14 schema v10 与 mindmaps 数据层 25（共 60，r14 新增）· r15 白板守卫/归一 32 · r15 重叠避让 13 · r15 mock AI 建板 9 · r15 Markdown 导出 7 · r15 画布坐标换算 6 · r15 schema v11 与白板数据层 38（共 105，r15 新增）** · r15 返工#1 +5（AI 建板全量画布零重叠与既有坐标回写 3 · 列表 itemCount 逐板独立 2）· **r16 审批状态机/步骤/三视角/schema v12 数据层 133（r16 新增）**· **r17 库存规则/任务状态机/任务树/schema v13 数据层 88（r17 新增）**
+- HTTP audit **1503** 项（**r21 部署契约 health/mode/关键路由 19（r21 新增：契约常量 1 · health 真 HTTP 4 · mode 探针 4 · 关键路由逐一真探针 5 · 401 语义 2 · settings/404/引导校验 3）** · **r20 离线重放 42（r20 新增：空队列 4 · 非法条目 400 与零半态 10 · 按序重放与真落库 10 · PATCH 真改状态 3 · 业务 4xx 3 · 重放冲突 409 与零半态 8 · 清理与标记头 4）** · **r19 多端同步 66（r19 新增 63 + 返工#1 3：changes/status/apply / status 精确最新 id·时间 / 409 冲突字段 / 幂等 / 越权 403 / 非法 since·limit / 全链路）** · **r18 返工#1 浏览器契约真 HTTP 7（返工新增）** · **Auth r18 67（r18 新增）** · 服务就绪 1 · health/settings 5 · todo 新建 12 · 列表详情 7 · 状态流转 9 · summary 11 · 删除 6 · 未知路由 1 · schedules CRUD 36 · 双向联动 22 · 循环实例 over HTTP 23 · projects CRUD 25 · board columns CRUD 20 · cards CRUD + 跨列移动 50 · board stats + CSV export 84 · tables / fields / records（r6）86 · views + CSV import（r7）119 · documents + blocks（r8）117 · Markdown import/export + AI revise（r9）67 · AI workbench: tools / conversations / chat / artifacts（r10）80 · **AI workbench r11: multi-turn context / artifact generators / extended tools 81（r11 新增）· Knowledge r12: ingest / TF-IDF search / source refs / 4xx 56（r12 新增）· RAG r13: citations / traceback / no-hit / 4xx 43（r13 新增）· **Mindmap r14: CRUD / tree / content / 4xx 54（r14 新增）· Whiteboard r15: boards / items / batch move / ai-create / export.md / 4xx 80（r15 新增）· r15 返工 +11（AI 建板全量画布零重叠 / 既有坐标回写 / HTTP 真读回 7 · 列表 itemCount 逐板独立 2 · 复现板 CRUD 清理 2）· **Approval r16: CRUD / submit / approve / reject / delegate / withdraw / 三视角 / 4xx 103（r16 新增）**· **Assets/UnitTasks r17: 台账 / 出入库 / 流水 / 任务树 / 状态流转 / 4xx 88（r17 新增）** · schedules 删除 5）
 - typecheck 5 包全绿（strict + noUncheckedIndexedAccess；shared / db / web / api / **agent(r9 新增)**）
 - CI：ubuntu / windows / macos 三平台 verify 门禁 + tag 触发 Release；CI 的 HTTP smoke 静态正则随 schema 版本号同步放宽为 `(2|3|4|5|6|7|8|9|10|11|12|13|14|15)`（v0.0.6 教训）
 - r6 规模变化：e2e 288 → 449（+161）· audit 313 → 403（+90）；**无一条断言被删**（只涨不缩，宪法第四条）
@@ -403,9 +423,10 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 - r19 规模变化：e2e 1638 → **1712（+74）**· audit 1376 → **1439（+63）**；**无一条断言被删**（只涨不缩，宪法第四条）。新增 e2e 一节（shared 变更操作/实体 id/版本守卫 12 · nextVersion 3 · since/limit 归一 11 · valuesEqual 2 · detectConflict 三方比较 12 · applyChangeSet 增量合并与幂等 4 · schema v15 与同步数据层 24 · 渲染层结构 6 = 74）与一节 audit（63 条真 HTTP：status/changes/apply 全链路 · 增量拉取幂等与 since/limit · 409 冲突字段列表与两端快照 · 不同字段合并 · 越权 403 · 非法 since/limit/载荷/版本 400 · 模式切换与清理）。随 v14→v15 迁移只更新 **17 条既有断言的期望值/构造队列**（e2e 越界构造队列追加 v16 1 条、v2~v8 旧库补跑队列末追加 v15 共 7 条、raw14~raw17 `user_version` 14→15 共 5 条、audit 两处 `health.schemaVersion` 14→15 共 2 条）与若干标签文字，条数不变；CI smoke 正则同步为 `(2|…|15)`；typecheck 仍 5 包。**变异红相 1 组**：把 shared `detectConflict` 的冲突字段改为恒空 → e2e 3 红（同字段真冲突 / hasConflict / 409 字段列表）、audit 1 红（409 字段列表 got [] want ["title"]）；逐字节还原（SHA `69A4FA85…C4B7C`）后 `pnpm run test:all` 全绿。
 - r19 返工#1 规模变化：e2e 1712 → **1721（+9）**· audit 1439 → **1442（+3）**；**无一条断言被删**（只涨不缩，宪法第四条）。A：audit 把 `status 回带最后变更 id > 0` 弱断言升级为**精确等值**（v1 单条 + 6 条变更后 `lastChangeId=最新 applied.id`、`lastChangeAt=最后写入 createdAt`，+3）；e2e 新增 db 全表最新 helper `listLatestChange()` 的精确 id/时间断言与 api 零排序分支结构断言（+6）。B：e2e 新增同步卡 U2 文案锁（选边后果提示 / 稍后处理弱化 / `title` 两版核心文案不同，+3）。**变异红相 1 组**：把 `listLatestChange` 的 `ORDER BY id DESC` 改回 `ASC`（最新→最早）→ e2e **1714 通过 / 4 红**、audit **1440 通过 / 2 红**（`got 1, want 6`）；逐字节还原（SHA `3BA73EA3…5193F`，`MUTATION-PROBE` 零残留）后 `pnpm run test:all` exit 0 / **1721 / 1442** 全绿。typecheck 仍 5 包；新矩阵 `docs/ui/r19-rework1/`（7+14）与实现同提交。
 - r20 规模变化：e2e 1721 → **1803（+82）**· audit 1442 → **1484（+42）**；**无一条断言被删**（只涨不缩，宪法第四条）。新增 e2e 一节（shared 离线队列规则与 PWA 结构 81：常量 9 · 守卫/归一 10 · shouldQueueOffline 10 · 队列持久化 15 · 按序重放 4 · 202 语义响应 6 · 渲染层/manifest/SW/移动 CSS 27）并把 r19 旧徽章断言改为「旧徽章已替换无残留」（+1，条数不变）；新增 audit 一节（42 条真 HTTP：POST /api/offline/replay 按 createdAt 升序真重放 · 非法队列项 400 与零半态 · 业务 4xx 回带 conflictIndex · 乐观锁重放冲突 409 与零半态 · 清理回基线）。**本轮无 schema 迁移**，CI smoke 正则保持 `(2|…|15)`；typecheck 仍 5 包。**变异红相 1 组**：把 shared `planOfflineReplay` 的 createdAt 升序改成降序 → e2e **1801 通过 / 2 红**、audit **1481 通过 / 3 红**（按序结果与实际落库顺序同时反）；逐字节还原（SHA `856E9F4A…FCDF`，`MUTATION-PROBE` 零残留）后 `pnpm run test:all` exit 0 / **1803 / 1484** 全绿。headless CDP 真断网链路：在线载入 → CDP offline → 真点新建两条 → 队列 2/徽标 2 → 恢复在线 → 真点「立即同步」→ API 真落库 id=1/2 → 清理。
-- 核心概念逐轮条目见下一节（r1~r20）。
+- r21 规模变化：e2e 1803 → **1842（+39）**· audit 1484 → **1503（+19）**；**无一条断言被删**（只涨不缩，宪法第四条）。新增 e2e 一节（shared 部署契约唯一口径 14：端口/路径/数据目录/模式/关键路由/期望状态/引导校验 · docker/compose 静态解析 13：多阶段 Dockerfile + 自写最小 YAML 解析器解析 compose 结构 + healthcheck 契约路径 · portable 增强 8：start.sh/数据目录自检/首启引导四要素/verify-deploy ASCII · DEPLOY.md 三路径四步 FAQ 4）；新增 audit 一节（19 条真 HTTP：契约健康路径 200 + ok/schema/mode · 模式探针回显一致 · 5 条关键路由按契约模式逐一真探 · 401 cleared 语义 · settings 匿名公开 · 契约外 404）。**本轮无 schema 迁移**（复用 v15），CI smoke 正则保持 `(2|…|15)`；typecheck 仍 5 包。**变异红相 1 组**：把 `packages/shared/src/deploy.ts` 的 `DEPLOY_PATHS.health` 改坏为 `/api/healthz` → e2e **1838 通过 / 4 红**、audit **1497 通过 / 6 红**（健康真 HTTP 404）；逐字节还原（SHA `E3B84404…DBC71`，`MUTATION-PROBE` 零残留）后 `pnpm run test:all` exit 0 / **1842 / 1503** 全绿。portable boot 复验：`pnpm pack` → start.cmd → 8080 web 200 + api health 200（ok:true / mode:local / schema:15），首启引导与 data 自检实打印，服务与 scratch 数据收净（端口 listen=0）。hex 截图 6 张 SHA256 互异。
+- 核心概念逐轮条目见下一节（r1~r21）。
 
-### 核心概念（逐轮累积，r1~r20 已落地的部分）
+### 核心概念（逐轮累积，r1~r21 已落地的部分）
 
 - **迁移纪律**：schema 变更只走 `packages/db/src/schema.ts` 的 `MIGRATIONS` 队列（v1 settings → v2 todos → v3 schedules → v4 projects/board_columns/cards → v5 tables/fields/records → v6 views → v7 documents/blocks → **v8 conversations/messages/artifacts → v9 knowledge_docs/knowledge_chunks** → v10 mindmaps → v11 whiteboards/whiteboard_items → **v12 approvals/approval_steps/approval_cc → v13 assets/asset_transactions/unit_tasks → v14 users/sessions**），`user_version` 管理，重开幂等、旧库原地升级只补跑缺失版本
 - **状态机集中**：待办状态流转（open/done/archived）定义在 `packages/shared`，非法流转服务层与路由层双层拒绝
@@ -504,6 +525,8 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 - **认证与本地会话唯一入口**（r18）：`packages/shared/auth` 子路径（Node 内置 `node:crypto`，零新依赖、web 不导入）集中 `hashPassword`（PBKDF2-HMAC-SHA256，120000 次迭代 + 32 字节随机盐，e2e 与 Node 内置 pbkdf2Sync 逐字节对照）、`verifyPassword`（timingSafeEqual，非法格式 false）、`validateSession`（到期时刻即失效，纯函数）、`AUTH_PERMISSIONS`（user/admin→权限映射）、`generateSessionToken`（本地随机 64 hex，不写密钥文件、无外部 IdP）、`SERVER_MODES`（local/remote）；schema v14 建 `users(id/username/password_hash/role/created_at)` + `sessions(id/user_id/token/expires_at)`，首个注册用户自动 admin，密码只写摘要不明文；api `POST /auth/register|login|logout` + `GET /auth/me|guard|users|mode` + `POST /auth/mode`，onRequest 中间件在 remote 模式对业务路由统一 401（响应体 cleared=true + 响应头 X-Xieflow-Auth-Cleared=1，假/过期 token 一并清会话）；web 登录/注册为独立路由不占 14 tab，工作台「本机/远端」卡切换模式，401 一律 clearSession 跳登录；validateSession 过期判定改坏的变异红相由 e2e 3 红 / audit 3 红双向锁定
 
 - **离线队列与重放唯一入口**（r20）：`packages/shared` 集中 `OFFLINE_QUEUE_KEY` / `OFFLINE_QUEUED_STATUS=202` / `OFFLINE_HEADER` 与 `normalizeOfflineQueueItem`（id/方法/路径/载荷/时间戳全守卫，外部 URL 与重放端点自身拒绝）、`shouldQueueOffline`（离线 + 写方法 + 本应用白名单路径三条件）、`enqueueOffline` / `dequeueOffline` / `planOfflineReplay`（整批校验零半态 + createdAt 升序同刻按 id，返回副本）与 `buildOfflineQueuedResponse`（web 构造真 Response）；`apps/web/authClient.ts` 的 `apiFetch` 离线写请求入 localStorage 并广播队列事件，返回 202「已入队」语义而非伪装成功落库；顶栏圆点/队列徽标/「立即同步」+ ≤600px 底部导航与 44px 触摸目标，无新 tab。`public/manifest.json` + `public/sw.js`（本地图标、静态 cache-first / API network-first / 离线 fallback、`?no-sw=1` 测试禁用）+ `POST /api/offline/replay`（app.inject 真走既有路由按序重放，首条 4xx 即停并回带 conflictIndex，零半态）；重放顺序改坏的变异红相由 e2e 2 红 / audit 3 红双向锁定
+
+- **部署契约与三路径唯一入口**（r21）：`packages/shared/deploy` 子路径集中 `DEPLOY_PORTS` / `DEPLOY_PATHS`（health/mode/settings/todos/authMe）/ `DEPLOY_DATA`（data/xieflow.db）/ `DEPLOY_MODES`（docker=remote, portable=local, cloud=remote）/ `DEPLOY_ROUTES`（按模式期望状态）/ `expectedDeployStatus` / `missingDeployMarkers`，docker / portable / docs / verify-deploy / e2e / audit 全消费同一口径。docker 多阶段镜像（Node 20 builder → slim runtime，`XIEFLOW_MODE=remote` + `xieflow-data` 卷 + healthcheck）；portable 加 `start.sh` + README.txt 首启引导 + data 目录自检（首启建目录并验可写，不可写大声失败）；`docs/DEPLOY.md` 三路径 + 备份/恢复/搬迁四步 + FAQ；`scripts/verify-deploy.ps1` headless 起服务→health→关键路由→收净（ASCII/PS5.1）。健康路径 `DEPLOY_PATHS.health` 改坏的变异红相由 e2e 4 红 / audit 6 红（含真 HTTP 404）双向锁定；本轮无 schema 迁移、无渲染层改动（无新 tab）
 
 ## 明确不做（当前阶段）
 

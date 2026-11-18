@@ -14,7 +14,7 @@
 //   pnpm pack             # portable dir only
 //   pnpm dist             # portable dir + zip setup bundle
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync, chmodSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -111,7 +111,7 @@ const childServe = `// XieFlow portable runtime: static server on one port + api
 // ASCII only. Stop: close this console window (api child exits with us).
 // Lives in scripts/, so the bundle root is one level up.
 import { spawn } from "node:child_process";
-import { createReadStream, existsSync, mkdirSync, statSync } from "node:fs";
+import { createReadStream, existsSync, mkdirSync, statSync, writeFileSync, unlinkSync } from "node:fs";
 import http from "node:http";
 import { join, dirname, extname, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -121,7 +121,17 @@ const staticRoot = join(root, "web");
 const port = Number(process.env.XIEFLOW_PORT || 8080);
 const apiPort = Number(process.env.XIEFLOW_API_PORT || 8787);
 const dataDir = join(root, "data");
-mkdirSync(dataDir, { recursive: true });
+// r21: data dir self-check - create if missing, verify writable, detect first run.
+function assertDataDir() {
+  const firstRun = !existsSync(dataDir);
+  mkdirSync(dataDir, { recursive: true });
+  if (!statSync(dataDir).isDirectory()) throw new Error("[portable] data path is not a directory: " + dataDir);
+  const probe = join(dataDir, ".write-probe");
+  writeFileSync(probe, "ok");
+  unlinkSync(probe);
+  return firstRun;
+}
+const firstRun = assertDataDir();
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -191,6 +201,12 @@ server.listen(port, "127.0.0.1", () => {
   console.log("[portable] XieFlow ready:");
   console.log(\`  web+api  http://127.0.0.1:\${port}\`);
   console.log(\`  data     \${dataDir}\`);
+  if (firstRun) {
+    console.log("[portable] FIRST RUN: data dir created at " + dataDir);
+    console.log("[portable] Open http://127.0.0.1:" + port + " in your browser (see README.txt).");
+  } else {
+    console.log("[portable] Existing data dir loaded (no migration of user data performed).");
+  }
   console.log("  stop: close this window.");
 });
 
@@ -206,16 +222,17 @@ writeFileSync(join(portableDir, "scripts", "portable-serve.mjs"), childServe);
 writeFileSync(
   join(portableDir, "README.txt"),
   [
-    `XieFlow v${version} portable`,
-    "=============================",
+    `XieFlow v${version} portable - FIRST RUN GUIDE`,
+    "=============================================",
     "",
-    "Start (double click):  start.cmd   (Windows)",
-    "Browser:               http://127.0.0.1:8080",
+    "1. Start:  double click start.cmd (Windows) or run ./start.sh (Linux/macOS).",
+    "2. Browser: open http://127.0.0.1:8080",
+    "3. Data:    auto-created at ./data/ on first run (SQLite: ./data/xieflow.db).",
+    "            The data dir self-check runs at startup and fails loudly if unwritable.",
+    "4. Stop:    close the console window (or press Ctrl+C).",
     "",
     "Requirements: Node.js >= 20  (https://nodejs.org)",
-    "",
-    "Data: created at ./data/ inside this folder on first run.",
-    "Stop: close the console window that start.cmd opened.",
+    "Backup: copy the whole ./data/ folder. Restore: copy it back. See docs/DEPLOY.md.",
     "",
   ].join("\n"),
 );
@@ -237,6 +254,26 @@ writeFileSync(
     "",
   ].join("\n"),
 );
+
+// r21: Linux/macOS launcher (POSIX sh, ASCII only). Same one-port runtime as start.cmd.
+const startSh = join(portableDir, "start.sh");
+writeFileSync(
+  startSh,
+  [
+    "#!/bin/sh",
+    "# XieFlow portable launcher for Linux/macOS (ASCII only)",
+    "set -e",
+    'cd "$(dirname "$0")"',
+    "if ! command -v node >/dev/null 2>&1; then",
+    '  echo "Node.js is required. Install from https://nodejs.org then retry."',
+    "  exit 1",
+    "fi",
+    "exec node scripts/portable-serve.mjs",
+    "",
+  ].join("\n"),
+  { mode: 0o755 },
+);
+if (!isWin) chmodSync(startSh, 0o755);
 
 console.log(`[pack] portable dir ready: ${portableDir}`);
 console.log(`[pack] try it:  cd release\\${portableName} && start.cmd`);

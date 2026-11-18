@@ -323,6 +323,17 @@ import {
   type Session,
   type AuthUser,
 } from "@xieflow/shared/auth";
+// r21: deployment contract (single source of truth shared by docker / portable / docs / audit)
+import {
+  DEPLOY_PORTS,
+  DEPLOY_PATHS,
+  DEPLOY_DATA,
+  DEPLOY_MODES,
+  DEPLOY_GUIDE_MARKERS,
+  DEPLOY_ROUTES,
+  expectedDeployStatus,
+  missingDeployMarkers,
+} from "@xieflow/shared/deploy";
 import {
   createMockProvider,
   MOCK_PROVIDER_ID,
@@ -399,6 +410,47 @@ function noThrow(fn: () => unknown, label: string): void {
 
 function section(name: string): void {
   console.log(`\n== ${name} ==`);
+}
+
+/** r21: minimal deterministic YAML parser for compose static validation (no docker / no yaml lib).
+ *  Handles the compose subset we ship: indentation maps, dash sequences, scalars and comments.
+ *  Returns a plain object so assertions inspect structure, not regex text. */
+function parseScalarYaml(v: string): unknown {
+  const s = v.trim();
+  if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) return s.slice(1, -1);
+  return s;
+}
+function parseSimpleYaml(text: string): Record<string, any> {
+  const rows: { indent: number; text: string }[] = [];
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.replace(/\t/g, "  ").replace(/\s+#.*$/, "");
+    if (!line.trim()) continue;
+    rows.push({ indent: line.length - line.trimStart().length, text: line.trim() });
+  }
+  const root: Record<string, any> = {};
+  const stack: { indent: number; value: any }[] = [{ indent: -1, value: root }];
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]!;
+    while (stack.length > 1 && row.indent <= stack[stack.length - 1]!.indent) stack.pop();
+    const parent = stack[stack.length - 1]!.value;
+    if (row.text.startsWith("- ")) {
+      if (Array.isArray(parent)) parent.push(parseScalarYaml(row.text.slice(2)));
+      continue;
+    }
+    const m = /^([^:]+):\s*(.*)$/.exec(row.text);
+    if (!m) continue;
+    const key = m[1]!.trim();
+    const rest = m[2]!.trim();
+    if (rest === "") {
+      const next = rows[i + 1];
+      const child = next && next.indent > row.indent && next.text.startsWith("- ") ? [] : {};
+      parent[key] = child;
+      stack.push({ indent: row.indent, value: child });
+    } else {
+      parent[key] = parseScalarYaml(rest);
+    }
+  }
+  return root;
 }
 
 /** 本地时区日期偏移（天），配合 localDateStr 造确定性样本 */
@@ -5015,6 +5067,66 @@ try {
     ok(/bottom-nav|net-status/.test(cssSrc), "r20 底栏/状态条样式在场");
     eq((appSrc.match(/data-tab="/g) ?? []).length, 14, "r20 本轮无新 tab（顶栏/底栏只是布局变化，仍 14 tab）");
     ok(/app\.post\("\/api\/offline\/replay"/.test(serverSrc), "r20 api 提供真重放端点（队列 4xx 由 audit 锁定）");
+  }
+
+  // 57. r21：私有化部署与单机版（部署契约 / 数据目录自检 / 首启引导 / compose 静态解析）
+  section("r21 私有化部署与单机版：部署契约 / 数据目录 / 首启引导 / compose 静态解析");
+  {
+    // (A) shared 部署契约唯一口径（变异红相目标：健康路径改坏 → 本套件与 audit 同时红）
+    eq(DEPLOY_PORTS.web, 8080, "r21 单机版单端口 8080 固定");
+    eq(DEPLOY_PORTS.api, 8787, "r21 开发/api 端口 8787 固定");
+    eq(DEPLOY_PATHS.health, "/api/health", "r21 健康探针路径固定（变异红相目标）");
+    eq(DEPLOY_PATHS.mode, "/api/auth/mode", "r21 模式探针路径固定");
+    eq(DEPLOY_DATA.dirName, "data", "r21 数据目录名固定");
+    eq(DEPLOY_DATA.dbFileName, "xieflow.db", "r21 SQLite 库文件名固定");
+    eq(DEPLOY_MODES.docker, "remote", "r21 docker 私有化用 remote 模式（强制鉴权）");
+    eq(DEPLOY_MODES.portable, "local", "r21 portable 单机版用 local 模式（免登录）");
+    eq(DEPLOY_ROUTES.length, 5, "r21 关键部署路由数固定为 5");
+    eq(expectedDeployStatus(DEPLOY_ROUTES[3]!, "local"), 200, "r21 local 模式业务路由 200");
+    eq(expectedDeployStatus(DEPLOY_ROUTES[3]!, "remote"), 401, "r21 remote 模式业务路由 401（认证页预期）");
+    eq(expectedDeployStatus(DEPLOY_ROUTES[4]!, "local"), 401, "r21 强保护路由 local 亦 401");
+    eq(missingDeployMarkers("start.cmd http://127.0.0.1:8080 ./data/ start.sh", DEPLOY_GUIDE_MARKERS), [], "r21 引导四要素齐全时无缺失");
+    ok(missingDeployMarkers("only start.cmd", DEPLOY_GUIDE_MARKERS).length >= 2, "r21 引导缺项被检出（真实校验非恒真）");
+
+    // (B) Dockerfile / compose / .dockerignore 静态契约
+    const dockerfile = readFileSync("docker/Dockerfile", "utf8");
+    const composeText = readFileSync("docker/docker-compose.yml", "utf8");
+    const dockerignore = readFileSync("docker/.dockerignore", "utf8");
+    ok(/FROM\s+node:20/.test(dockerfile), "r21 Dockerfile 以 Node 20 为基础镜像");
+    ok((dockerfile.match(/^FROM\s+/gm) ?? []).length >= 2, "r21 Dockerfile 多阶段构建（>=2 个 FROM）");
+    ok(/AS\s+builder/i.test(dockerfile) && /AS\s+runtime/i.test(dockerfile), "r21 Dockerfile 明确 builder/runtime 两阶段");
+    ok(dockerfile.includes(`XIEFLOW_MODE=${DEPLOY_MODES.docker}`) || composeText.includes(`XIEFLOW_MODE=${DEPLOY_MODES.docker}`), "r21 部署契约：docker 模式 remote");
+    ok(dockerfile.includes(`EXPOSE ${DEPLOY_PORTS.web}`), "r21 Dockerfile 暴露 8080");
+    ok(/node_modules/.test(dockerignore) && /data/.test(dockerignore), "r21 .dockerignore 排除 node_modules 与数据目录");
+
+    // compose 静态 YAML 解析（无 docker：自写最小解析器解析映射/序列为对象后断言结构）
+    const compose = parseSimpleYaml(composeText) as any;
+    ok(!!compose.services && !!compose.services.app, "r21 compose 解析出 services.app");
+    eq(compose.services.app.environment && compose.services.app.environment.XIEFLOW_MODE, DEPLOY_MODES.docker, "r21 compose environment 解析出 XIEFLOW_MODE=remote");
+    ok(Array.isArray(compose.services.app.ports) && compose.services.app.ports.includes(`${DEPLOY_PORTS.web}:${DEPLOY_PORTS.web}`), "r21 compose 端口映射 8080:8080");
+    ok(Array.isArray(compose.services.app.volumes) && compose.services.app.volumes.some((v: string) => v.includes(DEPLOY_DATA.dirName)), "r21 compose 数据卷挂载 data 目录");
+    ok(/healthcheck/i.test(composeText) && composeText.includes(DEPLOY_PATHS.health), "r21 compose healthcheck 引用契约健康路径");
+    ok(!!compose.services.app.build || !!compose.services.app.image, "r21 compose app 有 build 或 image");
+    ok(!!compose.volumes && Object.keys(compose.volumes).length >= 1, "r21 compose 顶层声明具名数据卷");
+
+    // (C) portable 增强：pack.js 生成 start.sh / 首启引导 / 数据目录自检
+    const packSrc = readFileSync("scripts/pack.js", "utf8");
+    ok(packSrc.includes("start.sh"), "r21 pack.js 生成 start.sh（Linux/macOS）");
+    ok(/#!\/bin\/sh/.test(packSrc), "r21 start.sh 带 POSIX shebang");
+    ok(/assertDataDir|dataDir.*check|is writable|writable/.test(packSrc), "r21 portable 运行时含数据目录自检");
+    ok(packSrc.includes(DEPLOY_GUIDE_MARKERS[0]) && packSrc.includes("8080"), "r21 README.txt 写清双击 start.cmd → 打开 8080");
+    ok(DEPLOY_GUIDE_MARKERS.every((m) => packSrc.includes(m)), "r21 首启引导四要素全在 pack.js 生成逻辑中");
+    const verifySrc = readFileSync("scripts/verify-deploy.ps1", "utf8");
+    ok(verifySrc.includes(DEPLOY_PATHS.health), "r21 verify-deploy.ps1 校验契约健康路径（变异红相目标）");
+    ok(/\[int\]\$Port/.test(verifySrc) && /taskkill|Stop-Process|\.Kill\(/.test(verifySrc), "r21 verify-deploy.ps1 起服务后收净进程");
+    ok(/^[\x00-\x7F]*$/.test(verifySrc), "r21 verify-deploy.ps1 全 ASCII");
+
+    // (D) 部署文档三路径 / 备份恢复搬迁四步 / FAQ
+    const deployDoc = readFileSync("docs/DEPLOY.md", "utf8");
+    ok(deployDoc.includes("docker-compose") && deployDoc.includes("portable"), "r21 DEPLOY.md 覆盖私有化与单机两条路径");
+    ok(/备份/.test(deployDoc) && /恢复/.test(deployDoc) && /搬迁/.test(deployDoc), "r21 DEPLOY.md 含备份/恢复/搬迁");
+    ok(/FAQ|常见问题/.test(deployDoc), "r21 DEPLOY.md 含 FAQ");
+    ok(deployDoc.includes(DEPLOY_PATHS.health), "r21 DEPLOY.md 引用契约健康路径");
   }
 
   // 54. HTTP 冒烟 /api/health

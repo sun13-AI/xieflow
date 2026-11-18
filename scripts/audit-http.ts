@@ -27,6 +27,14 @@ import {
   OFFLINE_REPLAY_PATH,
   OFFLINE_HEADER,
 } from "@xieflow/shared";
+import {
+  DEPLOY_PATHS,
+  DEPLOY_ROUTES,
+  DEPLOY_GUIDE_MARKERS,
+  expectedDeployStatus,
+  missingDeployMarkers,
+} from "@xieflow/shared/deploy";
+import { isServerMode } from "@xieflow/shared/auth";
 import { createMockProvider, MOCK_PROVIDER_ID } from "@xieflow/agent";
 
 const PORT = Number(process.env.XIEFLOW_API_PORT ?? 8788);
@@ -2832,6 +2840,44 @@ async function audit() {
       signal: AbortSignal.timeout(5000),
     });
     eq(replayHeaders.headers.get(OFFLINE_HEADER), null, "r20 在线重放响应不带离线入队标记头（与客户端 202 语义区分）");
+  }
+
+  // ---- r21：部署契约健康/模式/关键路由（真实 HTTP，contract 来自 shared） ----
+  console.log("\n== Deploy r21: health / mode / key routes (contract-driven) ==");
+  {
+    eq(DEPLOY_ROUTES.length, 5, "r21 audit 部署契约关键路由数 5");
+
+    // health：真 HTTP 200 + 真读库语义
+    const h = await expectStatus("GET", DEPLOY_PATHS.health, undefined, 200, "r21 GET 契约健康路径 -> 200");
+    eq(h.json && h.json.ok, true, "r21 health.ok=true");
+    eq(h.json && h.json.schemaVersion, 15, "r21 health.schemaVersion=15（部署版本一致）");
+    ok(isServerMode(h.json && h.json.mode), "r21 health.mode 为 local|remote 之一（契约模式合法）");
+
+    // mode：模式探针公开可达，回显一致
+    const m = await expectStatus("GET", DEPLOY_PATHS.mode, undefined, 200, "r21 GET 契约模式路径 -> 200");
+    ok(isServerMode(m.json && m.json.mode), "r21 mode.mode 合法");
+    ok(isServerMode(m.json && m.json.envMode), "r21 mode.envMode 合法");
+    eq(m.json && m.json.mode, h.json && h.json.mode, "r21 health 与 mode 回显同一模式（契约一致）");
+
+    // 关键路由按契约逐一真探针（local 口径；强保护路由 401 属预期）
+    const reportedMode: string = h.json && h.json.mode;
+    for (const route of DEPLOY_ROUTES) {
+      const expect = expectedDeployStatus(route, reportedMode);
+      const res = await req("GET", route.path);
+      eq(res.status, expect, `r21 关键路由 ${route.path} -> ${expect}（契约模式 ${reportedMode}）`);
+    }
+
+    // 401 探针语义（认证页 401 属预期，带 cleared 供前端清态）
+    const anonProtected = await req("GET", DEPLOY_PATHS.authMe);
+    eq(anonProtected.status, 401, "r21 强保护路由匿名 -> 401（预期）");
+    eq(anonProtected.json && anonProtected.json.cleared, true, "r21 401 携带 cleared=true");
+
+    // settings 公开可达（部署自检不依赖登录）
+    await expectStatus("GET", DEPLOY_PATHS.settings, undefined, 200, "r21 GET 契约 settings -> 200（匿名公开）");
+
+    // 契约外路径必须 404（部署探针不误暴露内部路由）
+    await expectStatus("GET", "/api/__r21_not_a_route__", undefined, 404, "r21 契约外路径 -> 404");
+    ok(missingDeployMarkers("start.cmd http://127.0.0.1:8080 ./data/ start.sh", DEPLOY_GUIDE_MARKERS).length === 0, "r21 audit 引导四要素契约校验（共享函数）");
   }
 }
 
