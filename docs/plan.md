@@ -156,7 +156,9 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r13 | M6 第 2 片：RAG 对话与引用溯源（M6 收官） | ✅已发版（首轮双通过；引用跳转真点 + lead 修 P4 速查行） | v0.0.17 | e2e 1161 · audit 966 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r14 | M7 第 1 片：思维导图 Markdown 双视图（M7 起步） | ✅已发版（首轮双通过；Markdown↔树 37/37 + 变异红相） | v0.0.18 | e2e 1221 · audit 1020 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r15 | M7 第 2 片：白板画布与 AI 建板（M7 收官） | ✅已发版（初验 waizhuan 打回 P1 AI 建板重叠→返工#1 全画布零重叠→复审双通过） | v0.0.19 | e2e 1331 · audit 1111 | 通过（waizhuan）+ UI 通过（阻断岗） |
-| r16 | M8 第 1 片：审批流引擎（M8 起步） | 🔨研发中 | — | — | — |
+| r16 | M8 第 1 片：审批流引擎（M8 起步） | ✅已发版（首轮双通过；多角色审批 44/44 + CI 二次容错拆 job） | v0.0.21 | e2e 1464 · audit 1214 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r17 | M8 第 2 片：物资台账与单位任务（M8 收官） | ✅已发版（首轮双通过；物资/任务 44/44 + 变异红相 2 组） | v0.0.22 | e2e 1552 · audit 1302 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r18 | M9 第 1 片：账号与网络版服务（M9 起步） | 🔨研发中 | — | — | — |
 
 附加交付（r2 内 lead 直做，已入库 8e4fb9b）：
 - 一键启动：start.cmd 双击 / scripts\start.ps1 start|stop|status（三轮全链路验证；期间排掉「僵尸 api 抢 8787」环境坑，非脚本缺陷）
@@ -409,7 +411,28 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
   4. 双 VERDICT（waizhuan + ui 阻断岗）通过
 - 前置：r15 已发版（v0.0.19）✅
 
-### r17（预占）· M8 第 2 片：物资台账与单位任务流转（M8 收官）
+### r17 · M8 第 2 片：物资台账与单位任务流转（M8 收官）—— 已发版 v0.0.22
+- 交付：schema v13 三表；shared 三件套（applyAssetTransaction 负库拒绝/canTransitionUnitTask 五态/buildTaskTree 层级+环路）；api 15 路由单事务零半态；web 物资/单位任务两 tab（十四 tab 壳）；r16 U2 三项顺手修
+- 断言：e2e 1464→1552 / audit 1214→1302；变异红相 2 组；双 VERDICT 通过
+
+### r18 · M9 第 1 片：账号与网络版服务（M9 起步）
+- 目标：从本地单机走向网络版——用户/会话认证 + server 远端模式 + 前端模式切换——M9 起步轮（CRDT 协同编辑推迟到 M10 前）
+- 交付清单：
+  1. schema v13→v14：users 表（id/username/password_hash/created_at）、sessions 表（id/user_id/token/expires_at）
+  2. 认证规则集中 packages/shared：hashPassword(password)（scrypt/ pbkdf2 纯 Node 实现，零新依赖）、verifyPassword、validateSession（过期判定）、AUTH_PERMISSIONS（角色→权限映射）
+  3. api：POST /api/auth/register|login|logout、GET /api/auth/me、auth middleware（受保护路由 401 清假登录态——r1 教训复用）
+  4. server 模式：XIEFLOW_MODE=local|remote，remote 时 api 提供全量业务路由（现有）/local 时前端直连 db（现有）；前端加「本机/远端」切换卡（设置页），401 时跳登录页
+  5. 断言：e2e ≥+40（哈希/校验/会话过期/权限）、audit ≥+30（含 4xx：弱密码/重复用户名/无效 token/过期会话/未授权 401）
+  6. 截图 ≥7：登录页/注册页/登出后/401 跳登录/设置页模式切换/窄屏/错误态
+- 验收标准：
+  1. 全量绿：e2e ≥1592、audit ≥1332，README 双节同步
+  2. 真实注册→登录→带 token 访问受保护路由→登出→401 全链路有断言；密码不明文落库（验 hash）
+  3. **401 清假登录态**有断言（r1 r61 教训）；模式切换后 UI 状态正确
+  4. **若新增 tab 补该 tab 激活态图**；双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r17 已发版（v0.0.22）✅
+- 危险区注意：认证实现不得引入真实外部 IdP/密钥（危险区）；token 仅本地随机生成，不写任何密钥文件
+
+### r19（预占）· M9 第 2 片：多端同步与冲突处理（M9 收官）
 
 ## 历史轮次（r1~r2 已收档，见下方记账区）
 
