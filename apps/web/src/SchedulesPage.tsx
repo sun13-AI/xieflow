@@ -10,7 +10,7 @@ import {
   type ScheduleRepeat,
   type Todo,
 } from "@xieflow/shared";
-import { SERVICE_DOWN_MESSAGE, fetchJsonOrThrow } from "./httpClient";
+import { SERVICE_DOWN_MESSAGE, fetchJsonOrThrow, apiFetch } from "./httpClient";
 
 const REPEAT_OPTIONS = Object.keys(REPEAT_LABELS) as ScheduleRepeat[];
 const WEEK_HEADERS = ["一", "二", "三", "四", "五", "六", "日"] as const;
@@ -36,8 +36,8 @@ interface MonthFetch {
 /** 月视图数据：当月区间日程 + 全量待办（徽标按 todoId 查状态） */
 async function fetchMonth(monthStart: string, monthEnd: string): Promise<MonthFetch> {
   const [schRes, todoRes] = await Promise.all([
-    fetch(`/api/schedules?from=${monthStart}&to=${monthEnd}`),
-    fetch("/api/todos"),
+    apiFetch(`/api/schedules?from=${monthStart}&to=${monthEnd}`),
+    apiFetch("/api/todos"),
   ]);
   const schData = (await fetchJsonOrThrow(schRes)) as { schedules: Schedule[] };
   const todoData = (await fetchJsonOrThrow(todoRes)) as { todos: Todo[] };
@@ -228,12 +228,12 @@ export default function SchedulesPage() {
     };
     try {
       const res = editing
-        ? await fetch(`/api/schedules/${editing.id}`, {
+        ? await apiFetch(`/api/schedules/${editing.id}`, {
             method: "PATCH",
             headers: { "content-type": "application/json" },
             body: JSON.stringify(payload),
           })
-        : await fetch("/api/schedules", {
+        : await apiFetch("/api/schedules", {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify(payload),

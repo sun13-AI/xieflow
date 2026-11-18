@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Asset, AssetTransaction } from "@xieflow/shared";
 import { ASSET_CATEGORIES, ASSET_CATEGORY_LABELS, ASSET_TX_TYPES, ASSET_TX_TYPE_LABELS } from "@xieflow/shared";
-import { SERVICE_DOWN_MESSAGE, fetchJsonOrThrow } from "./httpClient";
+import { SERVICE_DOWN_MESSAGE, fetchJsonOrThrow, apiFetch } from "./httpClient";
 
 type TxType = (typeof ASSET_TX_TYPES)[number];
 
@@ -20,11 +20,11 @@ function readShot(): string {
 }
 
 async function getJson<T>(url: string): Promise<T> {
-  return (await fetchJsonOrThrow(await fetch(url))) as T;
+  return (await fetchJsonOrThrow(await apiFetch(url))) as T;
 }
 
 async function sendJson(url: string, body: unknown, method = "POST"): Promise<unknown> {
-  return fetchJsonOrThrow(await fetch(url, {
+  return fetchJsonOrThrow(await apiFetch(url, {
     method,
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),

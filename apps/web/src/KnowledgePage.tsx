@@ -5,7 +5,7 @@
 // 检索算法不在本文件：api 调 agent.searchChunks（TF-IDF 纯本地），本页只渲染命中与来源引用。
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { KnowledgeDoc, KnowledgeSearchHit } from "@xieflow/shared";
-import { SERVICE_DOWN_MESSAGE, fetchJsonOrThrow } from "./httpClient";
+import { SERVICE_DOWN_MESSAGE, fetchJsonOrThrow, apiFetch } from "./httpClient";
 
 interface DocMeta {
   readonly id: number;
@@ -44,11 +44,11 @@ function readQuery(): KnowledgeQuery {
 }
 
 async function getJson<T>(url: string): Promise<T> {
-  return (await fetchJsonOrThrow(await fetch(url))) as T;
+  return (await fetchJsonOrThrow(await apiFetch(url))) as T;
 }
 
 async function postJson(url: string, body: unknown): Promise<unknown> {
-  return fetchJsonOrThrow(await fetch(url, {
+  return fetchJsonOrThrow(await apiFetch(url, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
@@ -56,7 +56,7 @@ async function postJson(url: string, body: unknown): Promise<unknown> {
 }
 
 async function deleteJson(url: string): Promise<unknown> {
-  return fetchJsonOrThrow(await fetch(url, { method: "DELETE" }));
+  return fetchJsonOrThrow(await apiFetch(url, { method: "DELETE" }));
 }
 
 /** 来源高亮：把命中内容按检索词逐字/逐词标 <mark>，中文逐字、英文数字成词。 */

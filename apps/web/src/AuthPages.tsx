@@ -5,11 +5,20 @@ import type { FormEvent } from "react";
 import { goToLogin, readToken, saveToken } from "./authClient";
 
 const REASON_TEXT: Record<string, string> = {
-  "401": "登录态已失效（HTTP 401），本地假登录态已清除，请重新登录。",
+  "401": "登录态已失效（HTTP 401），本地假登录态已清除，请重新登录；登录后从工作台继续（原业务页请再点一次）。",
   logout: "已退出登录，会话 token 已清除。",
   remote: "远端模式需要登录后才能访问业务数据。",
   registered: "注册成功，请用刚创建的账号登录。",
 };
+
+/** r18 返工#1 U2-1：与 shared assertValidPassword 同口径的可见预告（8–200 位，不强制组合） */
+function passwordHint(password: string): { text: string; cls: string } {
+  if (password.length === 0) return { text: "密码规则：8–200 位，不强制大小写/数字组合；不支持 NUL 控制字符。", cls: "" };
+  if (password.length < 8) return { text: `还差 ${8 - password.length} 位达到最低 8 位（最长 200 位）。`, cls: "password-hint-weak" };
+  if (password.length > 200) return { text: "超过 200 位上限，请缩短后再提交。", cls: "password-hint-weak" };
+  if (password.includes("\u0000")) return { text: "密码含非法控制字符，请去掉后再提交。", cls: "password-hint-weak" };
+  return { text: `符合规则（${password.length} 位）${password.length >= 12 ? "，强度较好" : ""}。`, cls: "password-hint-ok" };
+}
 
 interface AuthShellProps {
   readonly kind: "login" | "register";
@@ -97,10 +106,15 @@ function AuthShell({ kind, title, subtitle, reason, shot }: AuthShellProps) {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="至少 8 位"
+              placeholder="密码：8–200 位（不强制大小写/数字组合）"
               aria-label="密码"
             />
           </label>
+          {kind === "register" && (
+            <p className={`password-hint ${passwordHint(password).cls}`} data-state="password-hint">
+              {passwordHint(password).text}
+            </p>
+          )}
           <button type="submit" className="auth-submit" disabled={busy}>
             {busy ? "提交中…" : kind === "login" ? "登录" : "注册"}
           </button>

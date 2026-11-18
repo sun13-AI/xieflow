@@ -13,7 +13,7 @@ import {
   type TodoStatus,
   type TodoSummary,
 } from "@xieflow/shared";
-import { SERVICE_DOWN_MESSAGE, fetchJsonOrThrow } from "./httpClient";
+import { SERVICE_DOWN_MESSAGE, fetchJsonOrThrow, apiFetch } from "./httpClient";
 
 const QUADRANTS: Quadrant[] = ["q1", "q2", "q3", "q4"];
 
@@ -33,7 +33,7 @@ interface FetchResult {
 
 /** 列表 + 汇总一次取回（GET /api/todos 同时下发 todos 与 summary） */
 async function fetchTodos(): Promise<FetchResult> {
-  const res = await fetch("/api/todos");
+  const res = await apiFetch("/api/todos");
   const data = (await fetchJsonOrThrow(res)) as {
     todos: Todo[];
     summary: TodoSummary;
@@ -136,7 +136,7 @@ export default function TodosPage() {
   const submitDraft = async (): Promise<void> => {
     setSubmitError(null);
     try {
-      const res = await fetch("/api/todos", {
+      const res = await apiFetch("/api/todos", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -163,7 +163,7 @@ export default function TodosPage() {
   const transition = async (todo: Todo, to: TodoStatus): Promise<void> => {
     setBusyId(todo.id);
     try {
-      const res = await fetch(`/api/todos/${todo.id}`, {
+      const res = await apiFetch(`/api/todos/${todo.id}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ status: to }),

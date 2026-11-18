@@ -3,7 +3,7 @@
 // 截图钉态：?page=projects&shot=project-* 让 headless 确定性捕获（真实状态都存在）。
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { MAX_BOARD_NAME, type Project } from "@xieflow/shared";
-import { SERVICE_DOWN_MESSAGE, fetchJsonOrThrow } from "./httpClient";
+import { SERVICE_DOWN_MESSAGE, fetchJsonOrThrow, apiFetch } from "./httpClient";
 
 interface ProjectsLoadState {
   phase: "loading" | "error" | "ready";
@@ -30,7 +30,7 @@ export default function ProjectsPage({ onOpenBoard }: { onOpenBoard?: () => void
 
   const load = useCallback(async (): Promise<void> => {
     try {
-      const res = await fetch("/api/projects");
+      const res = await apiFetch("/api/projects");
       const data = (await fetchJsonOrThrow(res)) as { projects: Project[] };
       setState({ phase: "ready", projects: data.projects });
     } catch (err: unknown) {
@@ -64,7 +64,7 @@ export default function ProjectsPage({ onOpenBoard }: { onOpenBoard?: () => void
   const submitDraft = async (): Promise<void> => {
     setSubmitError(null);
     try {
-      const res = await fetch("/api/projects", {
+      const res = await apiFetch("/api/projects", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({

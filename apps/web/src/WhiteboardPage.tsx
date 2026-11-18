@@ -11,7 +11,7 @@ import {
   clampWhiteboardScale,
   WHITEBOARD_ITEM_TYPES,
 } from "@xieflow/shared";
-import { SERVICE_DOWN_MESSAGE, fetchJsonOrThrow } from "./httpClient";
+import { SERVICE_DOWN_MESSAGE, fetchJsonOrThrow, apiFetch } from "./httpClient";
 
 interface WhiteboardQuery {
   readonly shot: string;
@@ -32,11 +32,11 @@ function readQuery(): WhiteboardQuery {
 }
 
 async function getJson<T>(url: string): Promise<T> {
-  return (await fetchJsonOrThrow(await fetch(url))) as T;
+  return (await fetchJsonOrThrow(await apiFetch(url))) as T;
 }
 
 async function sendJson(url: string, method: "POST" | "PATCH" | "PUT", body: unknown): Promise<unknown> {
-  return fetchJsonOrThrow(await fetch(url, {
+  return fetchJsonOrThrow(await apiFetch(url, {
     method,
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
@@ -44,7 +44,7 @@ async function sendJson(url: string, method: "POST" | "PATCH" | "PUT", body: unk
 }
 
 async function deleteJson(url: string): Promise<unknown> {
-  return fetchJsonOrThrow(await fetch(url, { method: "DELETE" }));
+  return fetchJsonOrThrow(await apiFetch(url, { method: "DELETE" }));
 }
 
 interface DragState {
@@ -241,7 +241,7 @@ export default function WhiteboardPage() {
       return;
     }
     try {
-      const res = await fetch(`/api/whiteboards/${selectedId}/export.md`);
+      const res = await apiFetch(`/api/whiteboards/${selectedId}/export.md`);
       if (!res.ok) throw new Error(`导出失败：HTTP ${res.status}`);
       const md = await res.text();
       setNotice(`已导出 Markdown（${md.length} 字符）`);

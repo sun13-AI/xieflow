@@ -3536,6 +3536,9 @@ pre.docs-print-block.docs-code {
 .auth-submit:disabled { opacity: .6; cursor: default; }
 .auth-error { background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; border-radius: 8px; padding: 9px 11px; font-size: 12px; }
 .auth-notice { background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; border-radius: 8px; padding: 9px 11px; font-size: 12px; }
+.password-hint { margin: -4px 0 0; font-size: 11px; color: #64748b; }
+.password-hint-weak { color: #b91c1c; }
+.password-hint-ok { color: #15803d; }
 .auth-foot { margin: 16px 0 6px; font-size: 12px; color: #64748b; }
 .auth-foot a { color: #2563eb; }
 .auth-foot-sep { margin: 0 8px; color: #cbd5e1; }
@@ -3543,6 +3546,8 @@ pre.docs-print-block.docs-code {
 
 .server-mode-card h2 { font-size: 16px; margin: 0 0 8px; }
 .mode-current { font-size: 13px; color: #334155; margin: 0 0 10px; }
+.mode-data-note { margin: 0 0 6px; font-size: 12px; color: #334155; line-height: 1.55; }
+.mode-glossary { margin: 0 0 10px; font-size: 11px; color: #64748b; line-height: 1.5; }
 .mode-sep { margin: 0 8px; color: #cbd5e1; }
 .mode-switch { display: flex; gap: 8px; }
 .mode-btn { border: 1px solid #cbd5e1; background: #fff; color: #475569; border-radius: 8px; padding: 6px 22px; cursor: pointer; font-size: 13px; }

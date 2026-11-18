@@ -19,7 +19,7 @@ import {
   type DocumentBlock,
   type MarkdownImportRowError,
 } from "@xieflow/shared";
-import { SERVICE_DOWN_MESSAGE, fetchJsonOrThrow } from "./httpClient";
+import { SERVICE_DOWN_MESSAGE, fetchJsonOrThrow, apiFetch } from "./httpClient";
 
 interface DocsQuery {
   docId: string;
@@ -117,11 +117,11 @@ function pickDoc(documents: DocMeta[], docId: string): DocMeta | null {
 
 /** 真实链路：文档列表 → 选中文档 → 该文档的块（按 position 升序） */
 async function fetchDocs(query: DocsQuery): Promise<DocsData> {
-  const res = await fetch("/api/documents");
+  const res = await apiFetch("/api/documents");
   const list = (await fetchJsonOrThrow(res)) as { documents: DocMeta[] };
   const doc = pickDoc(list.documents, query.docId);
   if (doc === null) return { documents: list.documents, doc: null, blocks: [] };
-  const bres = await fetch(`/api/documents/${doc.id}/blocks`);
+  const bres = await apiFetch(`/api/documents/${doc.id}/blocks`);
   const blocks = ((await fetchJsonOrThrow(bres)) as { blocks: DocumentBlock[] }).blocks;
   return { documents: list.documents, doc, blocks };
 }
@@ -132,7 +132,7 @@ async function sendJson(
   url: string,
   body?: unknown,
 ): Promise<{ status: number; data: Record<string, unknown> | null }> {
-  const res = await fetch(url, {
+  const res = await apiFetch(url, {
     method,
     headers: body === undefined ? undefined : { "content-type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -524,7 +524,7 @@ export default function DocsPage() {
 
   // ---- r9：导出 .md（按字节下载，BOM/换行不被文本解码改写） ----
   const captureExportSnapshot = async (target: DocMeta): Promise<void> => {
-    const res = await fetch(`/api/documents/${target.id}/export.md`);
+    const res = await apiFetch(`/api/documents/${target.id}/export.md`);
     if (!res.ok) throw new Error(`导出失败（HTTP ${res.status}）`);
     const text = await res.text();
     setExportSnapshot({
@@ -539,7 +539,7 @@ export default function DocsPage() {
     setBusy(true);
     setErrorText(null);
     try {
-      const res = await fetch(`/api/documents/${doc.id}/export.md`);
+      const res = await apiFetch(`/api/documents/${doc.id}/export.md`);
       if (!res.ok) throw new Error(`导出失败（HTTP ${res.status}）`);
       const bytes = new Uint8Array(await res.arrayBuffer());
       const blobUrl = URL.createObjectURL(new Blob([bytes], { type: "text/markdown;charset=utf-8" }));

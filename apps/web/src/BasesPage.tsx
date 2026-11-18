@@ -19,7 +19,7 @@ import {
   type TableRecord,
   type TableView,
 } from "@xieflow/shared";
-import { SERVICE_DOWN_MESSAGE, fetchJsonOrThrow } from "./httpClient";
+import { SERVICE_DOWN_MESSAGE, fetchJsonOrThrow, apiFetch } from "./httpClient";
 
 interface BasesQuery {
   tableId: string;
@@ -97,7 +97,7 @@ function pickTable(tables: BaseTable[], tableId: string): BaseTable | null {
 
 /** 网格数据装配：表列表 → 选中表 → 字段 → 视图 → 记录（筛选/排序/分页交给 api + shared） */
 async function fetchBases(query: BasesQuery): Promise<BasesData> {
-  const tablesRes = await fetch("/api/tables");
+  const tablesRes = await apiFetch("/api/tables");
   const tablesData = (await fetchJsonOrThrow(tablesRes)) as { tables: BaseTable[] };
   const table = pickTable(tablesData.tables, query.tableId);
   if (table === null) {
@@ -114,9 +114,9 @@ async function fetchBases(query: BasesQuery): Promise<BasesData> {
       totalPages: 0,
     };
   }
-  const fieldsRes = await fetch(`/api/tables/${table.id}/fields`);
+  const fieldsRes = await apiFetch(`/api/tables/${table.id}/fields`);
   const fields = ((await fetchJsonOrThrow(fieldsRes)) as { fields: TableField[] }).fields;
-  const viewsRes = await fetch(`/api/tables/${table.id}/views`);
+  const viewsRes = await apiFetch(`/api/tables/${table.id}/views`);
   const views = ((await fetchJsonOrThrow(viewsRes)) as { views: TableView[] }).views;
 
   const activeView = views.find((v) => String(v.id) === query.viewId) ?? null;
@@ -133,7 +133,7 @@ async function fetchBases(query: BasesQuery): Promise<BasesData> {
   const recordsUrl = activeView
     ? `/api/views/${activeView.id}/records${qs === "" ? "" : `?${qs}`}`
     : `/api/tables/${table.id}/records${qs === "" ? "" : `?${qs}`}`;
-  const recordsRes = await fetch(recordsUrl);
+  const recordsRes = await apiFetch(recordsUrl);
   const result = (await fetchJsonOrThrow(recordsRes)) as RecordQueryResult;
   return {
     tables: tablesData.tables,
@@ -236,7 +236,7 @@ async function sendJson(
   url: string,
   body?: unknown,
 ): Promise<{ status: number; data: Record<string, unknown> | null }> {
-  const res = await fetch(url, {
+  const res = await apiFetch(url, {
     method,
     headers: body === undefined ? undefined : { "content-type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -509,7 +509,7 @@ export default function BasesPage() {
     const nextData = { ...record.data, [String(field.id)]: value };
     setBusy(true);
     try {
-      const res = await fetch(`/api/records/${recordId}`, {
+      const res = await apiFetch(`/api/records/${recordId}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ data: nextData }),
@@ -529,7 +529,7 @@ export default function BasesPage() {
     if (!table) return;
     setBusy(true);
     try {
-      const res = await fetch(`/api/tables/${table.id}/records`, {
+      const res = await apiFetch(`/api/tables/${table.id}/records`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ data: {} }),
@@ -548,7 +548,7 @@ export default function BasesPage() {
   const removeRow = async (recordId: number): Promise<void> => {
     setBusy(true);
     try {
-      const res = await fetch(`/api/records/${recordId}`, { method: "DELETE" });
+      const res = await apiFetch(`/api/records/${recordId}`, { method: "DELETE" });
       await fetchJsonOrThrow(res);
       await load(query);
     } catch (err: unknown) {
@@ -562,7 +562,7 @@ export default function BasesPage() {
   const createTable = async (): Promise<void> => {
     setBusy(true);
     try {
-      const res = await fetch("/api/tables", {
+      const res = await apiFetch("/api/tables", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ name: tableName }),
@@ -667,7 +667,7 @@ export default function BasesPage() {
     setViewError(null);
     setBusy(true);
     try {
-      const res = await fetch(`/api/views/${viewDraft.id}`, { method: "DELETE" });
+      const res = await apiFetch(`/api/views/${viewDraft.id}`, { method: "DELETE" });
       await fetchJsonOrThrow(res);
       setViewDraft(null);
       setNotice("已删除视图。");
@@ -1715,7 +1715,7 @@ function FieldsPanel({
       .map((s) => s.trim())
       .filter((s) => s !== "");
     await call(async () =>
-      fetch(`/api/tables/${tableId}/fields`, {
+      apiFetch(`/api/tables/${tableId}/fields`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ name: draftName, type: draftType, options }),
@@ -1742,7 +1742,7 @@ function FieldsPanel({
                 onBlur={(e) => {
                   if (e.target.value === f.name || e.target.value.trim() === "") return;
                   void call(async () =>
-                    fetch(`/api/fields/${f.id}`, {
+                    apiFetch(`/api/fields/${f.id}`, {
                       method: "PATCH",
                       headers: { "content-type": "application/json" },
                       body: JSON.stringify({ name: e.target.value }),
@@ -1755,7 +1755,7 @@ function FieldsPanel({
                 onChange={(e) => {
                   const type = e.target.value as FieldType;
                   void call(async () =>
-                    fetch(`/api/fields/${f.id}`, {
+                    apiFetch(`/api/fields/${f.id}`, {
                       method: "PATCH",
                       headers: { "content-type": "application/json" },
                       body: JSON.stringify({
@@ -1784,7 +1784,7 @@ function FieldsPanel({
                       .map((s) => s.trim())
                       .filter((s) => s !== "");
                     void call(async () =>
-                      fetch(`/api/fields/${f.id}`, {
+                      apiFetch(`/api/fields/${f.id}`, {
                         method: "PATCH",
                         headers: { "content-type": "application/json" },
                         body: JSON.stringify({ options }),
@@ -1800,7 +1800,7 @@ function FieldsPanel({
                 className="btn btn-ghost btn-small"
                 disabled={busy}
                 onClick={() =>
-                  void call(async () => fetch(`/api/fields/${f.id}`, { method: "DELETE" }))
+                  void call(async () => apiFetch(`/api/fields/${f.id}`, { method: "DELETE" }))
                 }
               >
                 删除

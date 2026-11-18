@@ -38,6 +38,9 @@ import {
   type FrontendMode,
 } from "./authClient";
 
+// r18 返工#1：业务 401 不再静默降级为空态（apiFetch 已清 token + 跳登录，这里只负责停止渲染假数据）
+const AUTH_401_MESSAGE = "登录态已失效，正在跳转登录页";
+
 type LoadState =
   | { phase: "loading" }
   | { phase: "error"; message: string }
@@ -52,7 +55,7 @@ async function fetchHealth(): Promise<{
   todaySchedules: Schedule[];
   todos: Todo[];
 }> {
-  const res = await fetch("/api/health");
+  const res = await apiFetch("/api/health");
   if (!res.ok) throw new Error(`健康检查失败：HTTP ${res.status}`);
   const data = (await res.json()) as { schemaVersion: number; settings: AppSetting[] };
   const pad = (n: number): string => String(n).padStart(2, "0");
@@ -62,17 +65,19 @@ async function fetchHealth(): Promise<{
   let todos: Todo[] = [];
   try {
     const [schRes, todoRes] = await Promise.all([
-      fetch(`/api/schedules?from=${today}&to=${today}`),
-      fetch("/api/todos"),
+      apiFetch(`/api/schedules?from=${today}&to=${today}`),
+      apiFetch("/api/todos"),
     ]);
+    if (schRes.status === 401 || todoRes.status === 401) throw new Error(AUTH_401_MESSAGE);
     if (schRes.ok) {
       todaySchedules = ((await schRes.json()) as { schedules: Schedule[] }).schedules;
     }
     if (todoRes.ok) {
       todos = ((await todoRes.json()) as { todos: Todo[] }).todos;
     }
-  } catch {
-    /* 今日日程卡降级为空态，不阻塞工作台 */
+  } catch (err) {
+    if (err instanceof Error && err.message === AUTH_401_MESSAGE) throw err;
+    /* 非 401 故障降级为空态，不阻塞工作台 */
   }
   return { schemaVersion: data.schemaVersion, settings: data.settings, todaySchedules, todos };
 }
@@ -111,7 +116,7 @@ export default function App() {
   // 服务端模式来自 /api/auth/mode；本机偏好来自 localStorage。远端且无 token → 登录页。
   useEffect(() => {
     let alive = true;
-    fetch("/api/auth/mode")
+    apiFetch("/api/auth/mode")
       .then((r) => r.json())
       .then((data: { mode?: unknown }) => {
         if (!alive) return;
@@ -189,6 +194,7 @@ export default function App() {
     if (shot === "loading" || shot === "error" || shot === "empty" || shot === "ready" || shot === "workbench") {
       return; // 钉态不探测
     }
+    if (authView) return; // 登录/注册页不发业务请求：remote 无 token 时 401 会把 login 反复改写为 reason=401
     let alive = true;
     fetchHealth()
       .then((data) => {
@@ -200,7 +206,7 @@ export default function App() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [authView]);
 
   async function switchMode(mode: FrontendMode): Promise<void> {
     setModeError("");
@@ -447,6 +453,12 @@ export default function App() {
                   <span className="mode-sep">·</span>
                   本机偏好：{preferredMode === "remote" ? "远端" : "本机"}
                 </p>
+                <p className="mode-data-note" data-state="mode-data-note">
+                  数据归属：本机＝数据存这台电脑的本地库、免登录；远端＝数据由服务端提供、需登录。切换只换数据来源，不删除已有数据。
+                </p>
+                <p className="mode-glossary" data-state="mode-glossary">
+                  「当前」是服务端实际生效的模式；「本机偏好」是你上次选的模式，重连时优先使用。
+                </p>
                 <div className="mode-switch">
                   <button
                     type="button"
@@ -461,7 +473,7 @@ export default function App() {
                     onClick={() => switchMode("remote")}
                   >远端</button>
                 </div>
-                <p className="mode-consequence">切到「远端」后业务路由要求 Bearer token；401 会清除本地登录态并跳登录页。</p>
+                <p className="mode-consequence">切到「远端」后业务请求需带登录凭证；遇到 401 会清除本地登录态并跳转登录页。</p>
                 {modeError !== "" && <p className="mode-error" role="alert">{modeError}</p>}
                 {query.get("shot") === "mode-settings" && (
                   <p className="shot-note" data-state="shot-note">截图钉注：设置区「本机/远端」切换卡；服务端模式来自 GET /api/auth/mode。</p>

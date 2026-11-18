@@ -6,7 +6,7 @@
 // r4：看板数据层——reorderPositions 排序规则（shared 纯函数）+ schema v3→v4 迁移
 // （projects / board_columns / cards）+ 服务层看板 CRUD 与跨列移动闭环。
 // 运行：pnpm test
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync, readdirSync } from "node:fs";
 import {
   openDatabase,
   openDatabaseRaw,
@@ -310,6 +310,8 @@ import {
   citationsFromHits,
   buildRagAnswer,
 } from "@xieflow/agent";
+// r18 返工#1：浏览器层 fetch 入口的真实行为断言（stub window/fetch，纯函数模拟，零可见窗口）
+import { apiFetch, AUTH_CLEARED_EVENT, SESSION_TOKEN_KEY } from "../apps/web/src/authClient";
 
 // ---------- 极简断言器 ----------
 let passed = 0;
@@ -4598,7 +4600,83 @@ try {
     f18b.close();
   }
 
-  // 53. HTTP 冒烟 /api/health
+  // 53. r18 返工#1：浏览器层统一 fetch 入口（纯函数模拟真实 apiFetch，headless 零窗口）
+  section("r18 返工#1 浏览器请求入口与 401 清态");
+  {
+    const srcDir = "apps/web/src";
+    const pageFiles = readdirSync(srcDir).filter((f) => f === "App.tsx" || (f.endsWith("Page.tsx") && f !== "AuthPages.tsx"));
+    ok(pageFiles.length >= 14, `业务页/外壳 ${pageFiles.length} 个文件进入裸 fetch 扫描（认证页除外）`);
+    const bareFetchFiles = pageFiles.filter((f) => /(^|[^A-Za-z])fetch\s*\(/.test(readFileSync(`${srcDir}/${f}`, "utf8")));
+    eq(bareFetchFiles, [], "全部业务页无裸 fetch（逐页 grep 无遗漏）");
+    const noApiFetch = pageFiles.filter((f) => !/\bapiFetch\b/.test(readFileSync(`${srcDir}/${f}`, "utf8")));
+    eq(noApiFetch, [], "每个业务页都经 apiFetch 发请求");
+    const authSrc = readFileSync(`${srcDir}/AuthPages.tsx`, "utf8");
+    ok(/fetch\("\/api\/auth\/(login|register)"/.test(authSrc), "认证页公开端点保留裸 fetch（登录 401 不误跳业务入口）");
+
+    const store = new Map<string, string>();
+    const redirected: string[] = [];
+    const dispatched: string[] = [];
+    const fakeWindow = {
+      location: {
+        href: "http://localhost:5173/?page=todos",
+        replace: (url: string) => { redirected.push(url); },
+      },
+      localStorage: {
+        getItem: (key: string) => store.get(key) ?? null,
+        setItem: (key: string, value: string) => { store.set(key, value); },
+        removeItem: (key: string) => { store.delete(key); },
+      },
+      dispatchEvent: (event: { type: string }) => { dispatched.push(event.type); return true; },
+    };
+    const originalFetch = globalThis.fetch;
+    Object.assign(globalThis, { window: fakeWindow });
+    try {
+      // remote 模式：真 token 必须附 Authorization 头且响应 200（waizhuan P1 浏览器层）
+      const token = "b".repeat(64);
+      store.set(SESSION_TOKEN_KEY, token);
+      let seenPath: unknown = null;
+      let seenInit: RequestInit | undefined;
+      globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+        seenPath = input;
+        seenInit = init;
+        return new Response(JSON.stringify({ todos: [] }), { status: 200, headers: { "content-type": "application/json" } });
+      };
+      const okRes = await apiFetch("/api/todos");
+      eq(okRes.status, 200, "r18 返工#1 remote 带 token 访问业务 API -> 200");
+      eq(seenPath, "/api/todos", "apiFetch 原样透传业务 API 路径");
+      eq(new Headers(seenInit?.headers).get("authorization"), `Bearer ${token}`, "业务请求自动附 Bearer 头（不再裸 fetch）");
+
+      // 业务 401：清 localStorage token + 跳 ?page=login&reason=401 + 广播清态事件
+      store.set(SESSION_TOKEN_KEY, token);
+      redirected.length = 0;
+      dispatched.length = 0;
+      globalThis.fetch = async () => new Response(
+        JSON.stringify({ error: "登录态无效或已过期，请重新登录", code: "UNAUTHORIZED", cleared: true }),
+        { status: 401, headers: { "content-type": "application/json", "x-xieflow-auth-cleared": "1" } },
+      );
+      const badRes = await apiFetch("/api/todos");
+      eq(badRes.status, 401, "业务 401 响应原样返回给调用方（不吞错）");
+      eq(store.has(SESSION_TOKEN_KEY), false, "业务 401 清除 localStorage 假/过期 token");
+      eq(redirected.length, 1, "业务 401 只跳一次登录页（无重复导航）");
+      ok(redirected[0]?.includes("page=login") === true && redirected[0]?.includes("reason=401") === true, "业务 401 跳 ?page=login&reason=401");
+      ok(dispatched.includes(AUTH_CLEARED_EVENT), "清态广播事件供外壳同步顶栏登录态");
+
+      // local 模式：无 token 不附假头
+      store.delete(SESSION_TOKEN_KEY);
+      let anonInit: RequestInit | undefined;
+      globalThis.fetch = async (_input: RequestInfo | URL, init?: RequestInit) => {
+        anonInit = init;
+        return new Response("{}", { status: 200 });
+      };
+      await apiFetch("/api/todos");
+      eq(new Headers(anonInit?.headers).get("authorization"), null, "无 token（本机模式）不附 Authorization 头");
+    } finally {
+      globalThis.fetch = originalFetch;
+      Reflect.deleteProperty(globalThis, "window");
+    }
+  }
+
+  // 54. HTTP 冒烟 /api/health
   section("HTTP 冒烟 /api/health");
   let httpOk = false;
   let httpNote = "api 服务未运行（pnpm dev:api 后再跑 pnpm test 可覆盖此节）";

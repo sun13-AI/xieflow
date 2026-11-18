@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Mindmap, MindmapNode, MindmapTree } from "@xieflow/shared";
 import { parseMarkdownToTree, toggleNodeCollapse } from "@xieflow/shared";
-import { SERVICE_DOWN_MESSAGE, fetchJsonOrThrow } from "./httpClient";
+import { SERVICE_DOWN_MESSAGE, fetchJsonOrThrow, apiFetch } from "./httpClient";
 
 interface MindmapQuery {
   readonly shot: string;
@@ -25,11 +25,11 @@ function readQuery(): MindmapQuery {
 }
 
 async function getJson<T>(url: string): Promise<T> {
-  return (await fetchJsonOrThrow(await fetch(url))) as T;
+  return (await fetchJsonOrThrow(await apiFetch(url))) as T;
 }
 
 async function sendJson(url: string, method: "POST" | "PATCH" | "PUT", body: unknown): Promise<unknown> {
-  return fetchJsonOrThrow(await fetch(url, {
+  return fetchJsonOrThrow(await apiFetch(url, {
     method,
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
@@ -37,7 +37,7 @@ async function sendJson(url: string, method: "POST" | "PATCH" | "PUT", body: unk
 }
 
 async function deleteJson(url: string): Promise<unknown> {
-  return fetchJsonOrThrow(await fetch(url, { method: "DELETE" }));
+  return fetchJsonOrThrow(await apiFetch(url, { method: "DELETE" }));
 }
 
 interface TreeNodeProps {

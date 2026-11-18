@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Artifact, Conversation, Message, RagCitation, ToolCallRecord } from "@xieflow/shared";
 import { ARTIFACT_GENERATOR_LABELS, TOOL_NAMES } from "@xieflow/shared";
-import { SERVICE_DOWN_MESSAGE, fetchJsonOrThrow } from "./httpClient";
+import { SERVICE_DOWN_MESSAGE, fetchJsonOrThrow, apiFetch } from "./httpClient";
 
 interface ToolMeta {
   readonly name: string;
@@ -55,8 +55,8 @@ function pickConversation(list: readonly Conversation[], convId: string): number
 
 async function loadChat(query: ChatQuery): Promise<ChatData> {
   const [convRes, toolRes] = await Promise.all([
-    fetch("/api/conversations"),
-    fetch("/api/tools"),
+    apiFetch("/api/conversations"),
+    apiFetch("/api/tools"),
   ]);
   const convData = (await fetchJsonOrThrow(convRes)) as { conversations: Conversation[] };
   const toolData = (await fetchJsonOrThrow(toolRes)) as { tools: ToolMeta[] };
@@ -65,8 +65,8 @@ async function loadChat(query: ChatQuery): Promise<ChatData> {
     return { conversations: [], messages: [], artifacts: [], tools: toolData.tools, selectedId: null };
   }
   const [msgRes, artRes] = await Promise.all([
-    fetch(`/api/conversations/${selectedId}/messages`),
-    fetch(`/api/conversations/${selectedId}/artifacts`),
+    apiFetch(`/api/conversations/${selectedId}/messages`),
+    apiFetch(`/api/conversations/${selectedId}/artifacts`),
   ]);
   const msgData = (await fetchJsonOrThrow(msgRes)) as { messages: Message[] };
   const artData = (await fetchJsonOrThrow(artRes)) as { artifacts: Artifact[] };
@@ -80,7 +80,7 @@ async function loadChat(query: ChatQuery): Promise<ChatData> {
 }
 
 async function postJson(method: "POST" | "DELETE", url: string, body?: unknown): Promise<unknown> {
-  const res = await fetch(url, {
+  const res = await apiFetch(url, {
     method,
     headers: body === undefined ? undefined : { "content-type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -117,7 +117,7 @@ function citationsOfArtifact(content: string): RagCitation[] {
 
 async function loadArtifactContent(id: number, type?: string): Promise<ArtifactContent> {
   const suffix = type === undefined ? "" : `?type=${encodeURIComponent(type)}`;
-  const res = await fetch(`/api/artifacts/${id}/content${suffix}`);
+  const res = await apiFetch(`/api/artifacts/${id}/content${suffix}`);
   const data = (await fetchJsonOrThrow(res)) as ArtifactContent;
   return data;
 }

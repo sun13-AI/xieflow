@@ -16,7 +16,7 @@ import {
   availableApprovalActions,
   isApprovalView,
 } from "@xieflow/shared";
-import { SERVICE_DOWN_MESSAGE, fetchJsonOrThrow } from "./httpClient";
+import { SERVICE_DOWN_MESSAGE, fetchJsonOrThrow, apiFetch } from "./httpClient";
 
 interface ApprovalQuery {
   readonly shot: string;
@@ -48,11 +48,11 @@ function readQuery(): ApprovalQuery {
 }
 
 async function getJson<T>(url: string): Promise<T> {
-  return (await fetchJsonOrThrow(await fetch(url))) as T;
+  return (await fetchJsonOrThrow(await apiFetch(url))) as T;
 }
 
 async function sendJson(url: string, body: unknown): Promise<unknown> {
-  return fetchJsonOrThrow(await fetch(url, {
+  return fetchJsonOrThrow(await apiFetch(url, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
@@ -60,7 +60,7 @@ async function sendJson(url: string, body: unknown): Promise<unknown> {
 }
 
 async function deleteJson(url: string): Promise<unknown> {
-  return fetchJsonOrThrow(await fetch(url, { method: "DELETE" }));
+  return fetchJsonOrThrow(await apiFetch(url, { method: "DELETE" }));
 }
 
 export default function ApprovalPage() {

@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { UnitTask, UnitTaskTreeNode } from "@xieflow/shared";
 import { UNIT_TASK_STATUSES, UNIT_TASK_STATUS_LABELS, buildTaskTree } from "@xieflow/shared";
-import { SERVICE_DOWN_MESSAGE, fetchJsonOrThrow } from "./httpClient";
+import { SERVICE_DOWN_MESSAGE, fetchJsonOrThrow, apiFetch } from "./httpClient";
 
 type TaskStatus = (typeof UNIT_TASK_STATUSES)[number];
 
@@ -16,11 +16,11 @@ interface PageState {
 }
 
 async function getJson<T>(url: string): Promise<T> {
-  return (await fetchJsonOrThrow(await fetch(url))) as T;
+  return (await fetchJsonOrThrow(await apiFetch(url))) as T;
 }
 
 async function sendJson(url: string, body: unknown, method = "POST"): Promise<unknown> {
-  return fetchJsonOrThrow(await fetch(url, {
+  return fetchJsonOrThrow(await apiFetch(url, {
     method,
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),

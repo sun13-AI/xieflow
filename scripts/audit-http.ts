@@ -2584,6 +2584,20 @@ async function audit() {
     const todosLocal = await req("GET", "/api/todos");
     eq(todosLocal.status, 200, "r18 local 模式业务路由匿名可用（不破坏既有路由）");
 
+    // ---- r18 rework#1: browser-layer contract over real HTTP (apiFetch sends Bearer) ----
+    const rwMode = await authReq("POST", "/api/auth/mode", token3, { mode: "remote" });
+    eq(rwMode.status, 200, "r18 返工#1 切回 remote -> 200");
+    const rwTodosAuthed = await authReq("GET", "/api/todos", token3);
+    eq(rwTodosAuthed.status, 200, "r18 返工#1 remote 模式带 token 访问业务 API -> 200");
+    const rwHealthAuthed = await authReq("GET", "/api/health", token3);
+    eq(rwHealthAuthed.status, 200, "r18 返工#1 remote 模式带 token 访问健康路由 -> 200");
+    const rwTodosAnon = await authReq("GET", "/api/todos", null);
+    eq(rwTodosAnon.status, 401, "r18 返工#1 业务 401 反馈到浏览器层 -> 401");
+    eq(rwTodosAnon.json && rwTodosAnon.json.cleared, true, "r18 返工#1 业务 401 响应体 cleared=true（前端清 localStorage）");
+    eq(rwTodosAnon.headers.get("x-xieflow-auth-cleared"), "1", "r18 返工#1 业务 401 响应头 X-Xieflow-Auth-Cleared=1");
+    const rwBackLocal = await authReq("POST", "/api/auth/mode", token3, { mode: "local" });
+    eq(rwBackLocal.status, 200, "r18 返工#1 复验后切回 local -> 200");
+
     // ---- 清理本轮自建账号（级联清会话）：先删普通用户，再删管理员自己 ----
     const delMember = await authReq("DELETE", `/api/auth/users/${memberLogin.json.user.id}`, token3);
     eq(delMember.status, 200, "r18 清理普通用户账号 -> 200");

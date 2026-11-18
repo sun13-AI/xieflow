@@ -24,7 +24,7 @@ import {
   type Project,
   type Todo,
 } from "@xieflow/shared";
-import { SERVICE_DOWN_MESSAGE, fetchJsonOrThrow } from "./httpClient";
+import { SERVICE_DOWN_MESSAGE, fetchJsonOrThrow, apiFetch } from "./httpClient";
 
 const TODO_STATUS_BADGES: Record<Todo["status"], { label: string; cls: string }> = {
   open: { label: TODO_STATUS_LABELS.open, cls: "pill-open" },
@@ -72,7 +72,7 @@ function pickProject(projects: Project[], projectIdParam: string | null): Projec
 
 /** 看板数据：项目列表 + 指定项目（默认第一个）的全部列卡 + 全量待办（徽标按 todoId 查状态） */
 async function fetchBoard(projectIdParam: string | null): Promise<BoardFetch> {
-  const [projRes, todoRes] = await Promise.all([fetch("/api/projects"), fetch("/api/todos")]);
+  const [projRes, todoRes] = await Promise.all([apiFetch("/api/projects"), apiFetch("/api/todos")]);
   const projData = (await fetchJsonOrThrow(projRes)) as { projects: Project[] };
   const todoData = (await fetchJsonOrThrow(todoRes)) as { todos: Todo[] };
   const project = pickProject(projData.projects, projectIdParam);
@@ -86,17 +86,17 @@ async function fetchBoard(projectIdParam: string | null): Promise<BoardFetch> {
       stats: computeBoardStats(0, [], [], todoData.todos),
     };
   }
-  const colRes = await fetch(`/api/projects/${project.id}/columns`);
+  const colRes = await apiFetch(`/api/projects/${project.id}/columns`);
   const colData = (await fetchJsonOrThrow(colRes)) as { columns: BoardColumn[] };
   const cardLists = await Promise.all(
     colData.columns.map(async (c) => {
-      const r = await fetch(`/api/projects/${project.id}/columns/${c.id}/cards`);
+      const r = await apiFetch(`/api/projects/${project.id}/columns/${c.id}/cards`);
       const d = (await fetchJsonOrThrow(r)) as { cards: BoardCard[] };
       return d.cards;
     }),
   );
   // 统计由 api 下发（口径唯一入口 shared computeBoardStats）；移动后 load() 重拉即刷新
-  const statsRes = await fetch(`/api/projects/${project.id}/stats`);
+  const statsRes = await apiFetch(`/api/projects/${project.id}/stats`);
   const stats = (await fetchJsonOrThrow(statsRes)) as BoardStats;
   return {
     project,
@@ -252,7 +252,7 @@ export default function BoardPage() {
       return;
     }
     try {
-      const res = await fetch(`/api/projects/${project.id}/columns/${columns[0]!.id}/cards`, {
+      const res = await apiFetch(`/api/projects/${project.id}/columns/${columns[0]!.id}/cards`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -277,7 +277,7 @@ export default function BoardPage() {
   const moveCard = async (card: BoardCard, toColumnId: number, position: number): Promise<void> => {
     setBusyId(card.id);
     try {
-      const res = await fetch(`/api/cards/${card.id}/move`, {
+      const res = await apiFetch(`/api/cards/${card.id}/move`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ columnId: toColumnId, position }),
@@ -305,7 +305,7 @@ export default function BoardPage() {
   const exportCsv = async (projectId: number): Promise<void> => {
     setExportState({ phase: "exporting" });
     try {
-      const res = await fetch(`/api/projects/${projectId}/export.csv`);
+      const res = await apiFetch(`/api/projects/${projectId}/export.csv`);
       if (!res.ok) {
         setExportState({ phase: "error", message: `HTTP ${res.status}` });
         return;
