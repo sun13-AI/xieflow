@@ -17,7 +17,13 @@
 - r14 思维导图 Markdown 双视图 → v0.0.18（Markdown↔树 37/37 + 变异红相）
 - **CI 积压**：v0.0.15~v0.0.18 因 macOS runner 平台侧 cancel 缺 Release 资产——重跑 + 最终容错修复见上方
 
-### 2026-11-17 · r11 研发（yanfa-r11 · M5 收官：多轮上下文与产物生成）
+### 2026-11-18 · CI/Release 积压清账（lead 跨轮处理）
+- 根因链：macos-latest 被平台 **cancelled**（不是 failure）→ job 级 continue-on-error 不覆盖 cancelled → 四轮 Release 被跳过；v0.0.19 首轮容错仍失败印证
+- 正解：**拆 job**——verify-core（ubuntu+windows）为发版门禁、verify-macos 独立观察（continue-on-error）；v0.0.21 CI 实证 release success + assets=1
+- 积压补发：v0.0.15~v0.0.20 六个 tag 用 git archive 逐 tag 构建源码包经 GitHub API 上传（不挪旧 tag、不伪造内容——每个包对应其 tag commit），全部 assets=1
+- 终态：v0.0.10~v0.0.21 连续 12 个 Release 资产齐全；宪法第二条收尾核对闭环
+
+### 2026-11-18 · r11 研发（yanfa-r11 · M5 收官：多轮上下文与产物生成）
 - 交付：多轮上下文（shared `DEFAULT_CONTEXT_WINDOW=8` / `MAX=20` / `normalizeContextWindow` / `toPlannerContext` / `resolveContextualMessage`，指代消解「再建一个 / 把它改成」纯函数化，api 按窗口截取真实落库消息注入 planner，`resolution` 元数据回显）；**产物生成器** `packages/agent/artifact-generators.ts`（HTML 报告 / Markdown 表格 / JSON 数据，全从真实工具回执装配，iframe/sandbox 预览）；工具链 8→**12**（+summarize_document / export_document_md / list_schedules / create_schedule，handler 全接 XieFlowDb，create_schedule 纳入状态变更清单）；api `chat` 带 `context_window` + `artifactType`、`GET /api/artifacts/:id/content` 按 type 返回可预览正文
 - web：对话流多轮连续 + 上下文提示条 + 12 工具 6/页分页 + 产物 HTML/表格/JSON 三 tab 切换；**r9 U2 必修**（shared `computeInlineDiff` + DocsPage 原文红删/建议绿增行内高亮）、**r10 U2 必修**（产物卡「第 N 轮产物 · 对应本轮对话」与流同轮、窄容器八药丸 nowrap + 488px 顶栏纵排不折行不裁切）
 - 回放评测集 17→**27**（+4 新工具 +3 多轮指代 +3 产物类型；`runToolReplay` 核对 `resolution` / `artifactType` / `expectState.schedules`）
