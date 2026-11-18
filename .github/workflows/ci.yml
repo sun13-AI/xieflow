@@ -6,7 +6,13 @@ on:
   pull_request:
 
 jobs:
+  # Platform tolerance (r18 lead decision): GitHub's macos-latest runner was
+  # repeatedly cancelled by the platform (ubuntu/windows green every time),
+  # which blocked 4 consecutive releases (v0.0.15~v0.0.18). Keep macOS in the
+  # matrix for visibility, but do not let a platform-side cancellation block
+  # a tag release. Real code failures on macOS are still reported in the UI.
   verify:
+    continue-on-error: ${{ matrix.os == 'macos-latest' }}
     strategy:
       fail-fast: false
       matrix:
@@ -34,7 +40,7 @@ jobs:
 
   release:
     needs: verify
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: ${{ startsWith(github.ref, 'refs/tags/v') && needs.verify.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
