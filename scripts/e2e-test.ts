@@ -261,6 +261,22 @@ import {
   type AssetTransaction,
   type UnitTask,
   type UnitTaskTreeNode,
+  // r19：多端同步与冲突处理（三方合并 / 乐观锁 / 幂等）
+  CHANGE_OPERATIONS,
+  DEFAULT_SYNC_LIMIT,
+  MAX_SYNC_LIMIT,
+  assertValidEntityType,
+  assertValidEntityId,
+  assertValidChangeOperation,
+  assertValidVersion,
+  normalizeSince,
+  normalizeLimit,
+  nextVersion,
+  valuesEqual,
+  detectConflict,
+  applyChangeSet,
+  SyncConflictError,
+  type ChangeRecord,
 } from "@xieflow/shared";
 import type { TodoStatus } from "@xieflow/shared";
 import { pbkdf2Sync } from "node:crypto";
@@ -416,6 +432,7 @@ try {
         { version: 13, name: "m", up: [] },
         { version: 14, name: "n", up: [] },
         { version: 15, name: "o", up: [] },
+        { version: 16, name: "p", up: [] },
       ]),
     "队列超出 SCHEMA_VERSION：一致性校验抛错",
   );
@@ -803,8 +820,8 @@ try {
     const v3Migrated = openDatabaseRaw({ path: v3Path });
     eq(
       v3Migrated.appliedMigrations,
-      [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
-      "v2 旧库重开补跑 v3+v4+v5+v6+v7+v8+v9+v10+v11+v12+v13+v14 迁移（真实 PRAGMA 升级路径，r18 起队列追加 v14）",
+      [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+      "v2 旧库重开补跑 v3+v4+v5+v6+v7+v8+v9+v10+v11+v12+v13+v14+v15 迁移（真实 PRAGMA 升级路径）",
     );
     const tables = v3Migrated.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -1029,7 +1046,7 @@ try {
     const v4Open = openDatabaseRaw({ path: v4Path });
     eq(
       v4Open.appliedMigrations,
-      [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
+      [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
       "v3 旧库重开只补跑 v4+v5+v6+v7+v8+v9+v10+v11+v12+v13+v14 迁移（真实 PRAGMA 升级路径）",
     );
     const tables = v4Open.raw
@@ -1041,7 +1058,7 @@ try {
     eq(
       (v4Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（14）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（15）",
     );
     const rawDb: SqliteDatabase = v4Open.raw;
     throws(
@@ -1688,7 +1705,7 @@ try {
     v4Open2.raw.exec("PRAGMA user_version = 4");
     v4Open2.raw.close();
     const v5Open = openDatabaseRaw({ path: v5Path });
-    eq(v5Open.appliedMigrations, [5, 6, 7, 8, 9, 10, 11, 12, 13, 14], "v4 旧库重开只补跑 v5+v6+v7+v8+v9+v10+v11+v12+v13+v14 迁移（真实 PRAGMA 升级路径）");
+    eq(v5Open.appliedMigrations, [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], "v4 旧库重开只补跑 v5+v6+v7+v8+v9+v10+v11+v12+v13+v14 迁移（真实 PRAGMA 升级路径）");
     const tableNames = v5Open.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
       .map((r) => String((r as unknown as { name: unknown }).name));
@@ -1698,7 +1715,7 @@ try {
     eq(
       (v5Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（14）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（15）",
     );
     const rawDb5: SqliteDatabase = v5Open.raw;
     throws(
@@ -2407,7 +2424,7 @@ try {
     v5Open.raw.exec("PRAGMA user_version = 5");
     v5Open.raw.close();
     const v6Open = openDatabaseRaw({ path: v6Path });
-    eq(v6Open.appliedMigrations, [6, 7, 8, 9, 10, 11, 12, 13, 14], "v5 旧库重开只补跑 v6+v7+v8+v9+v10+v11+v12+v13+v14 迁移（真实 PRAGMA 升级路径）");
+    eq(v6Open.appliedMigrations, [6, 7, 8, 9, 10, 11, 12, 13, 14, 15], "v5 旧库重开只补跑 v6+v7+v8+v9+v10+v11+v12+v13+v14 迁移（真实 PRAGMA 升级路径）");
     const tableNames = v6Open.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
       .map((r) => String((r as unknown as { name: unknown }).name));
@@ -2415,7 +2432,7 @@ try {
     eq(
       (v6Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（14）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（15）",
     );
     const rawDb6: SqliteDatabase = v6Open.raw;
     eq(
@@ -2554,7 +2571,7 @@ try {
     eq(
       (reopened.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "重启后 user_version 仍为 14",
+      "重启后 user_version 仍为 15",
     );
     eq(JSON.stringify(reopened.db.listViews(tbl.id)), beforeViews, "视图持久化：重启前后 spec 逐字节相等");
     eq(
@@ -2687,11 +2704,11 @@ try {
     oldOpen.raw.exec("PRAGMA user_version = 6");
     oldOpen.raw.close();
     const v7Open = openDatabaseRaw({ path: v7Path });
-    eq(v7Open.appliedMigrations, [7, 8, 9, 10, 11, 12, 13, 14], "v6 旧库重开补跑 v7+v8+v9+v10+v11+v12+v13+v14 迁移（真实 PRAGMA 升级路径）");
+    eq(v7Open.appliedMigrations, [7, 8, 9, 10, 11, 12, 13, 14, 15], "v6 旧库重开补跑 v7+v8+v9+v10+v11+v12+v13+v14 迁移（真实 PRAGMA 升级路径）");
     eq(
       (v7Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（14）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（15）",
     );
     const tables = (v7Open.raw.all(
       "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('documents','blocks') ORDER BY name",
@@ -3075,11 +3092,11 @@ try {
     old10.raw.exec("PRAGMA user_version = 7");
     old10.raw.close();
     const v8 = openDatabaseRaw({ path: p10Path });
-    eq(v8.appliedMigrations, [8, 9, 10, 11, 12, 13, 14], "v7 旧库重开只补跑 v8+v9+v10+v11+v12+v13+v14 迁移（真实 PRAGMA 升级路径）");
+    eq(v8.appliedMigrations, [8, 9, 10, 11, 12, 13, 14, 15], "v7 旧库重开只补跑 v8+v9+v10+v11+v12+v13+v14 迁移（真实 PRAGMA 升级路径）");
     eq(
       (v8.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（14）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（15）",
     );
     const t10 = v8.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -3491,11 +3508,11 @@ try {
     old.raw.exec("PRAGMA user_version = 8");
     old.raw.close();
     const v9 = openDatabaseRaw({ path: p });
-    eq(v9.appliedMigrations, [9, 10, 11, 12, 13, 14], "v8 旧库重开只补跑 v9+v10+v11+v12+v13+v14 迁移（真实 PRAGMA 升级路径）");
+    eq(v9.appliedMigrations, [9, 10, 11, 12, 13, 14, 15], "v8 旧库重开只补跑 v9+v10+v11+v12+v13+v14 迁移（真实 PRAGMA 升级路径）");
     eq(
       (v9.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（14）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（15）",
     );
     const tables = v9.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -3887,7 +3904,7 @@ try {
     eq(reopened14.getMindmap(1)!.contentMarkdown, "# 根\n- 子", "导图关库重开不丢（Markdown 源逐字节）");
     reopened14.close();
     const raw14 = openDatabaseRaw({ path: `scripts/.tmp-e2e/r14-raw-${Date.now()}.db` });
-    eq((raw14.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 14, "真实 PRAGMA user_version=14");
+    eq((raw14.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 15, "真实 PRAGMA user_version=15");
     eq(
       raw14.raw.all("PRAGMA table_info(mindmaps)").map((r) => String((r as unknown as { name: unknown }).name)),
       ["id", "title", "content_markdown", "created_at", "updated_at"],
@@ -4070,7 +4087,7 @@ try {
     eq(r15.listWhiteboardItems(1)[0]!.content, "关库不丢", "白板条目关库重开不丢（逐字）");
     r15.close();
     const raw15 = openDatabaseRaw({ path: `scripts/.tmp-e2e/r15-raw-${Date.now()}.db` });
-    eq((raw15.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 14, "真实 PRAGMA user_version=14");
+    eq((raw15.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 15, "真实 PRAGMA user_version=15");
     eq(
       raw15.raw.all("PRAGMA table_info(whiteboards)").map((r) => String((r as unknown as { name: unknown }).name)),
       ["id", "title", "created_at"],
@@ -4268,7 +4285,7 @@ try {
     r16.close();
 
     const raw16 = openDatabaseRaw({ path: `scripts/.tmp-e2e/r16-raw-${Date.now()}.db` });
-    eq((raw16.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 14, "真实 PRAGMA user_version=14");
+    eq((raw16.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 15, "真实 PRAGMA user_version=15");
     eq(
       raw16.raw.all("PRAGMA table_info(approvals)").map((r) => String((r as unknown as { name: unknown }).name)),
       ["id", "title", "type", "applicant_id", "status", "current_assignee", "created_at", "updated_at"],
@@ -4374,7 +4391,7 @@ try {
 
     // 51d. schema v13 与数据层（真迁移、真落库、真事务、零半态）
     const raw17 = openDatabaseRaw({ path: ":memory:" });
-    eq((raw17.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 14, "新库 user_version=14");
+    eq((raw17.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 15, "新库 user_version=15");
     eq(
       raw17.raw.all("PRAGMA table_info(assets)").map((r) => String((r as unknown as { name: unknown }).name)),
       ["id", "name", "category", "quantity", "unit", "location", "custodian", "created_at"],
@@ -4539,7 +4556,7 @@ try {
 
     // 52f. schema v14 与账号数据层（真迁移、真落库、不明文、级联清理）
     const raw18 = openDatabaseRaw({ path: ":memory:" });
-    eq((raw18.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 14, "新库 user_version=14");
+    eq((raw18.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 15, "新库 user_version=15");
     eq(
       raw18.raw.all("PRAGMA table_info(users)").map((r) => String((r as unknown as { name: unknown }).name)),
       ["id", "username", "password_hash", "role", "created_at"],
@@ -4674,6 +4691,155 @@ try {
       globalThis.fetch = originalFetch;
       Reflect.deleteProperty(globalThis, "window");
     }
+  }
+
+  // 55. r19：多端同步与冲突处理（TDD 先红：shared 规则 + schema v15 + 数据层）
+  section("r19 多端同步：守卫 / 三方合并 / 乐观锁 / 幂等 / schema v15");
+  {
+    // 变更操作枚举唯一口径
+    eq(CHANGE_OPERATIONS, ["create", "update", "delete"], "r19 变更操作枚举为 create/update/delete 且顺序固定");
+    noThrow(() => assertValidEntityType("todo"), "r19 合法实体类型 todo 通过守卫");
+    throws(() => assertValidEntityType(""), "r19 空实体类型被守卫拒绝");
+    throws(() => assertValidEntityType("Bad Type"), "r19 含空格/大写的实体类型被守卫拒绝");
+    noThrow(() => assertValidEntityId("12"), "r19 数字字符串实体 id 通过守卫");
+    noThrow(() => assertValidEntityId("todo-abc"), "r19 字符串实体 id 通过守卫");
+    throws(() => assertValidEntityId(""), "r19 空实体 id 被守卫拒绝");
+    noThrow(() => assertValidChangeOperation("update"), "r19 update 操作通过守卫");
+    throws(() => assertValidChangeOperation("sleep"), "r19 非法操作被守卫拒绝");
+    noThrow(() => assertValidVersion(0), "r19 版本 0（未创建）合法");
+    throws(() => assertValidVersion(-1), "r19 负版本被拒绝");
+    throws(() => assertValidVersion(1.5), "r19 非整数版本被拒绝");
+
+    // nextVersion：唯一版本递增入口
+    eq(nextVersion(0), 1, "r19 nextVersion(0)=1");
+    eq(nextVersion(7), 8, "r19 nextVersion(7)=8");
+    throws(() => nextVersion(-1), "r19 nextVersion 对负版本抛错（不静默产出版号）");
+
+    // 查询参数归一（非法 since / limit 由 shared 唯一守卫）
+    eq(normalizeSince(undefined), 0, "r19 since 缺省归一为 0");
+    eq(normalizeSince(null), 0, "r19 since=null 归一为 0");
+    eq(normalizeSince("0"), 0, "r19 since='0' 归一为 0");
+    eq(normalizeSince("42"), 42, "r19 since 正整数字符串归一为数值");
+    throws(() => normalizeSince("-1"), "r19 负 since 被拒绝");
+    throws(() => normalizeSince("abc"), "r19 非数字 since 被拒绝");
+    eq(normalizeLimit(undefined), DEFAULT_SYNC_LIMIT, "r19 limit 缺省取 DEFAULT_SYNC_LIMIT");
+    eq(normalizeLimit("10"), 10, "r19 limit 字符串归一为数值");
+    eq(normalizeLimit("99999"), MAX_SYNC_LIMIT, "r19 limit 超上界收敛到 MAX_SYNC_LIMIT");
+    eq(normalizeLimit("0"), 1, "r19 limit=0 收敛到 1（不返回空页造成误解）");
+    throws(() => normalizeLimit("-3"), "r19 负 limit 被拒绝");
+
+    // 深度相等（字段值比较唯一规则）
+    ok(valuesEqual({ a: 1, b: [2, 3] }, { b: [2, 3], a: 1 }), "r19 valuesEqual：键顺序不同视为相等");
+    ok(!valuesEqual({ a: 1 }, { a: 2 }), "r19 valuesEqual：值不同判不等");
+
+    // 三方比较：本地改 A + 远端改 B（同字段不同值 = 真冲突；不同字段 = 可合并）
+    const base = { title: "原", status: "open" };
+    const cSameField = detectConflict(base, { title: "本地", status: "open" }, { title: "远端", status: "open" });
+    eq(cSameField.conflicts, ["title"], "r19 同字段被两端改不同值 -> conflicts=[title]（waizhuan 手算口径）");
+    ok(cSameField.hasConflict, "r19 真冲突时 hasConflict=true");
+    eq(cSameField.merged.title, "远端", "r19 冲突字段默认取远端（服务端 wins，用户可改选）");
+    const cDiffField = detectConflict(base, { title: "本地", status: "open" }, { title: "原", status: "done" });
+    eq(cDiffField.conflicts, [], "r19 两端改不同字段 -> 无严格冲突（可三方合并）");
+    eq(cDiffField.divergedFields, ["status", "title"], "r19 分歧字段列表仍列出全部变化字段（排序确定）");
+    eq(cDiffField.merged, { status: "done", title: "本地" }, "r19 不同字段改动三方合并后双值都在");
+    const cLocalOnly = detectConflict(base, { title: "本地", status: "open" }, base);
+    eq(cLocalOnly.conflicts, [], "r19 仅本地改动 -> 无冲突");
+    eq(cLocalOnly.merged.title, "本地", "r19 仅本地改动取本地值");
+    const cRemoteOnly = detectConflict(base, base, { title: "远端", status: "open" });
+    eq(cRemoteOnly.merged.title, "远端", "r19 仅远端改动取远端值");
+    const cDeleted = detectConflict({ a: 1, b: 2 }, { a: 1 }, { a: 1, b: 2 });
+    ok(!("b" in cDeleted.merged), "r19 本地删除字段不被远端未改的旧值复活");
+    ok(!valuesEqual(base, base) === false, "r19 detectConflict 不修改入参 base（纯函数）");
+
+    // 增量合并：按 id 去重（幂等）+ 同实体版本分叉标记
+    const mkChange = (id: number, version: number, payload: Record<string, unknown>, entityId = "1"): ChangeRecord => ({
+      id,
+      entityType: "todo",
+      entityId,
+      operation: "update",
+      payload,
+      userId: null,
+      createdAt: `2026-11-18T00:00:0${id}Z`,
+      version,
+    });
+    const mergedSet = applyChangeSet([mkChange(1, 1, { title: "a" })], [mkChange(2, 2, { title: "b" })]);
+    eq(mergedSet.applied.map((c) => c.id), [1, 2], "r19 applyChangeSet 合并两端不重复 id");
+    eq(mergedSet.duplicates, 0, "r19 无重复 id 时 duplicates=0");
+    const replaySet = applyChangeSet(
+      [mkChange(1, 1, { title: "a" }), mkChange(2, 2, { title: "b" })],
+      [mkChange(1, 1, { title: "a" }), mkChange(2, 2, { title: "b" })],
+    );
+    eq(replaySet.applied.length, 2, "r19 同一 change_set 重放不新增记录（幂等）");
+    eq(replaySet.duplicates, 2, "r19 重放两次记录全部识别为重复");
+    const forkSet = applyChangeSet([mkChange(1, 2, { title: "L" })], [mkChange(2, 2, { title: "R" })]);
+    eq(forkSet.conflicts, ["todo:1"], "r19 同实体同版本不同载荷 -> 实体级冲突标记");
+
+    // schema v15 与数据层：change_log / entity_versions 真表真迁移
+    const raw19 = openDatabaseRaw({ path: ":memory:" });
+    eq((raw19.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 15, "r19 新库 user_version=15");
+    const logCols = raw19.raw.all("PRAGMA table_info(change_log)").map((r) => String((r as unknown as { name: unknown }).name));
+    eq(logCols, ["id", "entity_type", "entity_id", "operation", "payload", "user_id", "created_at", "version"], "r19 change_log 八列逐列存在");
+    const verCols = raw19.raw.all("PRAGMA table_info(entity_versions)").map((r) => String((r as unknown as { name: unknown }).name));
+    eq(verCols, ["entity_type", "entity_id", "version", "updated_at"], "r19 entity_versions 四列逐列存在");
+    throws(
+      () => raw19.raw.run("INSERT INTO change_log (entity_type,entity_id,operation,payload,created_at,version) VALUES ('todo','1','sleep','{}','t',1)"),
+      "r19 change_log operation CHECK 拒绝非法操作",
+    );
+    throws(
+      () => raw19.raw.run("INSERT INTO entity_versions (entity_type,entity_id,version,updated_at) VALUES ('todo','1',0,'t'),('todo','1',1,'t')"),
+      "r19 entity_versions 主键唯一（同实体不能两行）",
+    );
+
+    const sdb = raw19.db;
+    const a1 = sdb.applySyncChange({ entityType: "todo", entityId: "1", operation: "create", payload: { title: "A", status: "open" }, expectedVersion: 0 });
+    eq(a1.version, 1, "r19 首次 apply 版本递增到 1");
+    ok(a1.applied.id > 0 && a1.applied.payload.title === "A", "r19 apply 真写 change_log 且载荷读回");
+    eq(sdb.getEntityVersion("todo", "1")?.version, 1, "r19 entity_versions 真落库版本 1");
+    eq(sdb.listEntityVersions().length, 1, "r19 status 视角列出一个实体版本");
+    const again = sdb.applySyncChange({ entityType: "todo", entityId: "1", operation: "create", payload: { title: "A", status: "open" }, expectedVersion: 0 });
+    ok(again.idempotent && again.version === 1, "r19 同载荷重放幂等：版本不二次递增");
+    eq(sdb.listChanges(0, 50).length, 1, "r19 幂等重放不产生第二条 change_log");
+
+    const a2 = sdb.applySyncChange({ entityType: "todo", entityId: "1", operation: "update", payload: { title: "L", status: "open" }, expectedVersion: 1 });
+    eq(a2.version, 2, "r19 第二次 apply 版本递增到 2");
+    eq(sdb.listChanges(0, 50).length, 2, "r19 change_log 累积两条");
+    eq(sdb.listChanges(1, 50).length, 1, "r19 since=1 增量拉取只返回 id>1 的一条");
+    eq(sdb.listChanges(0, 50), sdb.listChanges(0, 50), "r19 同一 since 重复拉结果逐字节一致（幂等）");
+    eq(sdb.getChangeAtVersion("todo", "1", 1)?.payload.title, "A", "r19 按版本回读基线载荷");
+    eq(sdb.getLatestChange("todo", "1")?.version, 2, "r19 最新变更读回版本 2");
+
+    // 乐观锁冲突：期望版本过期 → SyncConflictError 带准确冲突字段
+    let conflictErr: unknown = null;
+    try {
+      sdb.applySyncChange({ entityType: "todo", entityId: "1", operation: "update", payload: { title: "R", status: "open" }, expectedVersion: 1, base: { title: "A", status: "open" } });
+    } catch (err) {
+      conflictErr = err;
+    }
+    ok(conflictErr instanceof SyncConflictError, "r19 过期版本 apply 抛 SyncConflictError（api 映射 409）");
+    eq((conflictErr as SyncConflictError | null)?.conflicts, ["title"], "r19 409 冲突字段列表准确：title");
+    eq((conflictErr as SyncConflictError | null)?.currentVersion, 2, "r19 409 回带服务端当前版本 2");
+    eq((conflictErr as SyncConflictError | null)?.remote.title, "L", "r19 409 回带远端载荷供弹窗选边");
+
+    // 选远端（ accepting server state）后版本递增且再同步无冲突
+    const resolved = sdb.applySyncChange({
+      entityType: "todo", entityId: "1", operation: "update",
+      payload: { title: "L", status: "open" }, expectedVersion: 2, base: { title: "A", status: "open" },
+    });
+    eq(resolved.version, 3, "r19 选边后版本递增到 3");
+    ok(!resolved.idempotent, "r19 选边是真新变更（非幂等重放）");
+    const cleanConflict = detectConflict({ title: "L", status: "open" }, { title: "L", status: "open" }, { title: "L", status: "open" });
+    eq(cleanConflict.conflicts, [], "r19 选边后三方比较无冲突（再同步干净）");
+    raw19.raw.close();
+
+    // 渲染层结构断言：同步卡在设置页内，不新增 tab；所有请求走 apiFetch
+    const syncSrc = readFileSync("apps/web/src/SyncCard.tsx", "utf8");
+    const appSrc = readFileSync("apps/web/src/App.tsx", "utf8");
+    ok(/<SyncCard\s*\/>/.test(appSrc), "r19 工作台设置区渲染多端同步卡");
+    ok(!/(^|[^A-Za-z])fetch\s*\(/.test(syncSrc), "r19 同步卡无裸 fetch（统一 apiFetch）");
+    ok(/\bapiFetch\b/.test(syncSrc), "r19 同步卡经 apiFetch 发请求（401 清态链路一致）");
+    eq((appSrc.match(/data-tab="/g) ?? []).length, 14, "r19 tab 数量仍为 14（同步卡不占 tab）");
+    ok(/r19 · 多端同步与冲突处理（M9 收官）/.test(appSrc), "r19 徽章推进到 M9 收官");
+    ok(/sync-modal/.test(syncSrc) && /data-side="local"/.test(syncSrc) && /data-side="remote"/.test(syncSrc), "r19 冲突弹窗提供本地/远端两个选边按钮");
   }
 
   // 54. HTTP 冒烟 /api/health

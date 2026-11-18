@@ -58,6 +58,9 @@ import {
   isApprovalView,
   isUnitTaskStatus,
   isAssetTxType,
+  normalizeSince,
+  normalizeLimit,
+  SyncConflictError,
   type RevisionRequest,
   type Schedule,
   type FieldType,
@@ -2681,6 +2684,79 @@ app.post("/api/auth/mode", async (req, reply) => {
   } catch (err) {
     return authErrorReply(err, reply);
   }
+});
+
+// ---- r19：多端同步（路由层只做参数装配与状态码映射，算法全在 shared/db） ----
+
+/** 409 冲突：冲突字段列表 / 当前版本 / 两端快照一次回给客户端弹窗选边 */
+function syncErrorReply(err: unknown, reply: FastifyReply): FastifyReply {
+  if (err instanceof SyncConflictError) {
+    return reply.code(409).send({
+      error: err.message,
+      code: "SYNC_CONFLICT",
+      conflicts: err.conflicts,
+      divergedFields: err.divergedFields,
+      currentVersion: err.currentVersion,
+      base: err.base,
+      local: err.local,
+      remote: err.remote,
+    });
+  }
+  if (err instanceof ForbiddenError) return reply.code(403).send({ error: err.message, code: "FORBIDDEN" });
+  if (err instanceof ValidationError) return reply.code(400).send({ error: err.message });
+  return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
+}
+
+app.get("/api/sync/changes", async (req, reply) => {
+  try {
+    const q = req.query as { since?: unknown; limit?: unknown };
+    const since = normalizeSince(q.since);
+    const limit = normalizeLimit(q.limit);
+    const changes = requireDb().listChanges(since, limit);
+    return { changes, since, limit, count: changes.length };
+  } catch (err) {
+    return syncErrorReply(err, reply);
+  }
+});
+
+app.post("/api/sync/apply", async (req, reply) => {
+  try {
+    const body = (req.body ?? {}) as {
+      entityType?: unknown; entityId?: unknown; operation?: unknown;
+      payload?: unknown; expectedVersion?: unknown; base?: unknown; userId?: unknown;
+    };
+    // 越权防护：远端模式下普通用户不得把变更记到别人名下（admin 可代记）。
+    const ctx = (req as AuthRequest).auth ?? resolveAuth(req);
+    if (ctx && body.userId !== undefined && body.userId !== null &&
+        Number(body.userId) !== ctx.user.id && !authCan(ctx.user.role, "user:manage")) {
+      throw new ForbiddenError("不能将变更记到其他用户名下");
+    }
+    const result = requireDb().applySyncChange({
+      entityType: body.entityType,
+      entityId: body.entityId,
+      operation: body.operation,
+      payload: body.payload,
+      expectedVersion: body.expectedVersion,
+      base: body.base,
+      userId: body.userId ?? ctx?.user.id,
+    });
+    return { applied: result.applied, version: result.version, idempotent: result.idempotent };
+  } catch (err) {
+    return syncErrorReply(err, reply);
+  }
+});
+
+app.get("/api/sync/status", async () => {
+  const store = requireDb();
+  const versions = store.listEntityVersions();
+  const latest = store.listChanges(0, 1);
+  return {
+    versions,
+    total: versions.length,
+    lastChangeId: latest.length > 0 ? latest[0]!.id : 0,
+    lastChangeAt: latest.length > 0 ? latest[0]!.createdAt : null,
+    schemaVersion: CURRENT_SCHEMA_VERSION,
+  };
 });
 
 const stop = async () => {

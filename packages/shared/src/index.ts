@@ -321,7 +321,7 @@ export function assembleRangeSchedules(
 }
 
 /** 数据库 schema 版本号，每轮迁移必须 +1（宪法：禁止手改库文件） */
-export const SCHEMA_VERSION: number = 14;
+export const SCHEMA_VERSION: number = 15;
 
 
 /** 迁移脚本类型：user_version 从 from 升到 to */
@@ -3877,3 +3877,221 @@ export function buildTaskTree(tasks: readonly UnitTask[]): UnitTaskTreeNode[] {
   };
   return sortNodes(roots);
 }
+
+// ---- r19：多端同步与冲突处理（规则唯一口径，api / db / web 零算法分支） ----
+
+/** 变更操作枚举（唯一清单） */
+export const CHANGE_OPERATIONS = ["create", "update", "delete"] as const;
+export type ChangeOperation = (typeof CHANGE_OPERATIONS)[number];
+
+/** 增量拉取默认 / 最大条数 */
+export const DEFAULT_SYNC_LIMIT = 50;
+export const MAX_SYNC_LIMIT = 200;
+
+/** 变更日志条目（change_log 表 camelCase 契约） */
+export interface ChangeRecord {
+  readonly id: number;
+  readonly entityType: string;
+  readonly entityId: string;
+  readonly operation: ChangeOperation;
+  readonly payload: Record<string, unknown>;
+  readonly userId: number | null;
+  readonly createdAt: string;
+  readonly version: number;
+}
+
+/** 实体当前版本（entity_versions 表 camelCase 契约） */
+export interface EntityVersion {
+  readonly entityType: string;
+  readonly entityId: string;
+  readonly version: number;
+  readonly updatedAt: string;
+}
+
+/** 三方比较结果：conflicts 为真冲突字段；divergedFields 为所有分歧字段 */
+export interface SyncConflictResult {
+  readonly conflicts: readonly string[];
+  readonly divergedFields: readonly string[];
+  readonly merged: Record<string, unknown>;
+  readonly hasConflict: boolean;
+}
+
+export function isChangeOperation(value: unknown): value is ChangeOperation {
+  return typeof value === "string" && (CHANGE_OPERATIONS as readonly string[]).includes(value);
+}
+
+export function assertValidEntityType(value: unknown): asserts value is string {
+  if (typeof value !== "string" || !/^[a-z][a-z0-9_]{0,63}$/.test(value)) {
+    throw new ValidationError(`非法实体类型：${String(value)}（须小写字母开头的 1-64 位标识）`);
+  }
+}
+
+export function assertValidEntityId(value: unknown): asserts value is string {
+  if (typeof value !== "string" || value.trim() === "" || value.length > 64) {
+    throw new ValidationError(`非法实体 id：${String(value)}（须 1-64 位非空串）`);
+  }
+}
+
+export function assertValidChangeOperation(value: unknown): asserts value is ChangeOperation {
+  if (!isChangeOperation(value)) {
+    throw new ValidationError(`非法变更操作：${String(value)}（允许 ${CHANGE_OPERATIONS.join("/")}）`);
+  }
+}
+
+export function assertValidVersion(value: unknown): asserts value is number {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0 || value > 1_000_000_000) {
+    throw new ValidationError(`非法版本号：${String(value)}（须 0-1e9 的整数）`);
+  }
+}
+
+/** since 查询参数归一：缺省为 0，正整数字符串转数值，非法一律抛错 */
+export function normalizeSince(value: unknown): number {
+  if (value === undefined || value === null || value === "") return 0;
+  const raw = typeof value === "number" ? value : Number(value);
+  if (!Number.isInteger(raw) || raw < 0) throw new ValidationError(`非法 since：${String(value)}`);
+  return raw;
+}
+
+/** limit 查询参数归一：缺省 DEFAULT_SYNC_LIMIT，0→1，超过 MAX_SYNC_LIMIT 收敛 */
+export function normalizeLimit(value: unknown): number {
+  if (value === undefined || value === null || value === "") return DEFAULT_SYNC_LIMIT;
+  const raw = typeof value === "number" ? value : Number(value);
+  if (!Number.isInteger(raw) || raw < 0) throw new ValidationError(`非法 limit：${String(value)}`);
+  if (raw === 0) return 1;
+  return Math.min(raw, MAX_SYNC_LIMIT);
+}
+
+/** 唯一版本递增入口：先守卫再 +1，避免坏值静默产出版号 */
+export function nextVersion(current: unknown): number {
+  assertValidVersion(current);
+  return (current as number) + 1;
+}
+
+/** 稳定深度比较：键顺序无关，用于三方字段值比较（不修改入参） */
+export function valuesEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (a === null || b === null || typeof a !== "object" || typeof b !== "object") {
+    return Number.isNaN(a) && Number.isNaN(b) ? true : false;
+  }
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) if (!valuesEqual(a[i], b[i])) return false;
+    return true;
+  }
+  const ao = a as Record<string, unknown>;
+  const bo = b as Record<string, unknown>;
+  const ak = Object.keys(ao).sort();
+  const bk = Object.keys(bo).sort();
+  if (ak.length !== bk.length) return false;
+  for (let i = 0; i < ak.length; i++) {
+    if (ak[i] !== bk[i]) return false;
+    if (!valuesEqual(ao[ak[i]!], bo[bk[i]!])) return false;
+  }
+  return true;
+}
+
+function hasKey(obj: Record<string, unknown>, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(obj, key);
+}
+
+/**
+ * 三方比较唯一规则（base = 共同祖先快照，local / remote = 两端当前快照）：
+ * - 两端都改了同一字段且值不同 → conflicts（真冲突，默认取远端，用户可改选）；
+ * - 仅一端改 → 取该端值；两端都未改 → 取 base；
+ * - 任一端删除字段（键缺失）视为该字段被删除，不被另一端未改的旧值复活；
+ * - divergedFields = 相对 base 任一端发生变化的全部字段（排序确定，供 UI 展示）。
+ * 本函数为纯函数，绝不修改三个入参。
+ */
+export function detectConflict(
+  base: Record<string, unknown>,
+  local: Record<string, unknown>,
+  remote: Record<string, unknown>,
+): SyncConflictResult {
+  const keys = Array.from(new Set([...Object.keys(base), ...Object.keys(local), ...Object.keys(remote)])).sort();
+  const conflicts: string[] = [];
+  const diverged: string[] = [];
+  const merged: Record<string, unknown> = {};
+  for (const key of keys) {
+    const inBase = hasKey(base, key) ? base[key] : undefined;
+    const inLocal = hasKey(local, key) ? local[key] : undefined;
+    const inRemote = hasKey(remote, key) ? remote[key] : undefined;
+    const baseHas = hasKey(base, key);
+    const localHas = hasKey(local, key);
+    const remoteHas = hasKey(remote, key);
+    const localChanged = localHas !== baseHas || !valuesEqual(inLocal, inBase);
+    const remoteChanged = remoteHas !== baseHas || !valuesEqual(inRemote, inBase);
+    if (localChanged || remoteChanged) diverged.push(key);
+    if (localChanged && remoteChanged && !valuesEqual(inLocal, inRemote)) {
+      conflicts.push(key);
+      if (remoteHas) merged[key] = inRemote;
+      continue;
+    }
+    if (localChanged) {
+      if (localHas) merged[key] = inLocal;
+      continue;
+    }
+    if (remoteChanged) {
+      if (remoteHas) merged[key] = inRemote;
+      continue;
+    }
+    if (baseHas) merged[key] = inBase;
+  }
+  return { conflicts, divergedFields: diverged, merged, hasConflict: conflicts.length > 0 };
+}
+
+/** 乐观锁冲突：api 统一映射 409，载荷带冲突字段与两端快照供弹窗选边 */
+export class SyncConflictError extends Error {
+  constructor(
+    message: string,
+    readonly conflicts: readonly string[],
+    readonly divergedFields: readonly string[],
+    readonly currentVersion: number,
+    readonly base: Record<string, unknown>,
+    readonly local: Record<string, unknown>,
+    readonly remote: Record<string, unknown>,
+  ) {
+    super(message);
+    this.name = "SyncConflictError";
+  }
+}
+
+/** 增量合并结果：applied 去重后按 id 升序；conflicts 为同实体同版本不同载荷的实体键 */
+export interface ChangeSetMergeResult {
+  readonly applied: ChangeRecord[];
+  readonly duplicates: number;
+  readonly conflicts: readonly string[];
+}
+
+/**
+ * 增量合并唯一规则：按变更 id 去重（重放幂等），两端同实体同版本不同载荷记实体级冲突标记。
+ * 纯函数，不修改任何入参数组或条目。
+ */
+export function applyChangeSet(
+  local: readonly ChangeRecord[],
+  remote: readonly ChangeRecord[],
+): ChangeSetMergeResult {
+  const byId = new Map<number, ChangeRecord>();
+  let duplicates = 0;
+  for (const c of local) byId.set(c.id, c);
+  for (const c of remote) {
+    if (byId.has(c.id)) {
+      duplicates++;
+      continue;
+    }
+    byId.set(c.id, c);
+  }
+  const applied = [...byId.values()].sort((a, b) => a.id - b.id);
+  const latestByEntity = new Map<string, ChangeRecord>();
+  const conflictEntities = new Set<string>();
+  for (const c of applied) {
+    const key = `${c.entityType}:${c.entityId}`;
+    const prev = latestByEntity.get(key);
+    if (prev && prev.version === c.version && !valuesEqual(prev.payload, c.payload)) {
+      conflictEntities.add(key);
+    }
+    if (!prev || c.version >= prev.version) latestByEntity.set(key, c);
+  }
+  return { applied, duplicates, conflicts: [...conflictEntities].sort() };
+}
+

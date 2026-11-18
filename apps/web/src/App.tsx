@@ -10,6 +10,8 @@
 // r16：+ 审批页（M8 第 1 片：发起 / 三视角 / 时间线 / 操作），壳基线扩为十二 tab。
 // r17：+ 物资页 + 单位任务页（M8 收官），壳基线扩为十四 tab。
 // r18：+ 登录/注册独立路由（不占 tab）+ 工作台「本机/远端」模式卡 + 401 清假登录态跳登录。
+// r19：+ 工作台设置区「多端同步」卡 + 冲突弹窗选边（不新增 tab，十四 tab 数量不变）。
+import SyncCard from "./SyncCard";
 // 截图状态真实存在：加载中 / 空数据 / 正常 / 错误 / 窄屏（?narrow=1 显式钉态）
 import { useEffect, useState } from "react";
 import type { AppSetting, Schedule, Todo } from "@xieflow/shared";
@@ -178,7 +180,7 @@ export default function App() {
       return {
         phase: "ready",
         settings: [{ key: "company.name", value: "协流示例公司", updatedAt: now.toISOString() }],
-        schemaVersion: 14,
+        schemaVersion: 15,
         todaySchedules: workbenchTodaySeed(now),
         todos: [],
       };
@@ -367,7 +369,7 @@ export default function App() {
             单位任务
           </button>
         </nav>
-        <span className="badge">r18 · 账号与网络版服务（M9 起步）</span>
+        <span className="badge">r19 · 多端同步与冲突处理（M9 收官）</span>
         <span className="auth-controls" data-state="auth-controls">
           {pinnedToken ? (
             <button type="button" className="auth-top-btn" onClick={logout}>退出登录</button>
@@ -479,6 +481,7 @@ export default function App() {
                   <p className="shot-note" data-state="shot-note">截图钉注：设置区「本机/远端」切换卡；服务端模式来自 GET /api/auth/mode。</p>
                 )}
               </section>
+              <SyncCard />
               <section className="card state-ready" data-state="ready">
                 <h2>工作台</h2>
                 {state.settings.length === 0 ? (
@@ -498,7 +501,7 @@ export default function App() {
                   <dt>schema 版本</dt>
                   <dd>v{state.schemaVersion}</dd>
                   <dt>里程碑</dt>
-                  <dd>M9 网络版（起步）</dd>
+                  <dd>M9 网络版（收官）</dd>
                 </dl>
               </section>
             </>

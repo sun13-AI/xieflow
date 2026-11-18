@@ -44,6 +44,8 @@ import type {
   AssetCategory,
   UnitTask,
   UnitTaskStatus,
+  ChangeRecord,
+  EntityVersion,
 } from "@xieflow/shared";
 import type { AuthUser, AuthRole, Session } from "@xieflow/shared/auth";
 import { isFieldType, isBlockType, normalizeBlockContent, isKnowledgeSourceType } from "@xieflow/shared";
@@ -506,5 +508,38 @@ export function mapRowToSession(row: Row): Session {
     userId: Number(row.user_id),
     token: String(row.token),
     expiresAt: String(row.expires_at),
+  };
+}
+
+/** v15 change_log 行 → 变更记录（payload JSON 解析，user_id 可空） */
+export function mapRowToChangeRecord(row: Row): ChangeRecord {
+  let payload: Record<string, unknown> = {};
+  try {
+    const parsed: unknown = JSON.parse(String(row.payload ?? "{}"));
+    if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) {
+      payload = parsed as Record<string, unknown>;
+    }
+  } catch {
+    payload = {};
+  }
+  return {
+    id: Number(row.id),
+    entityType: String(row.entity_type),
+    entityId: String(row.entity_id),
+    operation: String(row.operation) as ChangeRecord["operation"],
+    payload,
+    userId: row.user_id === null || row.user_id === undefined ? null : Number(row.user_id),
+    createdAt: String(row.created_at),
+    version: Number(row.version),
+  };
+}
+
+/** v15 entity_versions 行 → 实体版本摘要 */
+export function mapRowToEntityVersion(row: Row): EntityVersion {
+  return {
+    entityType: String(row.entity_type),
+    entityId: String(row.entity_id),
+    version: Number(row.version),
+    updatedAt: String(row.updated_at),
   };
 }

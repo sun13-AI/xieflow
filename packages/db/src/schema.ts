@@ -354,6 +354,31 @@ export const MIGRATIONS: Migration[] = [
       `CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions (user_id)`,
     ],
   },
+  {
+    version: 15,
+    name: "r19 · change_log / entity_versions 表（M9 收官：多端同步与乐观锁冲突）",
+    up: [
+      `CREATE TABLE IF NOT EXISTS change_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        entity_type TEXT NOT NULL,
+        entity_id TEXT NOT NULL,
+        operation TEXT NOT NULL CHECK (operation IN ('create','update','delete')),
+        payload TEXT NOT NULL DEFAULT '{}',
+        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TEXT NOT NULL,
+        version INTEGER NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_change_log_entity ON change_log (entity_type, entity_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_change_log_version ON change_log (entity_type, entity_id, version)`,
+      `CREATE TABLE IF NOT EXISTS entity_versions (
+        entity_type TEXT NOT NULL,
+        entity_id TEXT NOT NULL,
+        version INTEGER NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (entity_type, entity_id)
+      )`,
+    ],
+  },
 ];
 
 /** 当前 schema 版本（与 shared 的 SCHEMA_VERSION 保持一致，e2e 会断言二者相等） */

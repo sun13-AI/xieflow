@@ -40,6 +40,8 @@ import {
   mapRowToUnitTask,
   mapRowToAuthUser,
   mapRowToSession,
+  mapRowToChangeRecord,
+  mapRowToEntityVersion,
 } from "./mappers.js";
 import type {
   AppSetting,
@@ -169,6 +171,19 @@ import {
   applyAssetTransaction,
   buildTaskTree,
   ValidationError,
+  assertValidEntityType,
+  assertValidEntityId,
+  assertValidChangeOperation,
+  assertValidVersion,
+  normalizeSince,
+  normalizeLimit,
+  nextVersion,
+  detectConflict,
+  valuesEqual,
+  SyncConflictError,
+  type ChangeRecord,
+  type EntityVersion,
+  type ChangeOperation,
 } from "@xieflow/shared";
 import { REPEATS_ORDER } from "./repeat-order.js";
 
@@ -2421,5 +2436,157 @@ export class XieFlowDb {
     const expired = this.listSessions().filter((s) => Date.parse(s.expiresAt) <= Date.parse(nowIso));
     for (const s of expired) this.deleteSession(s.token);
     return expired;
+  }
+
+  // ---- r19：多端同步（schema v15）----
+
+  /** 追加一条变更日志（乐观锁写入的内部唯一入口，单条落库） */
+  appendChange(input: {
+    readonly entityType: unknown;
+    readonly entityId: unknown;
+    readonly operation: unknown;
+    readonly payload: Record<string, unknown>;
+    readonly version: unknown;
+    readonly userId?: unknown;
+    readonly createdAt?: unknown;
+  }): ChangeRecord {
+    assertValidEntityType(input.entityType);
+    assertValidEntityId(input.entityId);
+    assertValidChangeOperation(input.operation);
+    assertValidVersion(input.version);
+    const createdAt = input.createdAt === undefined || input.createdAt === null
+      ? new Date().toISOString()
+      : String(input.createdAt);
+    let userId: number | null = null;
+    if (input.userId !== undefined && input.userId !== null) {
+      const uid = Number(input.userId);
+      if (!Number.isInteger(uid) || uid <= 0 || !this.getUserById(uid)) {
+        throw new ValidationError(`变更关联用户不存在：${String(input.userId)}`);
+      }
+      userId = uid;
+    }
+    const res = this.db.run(
+      `INSERT INTO change_log (entity_type, entity_id, operation, payload, user_id, created_at, version)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [input.entityType, input.entityId, input.operation, JSON.stringify(input.payload), userId, createdAt, input.version],
+    );
+    const row = this.db.get("SELECT * FROM change_log WHERE id = ?", [Number(res.lastInsertRowid)]);
+    if (!row) throw new Error("变更日志写入后读回失败");
+    return mapRowToChangeRecord(row);
+  }
+
+  /** 增量拉取：id > since 按 id 升序，limit 由 shared 归一（同 since 重复拉结果稳定） */
+  listChanges(sinceInput: unknown = 0, limitInput: unknown = 50): ChangeRecord[] {
+    const since = normalizeSince(sinceInput);
+    const limit = normalizeLimit(limitInput);
+    return this.db
+      .all("SELECT * FROM change_log WHERE id > ? ORDER BY id ASC LIMIT ?", [since, limit])
+      .map(mapRowToChangeRecord);
+  }
+
+  getEntityVersion(entityType: string, entityId: string): EntityVersion | null {
+    const row = this.db.get(
+      "SELECT entity_type, entity_id, version, updated_at FROM entity_versions WHERE entity_type = ? AND entity_id = ?",
+      [entityType, entityId],
+    );
+    return row ? mapRowToEntityVersion(row) : null;
+  }
+
+  listEntityVersions(): EntityVersion[] {
+    return this.db
+      .all("SELECT entity_type, entity_id, version, updated_at FROM entity_versions ORDER BY entity_type, entity_id")
+      .map(mapRowToEntityVersion);
+  }
+
+  /** 按版本回读基线载荷（三方比较的 base 来源） */
+  getChangeAtVersion(entityType: string, entityId: string, version: number): ChangeRecord | null {
+    const row = this.db.get(
+      "SELECT * FROM change_log WHERE entity_type = ? AND entity_id = ? AND version = ? ORDER BY id DESC LIMIT 1",
+      [entityType, entityId, version],
+    );
+    return row ? mapRowToChangeRecord(row) : null;
+  }
+
+  getLatestChange(entityType: string, entityId: string): ChangeRecord | null {
+    const row = this.db.get(
+      "SELECT * FROM change_log WHERE entity_type = ? AND entity_id = ? ORDER BY id DESC LIMIT 1",
+      [entityType, entityId],
+    );
+    return row ? mapRowToChangeRecord(row) : null;
+  }
+
+  /**
+   * 乐观锁写入唯一入口：expectedVersion 等于服务端当前版本才落库并 +1；
+   * 期望版本恰好落后一代且载荷完全相同 → 幂等重放（不二次递增）；
+   * 其余一律抛 SyncConflictError（三方比较字段列表 + 两端快照，api 映射 409）。
+   * 单事务覆盖 change_log 追加 + entity_versions upsert，零半态。
+   */
+  applySyncChange(input: {
+    readonly entityType: unknown;
+    readonly entityId: unknown;
+    readonly operation: unknown;
+    readonly payload: unknown;
+    readonly expectedVersion: unknown;
+    readonly base?: unknown;
+    readonly userId?: unknown;
+  }): { readonly applied: ChangeRecord; readonly version: number; readonly idempotent: boolean } {
+    assertValidEntityType(input.entityType);
+    assertValidEntityId(input.entityId);
+    assertValidChangeOperation(input.operation);
+    assertValidVersion(input.expectedVersion);
+    if (input.payload === null || typeof input.payload !== "object" || Array.isArray(input.payload)) {
+      throw new ValidationError("变更载荷必须是对象");
+    }
+    const payload = input.payload as Record<string, unknown>;
+    if (input.base !== undefined && input.base !== null &&
+        (typeof input.base !== "object" || Array.isArray(input.base))) {
+      throw new ValidationError("三方比较基线必须是对象");
+    }
+    const entityType: string = input.entityType;
+    const entityId: string = input.entityId;
+    const expectedVersion: number = input.expectedVersion;
+    const operation: ChangeOperation = input.operation;
+    const currentVersion = this.getEntityVersion(entityType, entityId)?.version ?? 0;
+    const latest = this.getLatestChange(entityType, entityId);
+
+    if (expectedVersion === currentVersion) {
+      const version = nextVersion(currentVersion);
+      const now = new Date().toISOString();
+      this.db.exec("BEGIN IMMEDIATE");
+      let applied: ChangeRecord | null = null;
+      try {
+        applied = this.appendChange({ entityType, entityId, operation, payload, version, userId: input.userId, createdAt: now });
+        this.db.run(
+          `INSERT INTO entity_versions (entity_type, entity_id, version, updated_at) VALUES (?, ?, ?, ?)
+           ON CONFLICT(entity_type, entity_id) DO UPDATE SET version = excluded.version, updated_at = excluded.updated_at`,
+          [entityType, entityId, version, now],
+        );
+        this.db.exec("COMMIT");
+      } catch (err) {
+        this.db.exec("ROLLBACK");
+        throw err;
+      }
+      return { applied: applied!, version, idempotent: false };
+    }
+
+    if (expectedVersion === currentVersion - 1 && latest && latest.version === currentVersion &&
+        latest.operation === operation && valuesEqual(latest.payload, payload)) {
+      return { applied: latest, version: currentVersion, idempotent: true };
+    }
+
+    const base = (input.base !== undefined && input.base !== null
+      ? input.base as Record<string, unknown>
+      : this.getChangeAtVersion(entityType, entityId, expectedVersion)?.payload ?? {});
+    const remote = latest?.payload ?? {};
+    const compared = detectConflict(base, payload, remote);
+    throw new SyncConflictError(
+      `版本冲突：期望 ${expectedVersion}，服务端当前 ${currentVersion}`,
+      compared.conflicts,
+      compared.divergedFields,
+      currentVersion,
+      base,
+      payload,
+      remote,
+    );
   }
 }

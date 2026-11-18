@@ -17,6 +17,7 @@
 #   powershell -File scripts\shot.ps1 shots -Round r16 # capture r16 approval form / todo / timeline / approved states
 #   powershell -File scripts\shot.ps1 shots -Round r17 # capture r17 assets / transactions / unit task tree states
 #   powershell -File scripts\shot.ps1 shots -Round r18 # capture r18 login / register / logout / 401 / mode switch states
+#   powershell -File scripts\shot.ps1 shots -Round r19 # capture r19 multi-device sync card / conflict modal states
 #   powershell -File scripts\shot.ps1 shots -Round r11 -Shot 08-docs-diff-inline # rework#1: re-capture ONLY the diff-inline evidence (no other matrix/shell re-shot)
 #   powershell -File scripts\shot.ps1 down            # stop servers
 #   powershell -File scripts\shot.ps1 status          # show port status
@@ -41,7 +42,7 @@ param(
   [Parameter(Position = 0)]
   [ValidateSet("up", "shots", "down", "status", "all")]
   [string]$Action = "status",
-  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18")]
+  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19")]
   [string]$Round = "r1",
   [Parameter()]
   [string]$Shot = ""
@@ -944,6 +945,20 @@ function Invoke-Shots {
       @{ name = "07-narrow";          url = "$r18LoginBase&narrow=1"; width = 488; height = 900 },
       @{ name = "08-logged-in";       url = "http://127.0.0.1:$WebPort/?shot=ready&auth=in"; width = 1280; height = 900 }
     )
+  } elseif ($Round -eq "r19") {
+    # r19: sync card lives inside the workbench settings area (no new tab).
+    # All seven states are deterministic ?shot= pins; real HTTP sync behavior is
+    # locked by the audit suite (409 conflict field list / optimistic lock / idempotency).
+    $r19Base = "http://127.0.0.1:$WebPort/"
+    $shots = @(
+      @{ name = "01-sync-idle";      url = "$r19Base`?shot=sync-idle"; width = 1280; height = 900 },
+      @{ name = "02-sync-pending";   url = "$r19Base`?shot=sync-pending"; width = 1280; height = 900 },
+      @{ name = "03-sync-conflicts"; url = "$r19Base`?shot=sync-conflicts"; width = 1280; height = 900 },
+      @{ name = "04-sync-modal";     url = "$r19Base`?shot=sync-modal"; width = 1280; height = 900 },
+      @{ name = "05-sync-success";   url = "$r19Base`?shot=sync-success"; width = 1280; height = 900 },
+      @{ name = "06-sync-narrow";    url = "$r19Base`?shot=sync-pending&narrow=1"; width = 488; height = 900 },
+      @{ name = "07-sync-error";     url = "$r19Base`?shot=sync-error"; width = 1280; height = 900 }
+    )
   } elseif ($Round -eq "r17") {
     # 01 = pinned empty; 02 = first-use form; 03 = real asset ledger; 04 = real
     # transaction timeline (in/out between captures); 05 = real task tree;
@@ -1566,6 +1581,16 @@ function Invoke-Shots {
       Write-Output "r18 service mode restored to local"
     } catch {
       Write-Output "warn: r18 cleanup failed ($($_.Exception.Message))"
+    }
+  } elseif ($Round -eq "r19") {
+    # r19: no seeded entities (all seven states are ?shot= pins). Restore mode to local.
+    try {
+      Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/auth/mode" -Method Post `
+        -ContentType "application/json; charset=utf-8" `
+        -Body ([System.Text.Encoding]::UTF8.GetBytes('{"mode":"local"}')) | Out-Null
+      Write-Output "r19 service mode restored to local"
+    } catch {
+      Write-Output "warn: r19 cleanup failed ($($_.Exception.Message))"
     }
   } elseif ($Round -eq "r17") {
     # r17: delete only the asset and tasks this run seeded (transactions cascade).

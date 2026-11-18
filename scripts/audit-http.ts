@@ -145,7 +145,7 @@ async function audit() {
     eq(h.json && h.json.ok, true, "health.ok = true");
     // r4 起动态对表：health.schemaVersion 必须等于迁移队列最高版本（不再硬编码 2/3，
     // r3 v0.0.6 CI 红教训——静态硬编码在每轮迁移后必过期）
-    eq(h.json && h.json.schemaVersion, 14, "health.schemaVersion = 14（r18 迁移后）");
+    eq(h.json && h.json.schemaVersion, 15, "health.schemaVersion = 15（r19 迁移后）");
     const s = await req("GET", "/api/settings");
     eq(s.status, 200, "GET /api/settings -> 200");
     ok(Array.isArray(s.json && s.json.settings), "settings 返回数组");
@@ -242,7 +242,7 @@ async function audit() {
   {
     // health 探针反映 schema v8（r4 起迁移后动态推进）
     const h3 = await req("GET", "/api/health");
-    eq(h3.json && h3.json.schemaVersion, 14, "health.schemaVersion = 14（r18 迁移后复核）");
+    eq(h3.json && h3.json.schemaVersion, 15, "health.schemaVersion = 15（r19 迁移后复核）");
 
     const r = await expectStatus(
       "POST",
@@ -2607,6 +2607,137 @@ async function audit() {
     eq(afterCleanup.status, 401, "r18 用户删除后其会话级联失效 -> 401");
     const finalMode = await req("GET", "/api/auth/mode");
     eq(finalMode.json && finalMode.json.mode, "local", "r18 终态服务模式回 local");
+  }
+
+  // ---- r19：多端同步与冲突处理（真 HTTP：增量拉取 / 乐观锁 409 / 幂等 / 越权） ----
+  console.log("\n== Sync r19: changes / apply / status / 409 conflict / 4xx ==");
+  {
+    const ET = "todo";
+    const EID = "r19-http";
+    // 空闲态
+    const st0 = await expectStatus("GET", "/api/sync/status", undefined, 200, "r19 GET status -> 200");
+    eq(st0.json && st0.json.total, 0, "r19 初始无实体版本");
+    eq(st0.json && st0.json.lastChangeId, 0, "r19 初始 lastChangeId=0");
+    eq(st0.json && st0.json.schemaVersion, 15, "r19 status 回带 schema v15");
+    const ch0 = await expectStatus("GET", "/api/sync/changes?since=0&limit=50", undefined, 200, "r19 GET changes 空 -> 200");
+    eq(ch0.json && ch0.json.count, 0, "r19 初始变更日志为空");
+    eq(ch0.json && ch0.json.changes, [], "r19 初始 changes 数组为空");
+
+    // 首用全链路①：建基线 v1
+    const a1 = await expectStatus("POST", "/api/sync/apply", {
+      entityType: ET, entityId: EID, operation: "create", payload: { title: "A", status: "open" }, expectedVersion: 0,
+    }, 200, "r19 apply create -> 200");
+    eq(a1.json && a1.json.version, 1, "r19 首次同步版本=1");
+    eq(a1.json && a1.json.idempotent, false, "r19 首次同步非幂等重放");
+    ok(a1.json && a1.json.applied.id > 0, "r19 真写 change_log 返回自增 id");
+    const st1 = await req("GET", "/api/sync/status");
+    eq(st1.json && st1.json.total, 1, "r19 status 实体版本数=1");
+    ok(st1.json && st1.json.lastChangeId > 0, "r19 status 回带最后变更 id");
+
+    // 增量拉取幂等 + since/limit
+    const pull1 = await expectStatus("GET", "/api/sync/changes?since=0&limit=50", undefined, 200, "r19 增量拉取 -> 200");
+    eq(pull1.json && pull1.json.count, 1, "r19 拉取返回 1 条");
+    const pull2 = await req("GET", "/api/sync/changes?since=0&limit=50");
+    eq(pull2.json && pull2.json.changes, pull1.json && pull1.json.changes, "r19 同一 since 重复拉逐字节一致（幂等）");
+    eq(pull2.json && pull2.json.since, 0, "r19 响应回显 since");
+    eq(pull2.json && pull2.json.limit, 50, "r19 响应回显 limit");
+
+    // 非法 since / limit / 载荷 / 版本 → 400
+    await expectStatus("GET", "/api/sync/changes?since=-1", undefined, 400, "r19 负 since -> 400");
+    await expectStatus("GET", "/api/sync/changes?since=abc", undefined, 400, "r19 非数字 since -> 400");
+    await expectStatus("GET", "/api/sync/changes?limit=-3", undefined, 400, "r19 负 limit -> 400");
+    const capped = await req("GET", "/api/sync/changes?limit=99999");
+    eq(capped.json && capped.json.limit, 200, "r19 超上界 limit 收敛为 200");
+    await expectStatus("POST", "/api/sync/apply", { entityType: "Bad Type", entityId: EID, operation: "update", payload: {}, expectedVersion: 1 }, 400, "r19 非法 entityType -> 400");
+    await expectStatus("POST", "/api/sync/apply", { entityType: ET, entityId: EID, operation: "sleep", payload: {}, expectedVersion: 1 }, 400, "r19 非法 operation -> 400");
+    await expectStatus("POST", "/api/sync/apply", { entityType: ET, entityId: EID, operation: "update", payload: [], expectedVersion: 1 }, 400, "r19 数组载荷 -> 400");
+    await expectStatus("POST", "/api/sync/apply", { entityType: ET, entityId: EID, operation: "update", payload: {}, expectedVersion: -1 }, 400, "r19 负期望版本 -> 400");
+    await expectStatus("POST", "/api/sync/apply", { entityId: EID, operation: "update", payload: {}, expectedVersion: 1 }, 400, "r19 缺 entityType -> 400");
+
+    // 首用全链路②：本地改 A -> v2
+    const a2 = await expectStatus("POST", "/api/sync/apply", {
+      entityType: ET, entityId: EID, operation: "update", payload: { title: "L", status: "open" }, expectedVersion: 1,
+    }, 200, "r19 本地改 title -> 200");
+    eq(a2.json && a2.json.version, 2, "r19 本地改后版本=2");
+    const p3 = await req("GET", "/api/sync/changes?since=0&limit=50");
+    eq(p3.json && p3.json.count, 2, "r19 两条变更后日志数=2");
+    const pInc = await req("GET", "/api/sync/changes?since=1&limit=50");
+    eq(pInc.json && pInc.json.count, 1, "r19 since=1 只返回 id>1 的一条");
+
+    // 首用全链路③：远端也在旧基线上改同一个字段 -> 409 + 冲突字段准确
+    const stale = await expectStatus("POST", "/api/sync/apply", {
+      entityType: ET, entityId: EID, operation: "update",
+      payload: { title: "R", status: "open" }, expectedVersion: 1, base: { title: "A", status: "open" },
+    }, 409, "r19 过期版本改同字段 -> 409（真造冲突）");
+    eq(stale.json && stale.json.code, "SYNC_CONFLICT", "r19 409 code=SYNC_CONFLICT");
+    eq(stale.json && stale.json.conflicts, ["title"], "r19 409 冲突字段列表=[title]（waizhuan 手算口径）");
+    eq(stale.json && stale.json.currentVersion, 2, "r19 409 回带服务端当前版本 2");
+    eq(stale.json && stale.json.base && stale.json.base.title, "A", "r19 409 回带基线供弹窗 diff");
+    eq(stale.json && stale.json.local && stale.json.local.title, "R", "r19 409 回带本地值供弹窗 diff");
+    eq(stale.json && stale.json.remote && stale.json.remote.title, "L", "r19 409 回带远端值供弹窗选边");
+    const stAfterConflict = await req("GET", "/api/sync/status");
+    eq(stAfterConflict.json && stAfterConflict.json.total, 1, "r19 409 不产生版本变更（零半态）");
+
+    // 不同字段场景：两端改不同字段 -> conflicts=[] 但 divergedFields 列全
+    const EID2 = "r19-http-diff";
+    await expectStatus("POST", "/api/sync/apply", { entityType: ET, entityId: EID2, operation: "create", payload: { title: "T", status: "open" }, expectedVersion: 0 }, 200, "r19 diff 基线 -> 200");
+    await expectStatus("POST", "/api/sync/apply", { entityType: ET, entityId: EID2, operation: "update", payload: { title: "L", status: "open" }, expectedVersion: 1 }, 200, "r19 本地改 title -> 200");
+    const diffConflict = await expectStatus("POST", "/api/sync/apply", {
+      entityType: ET, entityId: EID2, operation: "update", payload: { title: "T", status: "done" }, expectedVersion: 1, base: { title: "T", status: "open" },
+    }, 409, "r19 两端改不同字段仍因版本过期 -> 409");
+    eq(diffConflict.json && diffConflict.json.conflicts, [], "r19 不同字段无严格冲突（可三方合并）");
+    eq(diffConflict.json && diffConflict.json.divergedFields, ["status", "title"], "r19 分歧字段列表=[status,title]");
+    const merged = await expectStatus("POST", "/api/sync/apply", {
+      entityType: ET, entityId: EID2, operation: "update", payload: { title: "L", status: "done" }, expectedVersion: 2,
+    }, 200, "r19 合并两端改动后写入 -> 200");
+    eq(merged.json && merged.json.version, 3, "r19 合并写入版本=3");
+
+    // 首用全链路④：选远端 -> 版本递增；⑤ 再同步幂等无冲突
+    const resolved = await expectStatus("POST", "/api/sync/apply", {
+      entityType: ET, entityId: EID, operation: "update", payload: { title: "L", status: "open" }, expectedVersion: 2, base: { title: "A", status: "open" },
+    }, 200, "r19 选边后写入 -> 200");
+    eq(resolved.json && resolved.json.version, 3, "r19 选边后版本=3");
+    const replay = await expectStatus("POST", "/api/sync/apply", {
+      entityType: ET, entityId: EID, operation: "update", payload: { title: "L", status: "open" }, expectedVersion: 2,
+    }, 200, "r19 同载荷重放 -> 200（幂等）");
+    eq(replay.json && replay.json.version, 3, "r19 幂等重放版本不二次递增");
+    eq(replay.json && replay.json.idempotent, true, "r19 幂等重放标 idempotent=true");
+    const finalPull = await req("GET", "/api/sync/changes?since=0&limit=50");
+    eq(finalPull.json && finalPull.json.count, 6, "r19 幂等重放/409 冲突不新增日志（两实体共 6 次成功写入）");
+
+    // 远端模式：匿名 401 / 带 token 200 / 普通用户越权 403
+    const adminU = "r19_sync_admin";
+    const memberU = "r19_sync_member";
+    const pw = "SyncR19!Pass";
+    await expectStatus("POST", "/api/auth/register", { username: adminU, password: pw }, 201, "r19 注册管理员 -> 201");
+    const memberReg = await expectStatus("POST", "/api/auth/register", { username: memberU, password: pw }, 201, "r19 注册普通用户 -> 201");
+    const adminLogin = await expectStatus("POST", "/api/auth/login", { username: adminU, password: pw }, 200, "r19 管理员登录 -> 200");
+    const memberLogin = await expectStatus("POST", "/api/auth/login", { username: memberU, password: pw }, 200, "r19 普通用户登录 -> 200");
+    const adminToken = adminLogin.json && adminLogin.json.token;
+    const memberToken = memberLogin.json && memberLogin.json.token;
+    await authReq("POST", "/api/auth/mode", adminToken, { mode: "remote" });
+    const anonStatus = await req("GET", "/api/sync/status");
+    eq(anonStatus.status, 401, "r19 remote 匿名访问 status -> 401");
+    eq(anonStatus.json && anonStatus.json.cleared, true, "r19 remote 401 清假登录态");
+    const authedStatus = await authReq("GET", "/api/sync/status", adminToken);
+    eq(authedStatus.status, 200, "r19 remote 带 token 访问 status -> 200");
+    const authedChanges = await authReq("GET", "/api/sync/changes?since=0&limit=10", adminToken);
+    eq(authedChanges.status, 200, "r19 remote 带 token 拉变更 -> 200");
+    const overreach = await authReq("POST", "/api/sync/apply", memberToken, {
+      entityType: ET, entityId: "r19-overreach", operation: "create", payload: {}, expectedVersion: 0,
+      userId: adminLogin.json.user.id,
+    });
+    eq(overreach.status, 403, "r19 普通用户把变更记到别人名下 -> 403");
+    const memberOwn = await authReq("POST", "/api/sync/apply", memberToken, {
+      entityType: ET, entityId: "r19-overreach", operation: "create", payload: { title: "ok" }, expectedVersion: 0,
+    });
+    eq(memberOwn.status, 200, "r19 普通用户记自己名下 -> 200");
+    await authReq("POST", "/api/auth/mode", adminToken, { mode: "local" });
+    // 清理
+    await authReq("DELETE", `/api/auth/users/${memberReg.json.user.id}`, adminToken);
+    await authReq("DELETE", `/api/auth/users/${adminLogin.json.user.id}`, adminToken);
+    const finalMode19 = await req("GET", "/api/auth/mode");
+    eq(finalMode19.json && finalMode19.json.mode, "local", "r19 终态服务模式回 local");
   }
 }
 
