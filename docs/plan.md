@@ -160,7 +160,8 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r17 | M8 第 2 片：物资台账与单位任务（M8 收官） | ✅已发版（首轮双通过；物资/任务 44/44 + 变异红相 2 组） | v0.0.22 | e2e 1552 · audit 1302 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r18 | M9 第 1 片：账号与网络版服务（M9 起步） | ✅已发版（初验 waizhuan 打回 P1 remote 401 死路→返工#1 13 页统一 apiFetch→复审双通过） | v0.0.23 | e2e 1638 · audit 1376 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r19 | M9 第 2 片：多端同步与冲突处理（M9 收官） | ✅已发版（初验 waizhuan 打回 P2 status 取最早→返工#1 精确最新→复审双通过） | v0.0.24 | e2e 1721 · audit 1442 | 通过（waizhuan）+ UI 通过（阻断岗） |
-| r20 | M10 第 1 片：离线模式与 PWA 移动适配（M10 起步） | 🔨研发中 | — | — | — |
+| r20 | M10 第 1 片：离线模式与 PWA 移动适配（M10 起步） | ✅已发版（首轮双通过；真断网十步 + 390px 实测 + tar pack 修复） | v0.0.26 | e2e 1803 · audit 1484 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r21 | M10 第 2 片：单机版打包与一键部署（M10 收官） | 🔨研发中 | — | — | — |
 
 附加交付（r2 内 lead 直做，已入库 8e4fb9b）：
 - 一键启动：start.cmd 双击 / scripts\start.ps1 start|stop|status（三轮全链路验证；期间排掉「僵尸 api 抢 8787」环境坑，非脚本缺陷）
@@ -467,7 +468,22 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 - 前置：r19 已发版（v0.0.24）✅
 - 危险区注意：不引外部 CDN/图标依赖，manifest 图标用本地 SVG/PNG
 
-### r21（预占）· M10 第 2 片：单机版打包与一键部署（M10 收官）
+### r21 · M10 第 2 片：私有化部署与一体化单机版（M10 收官）
+- 目标：一键部署 + 完全离线可用的单机版——docker-compose 私有化 + portable 增强 + 部署文档——项目最终里程碑
+- 交付清单：
+  1. docker/：Dockerfile（多阶段构建：Node 20 构建 web → 精简运行镜像，内置 SQLite 数据卷）、docker-compose.yml（app + 数据卷 + 环境变量 XIEFLOW_MODE=remote）、.dockerignore
+  2. portable 增强（scripts/pack.js）：内置 start.cmd（已验 boot）+ 新增 start.sh（Linux/macOS）+ 首次运行引导（README.txt 写清楚「双击 start.cmd → 打开 8080」）+ 数据目录自检
+  3. docs/DEPLOY.md：三种部署路径（网络版/cloud 已上线、私有化 docker-compose、单机 portable 目录）+ 备份/恢复/搬迁四步 + 常见问题
+  4. 部署自检脚本 scripts/verify-deploy.ps1：起服务 → health 200 → 关键路由 200 → 停服务，全程 headless（认证页 401 属预期）
+  5. 断言：e2e ≥+20（部署契约/数据目录/引导文案）、audit ≥+15（health/mode/部署路由）
+  6. 截图 ≥6：Docker 部署拓扑图（可用文本流程图 PNG 或 compose up 实拍）/start.cmd 首启/portable 目录结构/README 引导/8080 首页/窄屏
+- 验收标准：
+  1. 全量绿：e2e ≥1823、audit ≥1499，README 双节同步
+  2. **portable 目录实测 boot**：pack 后 start.cmd → 8080 web+api 200（本地实跑过，本轮复验一次确保未回归）
+  3. docker-compose 配置语法正确（本机无 docker 时至少 `docker compose config` 等价静态校验或用 compose-spec 解析断言）
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r20 已发版（v0.0.26）✅
+- M10 收官后：项目达到设计总纲全部 11 个里程碑——更新 README 路线图为全绿、director 履历总账、向 owner 交付最终总结
 
 ## 历史轮次（r1~r2 已收档，见下方记账区）
 
