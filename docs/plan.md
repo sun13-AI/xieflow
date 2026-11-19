@@ -164,7 +164,7 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r21 | M10 第 2 片：私有化部署与单机版（M10 收官） | ✅已发版（最终双 VERDICT 通过） | v0.0.27 | e2e 1842 · audit 1503 | 通过（waizhuan）+ UI 通过（阻断岗） |
 
 | r22 | M10 后·遗留清理与质量收敛（shell 索引/移动底栏/部署文档） | ✅已发版（首轮双通过；U1=0/U2=0，5 项挂账全清 + 日期碰撞真修） | v0.0.28 | e2e 1856 · audit 1514 | 通过（waizhuan）+ UI 通过（阻断岗） |
-| r23 | M10 后·第二轮遗留清理（待定切片） | 🔨规划中 | — | — | — |
+| r23 | M10 后·组织架构与通讯录（部门树 + 人员目录） | 🔨规划中 | — | — | — |
 
 ## 🏁 项目总账（2026-11-19 · M10 收官）
 
@@ -521,6 +521,23 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
   3. 390px 下「更多」入口 + ☰ 展开可达后 6 枚 tab（ui 会真点核）
   4. 双 VERDICT（waizhuan + ui 阻断岗）通过
 - 前置：r21 已发版（v0.0.27）✅
+
+### r23 · 组织架构与通讯录（M10 后功能补强；对标 duobaoyu 全功能协同办公骨架）
+- 目标：补上全功能协同办公缺的基础骨架——部门树 + 人员目录（审批 assignee / 物资 custodian 目前是自由文本，本轮只建目录与选择器，不破坏既有模块）
+- 交付清单：
+  1. schema v15→v16：departments 表（id/name/parent_id 可空/sort_order/created_at）、members 表（id/name/department_id/role/email/phone/title/status/user_id 可空关联登录账号）
+  2. 组织规则集中 packages/shared：buildDepartmentTree(depts)（层级/环检测/孤儿处理）、normalizeMember(input)（字段校验/邮箱格式）、validateDepartmentMove(id, parentId, tree)（防自挂/防环）——api/web 零算法分支
+  3. api：departments CRUD + move、members CRUD + 按部门查询 + 搜索（姓名/邮箱/职位模糊）、GET /api/org/tree（部门带人员）
+  4. web：新增「组织」tab——左侧部门树（展开/折叠）+ 右侧人员列表 + 新建/编辑表单 + 搜索框；本轮只做目录，不改审批/物资字段（避免回归）
+  5. 断言：e2e ≥+35（树层级/环检测/CRUD/搜索/规范化）、audit ≥+25（含 4xx：自挂/成环/重复部门名/非法邮箱/越权 id）
+  6. 截图 ≥7：组织空态/部门树展开/人员列表/新建人员表单/搜索结果/窄屏/错误态
+- 验收标准：
+  1. 全量绿：e2e ≥1891、audit ≥1539，README 双节同步
+  2. 部门树三级真实装配 + 环检测断言（waizhuan 会造 A→B→A 验证拒绝）；人员搜索大小写不敏感
+  3. **新增「组织」tab 补该 tab 激活态图**（十五 tab 壳基线）
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r22 已发版（v0.0.28）✅
+- 明确边界：本轮**不**把 members 接入审批/物资（那是 r24 可能的独立切片），避免既有断言大规模改动
 
 ## 历史轮次（r1~r2 已收档，见下方记账区）
 
