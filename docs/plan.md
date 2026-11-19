@@ -175,7 +175,7 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 
 | r22 | M10 后·遗留清理与质量收敛（shell 索引/移动底栏/部署文档） | ✅已发版（首轮双通过；U1=0/U2=0，5 项挂账全清 + 日期碰撞真修） | v0.0.28 | e2e 1856 · audit 1514 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r23 | M10 后·组织架构与通讯录（部门树 + 人员目录） | ✅已发版（首轮双通过；三级树/环检测/大小写不敏感搜索） | v0.0.29 | e2e 1952 · audit 1582 | 通过（waizhuan）+ UI 通过（阻断岗） |
-| r24 | M10 后·组织数据接入业务模块（待定切片） | 🔨规划中 | — | — | — |
+| r24 | M10 后·组织成员接入审批/物资（向后兼容） | 🔨规划中 | — | — | — |
 
 ## 🏁 项目总账（2026-11-19 · M10 收官）
 
@@ -549,6 +549,23 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
   4. 双 VERDICT（waizhuan + ui 阻断岗）通过
 - 前置：r22 已发版（v0.0.28）✅
 - 明确边界：本轮**不**把 members 接入审批/物资（那是 r24 可能的独立切片），避免既有断言大规模改动
+
+### r24 · 组织成员接入审批与物资（向后兼容，M10 后功能补强）
+- 目标：让 r23 建的通讯录不再是孤岛——审批审批人/发起人与物资保管员可从通讯录选人，但**严格向后兼容**（原自由文本字段不动）
+- 交付清单：
+  1. schema v16→v17：仅加**可空** member_id 列——approvals.applicant_member_id、approval_steps.assignee_member_id、approval_cc.cc_member_id、assets.custodian_member_id（全部可空，原 TEXT 列保持 NOT NULL 不变）；迁移走 user_version 队列，老数据 member_id=NULL 照常工作
+  2. 解析规则集中 packages/shared/org.ts：resolveAssignee(text, memberId, members)（有 member_id 优先用通讯录姓名，否则回落自由文本）、memberDisplayName(member)——api/web 零算法分支
+  3. api：审批发起/转交/物资出入库接受可选 member_id 参数（校验存在且 active），响应回带 member 摘要（姓名/部门）；GET /api/org/members/:id/usage（该人被指派审批/保管物资数）
+  4. web：审批发起表单的申请人/审批人、物资表单的保管员旁加「从通讯录选人」按钮（弹出成员搜索选择器，选中填 member_id + 显示姓名），**保留原自由文本输入框**；审批时间线与物资卡片显示部门徽标（若有 member_id）
+  5. 断言：e2e ≥+30（成员接入/回落自由文本/usage 计数）、audit ≥+20（4xx：member_id 不存在/已停用/越权）
+  6. 截图 ≥7：审批表单选人弹窗/选中后/时间线部门徽标/物资表单选人/物资卡片徽标/窄屏/错误态
+- 验收标准：
+  1. 全量绿：e2e ≥1982、audit ≥1602，README 双节同步
+  2. **向后兼容硬断言**：老路径（不传 member_id，纯自由文本）全部既有断言保持通过，无一条删改（waizhuan 亲验）；新路径 member_id 真关联通讯录
+  3. 选成员后审批/物资显示部门徽标且 usage 计数正确；停用成员被拒
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r23 已发版（v0.0.29）✅
+- 危险边界：不动用户数据；member_id 全可空，NULL 行为与 r16/r17 完全一致；若既有断言因 schema 迁移变化只允许更新期望值，不许删
 
 ## 历史轮次（r1~r2 已收档，见下方记账区）
 
