@@ -188,7 +188,7 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r23 | M10 后·组织架构与通讯录（部门树 + 人员目录） | ✅已发版（首轮双通过；三级树/环检测/大小写不敏感搜索） | v0.0.29 | e2e 1952 · audit 1582 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r24 | M10 后·组织成员接入审批/物资（向后兼容） | ✅已发版（首轮双通过；向后兼容 64/64 + 变异红相独立复现） | v0.0.30 | e2e 2041 · audit 1667 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r25 | M10 后·第三轮遗留清理（shell 哈希块/审批 actorMemberId/文档口径） | ✅已发版（首轮双通过；P3 actorMemberId 真修 35/35） | v0.0.31 | e2e 2096 · audit 1723 | 通过（waizhuan）+ UI 通过（阻断岗） |
-| r26 | M10 后·第四轮（待定切片） | 🔨规划中 | — | — | — |
+| r26 | M10 后·通知中心（站内消息聚合） | 🔨规划中 | — | — | — |
 
 ## 🏁 项目总账（2026-11-19 · M10 收官）
 
@@ -595,6 +595,23 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
   2. 审批「通过」后时间线显示操作人部门徽标 + usage 计数准确（waizhuan 亲验）
   3. shell README 哈希与实际逐字一致；双 VERDICT 通过
 - 前置：r24 已发版（v0.0.30）✅
+
+### r26 · 通知中心（站内消息聚合，M10 后功能补强）
+- 目标：协同办公标配——把散落在日程/审批/物资/同步的事件聚合成一个「通知」tab，统一未读管理与跳转
+- 交付清单：
+  1. schema v18→v19：notifications 表（id/type:schedule_due|approval_pending|asset_low|sync_conflict|system/title/body/ref_type/ref_id/read_at/created_at）+ 索引
+  2. 通知规则集中 packages/shared/notifications.ts：buildNotification(type, ctx)（模板/标题/正文生成）、shouldNotify(type, ctx)（阈值判定：审批待办≥1、物资库存≤阈值、同步冲突>0、日程当天）、notificationSummary(list)（未读计数按 type 分组）——api/web 零算法分支
+  3. api：notifications CRUD（列表带未读过滤/分页）、POST /:id/read、POST /read-all、POST /api/notifications/refresh（按当前库状态重算生成，幂等不重复）、GET /api/notifications/summary
+  4. web：新增「通知」tab——左侧类型筛选（全部/日程/审批/物资/同步/系统）+ 右侧消息列表（未读加粗 + 时间 + 分类图标）+ 点条跳转对应模块（ref_type→tab）+ 顶栏全局未读徽标
+  5. 断言：e2e ≥+40（模板/阈值/幂等/已读/分页/跳转契约）、audit ≥+30（含 4xx：非法 type/越权 id/无效 ref）
+  6. 截图 ≥7：通知空态/有未读/类型筛选/已读后/refresh 后/窄屏/错误态
+- 验收标准：
+  1. 全量绿：e2e ≥2136、audit ≥1753，README 双节同步
+  2. **真实事件聚合**：waizhuan 造「审批待办 + 库存低 + 同步冲突」→ refresh 生成 3 类通知各 1 → 重复 refresh 幂等不重复 → 点审批通知跳审批 tab 并定位该单
+  3. **新增「通知」tab 补该 tab 激活态图**（十六 tab 壳基线）+ 顶栏未读徽标
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r25 已发版（v0.0.31）✅
+- 明确边界：站内通知不接外部 IM/邮件（那是宪法「明确不做」的第三方 IM 集成），零 token
 
 ## 历史轮次（r1~r2 已收档，见下方记账区）
 
