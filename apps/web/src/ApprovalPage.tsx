@@ -1,7 +1,7 @@
 // 协流 XieFlow — r16「审批」tab：发起审批 + 三视角列表 + 步骤时间线 + 操作按钮 + 抄送提示
 // 数据全走真实 api（approvals CRUD / submit / approve / reject / delegate / withdraw / view / steps / cc）。
 // 状态机 / 可用动作 / 三视角过滤口径全在 shared，本页零流转分支。
-// 截图钉态：?page=approval&shot=approval-empty|approval-loading|approval-error|approval-form|approval-todo|approval-detail|approval-approved
+// 截图钉态：?page=approval&shot=approval-empty|approval-loading|approval-error|approval-form|approval-todo|approval-detail|approval-approved|approval-picker|approval-picked|approval-timeline-badge|approval-actor-badge|approval-manual-hint|approval-r25-error
 // ?approvalId= 深链选中真实审批；?view=todo|initiated|cc 与 ?actor= 钉三视角；?narrow=1 显式钉窄屏。
 import { useCallback, useEffect, useState } from "react";
 import type { Approval, ApprovalAction, ApprovalStep, ApprovalView } from "@xieflow/shared";
@@ -36,9 +36,13 @@ type PageState =
 const PINNED = new Set([
   "approval-loading", "approval-error", "approval-empty",
   "approval-picker", "approval-picked", "approval-timeline-badge",
+  "approval-actor-badge", "approval-manual-hint", "approval-r25-error",
 ]);
 type ApprovalWithMember = Approval & { readonly applicantMember?: MemberSummary | null };
-type StepWithMember = ApprovalStep & { readonly assigneeMember?: MemberSummary | null };
+type StepWithMember = ApprovalStep & {
+  readonly assigneeMember?: MemberSummary | null;
+  readonly actorMember?: MemberSummary | null;
+};
 type PageStateWithMember = { phase: "ready"; approvals: ApprovalWithMember[] };
 
 const PIN_MEMBERS: readonly MemberSummary[] = [
@@ -55,11 +59,15 @@ const PIN_APPROVAL: ApprovalWithMember = {
 const PIN_STEPS: StepWithMember[] = [
   {
     id: 901, approvalId: 91, order: 0, assignee: "王小明", action: "submit", comment: "",
-    actedAt: "2026-11-19T10:00:00.000Z", assigneeMemberId: 11, assigneeMember: PIN_A,
+    actedAt: "2026-11-19T10:00:00.000Z", assigneeMemberId: 11, assigneeMember: PIN_A, actorMemberId: 11, actorMember: PIN_A,
   },
   {
     id: 902, approvalId: 91, order: 1, assignee: "李娜", action: "delegate", comment: "转产品复核",
-    actedAt: "2026-11-19T10:01:00.000Z", assigneeMemberId: 12, assigneeMember: PIN_B,
+    actedAt: "2026-11-19T10:01:00.000Z", assigneeMemberId: 12, assigneeMember: PIN_B, actorMemberId: 12, actorMember: PIN_B,
+  },
+  {
+    id: 903, approvalId: 91, order: 2, assignee: "李娜", action: "approve", comment: "同意采购",
+    actedAt: "2026-11-19T10:02:00.000Z", assigneeMemberId: 12, assigneeMember: PIN_B, actorMemberId: 12, actorMember: PIN_B,
   },
 ];
 const VIEW_LABELS: Record<ApprovalView, string> = {
@@ -101,22 +109,31 @@ export default function ApprovalPage() {
   const [state, setState] = useState<PageState>(() => {
     if (query.shot === "approval-loading") return { phase: "loading" };
     if (query.shot === "approval-error") return { phase: "error", message: SERVICE_DOWN_MESSAGE };
+    if (query.shot === "approval-r25-error") return { phase: "error", message: `${SERVICE_DOWN_MESSAGE}（r25 动作链路错误态）` };
     if (query.shot === "approval-empty") return { phase: "ready", approvals: [] };
-    if (query.shot === "approval-timeline-badge") return { phase: "ready", approvals: [PIN_APPROVAL] };
-    if (query.shot === "approval-picker" || query.shot === "approval-picked") return { phase: "ready", approvals: [] };
+    if (query.shot === "approval-timeline-badge" || query.shot === "approval-actor-badge") return { phase: "ready", approvals: [PIN_APPROVAL] };
+    if (query.shot === "approval-picker" || query.shot === "approval-picked" || query.shot === "approval-manual-hint") return { phase: "ready", approvals: [] };
     return { phase: "loading" };
   });
-  const [selectedId, setSelectedId] = useState<number>(() => query.shot === "approval-timeline-badge" ? PIN_APPROVAL.id : Number(query.approvalId) || 0);
+  const [selectedId, setSelectedId] = useState<number>(() =>
+    query.shot === "approval-timeline-badge" || query.shot === "approval-actor-badge" ? PIN_APPROVAL.id : Number(query.approvalId) || 0,
+  );
   const [selected, setSelected] = useState<ApprovalWithMember | null>(null);
   const [steps, setSteps] = useState<StepWithMember[]>([]);
   const [cc, setCc] = useState<string[]>([]);
-  const [creating, setCreating] = useState(query.shot === "approval-form" || query.shot === "approval-picker" || query.shot === "approval-picked");
+  const [creating, setCreating] = useState(
+    query.shot === "approval-form" || query.shot === "approval-picker" || query.shot === "approval-picked" || query.shot === "approval-manual-hint",
+  );
   const [titleDraft, setTitleDraft] = useState("");
   const [typeDraft, setTypeDraft] = useState<(typeof APPROVAL_TYPES)[number]>("leave");
-  const [assigneeDraft, setAssigneeDraft] = useState(query.shot === "approval-picked" ? "李娜" : "");
+  const [assigneeDraft, setAssigneeDraft] = useState(query.shot === "approval-picked" ? "李娜" : query.shot === "approval-manual-hint" ? "李娜（手改备忘）" : "");
   const [applicantMember, setApplicantMember] = useState<MemberSummary | null>(null);
-  const [assigneeMember, setAssigneeMember] = useState<MemberSummary | null>(query.shot === "approval-picked" ? PIN_B : null);
+  const [assigneeMember, setAssigneeMember] = useState<MemberSummary | null>(
+    query.shot === "approval-picked" || query.shot === "approval-manual-hint" ? PIN_B : null,
+  );
   const [delegateMember, setDelegateMember] = useState<MemberSummary | null>(null);
+  /** r25：当前登录用户在通讯录中的关联成员（未登录/无关联为 null，老路径不变） */
+  const [actorMember, setActorMember] = useState<MemberSummary | null>(null);
   const [ccDraft, setCcDraft] = useState("");
   const [comment, setComment] = useState("");
   const [delegateTarget, setDelegateTarget] = useState("");
@@ -137,8 +154,8 @@ export default function ApprovalPage() {
   }, []);
 
   const loadDetail = useCallback(async (id: number) => {
-    if (query.shot === "approval-timeline-badge") {
-      setSelected(PIN_APPROVAL);
+    if (query.shot === "approval-timeline-badge" || query.shot === "approval-actor-badge") {
+      setSelected(query.shot === "approval-actor-badge" ? { ...PIN_APPROVAL, status: "approved" } : PIN_APPROVAL);
       setSteps(PIN_STEPS);
       setCc([]);
       return;
@@ -166,6 +183,14 @@ export default function ApprovalPage() {
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("narrow") === "1") {
       document.documentElement.classList.add("force-narrow");
+    }
+    if (!PINNED.has(query.shot)) {
+      void getJson<{ userId: number | null; member: MemberSummary | null }>("/api/org/members/me")
+        .then((me) => {
+          setActorMember(me.member);
+          if (me.member) setActor((who) => (who === "我" ? me.member!.name : who));
+        })
+        .catch(() => setActorMember(null));
     }
     if (PINNED.has(query.shot)) return;
     void refresh(actor, view).then((rows) => {
@@ -224,12 +249,16 @@ export default function ApprovalPage() {
     }
     setBusy(true);
     try {
+      // r25：登录用户关联成员优先（通过/驳回/提交/撤回）；转交目标显式选人优先。
+      const actionActorMemberId = action === "delegate"
+        ? (delegateMember?.id ?? actorMember?.id)
+        : (actorMember?.id ?? applicantMember?.id);
       const updated = (await sendJson(`/api/approvals/${selected.id}/${action}`, {
         actor,
         comment,
         targetAssignee: action === "delegate" ? delegateTarget.trim() : undefined,
         targetAssigneeMemberId: action === "delegate" ? delegateMember?.id : undefined,
-        actorMemberId: applicantMember?.id,
+        actorMemberId: actionActorMemberId,
       })) as ApprovalWithMember;
       setSelected(updated);
       setComment("");
@@ -304,6 +333,8 @@ export default function ApprovalPage() {
     "approval-picker": "选人弹窗钉注：从通讯录搜索在职成员；选中只增量填 member_id + 姓名，原自由文本输入框仍在场。",
     "approval-picked": "选中后钉注：审批人输入框已填通讯录姓名并显示部门徽标；不传 member_id 的老路径仍可纯手填。",
     "approval-timeline-badge": "时间线钉注：每一步回带 member 摘要，部门徽标显示在步骤行；usage 计数由 HTTP /api/org/members/:id/usage 提供。",
+    "approval-actor-badge": "通过步骤钉注：操作人来自当前登录用户关联的通讯录成员，时间线显示姓名 + 部门徽标，usage 动作计数 +1。",
+    "approval-manual-hint": "手改语义钉注：已关联通讯录的姓名（部门）徽标在场；手改输入框仅作备忘，提交仍以通讯录成员为准，× 可解除关联。",
   };
   const pinNote = pinNoteMap[query.shot] ?? "";
 
@@ -457,7 +488,10 @@ export default function ApprovalPage() {
                         <strong>{APPROVAL_ACTION_LABELS[step.action]}</strong>
                         <span>
                           {" · "}{APPROVAL_ACTION_ROLE_LABELS[step.action]} {step.assignee}
-                          {step.assigneeMember && (
+                          {step.actorMember && (
+                            <em className="ap-member-badge" data-state="approval-actor-badge">{memberDisplayName(step.actorMember)}</em>
+                          )}
+                          {!step.actorMember && step.assigneeMember && (
                             <em className="ap-member-badge" data-state="approval-timeline-badge">{step.assigneeMember.departmentName ?? "未分配部门"}</em>
                           )}
                           {" · 当时"} {APPROVAL_STATUS_LABELS[APPROVAL_ACTION_STATUS_AFTER[step.action]]}

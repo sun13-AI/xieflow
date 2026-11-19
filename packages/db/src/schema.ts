@@ -423,6 +423,16 @@ export const MIGRATIONS: Migration[] = [
       { table: "assets", column: "custodian_member_id", sql: `ALTER TABLE assets ADD COLUMN custodian_member_id INTEGER REFERENCES members(id) ON DELETE SET NULL` },
     ],
   },
+  {
+    version: 18,
+    name: "r25 · 审批动作操作人关联列（向后兼容，原文本列与 r24 四列不动）",
+    up: [
+      `CREATE INDEX IF NOT EXISTS idx_approval_steps_actor_member ON approval_steps (actor_member_id)`,
+    ],
+    ensureColumns: [
+      { table: "approval_steps", column: "actor_member_id", sql: `ALTER TABLE approval_steps ADD COLUMN actor_member_id INTEGER REFERENCES members(id) ON DELETE SET NULL` },
+    ],
+  },
 ];
 
 /** 当前 schema 版本（与 shared 的 SCHEMA_VERSION 保持一致，e2e 会断言二者相等） */

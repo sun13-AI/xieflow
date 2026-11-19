@@ -94,7 +94,7 @@ import {
   chunkText,
   searchChunks,
 } from "@xieflow/agent";
-import { memberSummary, assertAssignableMember, normalizeMemberRef } from "@xieflow/shared/org";
+import { memberSummary, assertAssignableMember, normalizeMemberRef, resolveMemberForUser } from "@xieflow/shared/org";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = join(__dirname, "..", "..", "..", "data");
@@ -2265,9 +2265,9 @@ function withApprovalMember(store: XieFlowDb, approval: ReturnType<XieFlowDb["ge
   return { ...approval, applicantMember: memberSummaryOf(store, approval.applicantMemberId) };
 }
 
-/** 步骤时间线附加执行人摘要（老步骤 member_id=NULL → 摘要 null） */
+/** 步骤时间线附加执行人/操作人摘要（老步骤两个 member_id 均 NULL → 摘要 null） */
 function withStepMember(store: XieFlowDb, step: ReturnType<XieFlowDb["listApprovalSteps"]>[number]) {
-  return { ...step, assigneeMember: memberSummaryOf(store, step.assigneeMemberId) };
+  return { ...step, assigneeMember: memberSummaryOf(store, step.assigneeMemberId), actorMember: memberSummaryOf(store, step.actorMemberId) };
 }
 
 /** 物资详情/列表附加保管员摘要（老数据 member_id=NULL → 摘要 null） */
@@ -2939,6 +2939,14 @@ interface MemberBody {
 }
 
 /** r24：成员在审批（发起/被指派/抄送）与物资（保管）中的真实引用计数 */
+/** r25：当前登录用户 → 关联通讯录成员（members.user_id）；未登录/无关联返回 null，老路径不受影响 */
+app.get("/api/org/members/me", async (req) => {
+  const ctx = (req as AuthRequest).auth ?? resolveAuth(req);
+  if (!ctx) return { userId: null, member: null };
+  const member = resolveMemberForUser(ctx.user.id, requireDb().listMembers());
+  return { userId: ctx.user.id, member: member ? memberSummary(member, requireDb().listDepartments()) : null };
+});
+
 app.get("/api/org/members/:id/usage", async (req, reply) => {
   try {
     const id = parseId((req.params as { id: string }).id);

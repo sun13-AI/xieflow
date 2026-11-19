@@ -156,7 +156,7 @@ async function audit() {
     eq(h.json && h.json.ok, true, "health.ok = true");
     // r4 起动态对表：health.schemaVersion 必须等于迁移队列最高版本（不再硬编码 2/3，
     // r3 v0.0.6 CI 红教训——静态硬编码在每轮迁移后必过期）
-    eq(h.json && h.json.schemaVersion, 17, "health.schemaVersion = 17（r24 迁移后）");
+    eq(h.json && h.json.schemaVersion, 18, "health.schemaVersion = 18（r25 迁移后）");
     const s = await req("GET", "/api/settings");
     eq(s.status, 200, "GET /api/settings -> 200");
     ok(Array.isArray(s.json && s.json.settings), "settings 返回数组");
@@ -253,7 +253,7 @@ async function audit() {
   {
     // health 探针反映 schema v8（r4 起迁移后动态推进）
     const h3 = await req("GET", "/api/health");
-    eq(h3.json && h3.json.schemaVersion, 17, "health.schemaVersion = 16（r23 迁移后复核）");
+    eq(h3.json && h3.json.schemaVersion, 18, "health.schemaVersion = 18（r25 迁移后复核）");
 
     const r = await expectStatus(
       "POST",
@@ -2629,7 +2629,7 @@ async function audit() {
     const st0 = await expectStatus("GET", "/api/sync/status", undefined, 200, "r19 GET status -> 200");
     eq(st0.json && st0.json.total, 0, "r19 初始无实体版本");
     eq(st0.json && st0.json.lastChangeId, 0, "r19 初始 lastChangeId=0");
-    eq(st0.json && st0.json.schemaVersion, 17, "r19 status 回带 schema v17（r24 推进）");
+    eq(st0.json && st0.json.schemaVersion, 18, "r19 status 回带 schema v18（r25 推进）");
     const ch0 = await expectStatus("GET", "/api/sync/changes?since=0&limit=50", undefined, 200, "r19 GET changes 空 -> 200");
     eq(ch0.json && ch0.json.count, 0, "r19 初始变更日志为空");
     eq(ch0.json && ch0.json.changes, [], "r19 初始 changes 数组为空");
@@ -2850,7 +2850,7 @@ async function audit() {
     // health：真 HTTP 200 + 真读库语义
     const h = await expectStatus("GET", DEPLOY_PATHS.health, undefined, 200, "r21 GET 契约健康路径 -> 200");
     eq(h.json && h.json.ok, true, "r21 health.ok=true");
-    eq(h.json && h.json.schemaVersion, 17, "r21 health.schemaVersion=17（部署版本一致）");
+    eq(h.json && h.json.schemaVersion, 18, "r21 health.schemaVersion=18（部署版本一致）");
     ok(isServerMode(h.json && h.json.mode), "r21 health.mode 为 local|remote 之一（契约模式合法）");
 
     // mode：模式探针公开可达，回显一致
@@ -2905,7 +2905,7 @@ async function audit() {
   console.log("\n== Org r23: departments / members / tree / search / 4xx ==");
   {
     const h23 = await expectStatus("GET", "/api/health", undefined, 200, "r23 health 真 HTTP 200");
-    eq(h23.json && h23.json.schemaVersion, 17, "r23 health.schemaVersion=17（迁移真生效）");
+    eq(h23.json && h23.json.schemaVersion, 18, "r23 health.schemaVersion=18（迁移真生效）");
     const tree0 = await expectStatus("GET", "/api/org/tree", undefined, 200, "r23 空组织树 -> 200");
     eq(tree0.json && tree0.json.tree, [], "r23 空组织树 tree=[]");
     eq(tree0.json && tree0.json.departments, [], "r23 空组织树 departments=[]");
@@ -2996,7 +2996,7 @@ async function audit() {
   console.log("\n== Org r24: member_id in approvals / assets / usage / 4xx ==");
   {
     const h24 = await expectStatus("GET", "/api/health", undefined, 200, "r24 health 真 HTTP 200");
-    eq(h24.json && h24.json.schemaVersion, 17, "r24 health.schemaVersion=17（迁移真生效）");
+    eq(h24.json && h24.json.schemaVersion, 18, "r24 health.schemaVersion=18（迁移真生效）");
 
     const dept = await expectStatus("POST", "/api/departments", { name: "r24审计研发中心" }, 201, "r24 建部门 -> 201");
     const alice = await expectStatus("POST", "/api/members", {
@@ -3110,7 +3110,7 @@ async function audit() {
     eq(usage.json && usage.json.member && usage.json.member.name, "审计张三", "r24 usage 回带成员摘要");
     eq(usage.json && usage.json.applicantCount, undefined, "r24 usage 不暴露旧口径字段（approvalCount 为准）");
     ok(usage.json && usage.json.approvalCount >= 1 && usage.json.assignedApprovalCount >= 2 && usage.json.ccCount >= 1, "r24 usage 审批三类计数正确");
-    ok(usage.json && usage.json.total === usage.json.approvalCount + usage.json.assignedApprovalCount + usage.json.ccCount + usage.json.assetCount, "r24 usage total = 四类之和");
+    ok(usage.json && usage.json.total === usage.json.approvalCount + usage.json.assignedApprovalCount + usage.json.ccCount + usage.json.assetCount + (usage.json.actionCount ?? 0), "r24 usage total = 五类之和（r25 含 actionCount，老路径 actionCount=0）");
     const usageZero = await expectStatus("GET", `/api/org/members/${retired.json.id}/usage`, undefined, 200, "r24 停用成员 usage 可查 -> 200");
     eq(usageZero.json && usageZero.json.total, 0, "r24 停用成员零指派（但用于发单被 400 拒绝）");
     await expectStatus("GET", "/api/org/members/999999/usage", undefined, 404, "r24 不存在成员 usage -> 404");
@@ -3128,6 +3128,96 @@ async function audit() {
     const finalTree = await expectStatus("GET", "/api/org/tree", undefined, 200, "r24 清理后组织树 -> 200");
     eq(finalTree.json && finalTree.json.members, [], "r24 清理后成员归零");
     eq(finalTree.json && finalTree.json.tree, [], "r24 清理后部门归零");
+  }
+
+  // ---- r25：审批动作 actorMemberId（登录用户关联成员 / 步骤摘要 / usage 第五类 / 4xx 零半态） ----
+  console.log("\n== Approval r25: actorMemberId / linked member / action usage ==");
+  {
+    const h25 = await expectStatus("GET", "/api/health", undefined, 200, "r25 health 真 HTTP 200");
+    eq(h25.json && h25.json.schemaVersion, 18, "r25 health.schemaVersion=18（v18 迁移真生效）");
+
+    const uname25 = `r25.actor.${Date.now()}`;
+    const user25 = await expectStatus("POST", "/api/auth/register", { username: uname25, password: "Passw0rd!" }, 201, "r25 注册登录用户 -> 201");
+    const login25 = await expectStatus("POST", "/api/auth/login", { username: uname25, password: "Passw0rd!" }, 200, "r25 用户登录 -> 200");
+    const dept25 = await expectStatus("POST", "/api/departments", { name: "r25审计研发中心" }, 201, "r25 建部门 -> 201");
+    const alice25 = await expectStatus("POST", "/api/members", {
+      name: "动作甲", email: "r25.alice@example.com", departmentId: dept25.json.id, userId: user25.json.user.id,
+    }, 201, "r25 建关联登录用户的成员 -> 201");
+    const bob25 = await expectStatus("POST", "/api/members", {
+      name: "动作乙", email: "r25.bob@example.com", departmentId: dept25.json.id,
+    }, 201, "r25 建第二成员 -> 201");
+    const retired25b = await expectStatus("POST", "/api/members", {
+      name: "动作离职者", email: "r25.retired@example.com", status: "inactive",
+    }, 201, "r25 建停用成员 -> 201");
+
+    const me25 = await authReq("GET", "/api/org/members/me", login25.json.token);
+    eq(me25.status, 200, "r25 登录成员解析路由 -> 200");
+    eq(me25.json && me25.json.userId, user25.json.user.id, "r25 回带当前登录用户 id");
+    eq(me25.json && me25.json.member && me25.json.member.id, alice25.json.id, "r25 登录用户解析到关联成员");
+    eq(me25.json && me25.json.member && me25.json.member.name, "动作甲", "r25 关联成员回带姓名");
+    const anon25 = await authReq("GET", "/api/org/members/me", null);
+    eq(anon25.json && anon25.json.member, null, "r25 未登录时关联成员为 null");
+    const badToken25 = await authReq("GET", "/api/org/members/me", "bad-token");
+    eq(badToken25.json && badToken25.json.member, null, "r25 无效 token 时关联成员为 null");
+
+    const approval25 = await expectStatus("POST", "/api/approvals", {
+      title: "r25成员动作审批", type: "expense", applicantId: "忽略文本", currentAssignee: "忽略文本",
+      applicantMemberId: alice25.json.id, currentAssigneeMemberId: bob25.json.id,
+    }, 201, "r25 建审批 -> 201");
+    const submitted25 = await expectStatus("POST", `/api/approvals/${approval25.json.id}/submit`, {
+      actor: "动作甲", actorMemberId: me25.json.member.id,
+    }, 200, "r25 登录成员提交 -> 200");
+    eq(submitted25.json && submitted25.json.status, "pending", "r25 提交后 pending");
+    const steps25a = await expectStatus("GET", `/api/approvals/${approval25.json.id}/steps`, undefined, 200, "r25 提交步骤查询 -> 200");
+    eq(steps25a.json && steps25a.json.steps[0] && steps25a.json.steps[0].actorMemberId, alice25.json.id, "r25 提交步骤 actor_member_id 真落库");
+    eq(steps25a.json && steps25a.json.steps[0] && steps25a.json.steps[0].actorMember && steps25a.json.steps[0].actorMember.name, "动作甲", "r25 步骤回带操作人姓名摘要");
+    eq(steps25a.json && steps25a.json.steps[0] && steps25a.json.steps[0].actorMember && steps25a.json.steps[0].actorMember.departmentName, "r25审计研发中心", "r25 步骤回带操作人部门摘要");
+    const approved25 = await expectStatus("POST", `/api/approvals/${approval25.json.id}/approve`, {
+      actor: "动作乙", actorMemberId: bob25.json.id, comment: "r25 通过",
+    }, 200, "r25 审批人通过 -> 200");
+    eq(approved25.json && approved25.json.status, "approved", "r25 通过后终态 approved");
+    const steps25b = await expectStatus("GET", `/api/approvals/${approval25.json.id}/steps`, undefined, 200, "r25 通过步骤查询 -> 200");
+    eq(steps25b.json && steps25b.json.steps.at(-1) && steps25b.json.steps.at(-1).actorMemberId, bob25.json.id, "r25 通过步骤 actor_member_id 真落库");
+    eq(steps25b.json && steps25b.json.steps.at(-1) && steps25b.json.steps.at(-1).actorMember && steps25b.json.steps.at(-1).actorMember.name, "动作乙", "r25 通过步骤摘要姓名正确");
+
+    const legacy25 = await expectStatus("POST", "/api/approvals", {
+      title: "r25老路径", type: "other", applicantId: "自由甲", currentAssignee: "自由乙",
+    }, 201, "r25 老路径审批 -> 201");
+    await expectStatus("POST", `/api/approvals/${legacy25.json.id}/submit`, { actor: "自由甲" }, 200, "r25 老路径提交 -> 200");
+    const legacySteps25 = await expectStatus("GET", `/api/approvals/${legacy25.json.id}/steps`, undefined, 200, "r25 老路径步骤查询 -> 200");
+    eq(legacySteps25.json && legacySteps25.json.steps[0] && legacySteps25.json.steps[0].actorMemberId, null, "r25 老路径步骤 actor_member_id=NULL");
+    eq(legacySteps25.json && legacySteps25.json.steps[0] && legacySteps25.json.steps[0].actorMember, null, "r25 老路径步骤摘要=null（向后兼容）");
+
+    const bad25 = await expectStatus("POST", "/api/approvals", {
+      title: "r25拒绝动作", type: "other", applicantId: "自由甲", currentAssignee: "自由乙",
+    }, 201, "r25 拒绝动作探针审批 -> 201");
+    await expectStatus("POST", `/api/approvals/${bad25.json.id}/submit`, { actor: "自由甲", actorMemberId: 999999 }, 400, "r25 不存在动作人 -> 400");
+    await expectStatus("POST", `/api/approvals/${bad25.json.id}/submit`, { actor: "自由甲", actorMemberId: retired25b.json.id }, 400, "r25 停用动作人 -> 400");
+    const badAfter25 = await expectStatus("GET", `/api/approvals/${bad25.json.id}`, undefined, 200, "r25 4xx 后审批仍在 -> 200");
+    eq(badAfter25.json && badAfter25.json.status, "draft", "r25 动作 4xx 零半态（状态未变）");
+    const badSteps25 = await expectStatus("GET", `/api/approvals/${bad25.json.id}/steps`, undefined, 200, "r25 4xx 后步骤查询 -> 200");
+    eq(badSteps25.json && badSteps25.json.steps, [], "r25 动作 4xx 零半态（无步骤残留）");
+
+    const usageA25 = await expectStatus("GET", `/api/org/members/${alice25.json.id}/usage`, undefined, 200, "r25 动作甲 usage -> 200");
+    eq(usageA25.json && usageA25.json.actionCount, 1, "r25 动作甲审批动作计数=1");
+    eq(usageA25.json && usageA25.json.total, usageA25.json.approvalCount + usageA25.json.assignedApprovalCount + usageA25.json.ccCount + usageA25.json.assetCount + usageA25.json.actionCount, "r25 usage total 含审批动作第五类");
+    const usageB25 = await expectStatus("GET", `/api/org/members/${bob25.json.id}/usage`, undefined, 200, "r25 动作乙 usage -> 200");
+    eq(usageB25.json && usageB25.json.actionCount, 1, "r25 通过动作计入动作乙 usage");
+    const usageR25 = await expectStatus("GET", `/api/org/members/${retired25b.json.id}/usage`, undefined, 200, "r25 停用成员 usage -> 200");
+    eq(usageR25.json && usageR25.json.actionCount, 0, "r25 被拒动作不计数");
+
+    await expectStatus("DELETE", `/api/approvals/${approval25.json.id}`, undefined, 200, "r25 清理成员动作审批 -> 200");
+    await expectStatus("DELETE", `/api/approvals/${legacy25.json.id}`, undefined, 200, "r25 清理老路径审批 -> 200");
+    await expectStatus("DELETE", `/api/approvals/${bad25.json.id}`, undefined, 200, "r25 清理拒绝动作审批 -> 200");
+    await expectStatus("DELETE", `/api/members/${alice25.json.id}`, undefined, 200, "r25 清理动作甲 -> 200");
+    await expectStatus("DELETE", `/api/members/${bob25.json.id}`, undefined, 200, "r25 清理动作乙 -> 200");
+    await expectStatus("DELETE", `/api/members/${retired25b.json.id}`, undefined, 200, "r25 清理停用成员 -> 200");
+    await expectStatus("DELETE", `/api/departments/${dept25.json.id}`, undefined, 200, "r25 清理部门 -> 200");
+    const userDelete25 = await authReq("DELETE", `/api/auth/users/${user25.json.user.id}`, login25.json.token);
+    eq(userDelete25.status, 200, "r25 清理登录用户 -> 200（带 token 的管理员）");
+    const tree25 = await expectStatus("GET", "/api/org/tree", undefined, 200, "r25 清理后组织树 -> 200");
+    eq(tree25.json && tree25.json.members, [], "r25 清理后成员归零");
+    eq(tree25.json && tree25.json.tree, [], "r25 清理后部门归零");
   }
 }
 

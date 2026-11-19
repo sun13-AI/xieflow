@@ -272,13 +272,14 @@ export interface MemberSummary {
   readonly status: MemberStatus;
 }
 
-/** GET /api/org/members/:id/usage 的四类计数口径 */
+/** GET /api/org/members/:id/usage 的五类计数口径（r25 增审批动作 actionCount） */
 export interface MemberUsage {
   readonly memberId: number;
   readonly approvalCount: number;
   readonly assignedApprovalCount: number;
   readonly ccCount: number;
   readonly assetCount: number;
+  readonly actionCount: number;
   readonly total: number;
 }
 
@@ -337,6 +338,22 @@ export function memberDisplayName(member: { readonly name: string; readonly depa
   return member.departmentName ? `${member.name}（${member.departmentName}）` : member.name;
 }
 
+/**
+ * r25：当前登录用户 → 关联通讯录成员的唯一口径。
+ * 未登录 / 非法 userId / 无关联 / 关联到停用成员一律返回 null（老路径 actorMemberId 缺省行为不变）。
+ */
+export function resolveMemberForUser(userId: unknown, members: readonly Member[]): Member | null {
+  let id: number | null;
+  try {
+    id = normalizeMemberRef(userId);
+  } catch {
+    return null;
+  }
+  if (id === null) return null;
+  const found = members.find((m) => m.userId === id && m.status === "active");
+  return found ?? null;
+}
+
 /** 四类 usage 计数唯一口径（传入已查出的关联列，不查库、不删用户数据） */
 export function countMemberUsage(
   memberId: unknown,
@@ -345,6 +362,7 @@ export function countMemberUsage(
     readonly steps?: readonly { readonly assigneeMemberId?: number | null }[];
     readonly cc?: readonly { readonly ccMemberId?: number | null }[];
     readonly assets?: readonly { readonly custodianMemberId?: number | null }[];
+    readonly actorSteps?: readonly { readonly actorMemberId?: number | null }[];
   } = {},
 ): MemberUsage {
   const id = normalizeMemberRef(memberId);
@@ -353,12 +371,14 @@ export function countMemberUsage(
   const assignedApprovalCount = (input.steps ?? []).filter((r) => r.assigneeMemberId === id).length;
   const ccCount = (input.cc ?? []).filter((r) => r.ccMemberId === id).length;
   const assetCount = (input.assets ?? []).filter((r) => r.custodianMemberId === id).length;
+  const actionCount = (input.actorSteps ?? []).filter((r) => r.actorMemberId === id).length;
   return {
     memberId: id,
     approvalCount,
     assignedApprovalCount,
     ccCount,
     assetCount,
-    total: approvalCount + assignedApprovalCount + ccCount + assetCount,
+    actionCount,
+    total: approvalCount + assignedApprovalCount + ccCount + assetCount + actionCount,
   };
 }

@@ -321,7 +321,7 @@ export function assembleRangeSchedules(
 }
 
 /** 数据库 schema 版本号，每轮迁移必须 +1（宪法：禁止手改库文件） */
-export const SCHEMA_VERSION: number = 17;
+export const SCHEMA_VERSION: number = 18;
 
 
 /** 迁移脚本类型：user_version 从 from 升到 to */
@@ -3565,6 +3565,8 @@ export interface ApprovalStep {
   readonly comment: string;
   readonly actedAt: string;
   readonly assigneeMemberId?: number | null;
+  /** r25 操作人成员关联；老步骤为 null，纯自由文本路径不受影响 */
+  readonly actorMemberId?: number | null;
 }
 
 export interface ApprovalCc {

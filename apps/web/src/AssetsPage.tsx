@@ -1,10 +1,10 @@
-﻿// 协流 XieFlow — r17「物资」tab：台账列表 + 出入库表单 + 流水时间线
+// 协流 XieFlow — r17「物资」tab：台账列表 + 出入库表单 + 流水时间线
 // 数据全走真实 api（assets CRUD / transactions / 查询）。库存规则全在 shared，页面零库存分支。
 // 截图钉态：?page=assets&shot=assets-empty|assets-form|assets-loading|assets-error
 // ?assetId= 深链选中真实物资；?narrow=1 显式钉窄屏。
 import { useCallback, useEffect, useState } from "react";
 import type { Asset, AssetTransaction } from "@xieflow/shared";
-import type { MemberSummary } from "@xieflow/shared/org";
+import { memberDisplayName, type MemberSummary } from "@xieflow/shared/org";
 import { ASSET_CATEGORIES, ASSET_CATEGORY_LABELS, ASSET_TX_TYPES, ASSET_TX_TYPE_LABELS } from "@xieflow/shared";
 import MemberPicker from "./MemberPicker";
 import { SERVICE_DOWN_MESSAGE, fetchJsonOrThrow, apiFetch } from "./httpClient";
@@ -50,15 +50,17 @@ export default function AssetsPage() {
     if (shot === "assets-loading") return { phase: "loading", assets: [] };
     if (shot === "assets-error") return { phase: "error", message: SERVICE_DOWN_MESSAGE, assets: [] };
     if (shot === "assets-empty") return { phase: "ready", assets: [] };
-    if (shot === "assets-custodian-badge") return { phase: "ready", assets: [PIN_ASSET] };
+    if (shot === "assets-custodian-badge" || shot === "assets-detail-badge") return { phase: "ready", assets: [PIN_ASSET] };
     if (shot === "assets-picker") return { phase: "ready", assets: [] };
     return { phase: "loading", assets: [] };
   });
   const [selectedId, setSelectedId] = useState<number>(() => {
     const raw = Number(new URLSearchParams(window.location.search).get("assetId"));
-    return shot === "assets-custodian-badge" ? PIN_ASSET.id : raw || 0;
+    return shot === "assets-custodian-badge" || shot === "assets-detail-badge" ? PIN_ASSET.id : raw || 0;
   });
-  const [selected, setSelected] = useState<AssetWithMember | null>(null);
+  const [selected, setSelected] = useState<AssetWithMember | null>(() =>
+    shot === "assets-detail-badge" ? PIN_ASSET : null,
+  );
   const [txs, setTxs] = useState<AssetTransaction[]>([]);
   const [creating, setCreating] = useState(shot === "assets-form" || shot === "assets-picker");
   const [nameDraft, setNameDraft] = useState("");
@@ -89,7 +91,7 @@ export default function AssetsPage() {
   }, []);
 
   const loadDetail = useCallback(async (id: number) => {
-    if (shot === "assets-custodian-badge") {
+    if (shot === "assets-custodian-badge" || shot === "assets-detail-badge") {
       setSelected(PIN_ASSET);
       setTxs([]);
       return;
@@ -108,7 +110,7 @@ export default function AssetsPage() {
   }, [shot]);
 
   useEffect(() => {
-    if (["assets-loading", "assets-error", "assets-empty", "assets-picker", "assets-custodian-badge"].includes(shot)) return;
+    if (["assets-loading", "assets-error", "assets-empty", "assets-picker", "assets-custodian-badge", "assets-detail-badge"].includes(shot)) return;
     void refresh().then((assets) => {
       if (selectedId > 0 && assets.some((a) => a.id === selectedId)) void loadDetail(selectedId);
     });
@@ -180,6 +182,7 @@ export default function AssetsPage() {
     "assets-timeline": "流水钉注：时间线由 GET /:id/transactions 真读回，in/out/transfer 逐步留痕。",
     "assets-picker": "选人弹窗钉注：保管员从通讯录搜索并选择；原「保管人」自由文本输入框仍在场，老路径不受影响。",
     "assets-custodian-badge": "部门徽标钉注：物资卡片与详情从回带 member 摘要渲染部门徽标；usage 计数由 HTTP usage 端点提供。",
+    "assets-detail-badge": "详情徽标钉注：选中物资后详情区展示保管员姓名 + 部门徽标，坐实 r24/05 索引所述「详情」形态。",
   };
   const pinNote = pinNoteMap[shot] ?? "";
 
@@ -242,7 +245,7 @@ export default function AssetsPage() {
               <span>分类：{ASSET_CATEGORY_LABELS[selected.category]}</span>
               <span>存放：{selected.location}</span>
               <span>保管人：{selected.custodian}
-                {selected.custodianMember && <em className="as-member-badge" data-state="assets-detail-member-badge">{selected.custodianMember.departmentName ?? "未分配部门"}</em>}
+                {selected.custodianMember && <em className="as-member-badge" data-state="assets-detail-member-badge">{memberDisplayName(selected.custodianMember)}</em>}
               </span>
             </div>
             <div className="as-tx-form" data-state="assets-tx-form">

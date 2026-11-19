@@ -23,6 +23,7 @@
 #     (01/02 true-390px shots are CDP device-metrics captures, r20 06 precedent: headless
 #      --window-size clamps narrow widths to 500px; see docs/ui/r22/README.md)
 #   powershell -File scripts\shot.ps1 shots -Round r23 # capture r23 org matrix + 15-tab shell baseline
+#   powershell -File scripts\shot.ps1 shots -Round r25 # capture r25 actor-badge / dept-filter / manual-hint matrix + 15-tab shell baseline
 #   powershell -File scripts\shot.ps1 shots -Round r24 # capture r24 member-picker matrix + 15-tab shell baseline
 #   powershell -File scripts\shot.ps1 shots -Round r11 -Shot 08-docs-diff-inline # rework#1: re-capture ONLY the diff-inline evidence (no other matrix/shell re-shot)
 #   powershell -File scripts\shot.ps1 down            # stop servers
@@ -48,7 +49,7 @@ param(
   [Parameter(Position = 0)]
   [ValidateSet("up", "shots", "down", "status", "all")]
   [string]$Action = "status",
-  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24")]
+  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25")]
   [string]$Round = "r1",
   [Parameter()]
   [string]$Shot = ""
@@ -909,7 +910,22 @@ function Invoke-Shots {
     }
   }
 
-  if ($Round -eq "r24") {
+  if ($Round -eq "r25") {
+    # r25: approval action actor badge / picker department filter / named badge /
+    # manual-edit hint / assets detail badge / narrow / error. All states are
+    # deterministic ?shot= pins; real link + usage are locked by HTTP/CDP assertions.
+    $r25Approval = "http://127.0.0.1:$WebPort/?page=approval"
+    $r25Assets = "http://127.0.0.1:$WebPort/?page=assets"
+    $shots = @(
+      @{ name = "01-approval-actor-badge"; url = "$r25Approval&shot=approval-actor-badge"; width = 1280; height = 900 },
+      @{ name = "02-picker-dept-filter";  url = "$r25Approval&shot=approval-picker"; width = 1280; height = 900 },
+      @{ name = "03-badge-named";         url = "$r25Approval&shot=approval-picked"; width = 1280; height = 900 },
+      @{ name = "04-manual-hint";         url = "$r25Approval&shot=approval-manual-hint"; width = 1280; height = 900 },
+      @{ name = "05-assets-detail-badge"; url = "$r25Assets&shot=assets-detail-badge"; width = 1280; height = 900 },
+      @{ name = "06-narrow";              url = "$r25Approval&shot=approval-picker&narrow=1"; width = 488; height = 1000 },
+      @{ name = "07-error";               url = "$r25Approval&shot=approval-r25-error"; width = 1280; height = 900 }
+    )
+  } elseif ($Round -eq "r24") {
     # r24: member picker / selected state / department badges on approval + assets.
     # All seven states use deterministic ?shot= pins; real CRUD / 4xx / usage are
     # locked by e2e + audit-http + headless CDP first-use chain.

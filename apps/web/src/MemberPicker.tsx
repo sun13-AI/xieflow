@@ -30,14 +30,22 @@ export default function MemberPicker({
 }: MemberPickerProps) {
   const [open, setOpen] = useState(openOnInit);
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<readonly MemberSummary[]>([]);
+  const [deptFilter, setDeptFilter] = useState<number | null>(null);
+  const [departments, setDepartments] = useState<readonly Department[]>([]);
+  const [allResults, setAllResults] = useState<readonly MemberSummary[]>([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+
+  const visible = useCallback((rows: readonly MemberSummary[]) =>
+    deptFilter === null ? rows : rows.filter((m) => m.departmentId === deptFilter), [deptFilter]);
 
   const search = useCallback(async (q: string) => {
     if (pinned) {
       const needle = q.trim().toLowerCase();
-      setResults(needle === "" ? pinned : pinned.filter((m) =>
+      setDepartments([...new Map(pinned.map((m) => [m.departmentId, {
+        id: m.departmentId ?? 0, name: m.departmentName ?? "未分配部门", parentId: null, sortOrder: 0, createdAt: "",
+      }])).values()].filter((d) => d.id > 0));
+      setAllResults(pinned.filter((m) =>
         m.name.toLowerCase().includes(needle) || (m.departmentName ?? "").toLowerCase().includes(needle),
       ));
       return;
@@ -49,20 +57,30 @@ export default function MemberPicker({
         getJson<{ members: Member[] }>(`/api/members/search?q=${encodeURIComponent(q)}`),
         getJson<{ departments: Department[] }>("/api/org/tree"),
       ]);
-      setResults(found.members.map((m) => memberSummary(m, tree.departments)));
+      setDepartments(tree.departments);
+      setAllResults(found.members.map((m) => memberSummary(m, tree.departments)));
     } catch (err) {
       setError(err instanceof Error ? err.message : SERVICE_DOWN_MESSAGE);
-      setResults([]);
+      setAllResults([]);
     } finally {
       setBusy(false);
     }
-  }, [pinned]);
+  }, [pinned, visible]);
+
+  const results = visible(allResults);
 
   useEffect(() => {
     if (open) void search(query);
     // 打开时拉一次；后续由搜索按钮/回车驱动，避免每次输入都发请求
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+  useEffect(() => {
+    if (!pinned) return;
+    const tree = [...new Map(pinned.map((m) => [m.departmentId, {
+      id: m.departmentId ?? 0, name: m.departmentName ?? "未分配部门", parentId: null, sortOrder: 0, createdAt: "",
+    }])).values()];
+    setDepartments(tree.filter((d) => d.id > 0));
+  }, [pinned]);
 
   return (
     <span className="mp-root" data-state={`${seam}-picker`}>
@@ -74,8 +92,13 @@ export default function MemberPicker({
       >从通讯录选人</button>
       {member !== null && (
         <span className="mp-chosen" data-state={`${seam}-chosen`}>
-          {memberDisplayName(member)} <small>#{member.id}</small>
-          <button type="button" className="mp-clear" data-action={`${seam}-pick-clear`} onClick={() => { onClear(); setOpen(false); }}>×</button>
+          {memberDisplayName(member)}
+          <button type="button" className="mp-clear" data-action={`${seam}-pick-clear`} onClick={() => { onClear(); setOpen(false); }} title="解除通讯录关联">×</button>
+        </span>
+      )}
+      {member !== null && (
+        <span className="mp-chosen-hint" data-state={`${seam}-chosen-hint`}>
+          已关联通讯录：手改上方姓名仅作备忘，提交仍以通讯录成员为准；点 × 解除关联。
         </span>
       )}
       {open && (
@@ -94,6 +117,22 @@ export default function MemberPicker({
               onKeyDown={(e) => { if (e.key === "Enter") void search(query); }}
             />
             <button type="button" className="btn" data-action={`${seam}-pick-search-run`} onClick={() => void search(query)}>搜索</button>
+          </span>
+          <span className="mp-filter">
+            <label htmlFor={`${seam}-dept`}>部门筛选</label>
+            <select
+              id={`${seam}-dept`}
+              className="mp-dept-filter"
+              data-action={`${seam}-pick-dept`}
+              value={deptFilter ?? ""}
+              onChange={(e) => {
+                setDeptFilter(e.target.value === "" ? null : Number(e.target.value));
+              }}
+            >
+              <option value="">全部部门</option>
+              {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+            </select>
+            <small>{deptFilter === null ? "不限部门" : `仅看 ${departments.find((d) => d.id === deptFilter)?.name ?? "该部门"}`}</small>
           </span>
           {error !== "" && <span className="mp-error" data-state="member-picker-error">{error}</span>}
           {busy && <span className="mp-empty">正在读取通讯录…</span>}

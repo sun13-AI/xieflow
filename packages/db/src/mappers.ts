@@ -445,6 +445,7 @@ export function mapRowToApprovalStep(row: Row): ApprovalStep {
     comment: String(row.comment),
     actedAt: String(row.acted_at),
     assigneeMemberId: row.assignee_member_id === null || row.assignee_member_id === undefined ? null : Number(row.assignee_member_id),
+    actorMemberId: row.actor_member_id === null || row.actor_member_id === undefined ? null : Number(row.actor_member_id),
   };
 }
 

@@ -2199,9 +2199,9 @@ export class XieFlowDb {
         plan.nextStatus, plan.nextAssignee, now, id,
       ]);
       this.db.run(
-        `INSERT INTO approval_steps (approval_id, "order", assignee, assignee_member_id, action, comment, acted_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [id, nextOrder, plan.stepAssignee, stepMemberId, plan.action, options.comment ?? "", now],
+        `INSERT INTO approval_steps (approval_id, "order", assignee, assignee_member_id, actor_member_id, action, comment, acted_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [id, nextOrder, plan.stepAssignee, stepMemberId, resolvedActor.memberId, plan.action, options.comment ?? "", now],
       );
       this.db.exec("COMMIT");
     } catch (err) {
@@ -2849,7 +2849,7 @@ export class XieFlowDb {
     return this.db.run("DELETE FROM members WHERE id = ?", [id]).changes > 0;
   }
 
-  /** GET /api/org/members/:id/usage：四类关联计数口径唯一在 shared/org，本层只取关联列 */
+  /** GET /api/org/members/:id/usage：五类关联计数口径唯一在 shared/org，本层只取关联列 */
   countMemberUsage(memberId: unknown): MemberUsage {
     const id = normalizeMemberRef(memberId);
     if (id === null) throw new ValidationError("成员 id 不能为空");
@@ -2858,6 +2858,7 @@ export class XieFlowDb {
       steps: this.db.all("SELECT assignee_member_id AS assigneeMemberId FROM approval_steps"),
       cc: this.db.all("SELECT cc_member_id AS ccMemberId FROM approval_cc"),
       assets: this.db.all("SELECT custodian_member_id AS custodianMemberId FROM assets"),
+      actorSteps: this.db.all("SELECT actor_member_id AS actorMemberId FROM approval_steps"),
     });
   }
 
