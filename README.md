@@ -75,7 +75,7 @@ docs/
   DEPLOY.md          r21 部署指南：三路径 + 备份/恢复/搬迁四步 + FAQ
   feedback/          研发报告 / 复验报告（VERDICT）/ UI 审查报告
   staff/             agent 员工档案与逐轮履历
-  ui/                截图矩阵（逐张对照断言；shell/ 为十四 tab 壳基线）
+  ui/                截图矩阵（逐张对照断言；shell/ 为十五 tab 壳基线）
 .github/workflows/   CI：三平台 verify + tag 触发 Release
 ```
 
