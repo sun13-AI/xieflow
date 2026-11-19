@@ -16,7 +16,12 @@ import SyncCard from "./SyncCard";
 import OfflineStatus from "./OfflineStatus";
 // 截图状态真实存在：加载中 / 空数据 / 正常 / 错误 / 窄屏（?narrow=1 显式钉态）
 import { useEffect, useState } from "react";
-import type { AppSetting, Schedule, Todo } from "@xieflow/shared";
+import {
+  shouldShowTabsMore,
+  type AppSetting,
+  type Schedule,
+  type Todo,
+} from "@xieflow/shared";
 import TodosPage from "./TodosPage";
 import SchedulesPage from "./SchedulesPage";
 import ProjectsPage from "./ProjectsPage";
@@ -110,6 +115,17 @@ export default function App() {
   const [serverMode, setServerMode] = useState<FrontendMode>("local");
   const [preferredMode, setPreferredMode] = useState<FrontendMode>(() => readPreferredMode());
   const [modeError, setModeError] = useState("");
+  // r22：底栏「更多」与顶栏 ☰ 共用一条开合状态；?nav=open 为截图/复验确定性钉态
+  const [navOpen, setNavOpen] = useState<boolean>(
+    () => new URLSearchParams(window.location.search).get("nav") === "open",
+  );
+  const moreVisible = shouldShowTabsMore(navOpen);
+  useEffect(() => {
+    document.documentElement.classList.toggle("nav-open", navOpen);
+  }, [navOpen]);
+  function toggleNav(): void {
+    setNavOpen((open) => !open);
+  }
 
   useEffect(() => {
     const onCleared = () => setToken(null);
@@ -371,9 +387,13 @@ export default function App() {
             单位任务
           </button>
         </nav>
-        <span className="badge">r20 · 离线模式与 PWA（M10 起步）</span>
+        <div className="tabs-more-wrap" data-state="tabs-more" data-more-visible={moreVisible ? "1" : "0"}>
+          <span className="tabs-more-fade" aria-hidden="true" />
+          <button type="button" className="tabs-more" aria-label="更多导航" onClick={toggleNav}>更多 ›</button>
+        </div>
+        <span className="badge">r22 · 遗留清理与质量收敛（M10 后）</span>
         <OfflineStatus />
-        <button type="button" className="nav-toggle" data-state="nav-toggle" aria-label="展开导航" onClick={() => document.documentElement.classList.toggle("nav-open")}>☰</button>
+        <button type="button" className="nav-toggle" data-state="nav-toggle" aria-label="展开导航" onClick={toggleNav}>☰</button>
         <span className="auth-controls" data-state="auth-controls">
           {pinnedToken ? (
             <button type="button" className="auth-top-btn" onClick={logout}>退出登录</button>

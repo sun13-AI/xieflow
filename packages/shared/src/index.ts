@@ -4327,3 +4327,10 @@ export function buildOfflineQueuedResponse(item: OfflineQueueItem): OfflineQueue
   };
 }
 
+// r22: 移动底栏「更多」入口的唯一显隐条件。窄屏由 CSS 断点控制，这里只负责
+// 菜单开合语义：展开态隐藏「更多」（全部 tab 已在网格里），收起态显示。
+// 变异红相目标：把 return !navOpen 改成 return false → e2e seam 断言变红。
+export function shouldShowTabsMore(navOpen: boolean): boolean {
+  return !navOpen;
+}
+

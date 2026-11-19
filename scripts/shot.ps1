@@ -19,6 +19,9 @@
 #   powershell -File scripts\shot.ps1 shots -Round r18 # capture r18 login / register / logout / 401 / mode switch states
 #   powershell -File scripts\shot.ps1 shots -Round r19 # capture r19 multi-device sync card / conflict modal states
 #   powershell -File scripts\shot.ps1 shots -Round r20 # capture r20 PWA / online-offline / replay / mobile 390px states
+#   powershell -File scripts\shot.ps1 shots -Round r22 # capture r22 narrow-seam matrix + 14-tab shell baseline
+#     (01/02 true-390px shots are CDP device-metrics captures, r20 06 precedent: headless
+#      --window-size clamps narrow widths to 500px; see docs/ui/r22/README.md)
 #   powershell -File scripts\shot.ps1 shots -Round r11 -Shot 08-docs-diff-inline # rework#1: re-capture ONLY the diff-inline evidence (no other matrix/shell re-shot)
 #   powershell -File scripts\shot.ps1 down            # stop servers
 #   powershell -File scripts\shot.ps1 status          # show port status
@@ -43,7 +46,7 @@ param(
   [Parameter(Position = 0)]
   [ValidateSet("up", "shots", "down", "status", "all")]
   [string]$Action = "status",
-  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20")]
+  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22")]
   [string]$Round = "r1",
   [Parameter()]
   [string]$Shot = ""
@@ -902,7 +905,14 @@ function Invoke-Shots {
     }
   }
 
-  if ($Round -eq "r15") {
+  if ($Round -eq "r22") {
+    # r22: only the 488px force-narrow seam is deterministic via --window-size.
+    # 01/02 are true 390x844 CDP device-metrics captures (r20 06 precedent:
+    # headless --window-size clamps to 500px), see docs/ui/r22/README.md.
+    $shots = @(
+      @{ name = "03-narrow-docs-more"; url = "http://127.0.0.1:$WebPort/?page=docs&narrow=1"; width = 488; height = 900 }
+    )
+  } elseif ($Round -eq "r15") {
     # 01 = pinned first-use empty; 02/03 = ONE real board with 3 real notes,
     # 03 after a REAL batch move between captures; 04 = mock AI board (7 notes);
     # 05 = real GET /export.md notice + real .md bytes on disk; 06 = narrow seam;

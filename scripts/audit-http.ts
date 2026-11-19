@@ -165,11 +165,11 @@ async function audit() {
   console.log("\n== POST /api/todos (create) ==");
   let created;
   {
-    const r = await expectStatus("POST", "/api/todos", { title: "写 r2 审计脚本", quadrant: "q1", dueDate: "2026-11-20" }, 201, "POST 合法体 -> 201");
+    const r = await expectStatus("POST", "/api/todos", { title: "写 r2 审计脚本", quadrant: "q1", dueDate: "2026-11-22" }, 201, "POST 合法体 -> 201");
     eq(r.json && r.json.title, "写 r2 审计脚本", "创建后 title 读回");
     eq(r.json && r.json.quadrant, "q1", "创建后 quadrant 读回");
     eq(r.json && r.json.status, "open", "创建后初始状态 open");
-    eq(r.json && r.json.dueDate, "2026-11-20", "创建后 dueDate 读回");
+    eq(r.json && r.json.dueDate, "2026-11-22", "创建后 dueDate 读回");
     created = r.json;
     await expectStatus("POST", "/api/todos", { title: "", quadrant: "q1" }, 400, "POST 空标题 -> 400");
     await expectStatus("POST", "/api/todos", { title: "   ", quadrant: "q1" }, 400, "POST 纯空白标题 -> 400");
@@ -224,7 +224,7 @@ async function audit() {
     const sm = r.json && r.json.summary;
     eq(sm && sm.today, 1, "summary.today = 1（今天到期 open）");
     eq(sm && sm.tomorrow, 1, "summary.tomorrow = 1");
-    eq(sm && sm.week, 3, "summary.week = 3（今+明+2026-11-20 在 [今天,今天+6] 窗口内；八天后窗外）");
+    eq(sm && sm.week, 3, "summary.week = 3（今+明+2026-11-22 在 [今天,今天+6] 窗口内；八天后窗外）");
     eq(sm && sm.byQuadrant && sm.byQuadrant.q1, 1, "byQuadrant.q1 = 1（首轮创建）");
     eq(sm && sm.byQuadrant && sm.byQuadrant.q2, 1, "byQuadrant.q2 = 1");
     eq(sm && sm.byQuadrant && sm.byQuadrant.q3, 1, "byQuadrant.q3 = 1");
@@ -337,22 +337,22 @@ async function audit() {
   console.log("\n== todo <-> schedule two-way sync (r3) ==");
   {
     // 方向一：待办设 due_date → 自动生成关联日程
-    const t = await expectStatus("POST", "/api/todos", { title: "写联动复验材料", quadrant: "q2", dueDate: "2026-11-20" }, 201, "POST 带截止日待办 -> 201");
+    const t = await expectStatus("POST", "/api/todos", { title: "写联动复验材料", quadrant: "q2", dueDate: "2026-11-23" }, 201, "POST 带截止日待办 -> 201");
     linkTodo = t.json;
-    const afterCreate = await req("GET", "/api/schedules?from=2026-11-20&to=2026-11-20");
+    const afterCreate = await req("GET", "/api/schedules?from=2026-11-23&to=2026-11-23");
     eq(afterCreate.json.schedules.length, 1, "建待办（带 dueDate）自动生成关联日程");
     const gen = afterCreate.json.schedules[0];
-    eq(gen.date, "2026-11-20", "生成日程 date = 待办 dueDate");
+    eq(gen.date, "2026-11-23", "生成日程 date = 待办 dueDate");
     eq(gen.todoId, linkTodo.id, "生成日程 todo_id 关联该待办");
     eq(gen.start, "09:00", "生成日程默认 09:00 开始");
     eq(gen.end, "10:00", "生成日程默认 10:00 结束");
     eq(gen.title, linkTodo.title, "生成日程标题沿用待办标题");
 
     // 方向二：日程改期 → 回写待办 due_date
-    const moved = await expectStatus("PATCH", `/api/schedules/${gen.id}`, { date: "2026-11-25" }, 200, "PATCH 关联日程改期 -> 200");
-    eq(moved.json && moved.json.date, "2026-11-25", "日程本体已改期");
+    const moved = await expectStatus("PATCH", `/api/schedules/${gen.id}`, { date: "2026-11-24" }, 200, "PATCH 关联日程改期 -> 200");
+    eq(moved.json && moved.json.date, "2026-11-24", "日程本体已改期");
     const todoAfter = await req("GET", `/api/todos/${linkTodo.id}`);
-    eq(todoAfter.json && todoAfter.json.dueDate, "2026-11-25", "日程改期回写待办 dueDate（联动闭环）");
+    eq(todoAfter.json && todoAfter.json.dueDate, "2026-11-24", "日程改期回写待办 dueDate（联动闭环）");
 
     // 待办侧改期 → 日程跟着变
     const todoMoved = await expectStatus(
@@ -2878,6 +2878,27 @@ async function audit() {
     // 契约外路径必须 404（部署探针不误暴露内部路由）
     await expectStatus("GET", "/api/__r21_not_a_route__", undefined, 404, "r21 契约外路径 -> 404");
     ok(missingDeployMarkers("start.cmd http://127.0.0.1:8080 ./data/ start.sh", DEPLOY_GUIDE_MARKERS).length === 0, "r21 audit 引导四要素契约校验（共享函数）");
+  }
+
+  // ---- r22：部署文档补强后的路由契约复核（真 HTTP + 常量结构） ----
+  console.log("\n== Deploy r22: route contract after docs cleanup ==");
+  {
+    const h22 = await expectStatus("GET", DEPLOY_PATHS.health, undefined, 200, "r22 health 路由真 HTTP 200");
+    ok(Array.isArray(h22.json && h22.json.settings), "r22 health 响应含 settings 数组（部署自检依赖）");
+    ok(
+      Array.isArray(h22.json && h22.json.settings) &&
+        h22.json.settings.some((s: { key: string }) => s.key === "last_health_check"),
+      "r22 health settings 含 last_health_check 时间戳键",
+    );
+    const healthRes = await fetch(`${BASE}${DEPLOY_PATHS.health}`, { signal: AbortSignal.timeout(5000) });
+    ok((healthRes.headers.get("content-type") ?? "").includes("application/json"), "r22 health 响应 content-type 为 JSON（契约）");
+    const m22 = await expectStatus("GET", DEPLOY_PATHS.mode, undefined, 200, "r22 mode 路由真 HTTP 200");
+    ok(isServerMode(m22.json && m22.json.envMode) && m22.json.envMode === m22.json.mode, "r22 envMode 与 mode 回显一致（本机契约）");
+    const t22 = await expectStatus("GET", DEPLOY_PATHS.todos, undefined, 200, "r22 todos 业务路由 local 模式 200");
+    ok(Array.isArray(t22.json && t22.json.todos), "r22 todos 路由返回 todos 数组（部署探针契约）");
+    await expectStatus("GET", "/api/__r22_not_a_route__", undefined, 404, "r22 契约外路径 -> 404");
+    ok(DEPLOY_ROUTES.every((r) => r.path.startsWith("/api/")), "r22 5 条部署路由全在 /api 契约前缀下");
+    eq(new Set(Object.values(DEPLOY_PATHS)).size, Object.keys(DEPLOY_PATHS).length, "r22 部署路径常量无重复");
   }
 }
 

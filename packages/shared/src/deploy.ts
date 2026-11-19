@@ -59,6 +59,19 @@ export const DEPLOY_ROUTES: readonly DeployRouteExpectation[] = [
   { path: DEPLOY_PATHS.authMe, localStatus: 401, remoteStatus: 401 },
 ];
 
+/** r22: documentation markers that MUST survive the M10-after cleanup round.
+ *  Kept here (not inline in e2e) so docs / tests / reviewers share one contract. */
+export const DEPLOY_DOC_MARKERS = {
+  releasesUrl: "https://github.com/sun13-AI/xieflow/releases",
+  hostIpHint: "http://<宿主IP>:8080",
+  volumeMigrate: "docker run --rm -v xieflow-data:/from",
+} as const;
+
+/** Return the deploy-doc markers missing from a text (real validator, not a tautology). */
+export function missingDeployDocMarkers(text: string): readonly string[] {
+  return (Object.values(DEPLOY_DOC_MARKERS) as readonly string[]).filter((m) => !text.includes(m));
+}
+
 /** Expected HTTP status of a canonical deploy route in a given mode. */
 export function expectedDeployStatus(route: DeployRouteExpectation, mode: string): number {
   return mode === "remote" ? route.remoteStatus : route.localStatus;

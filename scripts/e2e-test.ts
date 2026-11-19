@@ -303,9 +303,11 @@ import {
   buildOfflineQueuedResponse,
   type OfflineStorage,
   type OfflineQueueItem,
+  // r22：移动底栏「更多」入口显隐条件（纯函数 seam，变异红相目标）
+  shouldShowTabsMore,
 } from "@xieflow/shared";
 import type { TodoStatus } from "@xieflow/shared";
-import { pbkdf2Sync } from "node:crypto";
+import { createHash, pbkdf2Sync } from "node:crypto";
 import {
   AUTH_ROLES,
   AUTH_PERMISSIONS,
@@ -333,6 +335,8 @@ import {
   DEPLOY_ROUTES,
   expectedDeployStatus,
   missingDeployMarkers,
+  // r22：部署文档三处补强契约（Releases / 宿主 IP / docker 卷迁移）
+  missingDeployDocMarkers,
 } from "@xieflow/shared/deploy";
 import {
   createMockProvider,
@@ -5060,7 +5064,7 @@ try {
     ok(/data-state="queue-badge"/.test(statusSrc), "r20 顶栏离线队列徽标存在");
     ok(/data-state="queue-sync"/.test(statusSrc), "r20 立即同步按钮存在");
     ok(/<OfflineStatus\s*\/>/.test(appSrc), "r20 外壳挂载在线状态组件");
-    ok(/r20 · 离线模式与 PWA/.test(appSrc), "r20 徽章推进到 M10 起步");
+    ok(!/r20 · 离线模式与 PWA/.test(appSrc), "r20 旧徽章已替换无残留（r22 推进）");
     ok(/@media \(max-width:\s*600px\)/.test(cssSrc), "r20 有 <=600px 移动断点");
     ok(/overflow-x:\s*hidden/.test(cssSrc), "r20 禁止横向溢出");
     ok(/min-height:\s*44px/.test(cssSrc), "r20 触摸目标 >=44px");
@@ -5127,6 +5131,54 @@ try {
     ok(/备份/.test(deployDoc) && /恢复/.test(deployDoc) && /搬迁/.test(deployDoc), "r21 DEPLOY.md 含备份/恢复/搬迁");
     ok(/FAQ|常见问题/.test(deployDoc), "r21 DEPLOY.md 含 FAQ");
     ok(deployDoc.includes(DEPLOY_PATHS.health), "r21 DEPLOY.md 引用契约健康路径");
+  }
+
+  // 58. r22：M10 后遗留清理与质量收敛（移动底栏更多入口 / 文档契约 / shell 索引自洽）
+  section("r22 遗留清理：移动导航更多入口 / 文档契约 / shell 索引自洽");
+  {
+    // (A) 更多按钮显隐条件（变异红相目标：恒 false → 本组 seam 断言变红）
+    eq(shouldShowTabsMore(false), true, "r22 更多按钮在菜单未展开时可见（seam 契约）");
+    eq(shouldShowTabsMore(true), false, "r22 更多按钮在菜单展开时隐藏（seam 契约）");
+    const app22 = readFileSync("apps/web/src/App.tsx", "utf8");
+    const css22 = readFileSync("apps/web/src/styles.css", "utf8");
+    ok(/shouldShowTabsMore\(navOpen\)/.test(app22) && /data-more-visible/.test(app22), "r22 外壳把更多显隐纯函数接到 DOM seam");
+    ok(/data-state="tabs-more"/.test(app22), "r22 更多按钮有稳定 data-state seam（截图/复验可寻址）");
+    ok(/tabs-more-fade/.test(css22) && /linear-gradient/.test(css22), "r22 底栏右侧渐隐遮罩在场");
+    ok(/html\.nav-open \.tabs-more\s*\{[^}]*display:\s*none/.test(css22), "r22 菜单展开时隐藏更多按钮");
+    ok(/r22 · 遗留清理与质量收敛/.test(app22), "r22 徽章推进到遗留清理轮");
+
+    // (B) DEPLOY.md 三处补强 / 根 README 脚本清单（真实文档契约）
+    const deploy22 = readFileSync("docs/DEPLOY.md", "utf8");
+    eq(missingDeployDocMarkers(deploy22), [], "r22 DEPLOY.md 三处补强齐全（Releases/宿主IP/卷迁移）");
+    ok(missingDeployDocMarkers("no deployment notes").length === 3, "r22 文档补强校验真实（缺项被检出，非恒真）");
+    const rootReadme = readFileSync("README.md", "utf8");
+    ok(rootReadme.includes("shot-r18-rework.ps1"), "r22 根 README 脚本清单含 shot-r18-rework.ps1（r18 U3-2 挂账）");
+
+    // (C) shell README 与实际字节逐字一致（14 张哈希 + 全库计数）
+    const shellReadme = readFileSync("docs/ui/shell/README.md", "utf8");
+    ok(/r22 同批重拍/.test(shellReadme) && /r22 哈希自查/.test(shellReadme), "r22 shell README 整段推进到 r22 口径");
+    const hashBlock = shellReadme.match(/R22_HASHES_BEGIN([\s\S]*?)R22_HASHES_END/);
+    const listed = Array.from((hashBlock?.[1] ?? "").matchAll(/([a-z-]+)=([0-9A-F]{8})/g)).map(
+      (m) => `${m[1]}=${m[2]}`,
+    );
+    const shellFiles = readdirSync("docs/ui/shell").filter((f) => f.endsWith(".png")).sort();
+    const actual = shellFiles.map((f) => {
+      const h = createHash("sha256").update(readFileSync(`docs/ui/shell/${f}`)).digest("hex").slice(0, 8).toUpperCase();
+      return `${f.replace("-tab-active.png", "")}=${h}`;
+    });
+    eq(listed, actual, "r22 shell README 14 张哈希与实际文件逐字一致");
+
+    const walkPng = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+        e.isDirectory() ? walkPng(`${dir}/${e.name}`) : e.name.endsWith(".png") ? [`${dir}/${e.name}`] : [],
+      );
+    const allPng = walkPng("docs/ui");
+    const uniqueCount = new Set(
+      allPng.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex")),
+    ).size;
+    const countMatch = shellReadme.match(/全库 (\d+) PNG \/ (\d+) 互异/);
+    eq(countMatch ? Number(countMatch[1]) : -1, allPng.length, "r22 shell README 全库 PNG 计数与实际文件一致");
+    eq(countMatch ? Number(countMatch[2]) : -1, uniqueCount, "r22 shell README 互异计数与实际 SHA256 唯一数一致");
   }
 
   // 54. HTTP 冒烟 /api/health

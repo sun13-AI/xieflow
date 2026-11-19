@@ -3609,6 +3609,18 @@ pre.docs-print-block.docs-code {
 .net-error { color: #b91c1c; background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 3px 9px; }
 .offline-queued-notice { margin: 0 0 12px; padding: 9px 12px; border: 1px solid #fed7aa; background: #fff7ed; color: #9a3412; border-radius: 8px; font-size: 13px; }
 .nav-toggle { display: none; }
+/* r22: 移动底栏「更多」入口；桌面隐藏，窄屏/force-narrow 钉态下浮在底栏右端 */
+.tabs-more-wrap { display: none; }
+.tabs-more-fade {
+  position: absolute; right: 0; top: 0; bottom: 0; width: 76px; pointer-events: none;
+  background: linear-gradient(to right, rgba(255,255,255,0), rgba(255,255,255,.97));
+}
+.tabs-more {
+  position: relative; min-width: 60px; min-height: 44px; padding: 8px 10px;
+  border: 1px solid #bfdbfe; border-radius: 8px 0 0 8px;
+  background: #eff6ff; color: #1d4ed8; font-size: 12px; font-weight: 600; cursor: pointer;
+  white-space: nowrap;
+}
 
 @media (max-width: 600px) {
   html, body { max-width: 100%; overflow-x: hidden; }
@@ -3629,6 +3641,12 @@ pre.docs-print-block.docs-code {
   .tabs .tab { min-width: 44px; min-height: 44px; padding: 8px 10px; font-size: 12px; display: inline-flex; align-items: center; justify-content: center; }
   html.nav-open .tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: 70vh; overflow-y: auto; overflow-x: hidden; }
   html.nav-open .tabs .tab { width: 100%; }
+  .tabs-more-wrap[data-more-visible="1"] {
+    display: flex; position: fixed; right: 0; bottom: 0; z-index: 41;
+    align-items: center; justify-content: flex-end; height: 56px;
+  }
+  html.nav-open .tabs-more-wrap { display: none; }
+  html.nav-open .tabs-more { display: none; }
   .card { width: 100%; box-sizing: border-box; padding: 14px; }
   .quadrant-grid, .project-grid, .board-grid, .stat-grid, .chat-workbench,
   .kb-shell, .mm-shell, .mm-main, .wb-shell, .as-shell, .docs-layout, .ap-shell {
@@ -3654,6 +3672,12 @@ html.force-narrow .tabs {
 }
 html.force-narrow .tabs .tab { min-width: 44px; min-height: 44px; padding: 8px 10px; display: inline-flex; align-items: center; justify-content: center; }
 html.force-narrow.nav-open .tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: 70vh; overflow-y: auto; }
+html.force-narrow .tabs-more-wrap[data-more-visible="1"] {
+  display: flex; position: fixed; right: 0; bottom: 0; z-index: 41;
+  align-items: center; justify-content: flex-end; height: 56px;
+}
+html.force-narrow.nav-open .tabs-more-wrap { display: none; }
+html.force-narrow.nav-open .tabs-more { display: none; }
 html.force-narrow .card { width: 100%; box-sizing: border-box; }
 html.force-narrow .quadrant-grid, html.force-narrow .project-grid, html.force-narrow .board-grid,
 html.force-narrow .stat-grid, html.force-narrow .chat-workbench, html.force-narrow .kb-shell,

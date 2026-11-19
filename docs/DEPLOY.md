@@ -27,6 +27,7 @@ docker compose ps             # 看健康状态（healthy）
 ```
 
 - Web + API 同源单端口：`http://127.0.0.1:8080`
+- 同网段其他机器（机房同事电脑 / 手机）访问：`http://<宿主IP>:8080`——宿主 IP 用 `ipconfig`（Windows）或 `ip addr`（Linux）查，确认防火墙放行 8080；`127.0.0.1` 只在本机有效。
 - 环境变量：`XIEFLOW_MODE=remote`、`XIEFLOW_PORT=8080`、`XIEFLOW_DB_PATH=/app/data/xieflow.db`
 - 数据卷：`xieflow-data` 挂载到容器 `/app/data`；容器重建数据不丢。
 - 自检：`curl http://127.0.0.1:8080/api/health` → 200；或跑 `pwsh scripts/verify-deploy.ps1`（见第四节）。
@@ -39,8 +40,12 @@ docker compose ps             # 看健康状态（healthy）
 
 免安装、完全离线，模式固定 `local`（免登录），适合个人电脑 / U 盘携带。
 
+**不想装开发环境 / 没有源码仓库**：直接从 GitHub Releases 下载现成安装包
+`xieflow-setup-<版本>.zip`（入口：https://github.com/sun13-AI/xieflow/releases ），解压后跳到下面的「双击 start.cmd / `./start.sh`」即可用；仍需机器装有 Node.js ≥ 20。
+下面的 `pnpm run pack` 只是「从源码自行打包」的可选路径。
+
 ```bash
-pnpm run pack                  # 构建 release/xieflow-portable/
+pnpm run pack                  # 【可选】从源码构建 release/xieflow-portable/
 cd release/xieflow-portable
 # Windows: 双击 start.cmd
 # Linux/macOS: ./start.sh
@@ -62,7 +67,26 @@ cd release/xieflow-portable
 | 1. 停服 | 先停服务，避免写库时复制 | portable：关窗口；docker：`cd docker && docker compose stop` |
 | 2. 备份 | 整目录复制 `data/`（含 db + 备份/图片） | `Copy-Item -Recurse data backup\data-YYYYMMDD`（Windows）或 `cp -a data backup/data-YYYYMMDD` |
 | 3. 恢复 | 把备份目录复制回 `data/` | 先移走旧 `data/`，再把备份复制为 `data/`；启动后 `/api/health` 应 200 |
-| 4. 搬迁 | 换新机：拷贝整个部署目录 + `data/` | portable：拷整个 `xieflow-portable/`（含 data）→ 新机双击 start.cmd；docker：`docker compose down` 后拷卷数据到新机卷再 `up` |
+| 4. 搬迁 | 换新机：拷贝整个部署目录 + `data/` | portable：拷整个 `xieflow-portable/`（含 data）→ 新机双击 start.cmd；docker：见下方「docker 具名卷迁移」逐步命令（`down` 后导出卷 → 新机导入卷 → `up` → health 200） |
+
+**docker 具名卷迁移（第 4 步可复制命令）**：`xieflow-data` 是具名卷，不是普通目录，不能 `cp -a` 直接拷。用一次性 alpine 容器把它导出/导入为普通目录：
+
+```bash
+# —— 源机：停服后导出卷 ——
+cd docker
+docker compose stop
+docker run --rm -v xieflow-data:/from -v "$PWD/vol-backup":/to alpine sh -c 'cp -a /from/. /to/'
+# 把 vol-backup/ 整个目录拷到新机（U 盘 / scp / robocopy 均可）
+
+# —— 新机：先 up 一次让空卷建好，再停服导入 ——
+cd docker
+docker compose up -d && docker compose stop
+docker run --rm -v "$PWD/vol-backup":/from -v xieflow-data:/to alpine sh -c 'cp -a /from/. /to/'
+docker compose up -d
+curl http://127.0.0.1:8080/api/health   # 期望 200，mode=remote 时业务路由 401 属预期
+```
+
+> 导出/导入前后都不要手改 `data/xieflow.db`；校验 health 200 后再让业务接入。
 
 注意：
 - 不要只复制 `.db` 而漏掉 `data/` 下的图片 / 备份文件；整目录复制最稳。
