@@ -379,6 +379,34 @@ export const MIGRATIONS: Migration[] = [
       )`,
     ],
   },
+  {
+    version: 16,
+    name: "r23 · departments / members 表（M10 后补强：组织架构与通讯录）",
+    up: [
+      `CREATE TABLE IF NOT EXISTS departments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL CHECK (length(name) > 0),
+        parent_id INTEGER REFERENCES departments(id) ON DELETE SET NULL,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        UNIQUE (name)
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_departments_parent ON departments (parent_id)`,
+      `CREATE TABLE IF NOT EXISTS members (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL CHECK (length(name) > 0),
+        department_id INTEGER REFERENCES departments(id) ON DELETE SET NULL,
+        role TEXT NOT NULL DEFAULT 'member',
+        email TEXT NOT NULL CHECK (length(email) > 0),
+        phone TEXT NOT NULL DEFAULT '',
+        title TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','inactive')),
+        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_members_department ON members (department_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_members_user ON members (user_id)`,
+    ],
+  },
 ];
 
 /** 当前 schema 版本（与 shared 的 SCHEMA_VERSION 保持一致，e2e 会断言二者相等） */

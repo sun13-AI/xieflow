@@ -12,6 +12,7 @@
 // r18：+ 登录/注册独立路由（不占 tab）+ 工作台「本机/远端」模式卡 + 401 清假登录态跳登录。
 // r19：+ 工作台设置区「多端同步」卡 + 冲突弹窗选边（不新增 tab，十四 tab 数量不变）。
 // r20：+ 顶栏在线圆点 / 离线队列徽标 / 立即同步 + PWA 离线缓存 + ≤600px 底部导航（无新 tab）。
+// r23：+ 组织 tab（部门树 + 人员目录），壳基线扩为十五 tab。
 import SyncCard from "./SyncCard";
 import OfflineStatus from "./OfflineStatus";
 // 截图状态真实存在：加载中 / 空数据 / 正常 / 错误 / 窄屏（?narrow=1 显式钉态）
@@ -35,6 +36,7 @@ import WhiteboardPage from "./WhiteboardPage";
 import ApprovalPage from "./ApprovalPage";
 import AssetsPage from "./AssetsPage";
 import UnitTasksPage from "./UnitTasksPage";
+import OrgPage from "./OrgPage";
 import { LoginPage, RegisterPage } from "./AuthPages";
 import {
   AUTH_CLEARED_EVENT,
@@ -55,7 +57,7 @@ type LoadState =
   | { phase: "error"; message: string }
   | { phase: "ready"; settings: AppSetting[]; schemaVersion: number; todaySchedules: Schedule[]; todos: Todo[] };
 
-type PageTab = "home" | "todos" | "schedules" | "projects" | "board" | "bases" | "docs" | "chat" | "knowledge" | "mindmap" | "whiteboard" | "approval" | "assets" | "unit-tasks";
+type PageTab = "home" | "todos" | "schedules" | "projects" | "board" | "bases" | "docs" | "chat" | "knowledge" | "mindmap" | "whiteboard" | "approval" | "assets" | "unit-tasks" | "org";
 
 /** 健康检查 + 今日日程（工作台卡片数据源；日程查询失败不阻塞工作台） */
 async function fetchHealth(): Promise<{
@@ -183,7 +185,9 @@ export default function App() {
                             ? "assets"
                             : page === "unit-tasks"
                               ? "unit-tasks"
-                              : "home";
+                              : page === "org"
+                                ? "org"
+                                : "home";
   });
   const [state, setState] = useState<LoadState>(() => {
     // 截图脚本用 ?shot= 钉住特定状态（真实状态都存在，参数只为确定性捕获）
@@ -198,7 +202,7 @@ export default function App() {
       return {
         phase: "ready",
         settings: [{ key: "company.name", value: "协流示例公司", updatedAt: now.toISOString() }],
-        schemaVersion: 15,
+        schemaVersion: 16,
         todaySchedules: workbenchTodaySeed(now),
         todos: [],
       };
@@ -270,7 +274,7 @@ export default function App() {
   const todoById = new Map(state.phase === "ready" ? state.todos.map((t) => [t.id, t]) : []);
 
   return (
-    <main className={tab === "bases" || tab === "docs" || tab === "chat" || tab === "knowledge" || tab === "mindmap" || tab === "whiteboard" || tab === "approval" || tab === "assets" || tab === "unit-tasks" ? "shell shell-wide" : "shell"}>
+    <main className={tab === "bases" || tab === "docs" || tab === "chat" || tab === "knowledge" || tab === "mindmap" || tab === "whiteboard" || tab === "approval" || tab === "assets" || tab === "unit-tasks" || tab === "org" ? "shell shell-wide" : "shell"}>
       <header className="topbar">
         <span className="logo">协流 XieFlow</span>
         <nav className="tabs" data-state="tabs">
@@ -386,12 +390,20 @@ export default function App() {
           >
             单位任务
           </button>
+          <button
+            type="button"
+            className={`tab ${tab === "org" ? "tab-active" : ""}`}
+            data-tab="org"
+            onClick={() => setTab("org")}
+          >
+            组织
+          </button>
         </nav>
         <div className="tabs-more-wrap" data-state="tabs-more" data-more-visible={moreVisible ? "1" : "0"}>
           <span className="tabs-more-fade" aria-hidden="true" />
           <button type="button" className="tabs-more" aria-label="更多导航" onClick={toggleNav}>更多 ›</button>
         </div>
-        <span className="badge">r22 · 遗留清理与质量收敛（M10 后）</span>
+        <span className="badge">r23 · 组织架构与通讯录（M10 后）</span>
         <OfflineStatus />
         <button type="button" className="nav-toggle" data-state="nav-toggle" aria-label="展开导航" onClick={toggleNav}>☰</button>
         <span className="auth-controls" data-state="auth-controls">
@@ -429,6 +441,8 @@ export default function App() {
         <AssetsPage />
       ) : tab === "unit-tasks" ? (
         <UnitTasksPage />
+      ) : tab === "org" ? (
+        <OrgPage />
       ) : (
         <>
           {state.phase === "loading" && (

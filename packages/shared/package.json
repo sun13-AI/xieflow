@@ -6,7 +6,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./auth": "./src/auth.ts",
-    "./deploy": "./src/deploy.ts"
+    "./deploy": "./src/deploy.ts",
+    "./org": "./src/org.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit"

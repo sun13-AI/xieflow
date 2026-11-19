@@ -47,6 +47,7 @@ import type {
   ChangeRecord,
   EntityVersion,
 } from "@xieflow/shared";
+import type { Department, Member } from "@xieflow/shared/org";
 import type { AuthUser, AuthRole, Session } from "@xieflow/shared/auth";
 import { isFieldType, isBlockType, normalizeBlockContent, isKnowledgeSourceType } from "@xieflow/shared";
 import { REPEATS_ORDER } from "./repeat-order.js";
@@ -541,5 +542,31 @@ export function mapRowToEntityVersion(row: Row): EntityVersion {
     entityId: String(row.entity_id),
     version: Number(row.version),
     updatedAt: String(row.updated_at),
+  };
+}
+
+/** v16 departments 行 → 部门契约（parent_id 可空） */
+export function mapRowToDepartment(row: Row): Department {
+  return {
+    id: Number(row.id),
+    name: String(row.name),
+    parentId: row.parent_id === null || row.parent_id === undefined ? null : Number(row.parent_id),
+    sortOrder: Number(row.sort_order),
+    createdAt: String(row.created_at),
+  };
+}
+
+/** v16 members 行 → 人员契约（department_id / user_id 可空） */
+export function mapRowToMember(row: Row): Member {
+  return {
+    id: Number(row.id),
+    name: String(row.name),
+    departmentId: row.department_id === null || row.department_id === undefined ? null : Number(row.department_id),
+    role: String(row.role),
+    email: String(row.email),
+    phone: String(row.phone),
+    title: String(row.title),
+    status: String(row.status) as Member["status"],
+    userId: row.user_id === null || row.user_id === undefined ? null : Number(row.user_id),
   };
 }

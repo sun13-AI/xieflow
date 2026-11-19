@@ -22,6 +22,7 @@
 #   powershell -File scripts\shot.ps1 shots -Round r22 # capture r22 narrow-seam matrix + 14-tab shell baseline
 #     (01/02 true-390px shots are CDP device-metrics captures, r20 06 precedent: headless
 #      --window-size clamps narrow widths to 500px; see docs/ui/r22/README.md)
+#   powershell -File scripts\shot.ps1 shots -Round r23 # capture r23 org matrix + 15-tab shell baseline
 #   powershell -File scripts\shot.ps1 shots -Round r11 -Shot 08-docs-diff-inline # rework#1: re-capture ONLY the diff-inline evidence (no other matrix/shell re-shot)
 #   powershell -File scripts\shot.ps1 down            # stop servers
 #   powershell -File scripts\shot.ps1 status          # show port status
@@ -46,7 +47,7 @@ param(
   [Parameter(Position = 0)]
   [ValidateSet("up", "shots", "down", "status", "all")]
   [string]$Action = "status",
-  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22")]
+  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23")]
   [string]$Round = "r1",
   [Parameter()]
   [string]$Shot = ""
@@ -143,6 +144,7 @@ function Find-Browser {
 # r15: the ELEVENTH tab (whiteboard) was added -> eleven active states in one batch.
 # r16: the TWELFTH tab (approval) was added -> twelve active states in one batch.
 # r17: the THIRTEENTH/FOURTEENTH tabs (assets + unit-tasks) were added -> fourteen active states.
+# r23: the FIFTEENTH tab (org) was added -> fifteen active states in one batch.
 function Invoke-ShellBaseline {
   param([string]$BrowserPath)
   $shellDir = Join-Path $Root "docs\ui\shell"
@@ -162,7 +164,8 @@ function Invoke-ShellBaseline {
     @{ page = "whiteboard"; file = "whiteboard-tab-active" },
     @{ page = "approval";   file = "approval-tab-active" },
     @{ page = "assets";     file = "assets-tab-active" },
-    @{ page = "unit-tasks"; file = "unit-tasks-tab-active" }
+    @{ page = "unit-tasks"; file = "unit-tasks-tab-active" },
+    @{ page = "org";       file = "org-tab-active" }
   )
   foreach ($t in $tabs) {
     $url = "http://127.0.0.1:$WebPort/"
@@ -905,7 +908,20 @@ function Invoke-Shots {
     }
   }
 
-  if ($Round -eq "r22") {
+  if ($Round -eq "r23") {
+    # r23: org tab matrix. All states are deterministic ?shot= pins on the new tab.
+    # Real CRUD / cycle rejection is locked by e2e + audit-http + headless CDP first-use.
+    $r23Base = "http://127.0.0.1:$WebPort/?page=org"
+    $shots = @(
+      @{ name = "01-org-empty";   url = "$r23Base&shot=org-empty";   width = 1280; height = 800 },
+      @{ name = "02-org-tree";    url = "$r23Base&shot=org-tree";    width = 1280; height = 800 },
+      @{ name = "03-org-members"; url = "$r23Base&shot=org-list";    width = 1280; height = 800 },
+      @{ name = "04-org-form";    url = "$r23Base&shot=org-form";    width = 1280; height = 800 },
+      @{ name = "05-org-search";  url = "$r23Base&shot=org-search";  width = 1280; height = 800 },
+      @{ name = "06-narrow";      url = "$r23Base&shot=org-tree&narrow=1"; width = 488; height = 900 },
+      @{ name = "07-error";       url = "$r23Base&shot=org-error";   width = 1280; height = 800 }
+    )
+  } elseif ($Round -eq "r22") {
     # r22: only the 488px force-narrow seam is deterministic via --window-size.
     # 01/02 are true 390x844 CDP device-metrics captures (r20 06 precedent:
     # headless --window-size clamps to 500px), see docs/ui/r22/README.md.

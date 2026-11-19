@@ -2,6 +2,16 @@
 
 > 宪法见设计包 AGENTS.md；轮次规则见 RUNBOOK.md（均在 D:\work\好东西\xieflow-design\）。
 
+### 2026-11-19 · r23 研发（yanfa-r23 · M10 后功能补强：组织架构与通讯录）
+- 交付：schema v15→v16（departments 五列 + members 九列，外键/CHECK/UNIQUE 真约束）；`packages/shared/src/org.ts` 唯一口径（buildDepartmentTree 层级/环/孤儿、validateDepartmentMove 防自挂防成环、normalizeMember 邮箱与字段归一、searchMembers 三字段大小写不敏感、buildOrgTree 部门带人员），api/web 零算法分支
+- api：departments CRUD + move、members CRUD + 按部门查询 + 模糊搜索、GET /api/org/tree；web 新第十五 tab「组织」——左部门树展开折叠 + 右人员卡片 + 新建/编辑表单 + 搜索框；**不接审批/物资**（任务单明确边界，留 r24）
+- 断言：e2e 1856→**1952（+96）** · audit 1514→**1582（+68）**，无一条删减；typecheck 5 包；`pnpm run test:all` exit 0；CI smoke 正则升 v16；README 速查行/双节/r23 矩阵索引/壳基线说明逐字同步
+- **变异红相 1 组**：shared/org `searchMembers` 改大小写敏感 → e2e 4 红 / audit 5 红；逐字节还原（SHA `7500FB40…72CE76`）全绿
+- 「用户第一次用」全链路（headless CDP 真点，0 数据起步）：三级部门 → 建人员 → `ENGINEER` 搜索 → 移动部门 → reload 全在 → HTTP 回查 parentId/departmentId → DELETE 探针归零、端口收净
+- 截图：`docs/ui/r23/` 7 张 + 十五 tab 壳基线同批重拍（新增 `org-tab-active.png`）；7/7、15/15 SHA256 互异，全库 243 PNG / 241 互异（同态组仅 r4 已披露 2 组），逐张 `read_image` 目验
+- 危险区：未 push / 未打 tag / 未发版 / 未改 CI release 配置；只走 user_version 迁移、未手改库文件；全程 headless、服务收净、PowerShell 新段全 ASCII、零 token
+- 报告：`docs/feedback/2026-11-19-r23-yanfa.md`（三态纪律 + 自曝节 + 变异红相记录）
+
 ### 2026-11-18 · r15 发版（M7 收官 · 白板画布）
 - 双 VERDICT 复验会话在报告落盘前中断（18h gap），会话恢复后重跑复验
 - **CI 平台容错修复（lead）**：macos-latest runner 持续被平台 cancel（ubuntu/windows 每轮全绿），阻断 v0.0.15~v0.0.18 四轮 Release——job 级 `continue-on-error: ${{ matrix.os == 'macos-latest' }}`，三平台仍全跑可见，仅平台侧 cancel 不再阻断发版（不是降低测试覆盖）
@@ -164,7 +174,7 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r21 | M10 第 2 片：私有化部署与单机版（M10 收官） | ✅已发版（最终双 VERDICT 通过） | v0.0.27 | e2e 1842 · audit 1503 | 通过（waizhuan）+ UI 通过（阻断岗） |
 
 | r22 | M10 后·遗留清理与质量收敛（shell 索引/移动底栏/部署文档） | ✅已发版（首轮双通过；U1=0/U2=0，5 项挂账全清 + 日期碰撞真修） | v0.0.28 | e2e 1856 · audit 1514 | 通过（waizhuan）+ UI 通过（阻断岗） |
-| r23 | M10 后·组织架构与通讯录（部门树 + 人员目录） | 🔨规划中 | — | — | — |
+| r23 | M10 后·组织架构与通讯录（部门树 + 人员目录） | 🔨研发完成待复验 | — | e2e 1952 · audit 1582 | 待 waizhuan / ui 双 VERDICT |
 
 ## 🏁 项目总账（2026-11-19 · M10 收官）
 

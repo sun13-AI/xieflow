@@ -338,6 +338,23 @@ import {
   // r22：部署文档三处补强契约（Releases / 宿主 IP / docker 卷迁移）
   missingDeployDocMarkers,
 } from "@xieflow/shared/deploy";
+// r23：组织架构与通讯录（部门树 / 环检测 / 人员归一与搜索，规则唯一口径在 shared/org）
+import {
+  MEMBER_STATUSES,
+  isMemberStatus,
+  assertValidDepartmentName,
+  normalizeDepartment,
+  findOrphanDepartmentIds,
+  buildDepartmentTree,
+  validateDepartmentMove,
+  findDuplicateDepartmentName,
+  normalizeMember,
+  searchMembers,
+  buildOrgTree,
+  type Department,
+  type Member,
+  type OrgTreeNode,
+} from "@xieflow/shared/org";
 import {
   createMockProvider,
   MOCK_PROVIDER_ID,
@@ -515,6 +532,7 @@ try {
         { version: 14, name: "n", up: [] },
         { version: 15, name: "o", up: [] },
         { version: 16, name: "p", up: [] },
+        { version: 17, name: "q", up: [] },
       ]),
     "队列超出 SCHEMA_VERSION：一致性校验抛错",
   );
@@ -902,8 +920,8 @@ try {
     const v3Migrated = openDatabaseRaw({ path: v3Path });
     eq(
       v3Migrated.appliedMigrations,
-      [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
-      "v2 旧库重开补跑 v3+v4+v5+v6+v7+v8+v9+v10+v11+v12+v13+v14+v15 迁移（真实 PRAGMA 升级路径）",
+      [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+      "v2 旧库重开补跑 v3+v4+v5+v6+v7+v8+v9+v10+v11+v12+v13+v14+v15+v16 迁移（真实 PRAGMA 升级路径）",
     );
     const tables = v3Migrated.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -1128,8 +1146,8 @@ try {
     const v4Open = openDatabaseRaw({ path: v4Path });
     eq(
       v4Open.appliedMigrations,
-      [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
-      "v3 旧库重开只补跑 v4+v5+v6+v7+v8+v9+v10+v11+v12+v13+v14 迁移（真实 PRAGMA 升级路径）",
+      [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+      "v3 旧库重开只补跑 v4+v5+v6+v7+v8+v9+v10+v11+v12+v13+v14+v15+v16 迁移（真实 PRAGMA 升级路径）",
     );
     const tables = v4Open.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -1140,7 +1158,7 @@ try {
     eq(
       (v4Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（15）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（16）",
     );
     const rawDb: SqliteDatabase = v4Open.raw;
     throws(
@@ -1787,7 +1805,7 @@ try {
     v4Open2.raw.exec("PRAGMA user_version = 4");
     v4Open2.raw.close();
     const v5Open = openDatabaseRaw({ path: v5Path });
-    eq(v5Open.appliedMigrations, [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], "v4 旧库重开只补跑 v5+v6+v7+v8+v9+v10+v11+v12+v13+v14 迁移（真实 PRAGMA 升级路径）");
+    eq(v5Open.appliedMigrations, [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16], "v4 旧库重开只补跑 v5+v6+v7+v8+v9+v10+v11+v12+v13+v14+v15+v16 迁移（真实 PRAGMA 升级路径）");
     const tableNames = v5Open.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
       .map((r) => String((r as unknown as { name: unknown }).name));
@@ -1797,7 +1815,7 @@ try {
     eq(
       (v5Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（15）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（16）",
     );
     const rawDb5: SqliteDatabase = v5Open.raw;
     throws(
@@ -2506,7 +2524,7 @@ try {
     v5Open.raw.exec("PRAGMA user_version = 5");
     v5Open.raw.close();
     const v6Open = openDatabaseRaw({ path: v6Path });
-    eq(v6Open.appliedMigrations, [6, 7, 8, 9, 10, 11, 12, 13, 14, 15], "v5 旧库重开只补跑 v6+v7+v8+v9+v10+v11+v12+v13+v14 迁移（真实 PRAGMA 升级路径）");
+    eq(v6Open.appliedMigrations, [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16], "v5 旧库重开只补跑 v6+v7+v8+v9+v10+v11+v12+v13+v14+v15+v16 迁移（真实 PRAGMA 升级路径）");
     const tableNames = v6Open.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
       .map((r) => String((r as unknown as { name: unknown }).name));
@@ -2514,7 +2532,7 @@ try {
     eq(
       (v6Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（15）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（16）",
     );
     const rawDb6: SqliteDatabase = v6Open.raw;
     eq(
@@ -2786,11 +2804,11 @@ try {
     oldOpen.raw.exec("PRAGMA user_version = 6");
     oldOpen.raw.close();
     const v7Open = openDatabaseRaw({ path: v7Path });
-    eq(v7Open.appliedMigrations, [7, 8, 9, 10, 11, 12, 13, 14, 15], "v6 旧库重开补跑 v7+v8+v9+v10+v11+v12+v13+v14 迁移（真实 PRAGMA 升级路径）");
+    eq(v7Open.appliedMigrations, [7, 8, 9, 10, 11, 12, 13, 14, 15, 16], "v6 旧库重开补跑 v7+v8+v9+v10+v11+v12+v13+v14+v15+v16 迁移（真实 PRAGMA 升级路径）");
     eq(
       (v7Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（15）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（16）",
     );
     const tables = (v7Open.raw.all(
       "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('documents','blocks') ORDER BY name",
@@ -3174,11 +3192,11 @@ try {
     old10.raw.exec("PRAGMA user_version = 7");
     old10.raw.close();
     const v8 = openDatabaseRaw({ path: p10Path });
-    eq(v8.appliedMigrations, [8, 9, 10, 11, 12, 13, 14, 15], "v7 旧库重开只补跑 v8+v9+v10+v11+v12+v13+v14 迁移（真实 PRAGMA 升级路径）");
+    eq(v8.appliedMigrations, [8, 9, 10, 11, 12, 13, 14, 15, 16], "v7 旧库重开只补跑 v8+v9+v10+v11+v12+v13+v14+v15+v16 迁移（真实 PRAGMA 升级路径）");
     eq(
       (v8.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（15）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（16）",
     );
     const t10 = v8.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -3590,11 +3608,11 @@ try {
     old.raw.exec("PRAGMA user_version = 8");
     old.raw.close();
     const v9 = openDatabaseRaw({ path: p });
-    eq(v9.appliedMigrations, [9, 10, 11, 12, 13, 14, 15], "v8 旧库重开只补跑 v9+v10+v11+v12+v13+v14 迁移（真实 PRAGMA 升级路径）");
+    eq(v9.appliedMigrations, [9, 10, 11, 12, 13, 14, 15, 16], "v8 旧库重开只补跑 v9+v10+v11+v12+v13+v14+v15+v16 迁移（真实 PRAGMA 升级路径）");
     eq(
       (v9.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（15）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（16）",
     );
     const tables = v9.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -3986,7 +4004,7 @@ try {
     eq(reopened14.getMindmap(1)!.contentMarkdown, "# 根\n- 子", "导图关库重开不丢（Markdown 源逐字节）");
     reopened14.close();
     const raw14 = openDatabaseRaw({ path: `scripts/.tmp-e2e/r14-raw-${Date.now()}.db` });
-    eq((raw14.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 15, "真实 PRAGMA user_version=15");
+    eq((raw14.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 16, "真实 PRAGMA user_version=16");
     eq(
       raw14.raw.all("PRAGMA table_info(mindmaps)").map((r) => String((r as unknown as { name: unknown }).name)),
       ["id", "title", "content_markdown", "created_at", "updated_at"],
@@ -4169,7 +4187,7 @@ try {
     eq(r15.listWhiteboardItems(1)[0]!.content, "关库不丢", "白板条目关库重开不丢（逐字）");
     r15.close();
     const raw15 = openDatabaseRaw({ path: `scripts/.tmp-e2e/r15-raw-${Date.now()}.db` });
-    eq((raw15.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 15, "真实 PRAGMA user_version=15");
+    eq((raw15.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 16, "真实 PRAGMA user_version=16");
     eq(
       raw15.raw.all("PRAGMA table_info(whiteboards)").map((r) => String((r as unknown as { name: unknown }).name)),
       ["id", "title", "created_at"],
@@ -4367,7 +4385,7 @@ try {
     r16.close();
 
     const raw16 = openDatabaseRaw({ path: `scripts/.tmp-e2e/r16-raw-${Date.now()}.db` });
-    eq((raw16.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 15, "真实 PRAGMA user_version=15");
+    eq((raw16.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 16, "真实 PRAGMA user_version=16");
     eq(
       raw16.raw.all("PRAGMA table_info(approvals)").map((r) => String((r as unknown as { name: unknown }).name)),
       ["id", "title", "type", "applicant_id", "status", "current_assignee", "created_at", "updated_at"],
@@ -4473,7 +4491,7 @@ try {
 
     // 51d. schema v13 与数据层（真迁移、真落库、真事务、零半态）
     const raw17 = openDatabaseRaw({ path: ":memory:" });
-    eq((raw17.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 15, "新库 user_version=15");
+    eq((raw17.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 16, "新库 user_version=16");
     eq(
       raw17.raw.all("PRAGMA table_info(assets)").map((r) => String((r as unknown as { name: unknown }).name)),
       ["id", "name", "category", "quantity", "unit", "location", "custodian", "created_at"],
@@ -4638,7 +4656,7 @@ try {
 
     // 52f. schema v14 与账号数据层（真迁移、真落库、不明文、级联清理）
     const raw18 = openDatabaseRaw({ path: ":memory:" });
-    eq((raw18.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 15, "新库 user_version=15");
+    eq((raw18.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 16, "新库 user_version=16");
     eq(
       raw18.raw.all("PRAGMA table_info(users)").map((r) => String((r as unknown as { name: unknown }).name)),
       ["id", "username", "password_hash", "role", "created_at"],
@@ -4858,7 +4876,7 @@ try {
 
     // schema v15 与数据层：change_log / entity_versions 真表真迁移
     const raw19 = openDatabaseRaw({ path: ":memory:" });
-    eq((raw19.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 15, "r19 新库 user_version=15");
+    eq((raw19.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 16, "r19 新库 user_version=16");
     const logCols = raw19.raw.all("PRAGMA table_info(change_log)").map((r) => String((r as unknown as { name: unknown }).name));
     eq(logCols, ["id", "entity_type", "entity_id", "operation", "payload", "user_id", "created_at", "version"], "r19 change_log 八列逐列存在");
     const verCols = raw19.raw.all("PRAGMA table_info(entity_versions)").map((r) => String((r as unknown as { name: unknown }).name));
@@ -4926,7 +4944,7 @@ try {
     ok(/<SyncCard\s*\/>/.test(appSrc), "r19 工作台设置区渲染多端同步卡");
     ok(!/(^|[^A-Za-z])fetch\s*\(/.test(syncSrc), "r19 同步卡无裸 fetch（统一 apiFetch）");
     ok(/\bapiFetch\b/.test(syncSrc), "r19 同步卡经 apiFetch 发请求（401 清态链路一致）");
-    eq((appSrc.match(/data-tab="/g) ?? []).length, 14, "r19 tab 数量仍为 14（同步卡不占 tab）");
+    eq((appSrc.match(/data-tab="/g) ?? []).length, 15, "r19 tab 口径：同步卡不占 tab，现存 15（r23 新增组织）");
     ok(!/r19 · 多端同步与冲突处理（M9 收官）/.test(appSrc), "r19 旧徽章已由 r20 替换（无残留）");
     ok(/sync-modal/.test(syncSrc) && /data-side="local"/.test(syncSrc) && /data-side="remote"/.test(syncSrc), "r19 冲突弹窗提供本地/远端两个选边按钮");
     ok(/sync-modal-warning/.test(syncSrc) && /不可撤销/.test(syncSrc), "r19 返工#1 选边后果提示前置（写入递增且不可撤销）");
@@ -5069,7 +5087,7 @@ try {
     ok(/overflow-x:\s*hidden/.test(cssSrc), "r20 禁止横向溢出");
     ok(/min-height:\s*44px/.test(cssSrc), "r20 触摸目标 >=44px");
     ok(/bottom-nav|net-status/.test(cssSrc), "r20 底栏/状态条样式在场");
-    eq((appSrc.match(/data-tab="/g) ?? []).length, 14, "r20 本轮无新 tab（顶栏/底栏只是布局变化，仍 14 tab）");
+    eq((appSrc.match(/data-tab="/g) ?? []).length, 15, "r20 口径：顶栏/底栏只是布局变化不占 tab，现存 15（r23 新增组织）");
     ok(/app\.post\("\/api\/offline\/replay"/.test(serverSrc), "r20 api 提供真重放端点（队列 4xx 由 audit 锁定）");
   }
 
@@ -5145,7 +5163,7 @@ try {
     ok(/data-state="tabs-more"/.test(app22), "r22 更多按钮有稳定 data-state seam（截图/复验可寻址）");
     ok(/tabs-more-fade/.test(css22) && /linear-gradient/.test(css22), "r22 底栏右侧渐隐遮罩在场");
     ok(/html\.nav-open \.tabs-more\s*\{[^}]*display:\s*none/.test(css22), "r22 菜单展开时隐藏更多按钮");
-    ok(/r22 · 遗留清理与质量收敛/.test(app22), "r22 徽章推进到遗留清理轮");
+    ok(/r23 · 组织架构与通讯录/.test(app22), "r23 徽章推进到组织轮（r22 旧徽章已替换无残留）");
 
     // (B) DEPLOY.md 三处补强 / 根 README 脚本清单（真实文档契约）
     const deploy22 = readFileSync("docs/DEPLOY.md", "utf8");
@@ -5156,17 +5174,17 @@ try {
 
     // (C) shell README 与实际字节逐字一致（14 张哈希 + 全库计数）
     const shellReadme = readFileSync("docs/ui/shell/README.md", "utf8");
-    ok(/r22 同批重拍/.test(shellReadme) && /r22 哈希自查/.test(shellReadme), "r22 shell README 整段推进到 r22 口径");
-    const hashBlock = shellReadme.match(/R22_HASHES_BEGIN([\s\S]*?)R22_HASHES_END/);
+    ok(/r23 同批重拍/.test(shellReadme) && /r23 哈希自查/.test(shellReadme), "r23 shell README 整段推进到 r23 口径（r22 历史对照保留）");
+    const hashBlock = shellReadme.match(/R23_HASHES_BEGIN([\s\S]*?)R23_HASHES_END/);
     const listed = Array.from((hashBlock?.[1] ?? "").matchAll(/([a-z-]+)=([0-9A-F]{8})/g)).map(
       (m) => `${m[1]}=${m[2]}`,
-    );
+    ).sort();
     const shellFiles = readdirSync("docs/ui/shell").filter((f) => f.endsWith(".png")).sort();
     const actual = shellFiles.map((f) => {
       const h = createHash("sha256").update(readFileSync(`docs/ui/shell/${f}`)).digest("hex").slice(0, 8).toUpperCase();
       return `${f.replace("-tab-active.png", "")}=${h}`;
     });
-    eq(listed, actual, "r22 shell README 14 张哈希与实际文件逐字一致");
+    eq(listed, actual, "r23 shell README 15 张哈希与实际文件逐字一致");
 
     const walkPng = (dir: string): string[] =>
       readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
@@ -5181,7 +5199,227 @@ try {
     eq(countMatch ? Number(countMatch[2]) : -1, uniqueCount, "r22 shell README 互异计数与实际 SHA256 唯一数一致");
   }
 
-  // 54. HTTP 冒烟 /api/health
+  // 55. r23：组织架构与通讯录（TDD 先红：shared/org 规则 + schema v16 + 数据层）
+  section("r23 组织架构：部门树 / 环检测 / 人员归一 / 搜索 / schema v16");
+  {
+    const mkDept = (id: number, name: string, parentId: number | null, sortOrder = 0): Department => ({
+      id, name, parentId, sortOrder, createdAt: "2026-11-19T00:00:00.000Z",
+    });
+    const mkMember = (id: number, name: string, email: string, title: string, departmentId: number | null): Member => ({
+      id, name, email, title, departmentId, role: "member", phone: "", status: "active", userId: null,
+    });
+
+    eq(MEMBER_STATUSES, ["active", "inactive"], "r23 人员状态枚举为 active/inactive 且顺序固定");
+    ok(isMemberStatus("active"), "r23 isMemberStatus 接受 active");
+    ok(!isMemberStatus("retired"), "r23 isMemberStatus 拒绝 retired");
+    noThrow(() => assertValidDepartmentName("研发部"), "r23 合法部门名通过守卫");
+    throws(() => assertValidDepartmentName("   "), "r23 空白部门名被拒");
+    throws(() => assertValidDepartmentName(123 as unknown as string), "r23 非字符串部门名被拒");
+    throws(() => assertValidDepartmentName("部".repeat(61)), "r23 超长部门名（61 字）被拒");
+
+    eq(
+      normalizeDepartment({ name: " 技术部 ", parentId: "2", sortOrder: "3" }),
+      { name: "技术部", parentId: 2, sortOrder: 3 },
+      "r23 normalizeDepartment 去空白 + 数字串归一",
+    );
+    eq(
+      normalizeDepartment({ name: "默认部" }),
+      { name: "默认部", parentId: null, sortOrder: 0 },
+      "r23 normalizeDepartment 缺省 parentId/sortOrder 归一",
+    );
+    throws(() => normalizeDepartment({ name: "X", parentId: 0 }), "r23 parentId=0 非法被拒");
+    throws(() => normalizeDepartment({ name: "X", sortOrder: 1.5 }), "r23 非整数 sortOrder 被拒");
+
+    // 三级真实树：总部 → 研发中心 → 前端组；市场部同级；孤儿部父不存在
+    const d1 = mkDept(1, "总部", null, 0);
+    const d2 = mkDept(2, "研发中心", 1, 1);
+    const d3 = mkDept(3, "前端组", 2, 2);
+    const d4 = mkDept(4, "市场部", 1, 0);
+    const d5 = mkDept(5, "孤儿部", 99, 0);
+    eq(findOrphanDepartmentIds([d1, d2, d3, d4, d5]), [5], "r23 孤儿部门（父不存在）被单独识别");
+    const orgTree = buildDepartmentTree([d5, d4, d3, d2, d1]);
+    eq(orgTree.map((n) => n.id), [1, 5], "r23 根含正常根 + 孤儿（孤儿按根处理不丢）");
+    eq(orgTree[0]!.children.map((n) => n.id), [4, 2], "r23 同级按 sortOrder 再按 id 排序（市场部在前）");
+    eq(orgTree[0]!.children[1]!.children.map((n) => n.id), [3], "r23 三级层级装配正确（前端组在研发中心下）");
+    eq(buildDepartmentTree([d1, d2]).length, 1, "r23 两级树只有一个根");
+    throws(
+      () => buildDepartmentTree([mkDept(1, "A", 2), mkDept(2, "B", 1)]),
+      "r23 部门树 A→B→A 环检测抛错（waizhuan 会亲造环）",
+    );
+    throws(() => buildDepartmentTree([mkDept(1, "A", 1)]), "r23 自环（parent 指向自身）抛错");
+    noThrow(() => validateDepartmentMove(3, 4, [d1, d2, d3, d4]), "r23 合法跨部门移动通过守卫");
+    throws(() => validateDepartmentMove(1, 1, [d1, d2, d3]), "r23 防自挂：部门挂到自己被拒");
+    throws(() => validateDepartmentMove(1, 3, [d1, d2, d3]), "r23 防成环：祖先挂到自己的后代被拒");
+    throws(() => validateDepartmentMove(3, 99, [d1, d2, d3]), "r23 目标父部门不存在被拒");
+    throws(() => validateDepartmentMove(99, 1, [d1, d2, d3]), "r23 源部门不存在被拒");
+    eq(findDuplicateDepartmentName("研发中心", [d1, d2, d3]), 2, "r23 重复部门名检出既有 id");
+    eq(findDuplicateDepartmentName("不存在", [d1, d2, d3]), null, "r23 唯一部门名返回 null");
+    eq(findDuplicateDepartmentName(" 研发中心 ", [d1, d2, d3]), 2, "r23 重复名判定忽略首尾空白与大小写");
+
+    const m1 = normalizeMember({
+      name: " 张三 ", email: "Zhang.San@Example.COM ", departmentId: 3,
+      role: "engineer", phone: "13800000000", title: "Frontend Engineer", status: "active", userId: 7,
+    });
+    eq(m1.name, "张三", "r23 normalizeMember 姓名去空白");
+    eq(m1.email, "Zhang.San@Example.COM", "r23 normalizeMember 邮箱去空白且保留原大小写");
+    eq(m1.departmentId, 3, "r23 normalizeMember 部门 id 归一");
+    eq(m1.status, "active", "r23 normalizeMember 状态归一");
+    eq(
+      normalizeMember({ name: "李四", email: "li@example.com" }),
+      { name: "李四", departmentId: null, role: "member", email: "li@example.com", phone: "", title: "", status: "active", userId: null },
+      "r23 normalizeMember 缺省字段全量归一（无 undefined 落库）",
+    );
+    throws(() => normalizeMember({ name: "X", email: "not-an-email" }), "r23 无 @ 邮箱被拒");
+    throws(() => normalizeMember({ name: "X", email: "a@b" }), "r23 缺顶级域邮箱被拒");
+    throws(() => normalizeMember({ name: "  ", email: "a@b.com" }), "r23 空白姓名被拒");
+    throws(() => normalizeMember({ name: "X", email: "a@b.com", status: "retired" }), "r23 非法人员状态被拒");
+    throws(() => normalizeMember({ name: "X", email: "a@b.com", departmentId: 0 }), "r23 非法部门 id 被拒");
+    throws(() => normalizeMember({ name: "X", email: "a@b.com", userId: "abc" }), "r23 非法关联用户 id 被拒");
+
+    const members: Member[] = [
+      { ...m1, id: 1 },
+      mkMember(2, "李四", "LI@example.com", "Backend Engineer", 2),
+      mkMember(3, "王五", "wang@example.com", "产品经理", null),
+    ];
+    eq(searchMembers(members, "zhang").map((m) => m.id), [1], "r23 姓名搜索大小写不敏感");
+    eq(searchMembers(members, "LI@").map((m) => m.id), [2], "r23 邮箱搜索大小写不敏感");
+    eq(searchMembers(members, "engineer").map((m) => m.id), [1, 2], "r23 职位模糊搜索大小写不敏感");
+    eq(searchMembers(members, "   ").map((m) => m.id), [1, 2, 3], "r23 空查询返回全部人员");
+    eq(searchMembers(members, "不存在"), [], "r23 无命中返回空数组");
+    eq(searchMembers(members, 42 as unknown as string).length, 3, "r23 非字符串查询退化为全部（不崩）");
+
+    const orgFull = buildOrgTree([d1, d2, d3, d4], members);
+    eq(orgFull.length, 1, "r23 部门+人员装配后仍只有一个根");
+    eq(orgFull[0]!.members.map((m) => m.id), [], "r23 总部无直属人员");
+    const center3 = orgFull[0]!.children.find((c) => c.department.id === 2)!;
+    eq(
+      center3.children.find((c) => c.department.id === 3)!.members.map((m) => m.id),
+      [1],
+      "r23 前端组挂到张三（三级部门带人员）",
+    );
+    eq(
+      center3.members.map((m) => m.id),
+      [2],
+      "r23 研发中心挂到李四（部门带人员）",
+    );
+    eq(orgFull[0]!.children.filter((c) => c.children.length > 0).length, 1, "r23 只有研发中心有子节点");
+
+    // schema v16：两表真迁移 + raw 约束
+    const raw23 = openDatabaseRaw({ path: ":memory:" });
+    eq((raw23.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 16, "r23 新库 user_version=16");
+    const deptCols = raw23.raw.all("PRAGMA table_info(departments)").map((r) => String((r as { name: unknown }).name));
+    eq(deptCols, ["id", "name", "parent_id", "sort_order", "created_at"], "r23 departments 五列逐列存在");
+    const memCols = raw23.raw.all("PRAGMA table_info(members)").map((r) => String((r as { name: unknown }).name));
+    eq(memCols, ["id", "name", "department_id", "role", "email", "phone", "title", "status", "user_id"], "r23 members 九列逐列存在");
+    throws(
+      () => raw23.raw.run("INSERT INTO departments (name,parent_id,sort_order,created_at) VALUES ('x',999,0,'t')"),
+      "r23 越权 parent_id 被 SQLite 外键拒绝",
+    );
+    throws(
+      () => raw23.raw.run("INSERT INTO members (name,email,status) VALUES ('x','a@b.com','retired')"),
+      "r23 非法 status 被 CHECK 拒绝",
+    );
+    raw23.raw.run("INSERT INTO departments (name,sort_order,created_at) VALUES ('dup',0,'t')");
+    throws(
+      () => raw23.raw.run("INSERT INTO departments (name,sort_order,created_at) VALUES ('dup',0,'t')"),
+      "r23 重复部门名被 UNIQUE 约束拒绝",
+    );
+    raw23.raw.close();
+
+    // 数据层：三级装配 / 移动 / 搜索 / 删除级联 / 重开不丢
+    const odb = freshDb();
+    const root = odb.createDepartment({ name: "集团总部" });
+    const center = odb.createDepartment({ name: "研发中心", parentId: root.id });
+    const front = odb.createDepartment({ name: "前端组", parentId: center.id });
+    eq(odb.listDepartments().length, 3, "r23 数据层真建三级部门");
+    eq(odb.getDepartment(front.id)!.parentId, center.id, "r23 三级部门 parent_id 真落库");
+    eq(buildDepartmentTree(odb.listDepartments())[0]!.children[0]!.children[0]!.id, front.id, "r23 数据层三级树深度正确");
+    throws(() => odb.createDepartment({ name: "研发中心" }), "r23 数据层重复部门名被拒");
+    throws(() => odb.moveDepartment(root.id, front.id), "r23 数据层 A→…→A 成环移动被拒");
+    ok(odb.moveDepartment(front.id, root.id) !== null, "r23 数据层合法移动成功");
+    eq(odb.getDepartment(front.id)!.parentId, root.id, "r23 移动后父部门真回读");
+    const alice = odb.createMember({ name: "Alice", email: "alice@example.com", departmentId: front.id, title: "Frontend Engineer" });
+    eq(alice.departmentId, front.id, "r23 人员部门关联真落库");
+    eq(odb.listMembers().length, 1, "r23 人员列表真回读");
+    eq(odb.listMembers(front.id).length, 1, "r23 按部门查人员真过滤");
+    eq(odb.searchMembers("ALICE").map((m) => m.id), [alice.id], "r23 数据层人员搜索大小写不敏感");
+    eq(odb.searchMembers("frontend").map((m) => m.id), [alice.id], "r23 数据层按职位搜索命中");
+    throws(() => odb.createMember({ name: "Bad", email: "bad-email" }), "r23 数据层非法邮箱被拒");
+    throws(() => odb.createMember({ name: "Bad2", email: "b@e.com", departmentId: 999 }), "r23 数据层越权部门 id 被拒");
+    throws(() => odb.createMember({ name: "Bad3", email: "b@e.com", userId: 999 }), "r23 数据层越权用户 id 被拒");
+    const treeFromDb: OrgTreeNode[] = odb.getOrgTree();
+    eq(treeFromDb.length, 1, "r23 GET /api/org/tree 服务层装配单根");
+    eq(treeFromDb[0]!.children.find((c) => c.department.id === front.id)!.members.map((m) => m.id), [alice.id], "r23 组织树部门带人员");
+    ok(odb.deleteMember(alice.id), "r23 删除人员返回 true");
+    eq(odb.getMember(alice.id), null, "r23 删除人员后详情 404 口径");
+    ok(odb.deleteDepartment(root.id), "r23 删除根部门返回 true");
+    eq(odb.getDepartment(front.id)!.parentId, null, "r23 删除父部门子部门 parent_id 置空（外键 SET NULL）");
+    const orgPath = `scripts/.tmp-e2e/org-persist-${Date.now()}.db`;
+    const orgPersist = openDatabaseRaw({ path: orgPath });
+    orgPersist.db.createDepartment({ name: "持久化部门" });
+    orgPersist.raw.close();
+    const orgReopen = openDatabaseRaw({ path: orgPath });
+    eq(orgReopen.db.listDepartments().map((d) => d.name), ["持久化部门"], "r23 部门重开不丢（真实文件库）");
+    orgReopen.raw.close();
+    db = null;
+  }
+
+  // 56. r23：渲染层 / 文档 / CI / 截图索引 seam（契约真实存在，非恒真占位）
+  section("r23 渲染层与文档 seam：组织 tab / 壳基线 / 索引 / CI 正则");
+  {
+    const app = readFileSync("apps/web/src/App.tsx", "utf8");
+    const orgPage = readFileSync("apps/web/src/OrgPage.tsx", "utf8");
+    const css = readFileSync("apps/web/src/styles.css", "utf8");
+    const shot = readFileSync("scripts/shot.ps1", "utf8");
+    const ci = readFileSync(".github/workflows/ci.yml", "utf8");
+    const rootReadme = readFileSync("README.md", "utf8");
+    const r23Index = readFileSync("docs/ui/r23/README.md", "utf8");
+    const shellReadme = readFileSync("docs/ui/shell/README.md", "utf8");
+
+    ok(app.includes('data-tab="org"'), "r23 App.tsx 存在组织 tab 按钮");
+    ok(app.includes("r23 · 组织架构与通讯录"), "r23 App.tsx 徽章推进到 r23");
+    ok(app.includes('| "org";'), "r23 App.tsx PageTab 联合类型含 org");
+    ok(app.includes("<OrgPage />"), "r23 App.tsx 渲染 OrgPage 组件");
+    ok(orgPage.includes("buildDepartmentTree") && orgPage.includes("@xieflow/shared/org"), "r23 组织页树装配走 shared/org 纯函数");
+    ok(orgPage.includes("searchMembers") && orgPage.includes("@xieflow/shared/org"), "r23 组织页搜索走 shared/org 纯函数");
+    ok(
+      ["org-tree", "org-members", "org-form", "org-search", "org-error"].every((s) => orgPage.includes(`data-state="${s}"`)),
+      "r23 组织页树/卡片/表单/搜索/错误态 seam 齐备",
+    );
+    ok(css.includes(".org-columns") && css.includes("html.force-narrow .org-columns"), "r23 样式含双栏布局与窄屏单列 seam");
+    ok(shot.includes('"r23"') && shot.includes("org-tab-active"), "r23 shot.ps1 ValidateSet 与壳基线含组织 tab");
+    ok(ci.includes("(2|3|4|5|6|7|8|9|10|11|12|13|14|15|16)"), "r23 CI smoke 正则同步到 v16");
+    ok((r23Index.match(/^\| \d\d-(org-|narrow|error)[^|]*\.png \|/gm) ?? []).length === 7, "r23 截图索引含七张矩阵行");
+    const walkPng23 = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+        e.isDirectory() ? walkPng23(`${dir}/${e.name}`) : e.name.endsWith(".png") ? [`${dir}/${e.name}`] : [],
+      );
+    const r23Png = walkPng23("docs/ui/r23");
+    eq(r23Png.length, 7, "r23 目录恰好 7 张 PNG");
+    eq(new Set(r23Png.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 7, "r23 七张 PNG SHA256 两两互异");
+    const shellPng = walkPng23("docs/ui/shell");
+    eq(shellPng.length, 15, "壳基线恰好 15 张 PNG（新增组织 tab）");
+    eq(new Set(shellPng.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 15, "壳基线 15 张 SHA256 两两互异");
+    const r23HashBlock = shellReadme.match(/<!-- R23_HASHES_BEGIN -->([\s\S]*?)<!-- R23_HASHES_END -->/);
+    ok(r23HashBlock !== null, "r23 shell README 含 R23_HASHES 自查块");
+    if (r23HashBlock) {
+      const listed = [...r23HashBlock[1]!.matchAll(/`([a-z-]+)=([0-9A-F]{8})`/g)].map((m) => [m[1], m[2]]);
+      eq(listed.length, 15, "r23 shell README 列出 15 张哈希");
+      const mismatches = listed.filter(([name, hash]) => {
+        const file = shellPng.find((p) => p.replace(/\\/g, "/").endsWith(`/${name}-tab-active.png`));
+        return !file || createHash("sha256").update(readFileSync(file)).digest("hex").slice(0, 8).toUpperCase() !== hash;
+      });
+      eq(mismatches, [], "r23 shell README 15 张哈希与实际文件逐字一致");
+    }
+    ok(rootReadme.includes("e2e（1952 断言）+ HTTP 审计（1582 断言）"), "r23 根 README 速查行数字同步");
+    ok(
+      rootReadme.includes("- e2e **1952** 项") && rootReadme.includes("- HTTP audit **1582** 项") &&
+        rootReadme.includes("### r23 矩阵") && rootReadme.includes("e2e 1856 → **1952（+96）**"),
+      "r23 根 README 双节规模与 r23 矩阵索引同步",
+    );
+  }
+
+  // 57. HTTP 冒烟 /api/health
   section("HTTP 冒烟 /api/health");
   let httpOk = false;
   let httpNote = "api 服务未运行（pnpm dev:api 后再跑 pnpm test 可覆盖此节）";

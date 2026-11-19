@@ -156,7 +156,7 @@ async function audit() {
     eq(h.json && h.json.ok, true, "health.ok = true");
     // r4 起动态对表：health.schemaVersion 必须等于迁移队列最高版本（不再硬编码 2/3，
     // r3 v0.0.6 CI 红教训——静态硬编码在每轮迁移后必过期）
-    eq(h.json && h.json.schemaVersion, 15, "health.schemaVersion = 15（r19 迁移后）");
+    eq(h.json && h.json.schemaVersion, 16, "health.schemaVersion = 16（r23 迁移后）");
     const s = await req("GET", "/api/settings");
     eq(s.status, 200, "GET /api/settings -> 200");
     ok(Array.isArray(s.json && s.json.settings), "settings 返回数组");
@@ -253,7 +253,7 @@ async function audit() {
   {
     // health 探针反映 schema v8（r4 起迁移后动态推进）
     const h3 = await req("GET", "/api/health");
-    eq(h3.json && h3.json.schemaVersion, 15, "health.schemaVersion = 15（r19 迁移后复核）");
+    eq(h3.json && h3.json.schemaVersion, 16, "health.schemaVersion = 16（r23 迁移后复核）");
 
     const r = await expectStatus(
       "POST",
@@ -2629,7 +2629,7 @@ async function audit() {
     const st0 = await expectStatus("GET", "/api/sync/status", undefined, 200, "r19 GET status -> 200");
     eq(st0.json && st0.json.total, 0, "r19 初始无实体版本");
     eq(st0.json && st0.json.lastChangeId, 0, "r19 初始 lastChangeId=0");
-    eq(st0.json && st0.json.schemaVersion, 15, "r19 status 回带 schema v15");
+    eq(st0.json && st0.json.schemaVersion, 16, "r19 status 回带 schema v16（r23 推进）");
     const ch0 = await expectStatus("GET", "/api/sync/changes?since=0&limit=50", undefined, 200, "r19 GET changes 空 -> 200");
     eq(ch0.json && ch0.json.count, 0, "r19 初始变更日志为空");
     eq(ch0.json && ch0.json.changes, [], "r19 初始 changes 数组为空");
@@ -2850,7 +2850,7 @@ async function audit() {
     // health：真 HTTP 200 + 真读库语义
     const h = await expectStatus("GET", DEPLOY_PATHS.health, undefined, 200, "r21 GET 契约健康路径 -> 200");
     eq(h.json && h.json.ok, true, "r21 health.ok=true");
-    eq(h.json && h.json.schemaVersion, 15, "r21 health.schemaVersion=15（部署版本一致）");
+    eq(h.json && h.json.schemaVersion, 16, "r21 health.schemaVersion=16（部署版本一致）");
     ok(isServerMode(h.json && h.json.mode), "r21 health.mode 为 local|remote 之一（契约模式合法）");
 
     // mode：模式探针公开可达，回显一致
@@ -2899,6 +2899,97 @@ async function audit() {
     await expectStatus("GET", "/api/__r22_not_a_route__", undefined, 404, "r22 契约外路径 -> 404");
     ok(DEPLOY_ROUTES.every((r) => r.path.startsWith("/api/")), "r22 5 条部署路由全在 /api 契约前缀下");
     eq(new Set(Object.values(DEPLOY_PATHS)).size, Object.keys(DEPLOY_PATHS).length, "r22 部署路径常量无重复");
+  }
+
+  // ---- r23：组织架构与通讯录（真 HTTP 装配 + 4xx，waizhuan 会造 A→B→A 环验证拒绝） ----
+  console.log("\n== Org r23: departments / members / tree / search / 4xx ==");
+  {
+    const h23 = await expectStatus("GET", "/api/health", undefined, 200, "r23 health 真 HTTP 200");
+    eq(h23.json && h23.json.schemaVersion, 16, "r23 health.schemaVersion=16（迁移真生效）");
+    const tree0 = await expectStatus("GET", "/api/org/tree", undefined, 200, "r23 空组织树 -> 200");
+    eq(tree0.json && tree0.json.tree, [], "r23 空组织树 tree=[]");
+    eq(tree0.json && tree0.json.departments, [], "r23 空组织树 departments=[]");
+    eq(tree0.json && tree0.json.members, [], "r23 空组织树 members=[]");
+
+    const root = await expectStatus("POST", "/api/departments", { name: "审计总部" }, 201, "r23 建根部门 -> 201");
+    const center = await expectStatus("POST", "/api/departments", { name: "审计研发中心", parentId: root.json.id }, 201, "r23 建二级部门 -> 201");
+    const front = await expectStatus("POST", "/api/departments", { name: "审计前端组", parentId: center.json.id }, 201, "r23 建三级部门 -> 201");
+    eq(front.json && front.json.parentId, center.json.id, "r23 三级部门 parent_id 真落库");
+    const tree3 = await expectStatus("GET", "/api/org/tree", undefined, 200, "r23 三级树装配 -> 200");
+    eq(tree3.json && tree3.json.tree.length, 1, "r23 三级树只有一个根");
+    eq(
+      tree3.json && tree3.json.tree[0].children[0].children[0].department.id,
+      front.json.id,
+      "r23 三级层级真实装配（总部→研发中心→前端组）",
+    );
+
+    await expectStatus("POST", "/api/departments", { name: "审计研发中心" }, 400, "r23 重复部门名 -> 400");
+    await expectStatus("POST", "/api/departments", { name: "   " }, 400, "r23 空白部门名 -> 400");
+    await expectStatus("POST", "/api/departments", { name: "越权父", parentId: 999999 }, 400, "r23 越权 parent_id -> 400");
+    await expectStatus("POST", `/api/departments/${root.json.id}/move`, { parentId: root.json.id }, 400, "r23 自挂 -> 400");
+    await expectStatus("POST", `/api/departments/${root.json.id}/move`, { parentId: front.json.id }, 400, "r23 A→B→A 成环 -> 400");
+    await expectStatus("POST", `/api/departments/${front.json.id}/move`, { parentId: 999999 }, 400, "r23 移动目标不存在 -> 400");
+    await expectStatus("POST", "/api/departments/not-a-number/move", { parentId: null }, 400, "r23 非数字部门 id -> 400");
+    await expectStatus("GET", "/api/departments/999999", undefined, 404, "r23 未知部门详情 -> 404");
+    await expectStatus("PATCH", "/api/departments/999999", { name: "x" }, 404, "r23 未知部门编辑 -> 404");
+    await expectStatus("DELETE", "/api/departments/999999", undefined, 404, "r23 未知部门删除 -> 404");
+    const moved = await expectStatus("POST", `/api/departments/${front.json.id}/move`, { parentId: root.json.id }, 200, "r23 合法移动 -> 200");
+    eq(moved.json && moved.json.parentId, root.json.id, "r23 合法移动后 parent_id 真回读");
+    const badMoveAfter = await req("GET", `/api/departments/${front.json.id}`);
+    eq(badMoveAfter.json && badMoveAfter.json.parentId, root.json.id, "r23 4xx 拒绝没有半路改库");
+
+    const alice = await expectStatus("POST", "/api/members", {
+      name: "Alice Chen", email: "Alice.Chen@Example.COM", departmentId: front.json.id, title: "Frontend Engineer",
+    }, 201, "r23 建人员 -> 201");
+    const bob = await expectStatus("POST", "/api/members", {
+      name: "Bob", email: "BOB@example.com", departmentId: center.json.id, title: "Backend engineer",
+    }, 201, "r23 建第二人 -> 201");
+    eq(alice.json && alice.json.status, "active", "r23 人员默认状态 active");
+    eq(alice.json && alice.json.role, "member", "r23 人员默认角色 member");
+    eq(alice.json && alice.json.email, "Alice.Chen@Example.COM", "r23 邮箱原样保存（搜索时才大小写不敏感）");
+    const listAll = await expectStatus("GET", "/api/members", undefined, 200, "r23 人员列表 -> 200");
+    eq(listAll.json && listAll.json.count, 2, "r23 人员列表 count=2");
+    const byDept = await expectStatus("GET", `/api/members?departmentId=${front.json.id}`, undefined, 200, "r23 按部门查人员 -> 200");
+    eq(byDept.json && byDept.json.members.map((m: { id: number }) => m.id), [alice.json.id], "r23 按部门过滤只返回该部门人员");
+    const qName = await expectStatus("GET", "/api/members/search?q=alice", undefined, 200, "r23 姓名搜索 -> 200");
+    eq(qName.json && qName.json.members.map((m: { id: number }) => m.id), [alice.json.id], "r23 姓名搜索大小写不敏感");
+    const qEmail = await expectStatus("GET", "/api/members/search?q=EXAMPLE.COM", undefined, 200, "r23 邮箱搜索 -> 200");
+    eq(qEmail.json && qEmail.json.members.length, 2, "r23 邮箱搜索大小写不敏感两人全中");
+    const qTitle = await expectStatus("GET", "/api/members/search?q=ENGINEER", undefined, 200, "r23 职位搜索 -> 200");
+    eq(qTitle.json && qTitle.json.members.length, 2, "r23 职位搜索大小写不敏感两人全中");
+    const qCombo = await expectStatus("GET", `/api/members?departmentId=${front.json.id}&q=ENGINEER`, undefined, 200, "r23 部门+搜索组合 -> 200");
+    eq(qCombo.json && qCombo.json.members.map((m: { id: number }) => m.id), [alice.json.id], "r23 按部门 + 模糊搜索叠加过滤");
+    const qNone = await expectStatus("GET", "/api/members/search?q=不存在的人", undefined, 200, "r23 无命中搜索 -> 200");
+    eq(qNone.json && qNone.json.members, [], "r23 无命中返回空数组");
+    const treeMembers = await expectStatus("GET", "/api/org/tree", undefined, 200, "r23 组织树带人员 -> 200");
+    eq(
+      treeMembers.json && treeMembers.json.tree[0].children[0].members.map((m: { id: number }) => m.id),
+      [bob.json.id],
+      "r23 组织树部门带真实人员",
+    );
+
+    await expectStatus("POST", "/api/members", { name: "bad", email: "bad-email" }, 400, "r23 非法邮箱 -> 400");
+    await expectStatus("POST", "/api/members", { name: "", email: "a@b.com" }, 400, "r23 空姓名 -> 400");
+    await expectStatus("POST", "/api/members", { name: "x", email: "a@b.com", status: "retired" }, 400, "r23 非法状态 -> 400");
+    await expectStatus("POST", "/api/members", { name: "x", email: "a@b.com", departmentId: 999999 }, 400, "r23 越权部门 id -> 400");
+    await expectStatus("POST", "/api/members", { name: "x", email: "a@b.com", userId: 999999 }, 400, "r23 越权用户 id -> 400");
+    await expectStatus("GET", "/api/members/999999", undefined, 404, "r23 未知人员详情 -> 404");
+    await expectStatus("PATCH", "/api/members/999999", { name: "x" }, 404, "r23 未知人员编辑 -> 404");
+    await expectStatus("DELETE", "/api/members/999999", undefined, 404, "r23 未知人员删除 -> 404");
+    await expectStatus("GET", "/api/members/not-a-number", undefined, 400, "r23 非数字人员 id -> 400");
+    const patched = await expectStatus("PATCH", `/api/members/${alice.json.id}`, { title: "Staff Engineer" }, 200, "r23 编辑人员职位 -> 200");
+    eq(patched.json && patched.json.title, "Staff Engineer", "r23 编辑后职位真回读");
+    const qPatched = await expectStatus("GET", "/api/members/search?q=STAFF", undefined, 200, "r23 改后职位搜索 -> 200");
+    eq(qPatched.json && qPatched.json.members.length, 1, "r23 改职位后大小写不敏感搜索命中新值");
+
+    await expectStatus("DELETE", `/api/members/${alice.json.id}`, undefined, 200, "r23 删除人员 Alice -> 200");
+    await expectStatus("DELETE", `/api/members/${bob.json.id}`, undefined, 200, "r23 删除人员 Bob -> 200");
+    await expectStatus("DELETE", `/api/departments/${front.json.id}`, undefined, 200, "r23 删除部门前端组 -> 200");
+    await expectStatus("DELETE", `/api/departments/${center.json.id}`, undefined, 200, "r23 删除部门研发中心 -> 200");
+    await expectStatus("DELETE", `/api/departments/${root.json.id}`, undefined, 200, "r23 删除部门总部 -> 200");
+    const treeFinal = await expectStatus("GET", "/api/org/tree", undefined, 200, "r23 清理后组织树 -> 200");
+    eq(treeFinal.json && treeFinal.json.members, [], "r23 清理后无残留人员");
+    eq(treeFinal.json && treeFinal.json.tree, [], "r23 清理后无残留部门");
   }
 }
 

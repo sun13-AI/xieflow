@@ -42,6 +42,8 @@ import {
   mapRowToSession,
   mapRowToChangeRecord,
   mapRowToEntityVersion,
+  mapRowToDepartment,
+  mapRowToMember,
 } from "./mappers.js";
 import type {
   AppSetting,
@@ -185,6 +187,19 @@ import {
   type EntityVersion,
   type ChangeOperation,
 } from "@xieflow/shared";
+import {
+  normalizeDepartment,
+  findDuplicateDepartmentName,
+  validateDepartmentMove,
+  normalizeMember,
+  searchMembers as searchMembersRule,
+  buildOrgTree,
+  type Department,
+  type Member,
+  type OrgTreeNode,
+  type DepartmentInput,
+  type MemberInput,
+} from "@xieflow/shared/org";
 import { REPEATS_ORDER } from "./repeat-order.js";
 
 export { MIGRATIONS, CURRENT_SCHEMA_VERSION, assertMigrationsConsistent };
@@ -2594,5 +2609,164 @@ export class XieFlowDb {
       payload,
       remote,
     );
+  }
+
+  // ---- r23：组织架构与通讯录（schema v16；规则全在 shared/org，本层只守卫+落库） ----
+
+  listDepartments(): Department[] {
+    return this.db
+      .all("SELECT id, name, parent_id, sort_order, created_at FROM departments ORDER BY sort_order, id")
+      .map(mapRowToDepartment);
+  }
+
+  getDepartment(id: number): Department | null {
+    const row = this.db.get("SELECT id, name, parent_id, sort_order, created_at FROM departments WHERE id = ?", [id]);
+    return row ? mapRowToDepartment(row) : null;
+  }
+
+  /** 重名 / 越权父部门在落库前由 shared 唯一规则判定（api 400 映射） */
+  private assertDepartmentWritable(input: DepartmentInput, excludeId: number | null = null): {
+    name: string; parentId: number | null; sortOrder: number;
+  } {
+    const normalized = normalizeDepartment(input);
+    const existing = findDuplicateDepartmentName(normalized.name, this.listDepartments());
+    if (existing !== null && existing !== excludeId) {
+      throw new ValidationError(`部门名称已存在：${normalized.name}`);
+    }
+    if (normalized.parentId !== null && !this.getDepartment(normalized.parentId)) {
+      throw new ValidationError(`父部门不存在：${normalized.parentId}`);
+    }
+    return normalized;
+  }
+
+  createDepartment(input: DepartmentInput): Department {
+    const normalized = this.assertDepartmentWritable(input);
+    const createdAt = new Date().toISOString();
+    const res = this.db.run(
+      "INSERT INTO departments (name, parent_id, sort_order, created_at) VALUES (?, ?, ?, ?)",
+      [normalized.name, normalized.parentId, normalized.sortOrder, createdAt],
+    );
+    const row = this.db.get("SELECT id, name, parent_id, sort_order, created_at FROM departments WHERE id = ?", [Number(res.lastInsertRowid)]);
+    if (!row) throw new Error("部门写入后读回失败");
+    return mapRowToDepartment(row);
+  }
+
+  updateDepartment(id: number, input: DepartmentInput): Department | null {
+    const existing = this.getDepartment(id);
+    if (!existing) return null;
+    // PATCH 语义：未提供字段沿用原值（显式 null 才清空 parentId）
+    const normalized = this.assertDepartmentWritable({
+      name: input.name !== undefined ? input.name : existing.name,
+      parentId: input.parentId !== undefined ? input.parentId : existing.parentId,
+      sortOrder: input.sortOrder !== undefined ? input.sortOrder : existing.sortOrder,
+    }, id);
+    validateDepartmentMove(id, normalized.parentId, this.listDepartments());
+    this.db.run(
+      "UPDATE departments SET name = ?, parent_id = ?, sort_order = ? WHERE id = ?",
+      [normalized.name, normalized.parentId, normalized.sortOrder, id],
+    );
+    return this.getDepartment(id);
+  }
+
+  /** 移动唯一入口：防自挂 / 防成环 / 防越权 id 全走 shared validateDepartmentMove */
+  moveDepartment(id: number, parentId: number | null): Department | null {
+    const dept = this.getDepartment(id);
+    if (!dept) return null;
+    validateDepartmentMove(id, parentId, this.listDepartments());
+    this.db.run("UPDATE departments SET parent_id = ? WHERE id = ?", [parentId, id]);
+    return this.getDepartment(id);
+  }
+
+  deleteDepartment(id: number): boolean {
+    return this.db.run("DELETE FROM departments WHERE id = ?", [id]).changes > 0;
+  }
+
+  listMembers(departmentId?: unknown): Member[] {
+    let rows: Record<string, unknown>[];
+    if (departmentId === undefined || departmentId === null) {
+      rows = this.db.all("SELECT id, name, department_id, role, email, phone, title, status, user_id FROM members ORDER BY id");
+    } else {
+      const id = Number(departmentId);
+      if (!Number.isInteger(id) || id <= 0) throw new ValidationError(`非法部门过滤 id：${String(departmentId)}`);
+      rows = this.db.all(
+        "SELECT id, name, department_id, role, email, phone, title, status, user_id FROM members WHERE department_id = ? ORDER BY id",
+        [id],
+      );
+    }
+    return rows.map(mapRowToMember);
+  }
+
+  getMember(id: number): Member | null {
+    const row = this.db.get(
+      "SELECT id, name, department_id, role, email, phone, title, status, user_id FROM members WHERE id = ?",
+      [id],
+    );
+    return row ? mapRowToMember(row) : null;
+  }
+
+  /** 人员写入前校验关联实体真实存在（越权 id → ValidationError → api 400） */
+  private assertMemberWritable(input: MemberInput): Omit<Member, "id"> {
+    const normalized = normalizeMember(input);
+    if (normalized.departmentId !== null && !this.getDepartment(normalized.departmentId)) {
+      throw new ValidationError(`部门不存在：${normalized.departmentId}`);
+    }
+    if (normalized.userId !== null && !this.getUserById(normalized.userId)) {
+      throw new ValidationError(`关联用户不存在：${normalized.userId}`);
+    }
+    return normalized;
+  }
+
+  createMember(input: MemberInput): Member {
+    const normalized = this.assertMemberWritable(input);
+    const res = this.db.run(
+      `INSERT INTO members (name, department_id, role, email, phone, title, status, user_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        normalized.name, normalized.departmentId, normalized.role, normalized.email,
+        normalized.phone, normalized.title, normalized.status, normalized.userId,
+      ],
+    );
+    const member = this.getMember(Number(res.lastInsertRowid));
+    if (!member) throw new Error("人员写入后读回失败");
+    return member;
+  }
+
+  updateMember(id: number, input: MemberInput): Member | null {
+    const existing = this.getMember(id);
+    if (!existing) return null;
+    // PATCH 语义：未提供字段沿用原值（显式 null 才清空 departmentId / userId）
+    const normalized = this.assertMemberWritable({
+      name: input.name !== undefined ? input.name : existing.name,
+      email: input.email !== undefined ? input.email : existing.email,
+      departmentId: input.departmentId !== undefined ? input.departmentId : existing.departmentId,
+      role: input.role !== undefined ? input.role : existing.role,
+      phone: input.phone !== undefined ? input.phone : existing.phone,
+      title: input.title !== undefined ? input.title : existing.title,
+      status: input.status !== undefined ? input.status : existing.status,
+      userId: input.userId !== undefined ? input.userId : existing.userId,
+    });
+    this.db.run(
+      `UPDATE members SET name = ?, department_id = ?, role = ?, email = ?, phone = ?, title = ?, status = ?, user_id = ?
+       WHERE id = ?`,
+      [
+        normalized.name, normalized.departmentId, normalized.role, normalized.email,
+        normalized.phone, normalized.title, normalized.status, normalized.userId, id,
+      ],
+    );
+    return this.getMember(id);
+  }
+
+  deleteMember(id: number): boolean {
+    return this.db.run("DELETE FROM members WHERE id = ?", [id]).changes > 0;
+  }
+
+  /** 姓名/邮箱/职位模糊搜索（大小写不敏感规则唯一在 shared） */
+  searchMembers(query: unknown): Member[] {
+    return searchMembersRule(this.listMembers(), query);
+  }
+
+  /** GET /api/org/tree：部门树带直属人员，装配规则唯一在 shared buildOrgTree */
+  getOrgTree(): OrgTreeNode[] {
+    return buildOrgTree(this.listDepartments(), this.listMembers());
   }
 }

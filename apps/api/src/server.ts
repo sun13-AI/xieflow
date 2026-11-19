@@ -2810,6 +2810,176 @@ app.get("/api/sync/status", async () => {
   };
 });
 
+// ---- r23：组织架构与通讯录（路由只做参数装配与状态码映射，规则全在 shared/org + db） ----
+
+interface DepartmentBody {
+  name?: unknown;
+  parentId?: unknown;
+  sortOrder?: unknown;
+  // move 端点用
+  parent_id?: unknown;
+}
+
+interface MemberBody {
+  name?: unknown;
+  departmentId?: unknown;
+  role?: unknown;
+  email?: unknown;
+  phone?: unknown;
+  title?: unknown;
+  status?: unknown;
+  userId?: unknown;
+}
+
+/** 部门树带直属人员（单条路由装配，web 不做树算法） */
+app.get("/api/org/tree", async () => {
+  const store = requireDb();
+  return {
+    tree: store.getOrgTree(),
+    departments: store.listDepartments(),
+    members: store.listMembers(),
+  };
+});
+
+app.get("/api/departments", async () => ({ departments: requireDb().listDepartments() }));
+
+app.post("/api/departments", async (req, reply) => {
+  try {
+    const body = (req.body ?? {}) as DepartmentBody;
+    return reply.code(201).send(requireDb().createDepartment({
+      name: body.name, parentId: body.parentId, sortOrder: body.sortOrder,
+    }));
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.get("/api/departments/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const dept = requireDb().getDepartment(id);
+    if (!dept) return reply.code(404).send({ error: `部门不存在：${id}` });
+    return dept;
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.patch("/api/departments/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const body = (req.body ?? {}) as DepartmentBody;
+    const dept = requireDb().updateDepartment(id, {
+      name: body.name, parentId: body.parentId, sortOrder: body.sortOrder,
+    });
+    if (!dept) return reply.code(404).send({ error: `部门不存在：${id}` });
+    return dept;
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+/** 移动唯一入口：自挂 / 成环 / 越权 id 由 shared 守卫 → 400 */
+app.post("/api/departments/:id/move", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const body = (req.body ?? {}) as DepartmentBody;
+    const parentRaw = body.parentId !== undefined ? body.parentId : body.parent_id;
+    const parentId = parentRaw === undefined || parentRaw === null || parentRaw === ""
+      ? null
+      : parseId(String(parentRaw));
+    const dept = requireDb().moveDepartment(id, parentId);
+    if (!dept) return reply.code(404).send({ error: `部门不存在：${id}` });
+    return dept;
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.delete("/api/departments/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    if (!requireDb().deleteDepartment(id)) return reply.code(404).send({ error: `部门不存在：${id}` });
+    return { deleted: true, id };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+/** 静态段 /search 必须先于 /:id 注册，否则被动态 id 吞掉 */
+app.get("/api/members/search", async (req, reply) => {
+  try {
+    const q = (req.query as { q?: unknown }).q;
+    const members = requireDb().searchMembers(q);
+    return { members, count: members.length, q: typeof q === "string" ? q : "" };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+/** 人员列表：?departmentId= 按部门过滤；?q= 走同一 shared 模糊搜索口径 */
+app.get("/api/members", async (req, reply) => {
+  try {
+    const query = req.query as { departmentId?: unknown; q?: unknown };
+    const store = requireDb();
+    const byDept = query.departmentId === undefined ? store.listMembers() : store.listMembers(query.departmentId);
+    const members = query.q === undefined ? byDept : requireDb().searchMembers(String(query.q)).filter(
+      (m) => query.departmentId === undefined || m.departmentId === Number(query.departmentId),
+    );
+    return { members, count: members.length, departmentId: query.departmentId ?? null, q: query.q ?? "" };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.post("/api/members", async (req, reply) => {
+  try {
+    const body = (req.body ?? {}) as MemberBody;
+    return reply.code(201).send(requireDb().createMember({
+      name: body.name, departmentId: body.departmentId, role: body.role, email: body.email,
+      phone: body.phone, title: body.title, status: body.status, userId: body.userId,
+    }));
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.get("/api/members/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const member = requireDb().getMember(id);
+    if (!member) return reply.code(404).send({ error: `人员不存在：${id}` });
+    return member;
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.patch("/api/members/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const body = (req.body ?? {}) as MemberBody;
+    const member = requireDb().updateMember(id, {
+      name: body.name, departmentId: body.departmentId, role: body.role, email: body.email,
+      phone: body.phone, title: body.title, status: body.status, userId: body.userId,
+    });
+    if (!member) return reply.code(404).send({ error: `人员不存在：${id}` });
+    return member;
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.delete("/api/members/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    if (!requireDb().deleteMember(id)) return reply.code(404).send({ error: `人员不存在：${id}` });
+    return { deleted: true, id };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
 const stop = async () => {
   await app.close();
   db?.close();
