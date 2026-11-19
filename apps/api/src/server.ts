@@ -94,6 +94,7 @@ import {
   chunkText,
   searchChunks,
 } from "@xieflow/agent";
+import { memberSummary, assertAssignableMember, normalizeMemberRef } from "@xieflow/shared/org";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = join(__dirname, "..", "..", "..", "data");
@@ -2243,6 +2244,38 @@ app.get("/api/whiteboards/:id/export.md", async (req, reply) => {
   }
 });
 
+// ---- r24：响应回带成员摘要（只装配，解析/计数规则全在 shared/org + db） ----
+
+/** 同一语义兼容 camelCase / snake_case / 通用 memberId 三种调用方写法（r23 move 端点同款口径） */
+function firstDefined(...values: unknown[]): unknown {
+  for (const v of values) if (v !== undefined) return v;
+  return undefined;
+}
+
+/** 成员 id → {id,name,departmentId,departmentName,title,status}；缺席/已删返回 null */
+function memberSummaryOf(store: XieFlowDb, memberId: number | null | undefined) {
+  if (memberId === null || memberId === undefined) return null;
+  const member = store.getMember(memberId);
+  return member ? memberSummary(member, store.listDepartments()) : null;
+}
+
+/** 审批详情/列表附加申请人摘要；原有字段逐字保留，老路径摘要为 null */
+function withApprovalMember(store: XieFlowDb, approval: ReturnType<XieFlowDb["getApproval"]>) {
+  if (approval === null) return null;
+  return { ...approval, applicantMember: memberSummaryOf(store, approval.applicantMemberId) };
+}
+
+/** 步骤时间线附加执行人摘要（老步骤 member_id=NULL → 摘要 null） */
+function withStepMember(store: XieFlowDb, step: ReturnType<XieFlowDb["listApprovalSteps"]>[number]) {
+  return { ...step, assigneeMember: memberSummaryOf(store, step.assigneeMemberId) };
+}
+
+/** 物资详情/列表附加保管员摘要（老数据 member_id=NULL → 摘要 null） */
+function withAssetMember(store: XieFlowDb, asset: ReturnType<XieFlowDb["getAsset"]>) {
+  if (asset === null) return null;
+  return { ...asset, custodianMember: memberSummaryOf(store, asset.custodianMemberId) };
+}
+
 /**
  * r16 审批流（M8 起步）：approvals CRUD + submit/approve/reject/delegate/withdraw
  * + 三视角（我的待办 / 我发起的 / 抄送我的）。
@@ -2258,31 +2291,60 @@ interface ApprovalBody {
   comment?: unknown;
   targetAssignee?: unknown;
   user?: unknown;
+  // r24 可选成员引用（三种写法兼容；老请求一律 undefined → 回落自由文本）
+  applicantMemberId?: unknown;
+  applicant_member_id?: unknown;
+  currentAssigneeMemberId?: unknown;
+  current_assignee_member_id?: unknown;
+  assigneeMemberId?: unknown;
+  assignee_member_id?: unknown;
+  ccMemberIds?: unknown;
+  cc_member_ids?: unknown;
+  ccMemberId?: unknown;
+  cc_member_id?: unknown;
+  memberId?: unknown;
+  member_id?: unknown;
+  targetAssigneeMemberId?: unknown;
+  target_assignee_member_id?: unknown;
+  actorMemberId?: unknown;
+  actor_member_id?: unknown;
 }
 
 app.post("/api/approvals", async (req, reply) => {
   try {
     const body = (req.body ?? {}) as ApprovalBody;
-    return reply.code(201).send(requireDb().createApproval({
+    const created = requireDb().createApproval({
       title: body.title,
       type: body.type,
       applicantId: body.applicantId,
       currentAssignee: body.currentAssignee,
       cc: body.cc,
-    }));
+      applicantMemberId: firstDefined(body.applicantMemberId, body.applicant_member_id, body.memberId, body.member_id),
+      currentAssigneeMemberId: firstDefined(
+        body.currentAssigneeMemberId, body.current_assignee_member_id,
+        body.assigneeMemberId, body.assignee_member_id,
+      ),
+      ccMemberIds: firstDefined(body.ccMemberIds, body.cc_member_ids),
+    });
+    return reply.code(201).send(withApprovalMember(requireDb(), created));
   } catch (err) {
     return toErrorReply(err, reply);
   }
 });
 
-app.get("/api/approvals", async () => ({ approvals: requireDb().listApprovals() }));
+app.get("/api/approvals", async () => {
+  const store = requireDb();
+  return { approvals: store.listApprovals().map((a) => withApprovalMember(store, a)) };
+});
 
 /** 三视角必须定义在 /:id 之前：静态段优先，避免被动态 id 吞掉 */
 app.get("/api/approvals/view", async (req, reply) => {
   try {
     const q = req.query as { view?: unknown; actor?: unknown };
     if (!isApprovalView(q.view)) throw new ValidationError(`非法审批视角：${String(q.view)}`);
-    return { approvals: requireDb().listApprovalsByView(q.view, q.actor as string) };
+    const store = requireDb();
+    const rows = store.listApprovalsByView(q.view, q.actor as string);
+    return { approvals: rows.map((a) => withApprovalMember(store, a)) };
   } catch (err) {
     return toErrorReply(err, reply);
   }
@@ -2291,9 +2353,10 @@ app.get("/api/approvals/view", async (req, reply) => {
 app.get("/api/approvals/:id", async (req, reply) => {
   try {
     const id = parseId((req.params as { id: string }).id);
-    const approval = requireDb().getApproval(id);
+    const store = requireDb();
+    const approval = store.getApproval(id);
     if (!approval) return reply.code(404).send({ error: `审批不存在：${id}` });
-    return approval;
+    return withApprovalMember(store, approval);
   } catch (err) {
     return toErrorReply(err, reply);
   }
@@ -2326,7 +2389,7 @@ app.get("/api/approvals/:id/steps", async (req, reply) => {
     const id = parseId((req.params as { id: string }).id);
     const store = requireDb();
     if (!store.getApproval(id)) return reply.code(404).send({ error: `审批不存在：${id}` });
-    return { steps: store.listApprovalSteps(id) };
+    return { steps: store.listApprovalSteps(id).map((s) => withStepMember(store, s)) };
   } catch (err) {
     return toErrorReply(err, reply);
   }
@@ -2337,7 +2400,11 @@ app.get("/api/approvals/:id/cc", async (req, reply) => {
     const id = parseId((req.params as { id: string }).id);
     const store = requireDb();
     if (!store.getApproval(id)) return reply.code(404).send({ error: `审批不存在：${id}` });
-    return { cc: store.listApprovalCc(id) };
+    const cc = store.listApprovalCc(id);
+    return {
+      cc,
+      ccMembers: store.listApprovalCcDetails(id).map((c) => memberSummaryOf(store, c.ccMemberId)),
+    };
   } catch (err) {
     return toErrorReply(err, reply);
   }
@@ -2347,9 +2414,15 @@ app.post("/api/approvals/:id/cc", async (req, reply) => {
   try {
     const id = parseId((req.params as { id: string }).id);
     const body = (req.body ?? {}) as ApprovalBody;
-    const added = requireDb().addApprovalCc(id, body.user);
+    const store = requireDb();
+    const memberId = firstDefined(body.ccMemberId, body.cc_member_id, body.memberId, body.member_id);
+    const added = store.addApprovalCc(id, body.user, memberId);
     if (!added) return reply.code(404).send({ error: `审批不存在：${id}` });
-    return reply.code(201).send({ cc: requireDb().listApprovalCc(id) });
+    return reply.code(201).send({
+      cc: store.listApprovalCc(id),
+      ccMembers: store.listApprovalCcDetails(id).map((c) => memberSummaryOf(store, c.ccMemberId)),
+      ccMember: memberSummaryOf(store, added.ccMemberId),
+    });
   } catch (err) {
     return toErrorReply(err, reply);
   }
@@ -2364,12 +2437,18 @@ async function runApprovalAction(
   try {
     const id = parseId((req.params as { id: string }).id);
     const body = (req.body ?? {}) as ApprovalBody;
-    const approval = requireDb().actOnApproval(id, action, body.actor, {
+    const store = requireDb();
+    const approval = store.actOnApproval(id, action, body.actor, {
       comment: body.comment,
       targetAssignee: body.targetAssignee,
+      actorMemberId: firstDefined(body.actorMemberId, body.actor_member_id, body.memberId, body.member_id),
+      targetAssigneeMemberId: firstDefined(
+        body.targetAssigneeMemberId, body.target_assignee_member_id,
+        body.assigneeMemberId, body.assignee_member_id,
+      ),
     });
     if (!approval) return reply.code(404).send({ error: `审批不存在：${id}` });
-    return reply.send(approval);
+    return reply.send(withApprovalMember(store, approval));
   } catch (err) {
     return toErrorReply(err, reply);
   }
@@ -2399,28 +2478,42 @@ interface AssetBody {
   to?: unknown;
   operator?: unknown;
   assetId?: unknown;
+  // r24 可选成员引用：物资保管员（建账/编辑）与出入库操作人/转交保管员
+  custodianMemberId?: unknown;
+  custodian_member_id?: unknown;
+  operatorMemberId?: unknown;
+  operator_member_id?: unknown;
+  memberId?: unknown;
+  member_id?: unknown;
 }
 
 app.post("/api/assets", async (req, reply) => {
   try {
     const body = (req.body ?? {}) as AssetBody;
-    return reply.code(201).send(requireDb().createAsset({
+    const store = requireDb();
+    const created = store.createAsset({
       name: body.name, category: body.category, quantity: body.quantity,
       unit: body.unit, location: body.location, custodian: body.custodian,
-    }));
+      custodianMemberId: firstDefined(body.custodianMemberId, body.custodian_member_id, body.memberId, body.member_id),
+    });
+    return reply.code(201).send(withAssetMember(store, created));
   } catch (err) {
     return toErrorReply(err, reply);
   }
 });
 
-app.get("/api/assets", async () => ({ assets: requireDb().listAssets() }));
+app.get("/api/assets", async () => {
+  const store = requireDb();
+  return { assets: store.listAssets().map((a) => withAssetMember(store, a)) };
+});
 
 app.get("/api/assets/:id", async (req, reply) => {
   try {
     const id = parseId((req.params as { id: string }).id);
-    const asset = requireDb().getAsset(id);
+    const store = requireDb();
+    const asset = store.getAsset(id);
     if (!asset) return reply.code(404).send({ error: `物资不存在：${id}` });
-    return asset;
+    return withAssetMember(store, asset);
   } catch (err) {
     return toErrorReply(err, reply);
   }
@@ -2430,12 +2523,14 @@ app.patch("/api/assets/:id", async (req, reply) => {
   try {
     const id = parseId((req.params as { id: string }).id);
     const body = (req.body ?? {}) as AssetBody;
-    const asset = requireDb().updateAsset(id, {
+    const store = requireDb();
+    const asset = store.updateAsset(id, {
       name: body.name, category: body.category, unit: body.unit,
       location: body.location, custodian: body.custodian,
+      custodianMemberId: firstDefined(body.custodianMemberId, body.custodian_member_id, body.memberId, body.member_id),
     });
     if (!asset) return reply.code(404).send({ error: `物资不存在：${id}` });
-    return asset;
+    return withAssetMember(store, asset);
   } catch (err) {
     return toErrorReply(err, reply);
   }
@@ -2457,11 +2552,23 @@ app.post("/api/assets/:id/transactions", async (req, reply) => {
     const id = parseId((req.params as { id: string }).id);
     const body = (req.body ?? {}) as AssetBody;
     if (!isAssetTxType(body.type)) throw new ValidationError(`非法流水类型：${String(body.type)}`);
-    const tx = requireDb().applyAssetTx(id, {
+    const store = requireDb();
+    const memberRef = firstDefined(body.memberId, body.member_id);
+    const operatorRef = firstDefined(body.operatorMemberId, body.operator_member_id, memberRef);
+    const custodianRef = firstDefined(body.custodianMemberId, body.custodian_member_id, memberRef);
+    const operator = operatorRef === undefined
+      ? body.operator
+      : assertAssignableMember(operatorRef, store.listMembers(), "操作人").name;
+    const tx = store.applyAssetTx(id, {
       type: body.type, quantity: body.quantity,
-      from: body.from, to: body.to, operator: body.operator,
+      from: body.from, to: body.to, operator,
+    }, custodianRef);
+    const after = store.getAsset(id);
+    return reply.code(201).send({
+      ...tx,
+      operatorMember: operatorRef === undefined ? null : memberSummaryOf(store, normalizeMemberRef(operatorRef)),
+      custodianMember: after ? memberSummaryOf(store, after.custodianMemberId) : null,
     });
-    return reply.code(201).send(tx);
   } catch (err) {
     return toErrorReply(err, reply);
   }
@@ -2830,6 +2937,20 @@ interface MemberBody {
   status?: unknown;
   userId?: unknown;
 }
+
+/** r24：成员在审批（发起/被指派/抄送）与物资（保管）中的真实引用计数 */
+app.get("/api/org/members/:id/usage", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const store = requireDb();
+    const member = store.getMember(id);
+    if (!member) return reply.code(404).send({ error: `人员不存在：${id}` });
+    const usage = store.countMemberUsage(id);
+    return { ...usage, member: memberSummary(member, store.listDepartments()), usage };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
 
 /** 部门树带直属人员（单条路由装配，web 不做树算法） */
 app.get("/api/org/tree", async () => {

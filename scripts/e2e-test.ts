@@ -1,4 +1,4 @@
-// 协流 XieFlow — e2e-test.ts：直连服务层断言业务行为（IKanBot 模式）
+﻿// 协流 XieFlow — e2e-test.ts：直连服务层断言业务行为（IKanBot 模式）
 // r2：todo 输入校验收紧（服务层守卫）+ 今/明/周汇总计数 + raw 直达 schema 约束。
 // r1 复验 P4 指出的两条自洽占位断言在本轮替换为真实行为断言（raw SQL 触达 NOT NULL /
 // CHECK 约束；迁移幂等改用 PRAGMA user_version 真实读回）。
@@ -351,6 +351,13 @@ import {
   normalizeMember,
   searchMembers,
   buildOrgTree,
+  normalizeMemberRef,
+  assertAssignableMember,
+  resolveAssignee,
+  memberDisplayName,
+  memberSummary,
+  countMemberUsage,
+  type MemberSummary,
   type Department,
   type Member,
   type OrgTreeNode,
@@ -533,6 +540,7 @@ try {
         { version: 15, name: "o", up: [] },
         { version: 16, name: "p", up: [] },
         { version: 17, name: "q", up: [] },
+        { version: 18, name: "r", up: [] },
       ]),
     "队列超出 SCHEMA_VERSION：一致性校验抛错",
   );
@@ -920,8 +928,8 @@ try {
     const v3Migrated = openDatabaseRaw({ path: v3Path });
     eq(
       v3Migrated.appliedMigrations,
-      [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
-      "v2 旧库重开补跑 v3+v4+v5+v6+v7+v8+v9+v10+v11+v12+v13+v14+v15+v16 迁移（真实 PRAGMA 升级路径）",
+      [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17],
+      "v2 旧库重开补跑 v3+v4+v5+v6+v7+v8+v9+v10+v11+v12+v13+v14+v15+v16+v17 迁移（真实 PRAGMA 升级路径）",
     );
     const tables = v3Migrated.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -1146,8 +1154,8 @@ try {
     const v4Open = openDatabaseRaw({ path: v4Path });
     eq(
       v4Open.appliedMigrations,
-      [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
-      "v3 旧库重开只补跑 v4+v5+v6+v7+v8+v9+v10+v11+v12+v13+v14+v15+v16 迁移（真实 PRAGMA 升级路径）",
+      [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17],
+      "v3 旧库重开只补跑 v4+v5+v6+v7+v8+v9+v10+v11+v12+v13+v14+v15+v16+v17 迁移（真实 PRAGMA 升级路径）",
     );
     const tables = v4Open.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -1158,7 +1166,7 @@ try {
     eq(
       (v4Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（16）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（17）",
     );
     const rawDb: SqliteDatabase = v4Open.raw;
     throws(
@@ -1805,7 +1813,7 @@ try {
     v4Open2.raw.exec("PRAGMA user_version = 4");
     v4Open2.raw.close();
     const v5Open = openDatabaseRaw({ path: v5Path });
-    eq(v5Open.appliedMigrations, [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16], "v4 旧库重开只补跑 v5+v6+v7+v8+v9+v10+v11+v12+v13+v14+v15+v16 迁移（真实 PRAGMA 升级路径）");
+    eq(v5Open.appliedMigrations, [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17], "v4 旧库重开只补跑 v5+v6+v7+v8+v9+v10+v11+v12+v13+v14+v15+v16+v17 迁移（真实 PRAGMA 升级路径）");
     const tableNames = v5Open.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
       .map((r) => String((r as unknown as { name: unknown }).name));
@@ -1815,7 +1823,7 @@ try {
     eq(
       (v5Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（16）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（17）",
     );
     const rawDb5: SqliteDatabase = v5Open.raw;
     throws(
@@ -2524,7 +2532,7 @@ try {
     v5Open.raw.exec("PRAGMA user_version = 5");
     v5Open.raw.close();
     const v6Open = openDatabaseRaw({ path: v6Path });
-    eq(v6Open.appliedMigrations, [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16], "v5 旧库重开只补跑 v6+v7+v8+v9+v10+v11+v12+v13+v14+v15+v16 迁移（真实 PRAGMA 升级路径）");
+    eq(v6Open.appliedMigrations, [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17], "v5 旧库重开只补跑 v6+v7+v8+v9+v10+v11+v12+v13+v14+v15+v16+v17 迁移（真实 PRAGMA 升级路径）");
     const tableNames = v6Open.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
       .map((r) => String((r as unknown as { name: unknown }).name));
@@ -2532,7 +2540,7 @@ try {
     eq(
       (v6Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（16）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（17）",
     );
     const rawDb6: SqliteDatabase = v6Open.raw;
     eq(
@@ -2804,11 +2812,11 @@ try {
     oldOpen.raw.exec("PRAGMA user_version = 6");
     oldOpen.raw.close();
     const v7Open = openDatabaseRaw({ path: v7Path });
-    eq(v7Open.appliedMigrations, [7, 8, 9, 10, 11, 12, 13, 14, 15, 16], "v6 旧库重开补跑 v7+v8+v9+v10+v11+v12+v13+v14+v15+v16 迁移（真实 PRAGMA 升级路径）");
+    eq(v7Open.appliedMigrations, [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17], "v6 旧库重开补跑 v7+v8+v9+v10+v11+v12+v13+v14+v15+v16+v17 迁移（真实 PRAGMA 升级路径）");
     eq(
       (v7Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（16）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（17）",
     );
     const tables = (v7Open.raw.all(
       "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('documents','blocks') ORDER BY name",
@@ -3192,11 +3200,11 @@ try {
     old10.raw.exec("PRAGMA user_version = 7");
     old10.raw.close();
     const v8 = openDatabaseRaw({ path: p10Path });
-    eq(v8.appliedMigrations, [8, 9, 10, 11, 12, 13, 14, 15, 16], "v7 旧库重开只补跑 v8+v9+v10+v11+v12+v13+v14+v15+v16 迁移（真实 PRAGMA 升级路径）");
+    eq(v8.appliedMigrations, [8, 9, 10, 11, 12, 13, 14, 15, 16, 17], "v7 旧库重开只补跑 v8+v9+v10+v11+v12+v13+v14+v15+v16+v17 迁移（真实 PRAGMA 升级路径）");
     eq(
       (v8.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（16）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（17）",
     );
     const t10 = v8.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -3608,11 +3616,11 @@ try {
     old.raw.exec("PRAGMA user_version = 8");
     old.raw.close();
     const v9 = openDatabaseRaw({ path: p });
-    eq(v9.appliedMigrations, [9, 10, 11, 12, 13, 14, 15, 16], "v8 旧库重开只补跑 v9+v10+v11+v12+v13+v14+v15+v16 迁移（真实 PRAGMA 升级路径）");
+    eq(v9.appliedMigrations, [9, 10, 11, 12, 13, 14, 15, 16, 17], "v8 旧库重开只补跑 v9+v10+v11+v12+v13+v14+v15+v16+v17 迁移（真实 PRAGMA 升级路径）");
     eq(
       (v9.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
-      "升级后 user_version = CURRENT_SCHEMA_VERSION（16）",
+      "升级后 user_version = CURRENT_SCHEMA_VERSION（17）",
     );
     const tables = v9.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -4004,7 +4012,7 @@ try {
     eq(reopened14.getMindmap(1)!.contentMarkdown, "# 根\n- 子", "导图关库重开不丢（Markdown 源逐字节）");
     reopened14.close();
     const raw14 = openDatabaseRaw({ path: `scripts/.tmp-e2e/r14-raw-${Date.now()}.db` });
-    eq((raw14.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 16, "真实 PRAGMA user_version=16");
+    eq((raw14.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 17, "真实 PRAGMA user_version=17");
     eq(
       raw14.raw.all("PRAGMA table_info(mindmaps)").map((r) => String((r as unknown as { name: unknown }).name)),
       ["id", "title", "content_markdown", "created_at", "updated_at"],
@@ -4187,7 +4195,7 @@ try {
     eq(r15.listWhiteboardItems(1)[0]!.content, "关库不丢", "白板条目关库重开不丢（逐字）");
     r15.close();
     const raw15 = openDatabaseRaw({ path: `scripts/.tmp-e2e/r15-raw-${Date.now()}.db` });
-    eq((raw15.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 16, "真实 PRAGMA user_version=16");
+    eq((raw15.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 17, "真实 PRAGMA user_version=17");
     eq(
       raw15.raw.all("PRAGMA table_info(whiteboards)").map((r) => String((r as unknown as { name: unknown }).name)),
       ["id", "title", "created_at"],
@@ -4385,21 +4393,21 @@ try {
     r16.close();
 
     const raw16 = openDatabaseRaw({ path: `scripts/.tmp-e2e/r16-raw-${Date.now()}.db` });
-    eq((raw16.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 16, "真实 PRAGMA user_version=16");
+    eq((raw16.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 17, "真实 PRAGMA user_version=17");
     eq(
       raw16.raw.all("PRAGMA table_info(approvals)").map((r) => String((r as unknown as { name: unknown }).name)),
-      ["id", "title", "type", "applicant_id", "status", "current_assignee", "created_at", "updated_at"],
-      "approvals 表八列由 v12 迁移创建",
+      ["id", "title", "type", "applicant_id", "status", "current_assignee", "created_at", "updated_at", "applicant_member_id"],
+      "approvals 表八列由 v12 迁移创建（v17 追加 applicant_member_id）",
     );
     eq(
       raw16.raw.all("PRAGMA table_info(approval_steps)").map((r) => String((r as unknown as { name: unknown }).name)),
-      ["id", "approval_id", "order", "assignee", "action", "comment", "acted_at"],
-      "approval_steps 表七列由 v12 迁移创建（order 列名保留）",
+      ["id", "approval_id", "order", "assignee", "action", "comment", "acted_at", "assignee_member_id"],
+      "approval_steps 表七列由 v12 迁移创建（order 列名保留；v17 追加 assignee_member_id）",
     );
     eq(
       raw16.raw.all("PRAGMA table_info(approval_cc)").map((r) => String((r as unknown as { name: unknown }).name)),
-      ["id", "approval_id", "cc_user", "created_at"],
-      "approval_cc 表四列由 v12 迁移创建",
+      ["id", "approval_id", "cc_user", "created_at", "cc_member_id"],
+      "approval_cc 表四列由 v12 迁移创建（v17 追加 cc_member_id）",
     );
     throws(
       () => raw16.raw.run("INSERT INTO approvals (title,type,applicant_id,status,current_assignee,created_at,updated_at) VALUES ('x','x','a','draft','b','t','t')"),
@@ -4491,11 +4499,11 @@ try {
 
     // 51d. schema v13 与数据层（真迁移、真落库、真事务、零半态）
     const raw17 = openDatabaseRaw({ path: ":memory:" });
-    eq((raw17.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 16, "新库 user_version=16");
+    eq((raw17.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 17, "新库 user_version=17");
     eq(
       raw17.raw.all("PRAGMA table_info(assets)").map((r) => String((r as unknown as { name: unknown }).name)),
-      ["id", "name", "category", "quantity", "unit", "location", "custodian", "created_at"],
-      "assets 表八列由 v13 迁移创建",
+      ["id", "name", "category", "quantity", "unit", "location", "custodian", "created_at", "custodian_member_id"],
+      "assets 表八列由 v13 迁移创建（v17 追加 custodian_member_id）",
     );
     eq(
       raw17.raw.all("PRAGMA table_info(asset_transactions)").map((r) => String((r as unknown as { name: unknown }).name)),
@@ -4656,7 +4664,7 @@ try {
 
     // 52f. schema v14 与账号数据层（真迁移、真落库、不明文、级联清理）
     const raw18 = openDatabaseRaw({ path: ":memory:" });
-    eq((raw18.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 16, "新库 user_version=16");
+    eq((raw18.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 17, "新库 user_version=17");
     eq(
       raw18.raw.all("PRAGMA table_info(users)").map((r) => String((r as unknown as { name: unknown }).name)),
       ["id", "username", "password_hash", "role", "created_at"],
@@ -4876,7 +4884,7 @@ try {
 
     // schema v15 与数据层：change_log / entity_versions 真表真迁移
     const raw19 = openDatabaseRaw({ path: ":memory:" });
-    eq((raw19.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 16, "r19 新库 user_version=16");
+    eq((raw19.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 17, "r19 新库 user_version=17");
     const logCols = raw19.raw.all("PRAGMA table_info(change_log)").map((r) => String((r as unknown as { name: unknown }).name));
     eq(logCols, ["id", "entity_type", "entity_id", "operation", "payload", "user_id", "created_at", "version"], "r19 change_log 八列逐列存在");
     const verCols = raw19.raw.all("PRAGMA table_info(entity_versions)").map((r) => String((r as unknown as { name: unknown }).name));
@@ -5306,7 +5314,7 @@ try {
 
     // schema v16：两表真迁移 + raw 约束
     const raw23 = openDatabaseRaw({ path: ":memory:" });
-    eq((raw23.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 16, "r23 新库 user_version=16");
+    eq((raw23.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 17, "r23 新库 user_version=17");
     const deptCols = raw23.raw.all("PRAGMA table_info(departments)").map((r) => String((r as { name: unknown }).name));
     eq(deptCols, ["id", "name", "parent_id", "sort_order", "created_at"], "r23 departments 五列逐列存在");
     const memCols = raw23.raw.all("PRAGMA table_info(members)").map((r) => String((r as { name: unknown }).name));
@@ -5388,7 +5396,7 @@ try {
     );
     ok(css.includes(".org-columns") && css.includes("html.force-narrow .org-columns"), "r23 样式含双栏布局与窄屏单列 seam");
     ok(shot.includes('"r23"') && shot.includes("org-tab-active"), "r23 shot.ps1 ValidateSet 与壳基线含组织 tab");
-    ok(ci.includes("(2|3|4|5|6|7|8|9|10|11|12|13|14|15|16)"), "r23 CI smoke 正则同步到 v16");
+    ok(ci.includes("(2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17)"), "r23 CI 正则随 v17 迁移推进（r24 口径）");
     ok((r23Index.match(/^\| \d\d-(org-|narrow|error)[^|]*\.png \|/gm) ?? []).length === 7, "r23 截图索引含七张矩阵行");
     const walkPng23 = (dir: string): string[] =>
       readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
@@ -5411,15 +5419,255 @@ try {
       });
       eq(mismatches, [], "r23 shell README 15 张哈希与实际文件逐字一致");
     }
-    ok(rootReadme.includes("e2e（1952 断言）+ HTTP 审计（1582 断言）"), "r23 根 README 速查行数字同步");
+    ok(rootReadme.includes("e2e（2041 断言）+ HTTP 审计（1667 断言）"), "r23 口径随 r24 速查行推进");
     ok(
-      rootReadme.includes("- e2e **1952** 项") && rootReadme.includes("- HTTP audit **1582** 项") &&
-        rootReadme.includes("### r23 矩阵") && rootReadme.includes("e2e 1856 → **1952（+96）**"),
-      "r23 根 README 双节规模与 r23 矩阵索引同步",
+      rootReadme.includes("- e2e **2041** 项") && rootReadme.includes("- HTTP audit **1667** 项") &&
+        rootReadme.includes("### r24 矩阵") && rootReadme.includes("e2e 1952 → **2041（+89）**"),
+      "根 README 双节规模推进到 r24（r23 历史行保留）",
     );
   }
 
-  // 57. HTTP 冒烟 /api/health
+  // 57. r24：组织成员接入审批/物资（TDD 先红：shared/org 规则 + schema v17 + 数据层，向后兼容）
+  section("r24 成员接入：解析/汇总规则 / schema v17 / 审批物资数据层 / usage");
+  {
+    const dept = (id: number, name: string): Department => ({
+      id, name, parentId: null, sortOrder: 0, createdAt: "2026-11-19T00:00:00.000Z",
+    });
+    const person = (
+      id: number, name: string, status: "active" | "inactive" = "active", departmentId: number | null = 1,
+    ): Member => ({
+      id, name, departmentId, role: "member", email: `m${id}@example.com`, phone: "",
+      title: "", status, userId: null,
+    });
+    const depts = [dept(1, "研发中心")];
+    const people = [person(1, "张三"), person(2, "李四"), person(3, "离职者", "inactive"), person(4, "未分配", "active", null)];
+
+    // (A) 成员引用解析唯一口径：有 member_id 用通讯录姓名，无则回落自由文本
+    eq(normalizeMemberRef(undefined), null, "r24 member_id 缺省为空引用");
+    eq(normalizeMemberRef(null), null, "r24 member_id=null 为空引用");
+    eq(normalizeMemberRef("  "), null, "r24 member_id 空白串为空引用");
+    eq(normalizeMemberRef(" 7 "), 7, "r24 member_id 数字串去空白归一");
+    eq(normalizeMemberRef(8), 8, "r24 member_id 数字直传");
+    for (const bad of [0, -1, 1.5, "abc", {}]) {
+      throws(() => normalizeMemberRef(bad), `r24 非法 member_id ${JSON.stringify(bad)} 被拒`);
+    }
+    eq(assertAssignableMember(1, people).name, "张三", "r24 有效在职成员可解析");
+    throws(() => assertAssignableMember(999, people), "r24 不存在的成员被拒");
+    throws(() => assertAssignableMember(3, people), "r24 已停用成员被拒");
+    throws(() => assertAssignableMember("abc", people), "r24 非数字成员引用被拒");
+    eq(resolveAssignee("自由文本", null, people), "自由文本", "r24 无 member_id 回落自由文本");
+    eq(resolveAssignee("", undefined, people), "", "r24 空文本无 member_id 保持空串");
+    eq(resolveAssignee("自由文本", "1", people), "张三", "r24 有 member_id 优先通讯录姓名");
+    eq(resolveAssignee("旧审批人", 2, people), "李四", "r24 新路径覆盖旧自由文本（不改写原列之外的口径）");
+    throws(() => resolveAssignee("自由文本", 3, people), "r24 解析已停用成员被拒");
+    throws(() => resolveAssignee("自由文本", 999, people), "r24 解析不存在成员被拒");
+
+    const summary1 = memberSummary(people[0]!, depts);
+    eq(
+      summary1,
+      { id: 1, name: "张三", departmentId: 1, departmentName: "研发中心", title: "", status: "active" },
+      "r24 memberSummary 回带姓名与部门名",
+    );
+    eq(memberDisplayName(summary1), "张三（研发中心）", "r24 memberDisplayName 带部门徽标文案");
+    eq(memberDisplayName(memberSummary(people[3]!, depts)), "未分配", "r24 未分配部门只显示姓名");
+
+    const usageInput = {
+      approvals: [{ applicantMemberId: 1 }, { applicantMemberId: null }],
+      steps: [{ assigneeMemberId: 1 }, { assigneeMemberId: 2 }],
+      cc: [{ ccMemberId: 1 }],
+      assets: [{ custodianMemberId: 1 }, { custodianMemberId: null }],
+    };
+    eq(
+      countMemberUsage(1, usageInput),
+      { memberId: 1, approvalCount: 1, assignedApprovalCount: 1, ccCount: 1, assetCount: 1, total: 4 },
+      "r24 usage 计数：发起/被指派/抄送/保管四类各自准确",
+    );
+    eq(
+      countMemberUsage(2, usageInput),
+      { memberId: 2, approvalCount: 0, assignedApprovalCount: 1, ccCount: 0, assetCount: 0, total: 1 },
+      "r24 usage 计数只算该成员，不串号",
+    );
+    throws(() => countMemberUsage(0, usageInput), "r24 usage 非法 member_id 被拒");
+
+    // (B) schema v17：只追加四张可空列，原 TEXT NOT NULL 列逐列不动
+    const raw24 = openDatabaseRaw({ path: ":memory:" });
+    eq((raw24.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 17, "r24 新库 user_version=17");
+    const colsOf = (table: string) => raw24.raw.all(`PRAGMA table_info(${table})`) as {
+      name: string; notnull: number; dflt_value: unknown;
+    }[];
+    const aCols = colsOf("approvals");
+    const sCols = colsOf("approval_steps");
+    const cCols = colsOf("approval_cc");
+    const assetCols = colsOf("assets");
+    const col = (cols: { name: string; notnull: number; dflt_value: unknown }[], name: string) => cols.find((x) => x.name === name);
+    eq(col(aCols, "applicant_member_id")?.notnull, 0, "r24 approvals.applicant_member_id 可空");
+    eq(col(sCols, "assignee_member_id")?.notnull, 0, "r24 approval_steps.assignee_member_id 可空");
+    eq(col(cCols, "cc_member_id")?.notnull, 0, "r24 approval_cc.cc_member_id 可空");
+    eq(col(assetCols, "custodian_member_id")?.notnull, 0, "r24 assets.custodian_member_id 可空");
+    eq(col(aCols, "applicant_member_id")?.dflt_value, null, "r24 新增列无默认值（NULL 兼容老行）");
+    eq(col(assetCols, "custodian_member_id")?.dflt_value, null, "r24 物资新增列无默认值（NULL 兼容老行）");
+    eq(col(aCols, "applicant_id")?.notnull, 1, "r24 原 approvals.applicant_id 仍 NOT NULL");
+    eq(col(aCols, "current_assignee")?.notnull, 1, "r24 原 approvals.current_assignee 仍 NOT NULL");
+    eq(col(sCols, "assignee")?.notnull, 1, "r24 原 approval_steps.assignee 仍 NOT NULL");
+    eq(col(cCols, "cc_user")?.notnull, 1, "r24 原 approval_cc.cc_user 仍 NOT NULL");
+    eq(col(assetCols, "custodian")?.notnull, 1, "r24 原 assets.custodian 仍 NOT NULL");
+    raw24.raw.run(
+      "INSERT INTO approvals (title,type,applicant_id,status,current_assignee,created_at,updated_at) VALUES ('旧单','leave','旧人','draft','旧审批','t','t')",
+    );
+    const legacyRow = raw24.raw.get("SELECT applicant_id, applicant_member_id FROM approvals WHERE id=1") as {
+      applicant_id: string; applicant_member_id: number | null;
+    };
+    eq(legacyRow.applicant_id, "旧人", "r24 老路径纯文本 applicant_id 原样保留");
+    eq(legacyRow.applicant_member_id, null, "r24 老数据新增 member_id 为 NULL（向后兼容）");
+    throws(
+      () => raw24.raw.run("INSERT INTO approvals (title,type,applicant_id,status,current_assignee,applicant_member_id,created_at,updated_at) VALUES ('x','leave','旧人','draft','旧审批',999,'t','t')"),
+      "r24 越权 member_id 被 SQLite 外键拒绝",
+    );
+    raw24.raw.run("INSERT INTO members (name,email,status) VALUES ('临时','t@example.com','active')");
+    raw24.raw.run("UPDATE approvals SET applicant_member_id=1 WHERE id=1");
+    raw24.raw.run("DELETE FROM members WHERE id=1");
+    eq(
+      (raw24.raw.get("SELECT applicant_member_id FROM approvals WHERE id=1") as { applicant_member_id: number | null }).applicant_member_id,
+      null,
+      "r24 成员删除后关联列 ON DELETE SET NULL（不删审批、不删用户数据）",
+    );
+    raw24.raw.close();
+
+    // (C) 数据层：新路径真落库 + 老路径 NULL + 停用/越权拒绝 + usage
+    const rdb = freshDb();
+    const rDept = rdb.createDepartment({ name: "r24研发中心" });
+    const zhang = rdb.createMember({ name: "张三", email: "r24.zhang@example.com", departmentId: rDept.id });
+    const li = rdb.createMember({ name: "李四", email: "r24.li@example.com", departmentId: rDept.id });
+    const retired = rdb.createMember({ name: "离职者", email: "r24.retired@example.com", status: "inactive" });
+    const legacyApproval = rdb.createApproval({
+      title: "r24老路径", type: "leave", applicantId: "自由发起人", currentAssignee: "自由审批人", cc: ["自由抄送"],
+    });
+    eq(legacyApproval.applicantMemberId, null, "r24 审批老路径 applicant_member_id=NULL");
+    eq(legacyApproval.applicantId, "自由发起人", "r24 审批老路径自由文本不变");
+    const legacySteps0 = rdb.listApprovalSteps(legacyApproval.id);
+    eq(legacySteps0.length, 0, "r24 老审批初始无步骤");
+    const linkedApproval = rdb.createApproval({
+      title: "r24新路径", type: "expense", applicantId: "将被姓名覆盖", currentAssignee: "将被姓名覆盖",
+      applicantMemberId: zhang.id, currentAssigneeMemberId: li.id,
+      cc: ["将被姓名覆盖"], ccMemberIds: [zhang.id],
+    });
+    eq(linkedApproval.applicantMemberId, zhang.id, "r24 新路径申请人 member_id 真落库");
+    eq(linkedApproval.applicantId, zhang.name, "r24 新路径申请人显示通讯录姓名");
+    eq(linkedApproval.currentAssignee, li.name, "r24 新路径审批人显示通讯录姓名");
+    eq(rdb.listApprovalCc(linkedApproval.id), [zhang.name], "r24 抄送 member_id 解析为通讯录姓名");
+    const ccRow = rdb.listApprovalCcDetails(linkedApproval.id)[0];
+    eq(ccRow?.ccMemberId, zhang.id, "r24 approval_cc.cc_member_id 真落库");
+    throws(
+      () => rdb.createApproval({ title: "停用", type: "other", applicantId: "x", currentAssignee: "y", applicantMemberId: retired.id }),
+      "r24 数据层拒绝已停用发起人",
+    );
+    throws(
+      () => rdb.createApproval({ title: "越权", type: "other", applicantId: "x", currentAssignee: "y", applicantMemberId: 999999 }),
+      "r24 数据层拒绝不存在成员",
+    );
+    throws(
+      () => rdb.createApproval({ title: "非法", type: "other", applicantId: "x", currentAssignee: "y", currentAssigneeMemberId: "abc" }),
+      "r24 数据层拒绝非法 member_id 文本",
+    );
+    const submitted = rdb.actOnApproval(linkedApproval.id, "submit", zhang.name, { actorMemberId: zhang.id });
+    eq(submitted?.status, "pending", "r24 新路径提交后进入 pending");
+    eq(rdb.listApprovalSteps(linkedApproval.id)[0]?.assigneeMemberId, zhang.id, "r24 提交步骤 assignee_member_id 真落库");
+    const delegated = rdb.actOnApproval(linkedApproval.id, "delegate", li.name, {
+      targetAssignee: "将被姓名覆盖", targetAssigneeMemberId: zhang.id, actorMemberId: li.id,
+    });
+    eq(delegated?.currentAssignee, zhang.name, "r24 转交 member_id 覆盖自由文本为通讯录姓名");
+    eq(rdb.listApprovalSteps(linkedApproval.id).at(-1)?.assigneeMemberId, zhang.id, "r24 转交步骤 member_id 真落库");
+    const simple = rdb.createApproval({ title: "r24转交老路径", type: "other", applicantId: "甲", currentAssignee: "乙" });
+    rdb.actOnApproval(simple.id, "submit", "甲");
+    const delegatedLegacy = rdb.actOnApproval(simple.id, "delegate", "乙", { targetAssignee: "丙" });
+    eq(delegatedLegacy?.currentAssignee, "丙", "r24 转交老路径自由文本照常生效");
+    eq(rdb.listApprovalSteps(simple.id).at(-1)?.assigneeMemberId, null, "r24 转交老路径步骤 member_id=NULL");
+
+    const legacyAsset = rdb.createAsset({ name: "旧物资", category: "office", quantity: 1, unit: "台", location: "仓库", custodian: "自由保管员" });
+    eq(legacyAsset.custodianMemberId, null, "r24 物资老路径 custodian_member_id=NULL");
+    const linkedAsset = rdb.createAsset({
+      name: "新物资", category: "equipment", quantity: 4, unit: "台", location: "仓库",
+      custodian: "将被姓名覆盖", custodianMemberId: zhang.id,
+    });
+    eq(linkedAsset.custodianMemberId, zhang.id, "r24 物资新路径 member_id 真落库");
+    eq(linkedAsset.custodian, zhang.name, "r24 物资保管员显示通讯录姓名");
+    throws(
+      () => rdb.createAsset({ name: "停用保管", category: "office", quantity: 1, unit: "个", location: "仓", custodian: "x", custodianMemberId: retired.id }),
+      "r24 数据层拒绝已停用保管员",
+    );
+    const tx = rdb.applyAssetTx(linkedAsset.id, { type: "in", quantity: 2, to: "仓库", operator: "李四" }, li.id);
+    eq(tx.operator, "李四", "r24 出入库老字段操作人照常记账");
+    eq(rdb.getAsset(linkedAsset.id)?.custodianMemberId, li.id, "r24 出入库传 member_id 更新保管员关联");
+    eq(rdb.getAsset(linkedAsset.id)?.custodian, li.name, "r24 出入库保管员姓名与关联同步");
+    const usage = rdb.countMemberUsage(zhang.id);
+    eq(usage.memberId, zhang.id, "r24 usage 回带目标成员 id");
+    ok(usage.approvalCount >= 1 && usage.assignedApprovalCount >= 1 && usage.ccCount >= 1 && usage.assetCount >= 0, "r24 usage 四类计数非空且口径正确");
+    eq(rdb.countMemberUsage(999999).total, 0, "r24 无关联成员 usage 全零");
+
+    const r24Path = `scripts/.tmp-e2e/r24-link-${Date.now()}.db`;
+    const r24Open = openDatabaseRaw({ path: r24Path });
+    r24Open.db.createMember({ name: "持久化成员", email: "persist@example.com" });
+    r24Open.db.createAsset({
+      name: "持久化物资", category: "office", quantity: 1, unit: "个", location: "仓",
+      custodian: "忽略", custodianMemberId: 1,
+    });
+    r24Open.raw.close();
+    const r24Reopen = openDatabaseRaw({ path: r24Path });
+    eq(r24Reopen.db.listAssets()[0]?.custodianMemberId, 1, "r24 关联列重开不丢（真实文件库）");
+    r24Reopen.raw.close();
+    db = null;
+  }
+
+  // 58. r24：渲染层 / CI / 截图索引 seam（选人弹窗、徽标、文档与脚本口径真实存在）
+  section("r24 渲染层与文档 seam：通讯录选人 / 部门徽标 / 截图索引 / CI 正则");
+  {
+    const picker = readFileSync("apps/web/src/MemberPicker.tsx", "utf8");
+    const approval = readFileSync("apps/web/src/ApprovalPage.tsx", "utf8");
+    const assets = readFileSync("apps/web/src/AssetsPage.tsx", "utf8");
+    const css = readFileSync("apps/web/src/styles.css", "utf8");
+    const shot = readFileSync("scripts/shot.ps1", "utf8");
+    const ci = readFileSync(".github/workflows/ci.yml", "utf8");
+    const rootReadme = readFileSync("README.md", "utf8");
+    const r24Index = readFileSync("docs/ui/r24/README.md", "utf8");
+    const shellReadme = readFileSync("docs/ui/shell/README.md", "utf8");
+
+    ok(picker.includes("@xieflow/shared/org") && picker.includes("memberSummary"), "r24 选人弹窗部门摘要走 shared/org 纯函数");
+    ok(picker.includes('data-state="member-picker"') && picker.includes('data-state="member-picker-results"'), "r24 选人弹窗/结果列表 seam 齐备");
+    ok(approval.includes("MemberPicker") && approval.includes("applicantMemberId") && approval.includes("currentAssigneeMemberId"), "r24 审批表单接线选人弹窗并回传 member_id");
+    ok(approval.includes('data-state="approval-timeline-badge"') && approval.includes("assigneeMember"), "r24 审批时间线徽标 seam 在场");
+    ok(assets.includes("MemberPicker") && assets.includes("custodianMemberId") && assets.includes("operatorMemberId"), "r24 物资表单/出入库接线选人弹窗");
+    ok(assets.includes('data-state="assets-member-badge"'), "r24 物资卡片部门徽标 seam 在场");
+    ok(css.includes(".mp-modal") && css.includes("html.force-narrow .mp-modal"), "r24 弹窗样式与窄屏单列 seam 在场");
+    ok(shot.includes('"r24"') && ["01-approval-picker", "02-approval-picked", "03-timeline-badge", "04-assets-picker", "05-assets-badge", "06-narrow", "07-error"].every((s) => shot.includes(s)), "r24 shot.ps1 ValidateSet 与七张矩阵名齐备");
+    ok(ci.includes("(2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17)"), "r24 CI smoke 正则同步到 v17");
+
+    const walkPng = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+        e.isDirectory() ? walkPng(`${dir}/${e.name}`) : e.name.endsWith(".png") ? [`${dir}/${e.name}`] : [],
+      );
+    const r24Png = walkPng("docs/ui/r24");
+    eq(r24Png.length, 7, "r24 目录恰好 7 张 PNG");
+    eq(new Set(r24Png.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 7, "r24 七张 PNG SHA256 两两互异");
+    const shellPng = walkPng("docs/ui/shell");
+    eq(shellPng.length, 15, "壳基线仍为 15 张 PNG");
+    eq(new Set(shellPng.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 15, "壳基线 15 张 SHA256 两两互异");
+    const hashBlock = shellReadme.match(/<!-- R23_HASHES_BEGIN -->([\s\S]*?)<!-- R23_HASHES_END -->/);
+    ok(hashBlock !== null, "shell README 哈希自查块在场");
+    if (hashBlock) {
+      const listed = [...hashBlock[1]!.matchAll(/`([a-z-]+)=([0-9A-F]{8})`/g)].map((m) => [m[1], m[2]]);
+      eq(listed.length, 15, "shell README 列出 15 张哈希");
+      const mismatches = listed.filter(([name, hash]) => {
+        const file = shellPng.find((p) => p.replace(/\\/g, "/").endsWith(`/${name}-tab-active.png`));
+        return !file || createHash("sha256").update(readFileSync(file)).digest("hex").slice(0, 8).toUpperCase() !== hash;
+      });
+      eq(mismatches, [], "shell README 15 张哈希与实际文件逐字一致");
+    }
+    ok((r24Index.match(/^\| \d\d-[^|]*\.png \|/gm) ?? []).length === 7, "r24 截图索引含七张矩阵行");
+    ok(rootReadme.includes("e2e（2041 断言）+ HTTP 审计（1667 断言）"), "r24 根 README 速查行数字同步");
+    ok(rootReadme.includes("### r24 矩阵") && rootReadme.includes("e2e 1952 → **2041（+89）**"), "r24 根 README 双节规模与矩阵索引同步");
+  }
+
+  // 59. HTTP 冒烟 /api/health
   section("HTTP 冒烟 /api/health");
   let httpOk = false;
   let httpNote = "api 服务未运行（pnpm dev:api 后再跑 pnpm test 可覆盖此节）";

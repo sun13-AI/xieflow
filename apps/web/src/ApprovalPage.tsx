@@ -5,6 +5,9 @@
 // ?approvalId= 深链选中真实审批；?view=todo|initiated|cc 与 ?actor= 钉三视角；?narrow=1 显式钉窄屏。
 import { useCallback, useEffect, useState } from "react";
 import type { Approval, ApprovalAction, ApprovalStep, ApprovalView } from "@xieflow/shared";
+import type { MemberSummary } from "@xieflow/shared/org";
+import { memberDisplayName } from "@xieflow/shared/org";
+import MemberPicker from "./MemberPicker";
 import {
   APPROVAL_TYPES,
   APPROVAL_TYPE_LABELS,
@@ -28,9 +31,37 @@ interface ApprovalQuery {
 type PageState =
   | { phase: "loading" }
   | { phase: "error"; message: string }
-  | { phase: "ready"; approvals: Approval[] };
+  | PageStateWithMember;
 
-const PINNED = new Set(["approval-loading", "approval-error", "approval-empty"]);
+const PINNED = new Set([
+  "approval-loading", "approval-error", "approval-empty",
+  "approval-picker", "approval-picked", "approval-timeline-badge",
+]);
+type ApprovalWithMember = Approval & { readonly applicantMember?: MemberSummary | null };
+type StepWithMember = ApprovalStep & { readonly assigneeMember?: MemberSummary | null };
+type PageStateWithMember = { phase: "ready"; approvals: ApprovalWithMember[] };
+
+const PIN_MEMBERS: readonly MemberSummary[] = [
+  { id: 11, name: "王小明", departmentId: 1, departmentName: "研发中心", title: "前端工程师", status: "active" },
+  { id: 12, name: "李娜", departmentId: 2, departmentName: "市场部", title: "产品经理", status: "active" },
+];
+const PIN_A: MemberSummary = PIN_MEMBERS[0]!;
+const PIN_B: MemberSummary = PIN_MEMBERS[1]!;
+const PIN_APPROVAL: ApprovalWithMember = {
+  id: 91, title: "示例：采购申请", type: "purchase", applicantId: "王小明", status: "pending",
+  currentAssignee: "李娜", createdAt: "2026-11-19T10:00:00.000Z", updatedAt: "2026-11-19T10:01:00.000Z",
+  applicantMemberId: 11, applicantMember: PIN_A,
+};
+const PIN_STEPS: StepWithMember[] = [
+  {
+    id: 901, approvalId: 91, order: 0, assignee: "王小明", action: "submit", comment: "",
+    actedAt: "2026-11-19T10:00:00.000Z", assigneeMemberId: 11, assigneeMember: PIN_A,
+  },
+  {
+    id: 902, approvalId: 91, order: 1, assignee: "李娜", action: "delegate", comment: "转产品复核",
+    actedAt: "2026-11-19T10:01:00.000Z", assigneeMemberId: 12, assigneeMember: PIN_B,
+  },
+];
 const VIEW_LABELS: Record<ApprovalView, string> = {
   todo: "我的待办",
   initiated: "我发起的",
@@ -71,16 +102,21 @@ export default function ApprovalPage() {
     if (query.shot === "approval-loading") return { phase: "loading" };
     if (query.shot === "approval-error") return { phase: "error", message: SERVICE_DOWN_MESSAGE };
     if (query.shot === "approval-empty") return { phase: "ready", approvals: [] };
+    if (query.shot === "approval-timeline-badge") return { phase: "ready", approvals: [PIN_APPROVAL] };
+    if (query.shot === "approval-picker" || query.shot === "approval-picked") return { phase: "ready", approvals: [] };
     return { phase: "loading" };
   });
-  const [selectedId, setSelectedId] = useState<number>(() => Number(query.approvalId) || 0);
-  const [selected, setSelected] = useState<Approval | null>(null);
-  const [steps, setSteps] = useState<ApprovalStep[]>([]);
+  const [selectedId, setSelectedId] = useState<number>(() => query.shot === "approval-timeline-badge" ? PIN_APPROVAL.id : Number(query.approvalId) || 0);
+  const [selected, setSelected] = useState<ApprovalWithMember | null>(null);
+  const [steps, setSteps] = useState<StepWithMember[]>([]);
   const [cc, setCc] = useState<string[]>([]);
-  const [creating, setCreating] = useState(query.shot === "approval-form");
+  const [creating, setCreating] = useState(query.shot === "approval-form" || query.shot === "approval-picker" || query.shot === "approval-picked");
   const [titleDraft, setTitleDraft] = useState("");
   const [typeDraft, setTypeDraft] = useState<(typeof APPROVAL_TYPES)[number]>("leave");
-  const [assigneeDraft, setAssigneeDraft] = useState("");
+  const [assigneeDraft, setAssigneeDraft] = useState(query.shot === "approval-picked" ? "李娜" : "");
+  const [applicantMember, setApplicantMember] = useState<MemberSummary | null>(null);
+  const [assigneeMember, setAssigneeMember] = useState<MemberSummary | null>(query.shot === "approval-picked" ? PIN_B : null);
+  const [delegateMember, setDelegateMember] = useState<MemberSummary | null>(null);
   const [ccDraft, setCcDraft] = useState("");
   const [comment, setComment] = useState("");
   const [delegateTarget, setDelegateTarget] = useState("");
@@ -89,7 +125,7 @@ export default function ApprovalPage() {
 
   const refresh = useCallback(async (who: string, which: ApprovalView) => {
     try {
-      const data = await getJson<{ approvals: Approval[] }>(
+      const data = await getJson<{ approvals: ApprovalWithMember[] }>(
         `/api/approvals/view?view=${encodeURIComponent(which)}&actor=${encodeURIComponent(who)}`,
       );
       setState({ phase: "ready", approvals: data.approvals });
@@ -101,6 +137,12 @@ export default function ApprovalPage() {
   }, []);
 
   const loadDetail = useCallback(async (id: number) => {
+    if (query.shot === "approval-timeline-badge") {
+      setSelected(PIN_APPROVAL);
+      setSteps(PIN_STEPS);
+      setCc([]);
+      return;
+    }
     if (id <= 0) {
       setSelected(null);
       setSteps([]);
@@ -109,8 +151,8 @@ export default function ApprovalPage() {
     }
     try {
       const [detail, stepData, ccData] = await Promise.all([
-        getJson<Approval>(`/api/approvals/${id}`),
-        getJson<{ steps: ApprovalStep[] }>(`/api/approvals/${id}/steps`),
+        getJson<ApprovalWithMember>(`/api/approvals/${id}`),
+        getJson<{ steps: StepWithMember[] }>(`/api/approvals/${id}/steps`),
         getJson<{ cc: string[] }>(`/api/approvals/${id}/cc`),
       ]);
       setSelected(detail);
@@ -119,7 +161,7 @@ export default function ApprovalPage() {
     } catch (err) {
       setNotice(err instanceof Error ? err.message : String(err));
     }
-  }, []);
+  }, [query.shot]);
 
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("narrow") === "1") {
@@ -155,11 +197,15 @@ export default function ApprovalPage() {
         applicantId: actor,
         currentAssignee: assigneeDraft.trim(),
         cc: ccDraft.split(/[,，]/).map((s) => s.trim()).filter((s) => s !== ""),
-      })) as Approval;
+        applicantMemberId: applicantMember?.id,
+        currentAssigneeMemberId: assigneeMember?.id,
+      })) as ApprovalWithMember;
       setCreating(false);
       setTitleDraft("");
       setAssigneeDraft("");
       setCcDraft("");
+      setApplicantMember(null);
+      setAssigneeMember(null);
       setSelectedId(created.id);
       setNotice(`已建审批 #${created.id}（草稿）——点「提交」进入审批流`);
       await refresh(actor, view);
@@ -182,10 +228,13 @@ export default function ApprovalPage() {
         actor,
         comment,
         targetAssignee: action === "delegate" ? delegateTarget.trim() : undefined,
-      })) as Approval;
+        targetAssigneeMemberId: action === "delegate" ? delegateMember?.id : undefined,
+        actorMemberId: applicantMember?.id,
+      })) as ApprovalWithMember;
       setSelected(updated);
       setComment("");
       setDelegateTarget("");
+      setDelegateMember(null);
       setNotice(`审批 #${updated.id} 已${APPROVAL_ACTION_LABELS[action]}（当前：${APPROVAL_STATUS_LABELS[updated.status]}）`);
       await Promise.all([loadDetail(updated.id), refresh(actor, view)]);
     } catch (err) {
@@ -252,6 +301,9 @@ export default function ApprovalPage() {
     "approval-todo": "待办钉注：列表由 GET /api/approvals/view?view=todo 真读回，只含待我审批的单。",
     "approval-detail": "详情钉注：时间线由 GET /:id/steps 真读回，submit / delegate / approve 逐步留痕。",
     "approval-approved": "通过态钉注：终态零出边——再次 approve / reject / delegate 均被 shared 状态机拒绝（HTTP 400）。",
+    "approval-picker": "选人弹窗钉注：从通讯录搜索在职成员；选中只增量填 member_id + 姓名，原自由文本输入框仍在场。",
+    "approval-picked": "选中后钉注：审批人输入框已填通讯录姓名并显示部门徽标；不传 member_id 的老路径仍可纯手填。",
+    "approval-timeline-badge": "时间线钉注：每一步回带 member 摘要，部门徽标显示在步骤行；usage 计数由 HTTP /api/org/members/:id/usage 提供。",
   };
   const pinNote = pinNoteMap[query.shot] ?? "";
 
@@ -263,9 +315,16 @@ export default function ApprovalPage() {
           <button type="button" className="btn" data-action="ap-create-open" onClick={() => setCreating(true)}>＋ 新建审批</button>
         </div>
         <label className="ap-identity">
-          当前身份
+          当前身份（申请人）
           <input aria-label="当前身份" data-action="ap-actor" value={actor} onChange={(e) => setActor(e.target.value)} onBlur={() => void switchActor(actor)} />
         </label>
+        <MemberPicker
+          label="申请人" seam="applicant" member={applicantMember}
+          pinned={query.shot === "approval-picker" ? PIN_MEMBERS : undefined}
+          openOnInit={query.shot === "approval-picker"}
+          onPick={(m) => { setApplicantMember(m); setActor(m.name); }}
+          onClear={() => setApplicantMember(null)}
+        />
         {creating && (
           <div className="ap-new" data-state="approval-form-fields">
             <input aria-label="审批标题" placeholder="审批标题" value={titleDraft} onChange={(e) => setTitleDraft(e.target.value)} />
@@ -273,6 +332,13 @@ export default function ApprovalPage() {
               {APPROVAL_TYPES.map((t) => <option key={t} value={t}>{APPROVAL_TYPE_LABELS[t]}</option>)}
             </select>
             <input aria-label="审批人" placeholder="审批人（如：张三）" value={assigneeDraft} onChange={(e) => setAssigneeDraft(e.target.value)} />
+            <MemberPicker
+              label="审批人" seam="approval-assignee" member={assigneeMember}
+              pinned={query.shot === "approval-picker" ? PIN_MEMBERS : undefined}
+              openOnInit={query.shot === "approval-picker"}
+              onPick={(m) => { setAssigneeMember(m); setAssigneeDraft(m.name); }}
+              onClear={() => setAssigneeMember(null)}
+            />
             <input aria-label="抄送人" placeholder="抄送人，逗号分隔" value={ccDraft} onChange={(e) => setCcDraft(e.target.value)} />
             <button type="button" className="btn btn-primary" data-action="ap-create" onClick={() => void createApproval()} disabled={busy}>确认发起</button>
           </div>
@@ -323,7 +389,9 @@ export default function ApprovalPage() {
           <>
             <div className="ap-meta">
               <span>类型：{APPROVAL_TYPE_LABELS[selected.type]}</span>
-              <span>发起人：{selected.applicantId}</span>
+              <span>发起人：{selected.applicantId}
+                {selected.applicantMember && <em className="ap-member-badge" data-state="approval-member-badge">{selected.applicantMember.departmentName ?? "未分配部门"}</em>}
+              </span>
               <span>当前审批人：{selected.currentAssignee}</span>
             </div>
             {cc.length > 0 && (
@@ -353,6 +421,7 @@ export default function ApprovalPage() {
               )}
             </div>
             {actions.includes("delegate") && (
+              <>
               <input
                 aria-label="转交目标"
                 className="ap-delegate"
@@ -360,6 +429,13 @@ export default function ApprovalPage() {
                 value={delegateTarget}
                 onChange={(e) => setDelegateTarget(e.target.value)}
               />
+              <MemberPicker
+                label="转交目标" seam="delegate" member={delegateMember}
+                pinned={query.shot === "approval-timeline-badge" ? PIN_MEMBERS : undefined}
+                onPick={(m) => { setDelegateMember(m); setDelegateTarget(m.name); }}
+                onClear={() => setDelegateMember(null)}
+              />
+              </>
             )}
             <textarea
               aria-label="审批意见"
@@ -381,6 +457,9 @@ export default function ApprovalPage() {
                         <strong>{APPROVAL_ACTION_LABELS[step.action]}</strong>
                         <span>
                           {" · "}{APPROVAL_ACTION_ROLE_LABELS[step.action]} {step.assignee}
+                          {step.assigneeMember && (
+                            <em className="ap-member-badge" data-state="approval-timeline-badge">{step.assigneeMember.departmentName ?? "未分配部门"}</em>
+                          )}
                           {" · 当时"} {APPROVAL_STATUS_LABELS[APPROVAL_ACTION_STATUS_AFTER[step.action]]}
                         </span>
                         {step.comment !== "" && <span className="ap-step-comment">「{step.comment}」</span>}

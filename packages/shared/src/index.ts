@@ -321,7 +321,7 @@ export function assembleRangeSchedules(
 }
 
 /** 数据库 schema 版本号，每轮迁移必须 +1（宪法：禁止手改库文件） */
-export const SCHEMA_VERSION: number = 16;
+export const SCHEMA_VERSION: number = 17;
 
 
 /** 迁移脚本类型：user_version 从 from 升到 to */
@@ -329,6 +329,8 @@ export interface Migration {
   version: number;
   name: string;
   up: string[]; // 按序执行的 SQL
+  /** ADD COLUMN 不支持 IF NOT EXISTS：旧库被测试/回滚重置 user_version 时需存在性守卫，保证迁移幂等 */
+  ensureColumns?: readonly { readonly table: string; readonly column: string; readonly sql: string }[];
 }
 
 // ---- r4：项目与看板（数据契约、名称守卫、position 重排规则集中在此） ----
@@ -3550,6 +3552,8 @@ export interface Approval {
   readonly currentAssignee: string;
   readonly createdAt: string;
   readonly updatedAt: string;
+  /** r24 可选成员关联；老数据为 null，纯自由文本路径不受影响 */
+  readonly applicantMemberId?: number | null;
 }
 
 export interface ApprovalStep {
@@ -3560,6 +3564,7 @@ export interface ApprovalStep {
   readonly action: ApprovalAction;
   readonly comment: string;
   readonly actedAt: string;
+  readonly assigneeMemberId?: number | null;
 }
 
 export interface ApprovalCc {
@@ -3567,6 +3572,7 @@ export interface ApprovalCc {
   readonly approvalId: number;
   readonly ccUser: string;
   readonly createdAt: string;
+  readonly ccMemberId?: number | null;
 }
 
 /** 动作上下文：api/db/web 共用，流转判定只读这几个字段 */
@@ -3770,6 +3776,8 @@ export interface Asset {
   readonly location: string;
   readonly custodian: string;
   readonly createdAt: string;
+  /** r24 可选通讯录保管员；老数据为 null */
+  readonly custodianMemberId?: number | null;
 }
 
 /** 出入库流水领域对象（schema v13 asset_transactions 表 camelCase 映射） */

@@ -3745,3 +3745,24 @@ html.force-narrow .org-search { min-width: 0; width: 100%; }
   .org-search { min-width: 0; width: 100%; }
   .org-tree-panel, .org-people-panel { min-height: 0; }
 }
+/* r24: contact member picker + department badges (free-text inputs remain intact) */
+.mp-root { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.mp-open { font-size: 11px; padding: 3px 8px; white-space: nowrap; }
+.mp-chosen { font-size: 11px; color: var(--accent); background: #eef4ff; border-radius: 999px; padding: 3px 6px; }
+.mp-chosen small { color: var(--ink-2); }
+.mp-clear { border: 0; background: transparent; color: #c0392b; cursor: pointer; font-weight: 700; }
+.mp-modal { position: fixed; inset: 0; background: rgba(15,23,42,.38); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 80; padding: 16px; }
+.mp-modal > * { width: 420px; max-width: 100%; background: #fff; border-radius: var(--radius); padding: 12px; margin-bottom: 8px; box-shadow: 0 12px 40px rgba(15,23,42,.2); }
+.mp-head, .mp-search { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.mp-head strong { font-size: 15px; }
+.mp-close { border: 0; background: transparent; color: var(--ink-2); cursor: pointer; }
+.mp-search input { flex: 1; min-width: 0; }
+.mp-list { display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow-y: auto; }
+.mp-item { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; border: 1px solid var(--line); border-radius: 8px; background: #fff; padding: 8px 10px; cursor: pointer; text-align: left; }
+.mp-item:hover { border-color: var(--accent); background: #f6f9ff; }
+.mp-item strong { font-size: 13px; }
+.mp-item small { font-size: 11px; color: var(--ink-2); }
+.mp-error, .mp-empty { font-size: 12px; color: var(--ink-2); }
+.ap-member-badge, .as-member-badge { font-style: normal; font-size: 11px; border-radius: 999px; padding: 2px 7px; background: #e8f7ea; color: var(--success); margin-left: 6px; white-space: nowrap; }
+html.force-narrow .mp-modal > * { width: 100%; }
+html.force-narrow .as-head, html.force-narrow .ap-head { flex-wrap: wrap; }

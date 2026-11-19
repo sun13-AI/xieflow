@@ -2,6 +2,17 @@
 
 > 宪法见设计包 AGENTS.md；轮次规则见 RUNBOOK.md（均在 D:\work\好东西\xieflow-design\）。
 
+### 2026-11-19 · r24 研发（yanfa-r24 · M10 后功能补强：成员接入审批/物资，向后兼容）
+- 交付：schema v16→v17（approvals.applicant_member_id / approval_steps.assignee_member_id / approval_cc.cc_member_id / assets.custodian_member_id 四列全可空、FK ON DELETE SET NULL；原 TEXT NOT NULL 列逐列不动）；`packages/shared/src/org.ts` 新增 resolveAssignee / assertAssignableMember / memberSummary / memberDisplayName / countMemberUsage，api/web 零算法分支
+- api：审批发起/提交/转交/抄送、物资建账/编辑/出入库均接受可选 member_id（不存在/停用/非法 id → 400），响应回带 {name,department} 摘要；GET /api/org/members/:id/usage 四类计数；老请求不传 member_id 的字段值与摘要 NULL 逐字不变
+- web：新增共享 MemberPicker（通讯录搜索弹窗），审批申请人/审批人/转交目标与物资保管员/出入库操作人可选人；原自由文本输入框全部保留；审批时间线与物资卡片/详情渲染部门徽标
+- 断言：e2e 1952→**2041（+89）** · audit 1582→**1667（+85）**，无一条删改；typecheck 5 包；`pnpm run test:all` exit 0；CI smoke 正则升 v17；README 速查行/双节/r24 矩阵索引/壳基线说明逐字同步
+- **变异红相 1 组**：shared/org `resolveAssignee` 有 member_id 时改回落自由文本 → e2e 8 红后中断 / audit 20 红；逐字节还原（SHA `2A304216…CA7EC`）双套件全绿
+- 「用户第一次用」全链路（headless CDP 真点，0 数据起步）：建部门与两名成员 → 审批选申请人/审批人发起 → 提交 → 切身份选人转交 → 物资选保管员建账 → 出入库选操作人 → usage 回查 → reload 数据全在 → DELETE 探针归零、端口收净
+- 截图：`docs/ui/r24/` 7 张 + 十五 tab 壳基线同批重拍；7/7、15/15 SHA256 互异，全库 250 PNG / 248 互异（同态组仅 r4 已披露 2 组），逐张 `read_image` 目验；首轮误用远端模式库导致七张同为登录页，已用 scratch 库全矩阵重拍、废片未入库
+- 危险区：未 push / 未打 tag / 未发版 / 未改 CI release 配置；只走 user_version 迁移，未手改库文件；只删本轮探针数据与 scratch 库，仓库 `data/xieflow.db` 只读；全程 headless、服务收净、PowerShell 新段全 ASCII、零 token
+- 报告：`docs/feedback/2026-11-19-r24-yanfa.md`（三态纪律 + 自曝节 + 变异红相 + 向后兼容证据）
+
 ### 2026-11-19 · r23 研发（yanfa-r23 · M10 后功能补强：组织架构与通讯录）
 - 交付：schema v15→v16（departments 五列 + members 九列，外键/CHECK/UNIQUE 真约束）；`packages/shared/src/org.ts` 唯一口径（buildDepartmentTree 层级/环/孤儿、validateDepartmentMove 防自挂防成环、normalizeMember 邮箱与字段归一、searchMembers 三字段大小写不敏感、buildOrgTree 部门带人员），api/web 零算法分支
 - api：departments CRUD + move、members CRUD + 按部门查询 + 模糊搜索、GET /api/org/tree；web 新第十五 tab「组织」——左部门树展开折叠 + 右人员卡片 + 新建/编辑表单 + 搜索框；**不接审批/物资**（任务单明确边界，留 r24）
@@ -175,7 +186,7 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 
 | r22 | M10 后·遗留清理与质量收敛（shell 索引/移动底栏/部署文档） | ✅已发版（首轮双通过；U1=0/U2=0，5 项挂账全清 + 日期碰撞真修） | v0.0.28 | e2e 1856 · audit 1514 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r23 | M10 后·组织架构与通讯录（部门树 + 人员目录） | ✅已发版（首轮双通过；三级树/环检测/大小写不敏感搜索） | v0.0.29 | e2e 1952 · audit 1582 | 通过（waizhuan）+ UI 通过（阻断岗） |
-| r24 | M10 后·组织成员接入审批/物资（向后兼容） | 🔨规划中 | — | — | — |
+| r24 | M10 后·组织成员接入审批/物资（向后兼容） | ✅研发完成待双 VERDICT | — | e2e 2041 · audit 1667 | 双 VERDICT 待 waizhuan / ui 阻断岗 |
 
 ## 🏁 项目总账（2026-11-19 · M10 收官）
 

@@ -20,7 +20,9 @@
 > 不新增 tab；徽章推进 r22 + 更多入口 DOM seam → 十四张同批重拍，与 r21（=r20 字节）逐位全异。
 > **r23 新增第十五 tab「组织」**：`?page=org` 部门树 + 人员目录独立页，补 `org-tab-active.png`；
 > 徽章推进 r23「组织架构与通讯录（M10 后）」+ schema v16 → **十五张同批重拍**，与 r22 十四张逐位全异。
-> 窄屏 390/488px 形态见 `docs/ui/r22/` 与 `docs/ui/r23/06-narrow.png`。
+> **r24 渲染层改动（审批/物资加入通讯录选人入口）→ 十五张同批重拍**：徽章沿用 r23，
+> 审批页/物资页出现「从通讯录选人」入口；与 r23 同名字节有 7 张因像素变化而改变，其余像素未变故字节相同。
+> 窄屏 390/488px 形态见 `docs/ui/r22/`、`docs/ui/r23/06-narrow.png` 与 `docs/ui/r24/06-narrow.png`。
 
 | 文件 | 形态 | 对应断言 |
 |---|---|---|
@@ -43,11 +45,13 @@
 ## r23 哈希自查（十五张互异，与 r22 基线逐位全异）
 
 <!-- R23_HASHES_BEGIN -->
-`workbench=6670358F` · `todos=9DE3AB25` · `schedules=241D4609` · `projects=CEA441BA` ·
-`board=15166FE1` · `bases=7A056D63` · `docs=F584CE1B` · `chat=39E47012` ·
-`knowledge=D13E8629` · `mindmap=391064D4` · `whiteboard=DA9A75AA` · `approval=CA7181C5` ·
-`assets=90166EF8` · `unit-tasks=2A81BA59` · `org=F017DF9D` —— **15/15 互异**。
+`workbench=6670358F` · `todos=9DE3AB25` · `schedules=241D4609` · `projects=632CE2E2` ·
+`board=15166FE1` · `bases=D83C38C3` · `docs=0C5266B5` · `chat=F6CAD4EB` ·
+`knowledge=D13E8629` · `mindmap=90A657F6` · `whiteboard=DA9A75AA` · `approval=F0DDDFA5` ·
+`assets=90166EF8` · `unit-tasks=2A81BA59` · `org=870B5A43` —— **15/15 互异**。
 <!-- R23_HASHES_END -->
+
+> r24 同批重拍说明：上表为**本轮重拍后的当前字节**（r24 入口与 r23 徽章在场），e2e「r23 shell README 15 张哈希与实际文件逐字一致」继续用本表锁定；七个 tab（approval/assets/bases/chat/docs/mindmap/org/projects 中实际变化者）像素变化导致哈希改变，其余沿用同字节，不伪造差异。
 
 > r23 同批重拍：十五张全部因徽章 r23 / 新 tab「组织」/ schema v16 在场而与 r22 十四张逐位全异；
 > `workbench` 另含实时 `last_health_check` 时间戳。十五张均已 `read_image` 目验（与 r23 矩阵同批），
@@ -74,5 +78,5 @@
 - 落盘：本目录，文件名 `<tab>-tab-active.png`（与 App.tsx PageTab 一一对应；新增/改名 tab 时须同步脚本内 $tabs 清单）。
 - 认证页为独立路由、同步卡在工作台内、更多入口为底栏布局件，三者均不进 `$tabs`；「组织」是真 tab，r23 起进基线。
 - 同态说明：壳基线各张与各轮页面矩阵均不同字节；全库唯一残留同态组在 r4 目录内部
-  （`r4/01 = r4/16` = `9E5C0C23`、`r4/05 = r4/13` = `8397A028`），如实注记；**全库 243 PNG / 241 互异**，r23 零新增同态组。
+  （`r4/01 = r4/16` = `9E5C0C23`、`r4/05 = r4/13` = `8397A028`），如实注记；**全库 250 PNG / 248 互异**，r24 零新增同态组。
 - `mindmap-tab-active` 与 `docs/ui/r14/` 矩阵 02/03/04 分形：0 张导图空态 / Markdown 编辑态 / 树视图态 / 折叠态，四态互异。

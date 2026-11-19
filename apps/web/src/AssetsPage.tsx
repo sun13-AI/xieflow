@@ -1,18 +1,31 @@
-// 协流 XieFlow — r17「物资」tab：台账列表 + 出入库表单 + 流水时间线
+﻿// 协流 XieFlow — r17「物资」tab：台账列表 + 出入库表单 + 流水时间线
 // 数据全走真实 api（assets CRUD / transactions / 查询）。库存规则全在 shared，页面零库存分支。
 // 截图钉态：?page=assets&shot=assets-empty|assets-form|assets-loading|assets-error
 // ?assetId= 深链选中真实物资；?narrow=1 显式钉窄屏。
 import { useCallback, useEffect, useState } from "react";
 import type { Asset, AssetTransaction } from "@xieflow/shared";
+import type { MemberSummary } from "@xieflow/shared/org";
 import { ASSET_CATEGORIES, ASSET_CATEGORY_LABELS, ASSET_TX_TYPES, ASSET_TX_TYPE_LABELS } from "@xieflow/shared";
+import MemberPicker from "./MemberPicker";
 import { SERVICE_DOWN_MESSAGE, fetchJsonOrThrow, apiFetch } from "./httpClient";
 
 type TxType = (typeof ASSET_TX_TYPES)[number];
+type AssetWithMember = Asset & { readonly custodianMember?: MemberSummary | null };
+
+const PIN_MEMBERS: readonly MemberSummary[] = [
+  { id: 21, name: "赵敏", departmentId: 3, departmentName: "行政部", title: "资产管理员", status: "active" },
+  { id: 22, name: "王强", departmentId: 4, departmentName: "后勤部", title: "仓管", status: "active" },
+];
+const PIN_A: MemberSummary = PIN_MEMBERS[0]!;
+const PIN_ASSET: AssetWithMember = {
+  id: 81, name: "示例：投影仪", category: "equipment", quantity: 6, unit: "台", location: "行政仓库",
+  custodian: "赵敏", createdAt: "2026-11-19T09:00:00.000Z", custodianMemberId: 21, custodianMember: PIN_A,
+};
 
 interface PageState {
   phase: "loading" | "error" | "ready";
   message?: string;
-  assets: Asset[];
+  assets: AssetWithMember[];
 }
 
 function readShot(): string {
@@ -37,18 +50,25 @@ export default function AssetsPage() {
     if (shot === "assets-loading") return { phase: "loading", assets: [] };
     if (shot === "assets-error") return { phase: "error", message: SERVICE_DOWN_MESSAGE, assets: [] };
     if (shot === "assets-empty") return { phase: "ready", assets: [] };
+    if (shot === "assets-custodian-badge") return { phase: "ready", assets: [PIN_ASSET] };
+    if (shot === "assets-picker") return { phase: "ready", assets: [] };
     return { phase: "loading", assets: [] };
   });
-  const [selectedId, setSelectedId] = useState<number>(() => Number(new URLSearchParams(window.location.search).get("assetId")) || 0);
-  const [selected, setSelected] = useState<Asset | null>(null);
+  const [selectedId, setSelectedId] = useState<number>(() => {
+    const raw = Number(new URLSearchParams(window.location.search).get("assetId"));
+    return shot === "assets-custodian-badge" ? PIN_ASSET.id : raw || 0;
+  });
+  const [selected, setSelected] = useState<AssetWithMember | null>(null);
   const [txs, setTxs] = useState<AssetTransaction[]>([]);
-  const [creating, setCreating] = useState(shot === "assets-form");
+  const [creating, setCreating] = useState(shot === "assets-form" || shot === "assets-picker");
   const [nameDraft, setNameDraft] = useState("");
   const [categoryDraft, setCategoryDraft] = useState<(typeof ASSET_CATEGORIES)[number]>("office");
   const [qtyDraft, setQtyDraft] = useState("0");
   const [unitDraft, setUnitDraft] = useState("");
   const [locationDraft, setLocationDraft] = useState("");
   const [custodianDraft, setCustodianDraft] = useState("");
+  const [custodianMember, setCustodianMember] = useState<MemberSummary | null>(null);
+  const [operatorMember, setOperatorMember] = useState<MemberSummary | null>(null);
   const [txType, setTxType] = useState<TxType>("in");
   const [txQty, setTxQty] = useState("1");
   const [txFrom, setTxFrom] = useState("");
@@ -59,7 +79,7 @@ export default function AssetsPage() {
 
   const refresh = useCallback(async () => {
     try {
-      const data = await getJson<{ assets: Asset[] }>("/api/assets");
+      const data = await getJson<{ assets: AssetWithMember[] }>("/api/assets");
       setState({ phase: "ready", assets: data.assets });
       return data.assets;
     } catch (err) {
@@ -69,10 +89,15 @@ export default function AssetsPage() {
   }, []);
 
   const loadDetail = useCallback(async (id: number) => {
+    if (shot === "assets-custodian-badge") {
+      setSelected(PIN_ASSET);
+      setTxs([]);
+      return;
+    }
     if (id <= 0) { setSelected(null); setTxs([]); return; }
     try {
       const [detail, txData] = await Promise.all([
-        getJson<Asset>(`/api/assets/${id}`),
+        getJson<AssetWithMember>(`/api/assets/${id}`),
         getJson<{ transactions: AssetTransaction[] }>(`/api/assets/${id}/transactions`),
       ]);
       setSelected(detail);
@@ -80,10 +105,10 @@ export default function AssetsPage() {
     } catch (err) {
       setNotice(err instanceof Error ? err.message : String(err));
     }
-  }, []);
+  }, [shot]);
 
   useEffect(() => {
-    if (shot === "assets-loading" || shot === "assets-error" || shot === "assets-empty") return;
+    if (["assets-loading", "assets-error", "assets-empty", "assets-picker", "assets-custodian-badge"].includes(shot)) return;
     void refresh().then((assets) => {
       if (selectedId > 0 && assets.some((a) => a.id === selectedId)) void loadDetail(selectedId);
     });
@@ -96,9 +121,11 @@ export default function AssetsPage() {
       const created = await sendJson("/api/assets", {
         name: nameDraft, category: categoryDraft, quantity: Number(qtyDraft),
         unit: unitDraft, location: locationDraft, custodian: custodianDraft,
-      }) as Asset;
+        custodianMemberId: custodianMember?.id,
+      }) as AssetWithMember;
       setNameDraft(""); setCategoryDraft("office"); setQtyDraft("0");
       setUnitDraft(""); setLocationDraft(""); setCustodianDraft("");
+      setCustodianMember(null);
       setCreating(false);
       setNotice(`已建物资 #${created.id}`);
       await refresh();
@@ -119,9 +146,11 @@ export default function AssetsPage() {
       const tx = await sendJson(`/api/assets/${selected.id}/transactions`, {
         type: txType, quantity: Number(txQty),
         from: txFrom, to: txTo, operator: txOperator,
+        operatorMemberId: operatorMember?.id,
       }) as AssetTransaction;
       setNotice(`已记账流水 #${tx.id}（${ASSET_TX_TYPE_LABELS[tx.type]}）`);
       setTxQty("1"); setTxFrom(""); setTxTo(""); setTxOperator("");
+      setOperatorMember(null);
       await Promise.all([refresh(), loadDetail(selected.id)]);
     } catch (err) {
       setNotice(err instanceof Error ? err.message : String(err));
@@ -149,6 +178,8 @@ export default function AssetsPage() {
     "assets-form": "建账表单钉注：名称 / 分类 / 库存 / 单位 / 位置 / 保管人全为真输入，提交后落 assets 表。",
     "assets-list": "台账钉注：列表由 GET /api/assets 真读回；出入库走 POST /:id/transactions 单事务零半态。",
     "assets-timeline": "流水钉注：时间线由 GET /:id/transactions 真读回，in/out/transfer 逐步留痕。",
+    "assets-picker": "选人弹窗钉注：保管员从通讯录搜索并选择；原「保管人」自由文本输入框仍在场，老路径不受影响。",
+    "assets-custodian-badge": "部门徽标钉注：物资卡片与详情从回带 member 摘要渲染部门徽标；usage 计数由 HTTP usage 端点提供。",
   };
   const pinNote = pinNoteMap[shot] ?? "";
 
@@ -169,6 +200,13 @@ export default function AssetsPage() {
             <input aria-label="计量单位" placeholder="计量单位（如：台）" value={unitDraft} onChange={(e) => setUnitDraft(e.target.value)} />
             <input aria-label="存放位置" placeholder="存放位置" value={locationDraft} onChange={(e) => setLocationDraft(e.target.value)} />
             <input aria-label="保管人" placeholder="保管人" value={custodianDraft} onChange={(e) => setCustodianDraft(e.target.value)} />
+            <MemberPicker
+              label="保管员" seam="assets-custodian" member={custodianMember}
+              pinned={shot === "assets-picker" ? PIN_MEMBERS : undefined}
+              openOnInit={shot === "assets-picker"}
+              onPick={(m) => { setCustodianMember(m); setCustodianDraft(m.name); }}
+              onClear={() => setCustodianMember(null)}
+            />
             <button type="button" className="btn btn-primary" data-action="as-create" onClick={() => void createAsset()} disabled={busy}>确认建账</button>
           </div>
         )}
@@ -183,6 +221,7 @@ export default function AssetsPage() {
                 <button type="button" className="as-list-btn" data-asset-id={a.id} onClick={() => setSelectedId(a.id)}>
                   <span className="as-list-name">{a.name}</span>
                   <span className="as-list-meta">#{a.id} · {ASSET_CATEGORY_LABELS[a.category]} · 库存 {a.quantity} {a.unit}</span>
+                  {a.custodianMember && <em className="as-member-badge" data-state="assets-member-badge">{a.custodianMember.departmentName ?? "未分配部门"}</em>}
                 </button>
                 <button type="button" className="as-del" data-asset-id={a.id} onClick={() => void removeAsset(a.id)} disabled={busy}>删</button>
               </li>
@@ -202,7 +241,9 @@ export default function AssetsPage() {
             <div className="as-meta">
               <span>分类：{ASSET_CATEGORY_LABELS[selected.category]}</span>
               <span>存放：{selected.location}</span>
-              <span>保管人：{selected.custodian}</span>
+              <span>保管人：{selected.custodian}
+                {selected.custodianMember && <em className="as-member-badge" data-state="assets-detail-member-badge">{selected.custodianMember.departmentName ?? "未分配部门"}</em>}
+              </span>
             </div>
             <div className="as-tx-form" data-state="assets-tx-form">
               <h3>出入库操作</h3>
@@ -218,6 +259,12 @@ export default function AssetsPage() {
                 <input aria-label="目标位置" placeholder="目标位置" value={txTo} onChange={(e) => setTxTo(e.target.value)} />
               )}
               <input aria-label="操作人" placeholder="操作人" value={txOperator} onChange={(e) => setTxOperator(e.target.value)} />
+              <MemberPicker
+                label="操作人" seam="assets-operator" member={operatorMember}
+                pinned={undefined}
+                onPick={(m) => { setOperatorMember(m); setTxOperator(m.name); }}
+                onClear={() => setOperatorMember(null)}
+              />
               <button type="button" className="btn btn-primary" data-action="as-tx" onClick={() => void submitTx()} disabled={busy}>确认记账</button>
             </div>
             <div className="as-timeline-wrap">

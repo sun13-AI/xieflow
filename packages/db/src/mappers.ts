@@ -431,6 +431,7 @@ export function mapRowToApproval(row: Row): Approval {
     currentAssignee: String(row.current_assignee),
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
+    applicantMemberId: row.applicant_member_id === null || row.applicant_member_id === undefined ? null : Number(row.applicant_member_id),
   };
 }
 
@@ -443,6 +444,7 @@ export function mapRowToApprovalStep(row: Row): ApprovalStep {
     action: String(row.action) as ApprovalAction,
     comment: String(row.comment),
     actedAt: String(row.acted_at),
+    assigneeMemberId: row.assignee_member_id === null || row.assignee_member_id === undefined ? null : Number(row.assignee_member_id),
   };
 }
 
@@ -452,6 +454,7 @@ export function mapRowToApprovalCc(row: Row): ApprovalCc {
     approvalId: Number(row.approval_id),
     ccUser: String(row.cc_user),
     createdAt: String(row.created_at),
+    ccMemberId: row.cc_member_id === null || row.cc_member_id === undefined ? null : Number(row.cc_member_id),
   };
 }
 
@@ -465,6 +468,7 @@ export function mapRowToAsset(row: Row): Asset {
     location: String(row.location),
     custodian: String(row.custodian),
     createdAt: String(row.created_at),
+    custodianMemberId: row.custodian_member_id === null || row.custodian_member_id === undefined ? null : Number(row.custodian_member_id),
   };
 }
 

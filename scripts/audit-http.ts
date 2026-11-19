@@ -156,7 +156,7 @@ async function audit() {
     eq(h.json && h.json.ok, true, "health.ok = true");
     // r4 起动态对表：health.schemaVersion 必须等于迁移队列最高版本（不再硬编码 2/3，
     // r3 v0.0.6 CI 红教训——静态硬编码在每轮迁移后必过期）
-    eq(h.json && h.json.schemaVersion, 16, "health.schemaVersion = 16（r23 迁移后）");
+    eq(h.json && h.json.schemaVersion, 17, "health.schemaVersion = 17（r24 迁移后）");
     const s = await req("GET", "/api/settings");
     eq(s.status, 200, "GET /api/settings -> 200");
     ok(Array.isArray(s.json && s.json.settings), "settings 返回数组");
@@ -253,7 +253,7 @@ async function audit() {
   {
     // health 探针反映 schema v8（r4 起迁移后动态推进）
     const h3 = await req("GET", "/api/health");
-    eq(h3.json && h3.json.schemaVersion, 16, "health.schemaVersion = 16（r23 迁移后复核）");
+    eq(h3.json && h3.json.schemaVersion, 17, "health.schemaVersion = 16（r23 迁移后复核）");
 
     const r = await expectStatus(
       "POST",
@@ -2629,7 +2629,7 @@ async function audit() {
     const st0 = await expectStatus("GET", "/api/sync/status", undefined, 200, "r19 GET status -> 200");
     eq(st0.json && st0.json.total, 0, "r19 初始无实体版本");
     eq(st0.json && st0.json.lastChangeId, 0, "r19 初始 lastChangeId=0");
-    eq(st0.json && st0.json.schemaVersion, 16, "r19 status 回带 schema v16（r23 推进）");
+    eq(st0.json && st0.json.schemaVersion, 17, "r19 status 回带 schema v17（r24 推进）");
     const ch0 = await expectStatus("GET", "/api/sync/changes?since=0&limit=50", undefined, 200, "r19 GET changes 空 -> 200");
     eq(ch0.json && ch0.json.count, 0, "r19 初始变更日志为空");
     eq(ch0.json && ch0.json.changes, [], "r19 初始 changes 数组为空");
@@ -2850,7 +2850,7 @@ async function audit() {
     // health：真 HTTP 200 + 真读库语义
     const h = await expectStatus("GET", DEPLOY_PATHS.health, undefined, 200, "r21 GET 契约健康路径 -> 200");
     eq(h.json && h.json.ok, true, "r21 health.ok=true");
-    eq(h.json && h.json.schemaVersion, 16, "r21 health.schemaVersion=16（部署版本一致）");
+    eq(h.json && h.json.schemaVersion, 17, "r21 health.schemaVersion=17（部署版本一致）");
     ok(isServerMode(h.json && h.json.mode), "r21 health.mode 为 local|remote 之一（契约模式合法）");
 
     // mode：模式探针公开可达，回显一致
@@ -2905,7 +2905,7 @@ async function audit() {
   console.log("\n== Org r23: departments / members / tree / search / 4xx ==");
   {
     const h23 = await expectStatus("GET", "/api/health", undefined, 200, "r23 health 真 HTTP 200");
-    eq(h23.json && h23.json.schemaVersion, 16, "r23 health.schemaVersion=16（迁移真生效）");
+    eq(h23.json && h23.json.schemaVersion, 17, "r23 health.schemaVersion=17（迁移真生效）");
     const tree0 = await expectStatus("GET", "/api/org/tree", undefined, 200, "r23 空组织树 -> 200");
     eq(tree0.json && tree0.json.tree, [], "r23 空组织树 tree=[]");
     eq(tree0.json && tree0.json.departments, [], "r23 空组织树 departments=[]");
@@ -2990,6 +2990,144 @@ async function audit() {
     const treeFinal = await expectStatus("GET", "/api/org/tree", undefined, 200, "r23 清理后组织树 -> 200");
     eq(treeFinal.json && treeFinal.json.members, [], "r23 清理后无残留人员");
     eq(treeFinal.json && treeFinal.json.tree, [], "r23 清理后无残留部门");
+  }
+
+  // ---- r24：通讯录成员接入审批/物资（真 HTTP 4xx + 摘要 + usage，waizhuan 会造停用成员验证拒绝） ----
+  console.log("\n== Org r24: member_id in approvals / assets / usage / 4xx ==");
+  {
+    const h24 = await expectStatus("GET", "/api/health", undefined, 200, "r24 health 真 HTTP 200");
+    eq(h24.json && h24.json.schemaVersion, 17, "r24 health.schemaVersion=17（迁移真生效）");
+
+    const dept = await expectStatus("POST", "/api/departments", { name: "r24审计研发中心" }, 201, "r24 建部门 -> 201");
+    const alice = await expectStatus("POST", "/api/members", {
+      name: "审计张三", email: "r24.alice@example.com", departmentId: dept.json.id, title: "Engineer",
+    }, 201, "r24 建在职成员 -> 201");
+    const bob = await expectStatus("POST", "/api/members", {
+      name: "审计李四", email: "r24.bob@example.com", departmentId: dept.json.id, title: "Manager",
+    }, 201, "r24 建第二在职成员 -> 201");
+    const retired = await expectStatus("POST", "/api/members", {
+      name: "审计离职者", email: "r24.retired@example.com", status: "inactive",
+    }, 201, "r24 建停用成员 -> 201");
+
+    // 老路径：不传任何 member_id，原自由文本与 NULL 摘要一件不改
+    const legacy = await expectStatus("POST", "/api/approvals", {
+      title: "r24老路径审批", type: "leave", applicantId: "自由发起人", currentAssignee: "自由审批人", cc: ["自由抄送"],
+    }, 201, "r24 老路径审批发起 -> 201");
+    eq(legacy.json && legacy.json.applicantMemberId, null, "r24 老路径审批 applicant_member_id=null");
+    eq(legacy.json && legacy.json.applicantId, "自由发起人", "r24 老路径自由文本逐字保留");
+    eq(legacy.json && legacy.json.currentAssignee, "自由审批人", "r24 老路径审批人自由文本保留");
+    eq(legacy.json && legacy.json.applicantMember, null, "r24 老路径申请人摘要为 null（向后兼容）");
+    const legacyCc = await expectStatus("GET", `/api/approvals/${legacy.json.id}/cc`, undefined, 200, "r24 老路径抄送查询 -> 200");
+    eq(legacyCc.json && legacyCc.json.cc, ["自由抄送"], "r24 老路径抄送仍是纯字符串数组");
+    eq(legacyCc.json && legacyCc.json.ccMembers, [null], "r24 老路径抄送摘要全 null");
+
+    // 新路径：member_id 解析为通讯录姓名 + 部门摘要
+    const linked = await expectStatus("POST", "/api/approvals", {
+      title: "r24新路径审批", type: "expense", applicantId: "忽略文本", currentAssignee: "忽略文本",
+      applicantMemberId: alice.json.id, assigneeMemberId: bob.json.id,
+      cc: ["忽略文本"], ccMemberIds: [alice.json.id],
+    }, 201, "r24 新路径审批发起 -> 201");
+    eq(linked.json && linked.json.applicantMemberId, alice.json.id, "r24 审批申请人 member_id 真落库");
+    eq(linked.json && linked.json.applicantId, alice.json.name, "r24 审批申请人显示通讯录姓名");
+    eq(linked.json && linked.json.currentAssignee, bob.json.name, "r24 审批人显示通讯录姓名");
+    eq(linked.json && linked.json.applicantMember && linked.json.applicantMember.departmentName, "r24审计研发中心", "r24 申请人摘要回带部门名");
+    eq(linked.json && linked.json.applicantMember && linked.json.applicantMember.name, "审计张三", "r24 申请人摘要回带姓名");
+    const linkedCc = await expectStatus("GET", `/api/approvals/${linked.json.id}/cc`, undefined, 200, "r24 新路径抄送查询 -> 200");
+    eq(linkedCc.json && linkedCc.json.cc, ["审计张三"], "r24 抄送 member_id 解析通讯录姓名");
+    eq(linkedCc.json && linkedCc.json.ccMembers[0] && linkedCc.json.ccMembers[0].id, alice.json.id, "r24 抄送摘要回带成员 id");
+    const linkedDetail = await expectStatus("GET", `/api/approvals/${linked.json.id}`, undefined, 200, "r24 审批详情 -> 200");
+    eq(linkedDetail.json && linkedDetail.json.applicantMember && linkedDetail.json.applicantMember.departmentId, dept.json.id, "r24 详情摘要回带部门 id");
+
+    // 4xx：不存在 / 停用 / 非法引用（waizhuan 亲验停用成员被拒）
+    await expectStatus("POST", "/api/approvals", { title: "x", type: "other", applicantId: "a", currentAssignee: "b", applicantMemberId: 999999 }, 400, "r24 不存在申请人 -> 400");
+    await expectStatus("POST", "/api/approvals", { title: "x", type: "other", applicantId: "a", currentAssignee: "b", applicantMemberId: retired.json.id }, 400, "r24 停用申请人 -> 400");
+    await expectStatus("POST", "/api/approvals", { title: "x", type: "other", applicantId: "a", currentAssignee: "b", applicant_member_id: "abc" }, 400, "r24 非法申请人 id -> 400");
+    await expectStatus("POST", "/api/approvals", { title: "x", type: "other", applicantId: "a", currentAssignee: "b", currentAssigneeMemberId: 999999 }, 400, "r24 不存在审批人 -> 400");
+    await expectStatus("POST", "/api/approvals", { title: "x", type: "other", applicantId: "a", currentAssignee: "b", assignee_member_id: retired.json.id }, 400, "r24 停用审批人 -> 400");
+    await expectStatus("POST", "/api/approvals", { title: "x", type: "other", applicantId: "a", currentAssignee: "b", ccMemberIds: [retired.json.id] }, 400, "r24 停用抄送人 -> 400");
+
+    // 动作：提交 / 转交都可选 member_id，步骤时间线回带部门摘要
+    const submitted = await expectStatus("POST", `/api/approvals/${linked.json.id}/submit`, {
+      actor: alice.json.name, actorMemberId: alice.json.id,
+    }, 200, "r24 成员提交 -> 200");
+    eq(submitted.json && submitted.json.status, "pending", "r24 成员提交后状态 pending");
+    const steps = await expectStatus("GET", `/api/approvals/${linked.json.id}/steps`, undefined, 200, "r24 步骤查询 -> 200");
+    eq(steps.json && steps.json.steps[0] && steps.json.steps[0].assigneeMemberId, alice.json.id, "r24 步骤 member_id 真落库");
+    eq(steps.json && steps.json.steps[0] && steps.json.steps[0].assigneeMember && steps.json.steps[0].assigneeMember.name, "审计张三", "r24 时间线回带执行人姓名");
+    const delegated = await expectStatus("POST", `/api/approvals/${linked.json.id}/delegate`, {
+      actor: bob.json.name, actorMemberId: bob.json.id, targetAssignee: "忽略文本", targetAssigneeMemberId: alice.json.id,
+    }, 200, "r24 成员转交 -> 200");
+    eq(delegated.json && delegated.json.currentAssignee, "审计张三", "r24 转交目标解析通讯录姓名");
+    const steps2 = await expectStatus("GET", `/api/approvals/${linked.json.id}/steps`, undefined, 200, "r24 转交后步骤查询 -> 200");
+    eq(steps2.json && steps2.json.steps.at(-1) && steps2.json.steps.at(-1).assigneeMemberId, alice.json.id, "r24 转交步骤 member_id 真落库");
+    await expectStatus("POST", `/api/approvals/${linked.json.id}/delegate`, {
+      actor: bob.json.name, targetAssignee: "丙", targetAssigneeMemberId: retired.json.id,
+    }, 400, "r24 停用转交目标 -> 400");
+    const ccAdded = await expectStatus("POST", `/api/approvals/${linked.json.id}/cc`, {
+      user: "忽略文本", member_id: bob.json.id,
+    }, 201, "r24 成员抄送添加 -> 201");
+    eq(ccAdded.json && ccAdded.json.ccMember && ccAdded.json.ccMember.name, "审计李四", "r24 抄送添加回带成员摘要");
+    await expectStatus("POST", `/api/approvals/${linked.json.id}/cc`, {
+      user: "停用", memberId: retired.json.id,
+    }, 400, "r24 停用抄送添加 -> 400");
+
+    // 物资：保管员选人 + 出入库 member_id + 老路径纯净
+    const legacyAsset = await expectStatus("POST", "/api/assets", {
+      name: "r24老路径物资", category: "office", quantity: 2, unit: "台", location: "仓库", custodian: "自由保管员",
+    }, 201, "r24 老路径物资建账 -> 201");
+    eq(legacyAsset.json && legacyAsset.json.custodianMemberId, null, "r24 老路径物资 member_id=null");
+    eq(legacyAsset.json && legacyAsset.json.custodianMember, null, "r24 老路径物资摘要=null");
+    const linkedAsset = await expectStatus("POST", "/api/assets", {
+      name: "r24新路径物资", category: "equipment", quantity: 4, unit: "台", location: "仓库",
+      custodian: "忽略文本", custodianMemberId: alice.json.id,
+    }, 201, "r24 新路径物资建账 -> 201");
+    eq(linkedAsset.json && linkedAsset.json.custodianMemberId, alice.json.id, "r24 物资保管员 member_id 真落库");
+    eq(linkedAsset.json && linkedAsset.json.custodian, "审计张三", "r24 物资保管员显示通讯录姓名");
+    eq(linkedAsset.json && linkedAsset.json.custodianMember && linkedAsset.json.custodianMember.departmentName, "r24审计研发中心", "r24 物资卡片摘要回带部门名");
+    await expectStatus("POST", "/api/assets", { name: "x", category: "office", quantity: 1, unit: "个", location: "仓", custodian: "y", member_id: retired.json.id }, 400, "r24 停用保管员 -> 400");
+    await expectStatus("POST", "/api/assets", { name: "x", category: "office", quantity: 1, unit: "个", location: "仓", custodian: "y", custodianMemberId: 999999 }, 400, "r24 不存在保管员 -> 400");
+    const txNew = await expectStatus("POST", `/api/assets/${linkedAsset.json.id}/transactions`, {
+      type: "in", quantity: 1, to: "仓库", member_id: bob.json.id,
+    }, 201, "r24 成员出入库 -> 201");
+    eq(txNew.json && txNew.json.operator, "审计李四", "r24 出入库操作人解析通讯录姓名");
+    eq(txNew.json && txNew.json.operatorMember && txNew.json.operatorMember.id, bob.json.id, "r24 流水回带操作人摘要");
+    const afterTx = await expectStatus("GET", `/api/assets/${linkedAsset.json.id}`, undefined, 200, "r24 出入库后物资详情 -> 200");
+    eq(afterTx.json && afterTx.json.custodianMemberId, bob.json.id, "r24 出入库 member_id 更新保管员关联");
+    eq(afterTx.json && afterTx.json.custodianMember && afterTx.json.custodianMember.name, "审计李四", "r24 出入库后保管员摘要同步");
+    await expectStatus("POST", `/api/assets/${legacyAsset.json.id}/transactions`, {
+      type: "in", quantity: 1, to: "仓库", operator: "自由操作人",
+    }, 201, "r24 老路径出入库照常 201");
+    const legacyAfter = await expectStatus("GET", `/api/assets/${legacyAsset.json.id}`, undefined, 200, "r24 老路径出入库后详情 -> 200");
+    eq(legacyAfter.json && legacyAfter.json.custodian, "自由保管员", "r24 老路径保管员逐字不变");
+    eq(legacyAfter.json && legacyAfter.json.custodianMember, null, "r24 老路径保管员摘要仍 null");
+    await expectStatus("POST", `/api/assets/${linkedAsset.json.id}/transactions`, {
+      type: "in", quantity: 1, to: "仓库", member_id: retired.json.id,
+    }, 400, "r24 停用出入库操作人 -> 400");
+
+    // usage：四类计数 + 404/400
+    const usage = await expectStatus("GET", `/api/org/members/${alice.json.id}/usage`, undefined, 200, "r24 usage 查询 -> 200");
+    eq(usage.json && usage.json.memberId, alice.json.id, "r24 usage 回带成员 id");
+    eq(usage.json && usage.json.member && usage.json.member.name, "审计张三", "r24 usage 回带成员摘要");
+    eq(usage.json && usage.json.applicantCount, undefined, "r24 usage 不暴露旧口径字段（approvalCount 为准）");
+    ok(usage.json && usage.json.approvalCount >= 1 && usage.json.assignedApprovalCount >= 2 && usage.json.ccCount >= 1, "r24 usage 审批三类计数正确");
+    ok(usage.json && usage.json.total === usage.json.approvalCount + usage.json.assignedApprovalCount + usage.json.ccCount + usage.json.assetCount, "r24 usage total = 四类之和");
+    const usageZero = await expectStatus("GET", `/api/org/members/${retired.json.id}/usage`, undefined, 200, "r24 停用成员 usage 可查 -> 200");
+    eq(usageZero.json && usageZero.json.total, 0, "r24 停用成员零指派（但用于发单被 400 拒绝）");
+    await expectStatus("GET", "/api/org/members/999999/usage", undefined, 404, "r24 不存在成员 usage -> 404");
+    await expectStatus("GET", "/api/org/members/not-a-number/usage", undefined, 400, "r24 非数字成员 usage -> 400");
+
+    // 清理：只删本轮探针数据，老用户数据不动
+    await expectStatus("DELETE", `/api/approvals/${legacy.json.id}`, undefined, 200, "r24 清理老路径审批 -> 200");
+    await expectStatus("DELETE", `/api/approvals/${linked.json.id}`, undefined, 200, "r24 清理新路径审批 -> 200");
+    await expectStatus("DELETE", `/api/assets/${legacyAsset.json.id}`, undefined, 200, "r24 清理老路径物资 -> 200");
+    await expectStatus("DELETE", `/api/assets/${linkedAsset.json.id}`, undefined, 200, "r24 清理新路径物资 -> 200");
+    await expectStatus("DELETE", `/api/members/${alice.json.id}`, undefined, 200, "r24 清理成员 Alice -> 200");
+    await expectStatus("DELETE", `/api/members/${bob.json.id}`, undefined, 200, "r24 清理成员 Bob -> 200");
+    await expectStatus("DELETE", `/api/members/${retired.json.id}`, undefined, 200, "r24 清理停用成员 -> 200");
+    await expectStatus("DELETE", `/api/departments/${dept.json.id}`, undefined, 200, "r24 清理部门 -> 200");
+    const finalTree = await expectStatus("GET", "/api/org/tree", undefined, 200, "r24 清理后组织树 -> 200");
+    eq(finalTree.json && finalTree.json.members, [], "r24 清理后成员归零");
+    eq(finalTree.json && finalTree.json.tree, [], "r24 清理后部门归零");
   }
 }
 

@@ -407,6 +407,22 @@ export const MIGRATIONS: Migration[] = [
       `CREATE INDEX IF NOT EXISTS idx_members_user ON members (user_id)`,
     ],
   },
+  {
+    version: 17,
+    name: "r24 · 审批/物资可选 member_id 关联列（向后兼容，原文本列不动）",
+    up: [
+      `CREATE INDEX IF NOT EXISTS idx_approvals_applicant_member ON approvals (applicant_member_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_approval_steps_assignee_member ON approval_steps (assignee_member_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_approval_cc_member ON approval_cc (cc_member_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_assets_custodian_member ON assets (custodian_member_id)`,
+    ],
+    ensureColumns: [
+      { table: "approvals", column: "applicant_member_id", sql: `ALTER TABLE approvals ADD COLUMN applicant_member_id INTEGER REFERENCES members(id) ON DELETE SET NULL` },
+      { table: "approval_steps", column: "assignee_member_id", sql: `ALTER TABLE approval_steps ADD COLUMN assignee_member_id INTEGER REFERENCES members(id) ON DELETE SET NULL` },
+      { table: "approval_cc", column: "cc_member_id", sql: `ALTER TABLE approval_cc ADD COLUMN cc_member_id INTEGER REFERENCES members(id) ON DELETE SET NULL` },
+      { table: "assets", column: "custodian_member_id", sql: `ALTER TABLE assets ADD COLUMN custodian_member_id INTEGER REFERENCES members(id) ON DELETE SET NULL` },
+    ],
+  },
 ];
 
 /** 当前 schema 版本（与 shared 的 SCHEMA_VERSION 保持一致，e2e 会断言二者相等） */

@@ -194,9 +194,14 @@ import {
   normalizeMember,
   searchMembers as searchMembersRule,
   buildOrgTree,
+  resolveAssignee,
+  assertAssignableMember,
+  normalizeMemberRef,
+  countMemberUsage,
   type Department,
   type Member,
   type OrgTreeNode,
+  type MemberUsage,
   type DepartmentInput,
   type MemberInput,
 } from "@xieflow/shared/org";
@@ -228,6 +233,10 @@ function runMigrations(db: WasmDatabase): number[] {
   const applied: number[] = [];
   for (const m of MIGRATIONS) {
     if (m.version > current) {
+      for (const c of m.ensureColumns ?? []) {
+        const cols = db.all(`PRAGMA table_info(${c.table})`) as { name: string }[];
+        if (!cols.some((col) => col.name === c.column)) db.exec(c.sql);
+      }
       for (const sql of m.up) {
         db.exec(sql);
       }
@@ -2022,23 +2031,56 @@ export class XieFlowDb {
 
   // ---- r16：审批流数据层（状态机全在 shared；本层只装配上下文并按计划单事务落库） ----
 
+  // ---- r24：审批/物资可选成员关联（规则全在 shared/org，本层只装配 + 落库） ----
+
+  /**
+   * 成员引用解析：member_id 存在 → 校验存在且 active 后取通讯录姓名；
+   * 不存在 → 原样回落自由文本（老路径逐字节不变）。
+   */
+  private resolveAssignment(
+    text: unknown,
+    memberId: unknown,
+    label: string,
+  ): { text: string; memberId: number | null } {
+    const members = this.listMembers();
+    return {
+      text: resolveAssignee(text, memberId, members),
+      memberId: normalizeMemberRef(memberId),
+    };
+  }
+
   createApproval(input: {
     readonly title: unknown;
     readonly type: unknown;
     readonly applicantId: unknown;
     readonly currentAssignee: unknown;
     readonly cc?: unknown;
+    readonly applicantMemberId?: unknown;
+    readonly currentAssigneeMemberId?: unknown;
+    readonly ccMemberIds?: unknown;
   }): Approval {
     assertValidApprovalTitle(input.title);
     assertValidApprovalType(input.type);
-    assertValidApprovalUser(input.applicantId, "发起人");
-    assertValidApprovalUser(input.currentAssignee, "审批人");
+    const applicant = this.resolveAssignment(input.applicantId, input.applicantMemberId, "申请人");
+    assertValidApprovalUser(applicant.text, "发起人");
+    const assignee = this.resolveAssignment(input.currentAssignee, input.currentAssigneeMemberId, "审批人");
+    assertValidApprovalUser(assignee.text, "审批人");
     const ccUsers: string[] = [];
-    if (input.cc !== undefined && input.cc !== null) {
-      if (!Array.isArray(input.cc)) throw new ValidationError("抄送人必须是字符串数组");
-      for (const raw of input.cc) {
-        assertValidApprovalUser(raw, "抄送人");
-        if (!ccUsers.includes(raw)) ccUsers.push(raw);
+    const ccMemberIds: (number | null)[] = [];
+    const ids = input.ccMemberIds === undefined || input.ccMemberIds === null ? [] : input.ccMemberIds;
+    if (input.cc !== undefined && input.cc !== null && !Array.isArray(input.cc)) {
+      throw new ValidationError("抄送人必须是字符串数组");
+    }
+    if (!Array.isArray(ids)) throw new ValidationError("抄送人成员 id 必须是数组");
+    // cc 缺席但给了 ccMemberIds 时按 id 列表逐项校验（停用/越权 id 不许静默跳过）
+    const ccRaw: readonly unknown[] = input.cc ?? ids.map(() => "");
+    for (let i = 0; i < ccRaw.length; i++) {
+      const raw = ccRaw[i];
+      const resolved = this.resolveAssignment(raw, ids[i], "抄送人");
+      assertValidApprovalUser(resolved.text, "抄送人");
+      if (!ccUsers.includes(resolved.text)) {
+        ccUsers.push(resolved.text);
+        ccMemberIds.push(resolved.memberId);
       }
     }
     const now = new Date().toISOString();
@@ -2046,12 +2088,16 @@ export class XieFlowDb {
     this.db.exec("BEGIN IMMEDIATE");
     try {
       const res = this.db.run(
-        "INSERT INTO approvals (title, type, applicant_id, status, current_assignee, created_at, updated_at) VALUES (?, ?, ?, 'draft', ?, ?, ?)",
-        [input.title, input.type, input.applicantId, input.currentAssignee, now, now],
+        `INSERT INTO approvals (title, type, applicant_id, status, current_assignee, applicant_member_id, created_at, updated_at)
+         VALUES (?, ?, ?, 'draft', ?, ?, ?, ?)`,
+        [input.title, input.type, applicant.text, assignee.text, applicant.memberId, now, now],
       );
       newId = Number(res.lastInsertRowid);
-      for (const user of ccUsers) {
-        this.db.run("INSERT INTO approval_cc (approval_id, cc_user, created_at) VALUES (?, ?, ?)", [newId, user, now]);
+      for (let i = 0; i < ccUsers.length; i++) {
+        this.db.run(
+          "INSERT INTO approval_cc (approval_id, cc_user, cc_member_id, created_at) VALUES (?, ?, ?, ?)",
+          [newId, ccUsers[i] ?? "", ccMemberIds[i] ?? null, now],
+        );
       }
       this.db.exec("COMMIT");
     } catch (err) {
@@ -2083,22 +2129,29 @@ export class XieFlowDb {
     return this.db.run("DELETE FROM approvals WHERE id = ?", [id]).changes > 0;
   }
 
-  addApprovalCc(id: number, user: unknown): ApprovalCc | null {
-    assertValidApprovalUser(user, "抄送人");
+  addApprovalCc(id: number, user: unknown, memberId?: unknown): ApprovalCc | null {
+    const resolved = this.resolveAssignment(user, memberId, "抄送人");
+    assertValidApprovalUser(resolved.text, "抄送人");
     if (this.getApproval(id) === null) return null;
-    if (this.listApprovalCc(id).includes(user)) throw new ValidationError(`抄送人重复：${user}`);
-    const res = this.db.run("INSERT INTO approval_cc (approval_id, cc_user, created_at) VALUES (?, ?, ?)", [
-      id, user, new Date().toISOString(),
-    ]);
+    if (this.listApprovalCc(id).includes(resolved.text)) throw new ValidationError(`抄送人重复：${resolved.text}`);
+    const res = this.db.run(
+      "INSERT INTO approval_cc (approval_id, cc_user, cc_member_id, created_at) VALUES (?, ?, ?, ?)",
+      [id, resolved.text, resolved.memberId, new Date().toISOString()],
+    );
     const row = this.db.get("SELECT * FROM approval_cc WHERE id = ?", [res.lastInsertRowid]);
     if (!row) throw new Error("抄送人写入后读回失败");
     return mapRowToApprovalCc(row);
   }
 
-  listApprovalCc(id: number): string[] {
+  /** r24：抄送详情（cc_member_id 随 cc_user 回带），老入口 listApprovalCc 仍是 string[] 不变 */
+  listApprovalCcDetails(id: number): ApprovalCc[] {
     return this.db
-      .all("SELECT cc_user FROM approval_cc WHERE approval_id = ? ORDER BY id ASC", [id])
-      .map((row) => String((row as { cc_user: unknown }).cc_user));
+      .all("SELECT * FROM approval_cc WHERE approval_id = ? ORDER BY id ASC", [id])
+      .map(mapRowToApprovalCc);
+  }
+
+  listApprovalCc(id: number): string[] {
+    return this.listApprovalCcDetails(id).map((cc) => cc.ccUser);
   }
 
   listApprovalSteps(id: number): ApprovalStep[] {
@@ -2112,18 +2165,25 @@ export class XieFlowDb {
     id: number,
     action: unknown,
     actor: unknown,
-    options: { readonly comment?: unknown; readonly targetAssignee?: unknown } = {},
+    options: {
+      readonly comment?: unknown;
+      readonly targetAssignee?: unknown;
+      readonly actorMemberId?: unknown;
+      readonly targetAssigneeMemberId?: unknown;
+    } = {},
   ): Approval | null {
     const current = this.getApproval(id);
     if (!current) return null;
-    assertValidApprovalUser(actor, "操作人");
+    const resolvedActor = this.resolveAssignment(actor, options.actorMemberId, "操作人");
+    assertValidApprovalUser(resolvedActor.text, "操作人");
     assertValidApprovalComment(options.comment);
+    const target = this.resolveAssignment(options.targetAssignee, options.targetAssigneeMemberId, "转交目标");
     const ctx = {
       status: current.status,
       applicantId: current.applicantId,
       currentAssignee: current.currentAssignee,
-      actor,
-      targetAssignee: options.targetAssignee,
+      actor: resolvedActor.text,
+      targetAssignee: target.text,
     };
     assertValidApprovalAction(action, ctx);
     const plan = planApprovalAction(action, ctx);
@@ -2131,6 +2191,7 @@ export class XieFlowDb {
       next_order: number;
     };
     const nextOrder = Number(orderRow.next_order);
+    const stepMemberId = action === "delegate" ? target.memberId : resolvedActor.memberId;
     const now = new Date().toISOString();
     this.db.exec("BEGIN IMMEDIATE");
     try {
@@ -2138,8 +2199,9 @@ export class XieFlowDb {
         plan.nextStatus, plan.nextAssignee, now, id,
       ]);
       this.db.run(
-        'INSERT INTO approval_steps (approval_id, "order", assignee, action, comment, acted_at) VALUES (?, ?, ?, ?, ?, ?)',
-        [id, nextOrder, plan.stepAssignee, plan.action, options.comment ?? "", now],
+        `INSERT INTO approval_steps (approval_id, "order", assignee, assignee_member_id, action, comment, acted_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [id, nextOrder, plan.stepAssignee, stepMemberId, plan.action, options.comment ?? "", now],
       );
       this.db.exec("COMMIT");
     } catch (err) {
@@ -2169,6 +2231,7 @@ export class XieFlowDb {
     readonly unit: unknown;
     readonly location: unknown;
     readonly custodian: unknown;
+    readonly custodianMemberId?: unknown;
   }): Asset {
     assertValidAssetName(input.name);
     assertValidAssetCategory(input.category);
@@ -2177,10 +2240,12 @@ export class XieFlowDb {
     }
     assertValidAssetText(input.unit, "计量单位");
     assertValidAssetText(input.location, "存放位置");
-    assertValidAssetText(input.custodian, "保管人");
+    const custodian = this.resolveAssignment(input.custodian, input.custodianMemberId, "保管员");
+    assertValidAssetText(custodian.text, "保管人");
     const res = this.db.run(
-      "INSERT INTO assets (name, category, quantity, unit, location, custodian, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-      [input.name, input.category, input.quantity, input.unit, input.location, input.custodian, new Date().toISOString()],
+      `INSERT INTO assets (name, category, quantity, unit, location, custodian, custodian_member_id, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [input.name, input.category, input.quantity, input.unit, input.location, custodian.text, custodian.memberId, new Date().toISOString()],
     );
     const row = this.db.get("SELECT * FROM assets WHERE id = ?", [Number(res.lastInsertRowid)]);
     if (!row) throw new Error("物资写入后读回失败");
@@ -2202,23 +2267,31 @@ export class XieFlowDb {
     readonly unit?: unknown;
     readonly location?: unknown;
     readonly custodian?: unknown;
+    readonly custodianMemberId?: unknown;
   }): Asset | null {
-    if (this.getAsset(id) === null) return null;
+    const before = this.getAsset(id);
+    if (before === null) return null;
     if (input.name !== undefined) assertValidAssetName(input.name);
     if (input.category !== undefined) assertValidAssetCategory(input.category);
     if (input.unit !== undefined) assertValidAssetText(input.unit, "计量单位");
     if (input.location !== undefined) assertValidAssetText(input.location, "存放位置");
-    if (input.custodian !== undefined) assertValidAssetText(input.custodian, "保管人");
+    const custodian = (input.custodian !== undefined || input.custodianMemberId !== undefined)
+      ? this.resolveAssignment(
+          input.custodian !== undefined ? input.custodian : before.custodian,
+          input.custodianMemberId !== undefined ? input.custodianMemberId : before.custodianMemberId,
+          "保管员",
+        )
+      : { text: before.custodian, memberId: before.custodianMemberId ?? null };
+    assertValidAssetText(custodian.text, "保管人");
     const next = {
-      name: input.name ?? this.getAsset(id)!.name,
-      category: input.category ?? this.getAsset(id)!.category,
-      unit: input.unit ?? this.getAsset(id)!.unit,
-      location: input.location ?? this.getAsset(id)!.location,
-      custodian: input.custodian ?? this.getAsset(id)!.custodian,
+      name: input.name ?? before.name,
+      category: input.category ?? before.category,
+      unit: input.unit ?? before.unit,
+      location: input.location ?? before.location,
     };
     this.db.run(
-      "UPDATE assets SET name = ?, category = ?, unit = ?, location = ?, custodian = ? WHERE id = ?",
-      [next.name, next.category, next.unit, next.location, next.custodian, id],
+      "UPDATE assets SET name = ?, category = ?, unit = ?, location = ?, custodian = ?, custodian_member_id = ? WHERE id = ?",
+      [next.name, next.category, next.unit, next.location, custodian.text, custodian.memberId, id],
     );
     return this.getAsset(id);
   }
@@ -2231,13 +2304,21 @@ export class XieFlowDb {
    * 出入库流水唯一落库入口：先按 shared 规则算新库存（负库存/来源不匹配抛错），
    * 再单事务更新物资 + 追加流水；任一步失败整笔回滚（零半态）。
    */
-  applyAssetTx(assetId: number, input: AssetTxInput): AssetTransaction {
+  applyAssetTx(
+    assetId: number,
+    input: AssetTxInput,
+    custodianMemberId?: unknown,
+  ): AssetTransaction {
     const asset = this.getAsset(assetId);
     if (!asset) throw new ValidationError(`物资不存在：${assetId}`);
     assertValidAssetTxType(input.type);
     assertValidQuantity(input.quantity, "流水数量");
     assertValidAssetOperator(input.operator);
     const next = applyAssetTransaction(asset, input);
+    // r24：出入库可顺带改选保管员（member_id 校验在 shared/org），老路径 custodian 列逐字节不变
+    const custodian = custodianMemberId === undefined || custodianMemberId === null
+      ? null
+      : this.resolveAssignment(asset.custodian, custodianMemberId, "保管员");
     const from = input.from === undefined || input.from === null ? "" : input.from;
     const to = input.to === undefined || input.to === null ? "" : input.to;
     if (typeof from !== "string" || typeof to !== "string") throw new ValidationError("流水来源/目标必须是字符串");
@@ -2245,7 +2326,15 @@ export class XieFlowDb {
     this.db.exec("BEGIN IMMEDIATE");
     let txId = 0;
     try {
-      this.db.run("UPDATE assets SET quantity = ?, location = ? WHERE id = ?", [next.quantity, next.location, assetId]);
+      this.db.run(
+        "UPDATE assets SET quantity = ?, location = ?, custodian = ?, custodian_member_id = ? WHERE id = ?",
+        [
+          next.quantity, next.location,
+          custodian?.text ?? asset.custodian,
+          custodian?.memberId ?? asset.custodianMemberId ?? null,
+          assetId,
+        ],
+      );
       const res = this.db.run(
         'INSERT INTO asset_transactions (asset_id, type, quantity, "from", "to", operator, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
         [assetId, input.type, input.quantity, from, to, input.operator, now],
@@ -2758,6 +2847,18 @@ export class XieFlowDb {
 
   deleteMember(id: number): boolean {
     return this.db.run("DELETE FROM members WHERE id = ?", [id]).changes > 0;
+  }
+
+  /** GET /api/org/members/:id/usage：四类关联计数口径唯一在 shared/org，本层只取关联列 */
+  countMemberUsage(memberId: unknown): MemberUsage {
+    const id = normalizeMemberRef(memberId);
+    if (id === null) throw new ValidationError("成员 id 不能为空");
+    return countMemberUsage(id, {
+      approvals: this.db.all("SELECT applicant_member_id AS applicantMemberId FROM approvals"),
+      steps: this.db.all("SELECT assignee_member_id AS assigneeMemberId FROM approval_steps"),
+      cc: this.db.all("SELECT cc_member_id AS ccMemberId FROM approval_cc"),
+      assets: this.db.all("SELECT custodian_member_id AS custodianMemberId FROM assets"),
+    });
   }
 
   /** 姓名/邮箱/职位模糊搜索（大小写不敏感规则唯一在 shared） */

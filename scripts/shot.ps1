@@ -23,6 +23,7 @@
 #     (01/02 true-390px shots are CDP device-metrics captures, r20 06 precedent: headless
 #      --window-size clamps narrow widths to 500px; see docs/ui/r22/README.md)
 #   powershell -File scripts\shot.ps1 shots -Round r23 # capture r23 org matrix + 15-tab shell baseline
+#   powershell -File scripts\shot.ps1 shots -Round r24 # capture r24 member-picker matrix + 15-tab shell baseline
 #   powershell -File scripts\shot.ps1 shots -Round r11 -Shot 08-docs-diff-inline # rework#1: re-capture ONLY the diff-inline evidence (no other matrix/shell re-shot)
 #   powershell -File scripts\shot.ps1 down            # stop servers
 #   powershell -File scripts\shot.ps1 status          # show port status
@@ -47,7 +48,7 @@ param(
   [Parameter(Position = 0)]
   [ValidateSet("up", "shots", "down", "status", "all")]
   [string]$Action = "status",
-  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23")]
+  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24")]
   [string]$Round = "r1",
   [Parameter()]
   [string]$Shot = ""
@@ -908,7 +909,22 @@ function Invoke-Shots {
     }
   }
 
-  if ($Round -eq "r23") {
+  if ($Round -eq "r24") {
+    # r24: member picker / selected state / department badges on approval + assets.
+    # All seven states use deterministic ?shot= pins; real CRUD / 4xx / usage are
+    # locked by e2e + audit-http + headless CDP first-use chain.
+    $r24Approval = "http://127.0.0.1:$WebPort/?page=approval"
+    $r24Assets = "http://127.0.0.1:$WebPort/?page=assets"
+    $shots = @(
+      @{ name = "01-approval-picker";   url = "$r24Approval&shot=approval-picker"; width = 1280; height = 900 },
+      @{ name = "02-approval-picked";   url = "$r24Approval&shot=approval-picked"; width = 1280; height = 900 },
+      @{ name = "03-timeline-badge";    url = "$r24Approval&shot=approval-timeline-badge"; width = 1280; height = 900 },
+      @{ name = "04-assets-picker";     url = "$r24Assets&shot=assets-picker"; width = 1280; height = 900 },
+      @{ name = "05-assets-badge";      url = "$r24Assets&shot=assets-custodian-badge"; width = 1280; height = 900 },
+      @{ name = "06-narrow";            url = "$r24Approval&shot=approval-picker&narrow=1"; width = 488; height = 1000 },
+      @{ name = "07-error";             url = "$r24Approval&shot=approval-error"; width = 1280; height = 900 }
+    )
+  } elseif ($Round -eq "r23") {
     # r23: org tab matrix. All states are deterministic ?shot= pins on the new tab.
     # Real CRUD / cycle rejection is locked by e2e + audit-http + headless CDP first-use.
     $r23Base = "http://127.0.0.1:$WebPort/?page=org"

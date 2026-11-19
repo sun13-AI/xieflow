@@ -257,3 +257,108 @@ export function buildOrgTree(depts: readonly Department[], members: readonly Mem
   });
   return tree.map(attach);
 }
+
+// ---- r24：成员接入审批/物资（向后兼容）唯一口径 ----
+// 原自由文本列一律不动；member_id 是纯增量关联，缺席即回落旧文本。
+// api / db / web 只装配，零解析分支。
+
+/** 响应回带的成员摘要：姓名 + 部门（无部门时 departmentName=null） */
+export interface MemberSummary {
+  readonly id: number;
+  readonly name: string;
+  readonly departmentId: number | null;
+  readonly departmentName: string | null;
+  readonly title: string;
+  readonly status: MemberStatus;
+}
+
+/** GET /api/org/members/:id/usage 的四类计数口径 */
+export interface MemberUsage {
+  readonly memberId: number;
+  readonly approvalCount: number;
+  readonly assignedApprovalCount: number;
+  readonly ccCount: number;
+  readonly assetCount: number;
+  readonly total: number;
+}
+
+/** 可选成员引用归一：undefined/null/空白串 = 未指定；数字串归一为正整数，其余抛错 */
+export function normalizeMemberRef(value: unknown): number | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value === "string" && value.trim() === "") return null;
+  const n = typeof value === "string" ? Number(value.trim()) : value;
+  if (typeof n !== "number" || !Number.isInteger(n) || n <= 0) {
+    throw new ValidationError(`非法成员 id：${String(value)}`);
+  }
+  return n;
+}
+
+/** 指派前校验：成员必须存在且 active（停用成员被拒，避免审批/物资指向离岗同事） */
+export function assertAssignableMember(
+  memberId: unknown,
+  members: readonly Member[],
+  label = "成员",
+): Member {
+  const id = normalizeMemberRef(memberId);
+  if (id === null) throw new ValidationError(`${label} id 不能为空`);
+  const member = members.find((m) => m.id === id);
+  if (!member) throw new ValidationError(`${label}不存在：${id}`);
+  if (member.status !== "active") throw new ValidationError(`${label}已停用：${id}`);
+  return member;
+}
+
+/**
+ * 指派人解析唯一口径：有 member_id 就用通讯录姓名（并做存在/在职校验），
+ * 没有则原样回落自由文本——老路径的字段值与校验完全不变。
+ */
+export function resolveAssignee(text: unknown, memberId: unknown, members: readonly Member[]): string {
+  if (memberId === undefined || memberId === null || (typeof memberId === "string" && memberId.trim() === "")) {
+    // 非字符串保持原样交给下游守卫（老路径的 400 契约不能因成员接线被放宽）
+    return text as string;
+  }
+  return assertAssignableMember(memberId, members).name;
+}
+
+/** 成员摘要装配（api 层禁止自己查部门名） */
+export function memberSummary(member: Member, departments: readonly Department[]): MemberSummary {
+  const dept = member.departmentId === null ? undefined : departments.find((d) => d.id === member.departmentId);
+  return {
+    id: member.id,
+    name: member.name,
+    departmentId: member.departmentId,
+    departmentName: dept?.name ?? null,
+    title: member.title,
+    status: member.status,
+  };
+}
+
+/** 徽标/选择器显示文案：有部门显示「姓名（部门）」，无部门只显示姓名 */
+export function memberDisplayName(member: { readonly name: string; readonly departmentName?: string | null }): string {
+  return member.departmentName ? `${member.name}（${member.departmentName}）` : member.name;
+}
+
+/** 四类 usage 计数唯一口径（传入已查出的关联列，不查库、不删用户数据） */
+export function countMemberUsage(
+  memberId: unknown,
+  input: {
+    readonly approvals?: readonly { readonly applicantMemberId?: number | null }[];
+    readonly steps?: readonly { readonly assigneeMemberId?: number | null }[];
+    readonly cc?: readonly { readonly ccMemberId?: number | null }[];
+    readonly assets?: readonly { readonly custodianMemberId?: number | null }[];
+  } = {},
+): MemberUsage {
+  const id = normalizeMemberRef(memberId);
+  if (id === null) throw new ValidationError("成员 id 不能为空");
+  const approvalCount = (input.approvals ?? []).filter((r) => r.applicantMemberId === id).length;
+  const assignedApprovalCount = (input.steps ?? []).filter((r) => r.assigneeMemberId === id).length;
+  const ccCount = (input.cc ?? []).filter((r) => r.ccMemberId === id).length;
+  const assetCount = (input.assets ?? []).filter((r) => r.custodianMemberId === id).length;
+  return {
+    memberId: id,
+    approvalCount,
+    assignedApprovalCount,
+    ccCount,
+    assetCount,
+    total: approvalCount + assignedApprovalCount + ccCount + assetCount,
+  };
+}
