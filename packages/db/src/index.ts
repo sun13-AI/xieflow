@@ -900,10 +900,19 @@ export class XieFlowDb {
     type: FieldType,
     options: readonly string[] = [],
     position?: number,
+    /** r30：公式表达式；仅 formula 类型可非空，序列化进 options JSON 的 expression 键 */
+    expression?: string,
   ): TableField {
     assertValidFieldName(name);
     assertValidFieldType(type);
     assertValidFieldOptions(type, options);
+    if (type === "formula" && (typeof expression !== "string" || expression.trim() === "")) {
+      throw new Error("公式字段必须提供表达式");
+    }
+    if (type !== "formula" && expression !== undefined) {
+      throw new Error("只有公式字段可以带表达式");
+    }
+    const optionsJson = type === "formula" ? JSON.stringify({ expression }) : JSON.stringify([...options]);
     if (this.getTable(tableId) === null) {
       throw new Error(`表格不存在：${tableId}`);
     }
@@ -935,7 +944,7 @@ export class XieFlowDb {
     const now = new Date().toISOString();
     const res = this.db.run(
       "INSERT INTO fields (table_id, name, type, position, options, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-      [tableId, name, type, pos, JSON.stringify([...options]), now, now],
+      [tableId, name, type, pos, optionsJson, now, now],
     );
     const row = this.db.get("SELECT * FROM fields WHERE id = ?", [res.lastInsertRowid]);
     if (!row) throw new Error("字段写入后读回失败");
@@ -955,7 +964,14 @@ export class XieFlowDb {
 
   updateField(
     id: number,
-    patch: { name?: string; type?: string; options?: readonly string[]; position?: number },
+    patch: {
+      name?: string;
+      type?: string;
+      options?: readonly string[];
+      position?: number;
+      /** r30：公式表达式（仅 formula 类型可非空） */
+      expression?: string;
+    },
   ): TableField {
     const current = this.getField(id);
     if (!current) throw new Error(`字段不存在：${id}`);
@@ -969,6 +985,20 @@ export class XieFlowDb {
     const options =
       type === "select" || type === "multi-select" ? rawOptions : [];
     assertValidFieldOptions(type, options);
+    const expression =
+      patch.expression !== undefined
+        ? patch.expression
+        : type === "formula"
+          ? current.expression
+          : undefined;
+    if (type === "formula" && (typeof expression !== "string" || expression.trim() === "")) {
+      throw new Error("公式字段必须提供表达式");
+    }
+    if (type !== "formula" && expression !== undefined) {
+      throw new Error("只有公式字段可以带表达式");
+    }
+    const optionsJson =
+      type === "formula" ? JSON.stringify({ expression }) : JSON.stringify(options);
     const position = patch.position ?? current.position;
     if (!Number.isInteger(position) || position < 0) {
       throw new Error(`非法字段位置：${String(position)}`);
@@ -995,7 +1025,7 @@ export class XieFlowDb {
     }
     this.db.run(
       "UPDATE fields SET name = ?, type = ?, position = ?, options = ?, updated_at = ? WHERE id = ?",
-      [name, type, position, JSON.stringify(options), new Date().toISOString(), id],
+      [name, type, position, optionsJson, new Date().toISOString(), id],
     );
     return this.getField(id)!;
   }

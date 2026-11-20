@@ -321,7 +321,7 @@ export function assembleRangeSchedules(
 }
 
 /** 数据库 schema 版本号，每轮迁移必须 +1（宪法：禁止手改库文件） */
-export const SCHEMA_VERSION: number = 21;
+export const SCHEMA_VERSION: number = 22;
 
 
 /** 迁移脚本类型：user_version 从 from 升到 to */
@@ -672,7 +672,7 @@ export function countCsvRecords(csvText: string): number {
 
 // ---- r6：多维表格（表 / 字段 / 记录）+ 字段类型引擎（规则集中 shared，api 层不得出现类型分支） ----
 
-/** 字段类型（r6 任务单：7 种） */
+/** 字段类型（r6 任务单：7 种；r30 扩 formula = 第 8 种，只读计算列） */
 export type FieldType =
   | "text"
   | "number"
@@ -680,7 +680,8 @@ export type FieldType =
   | "select"
   | "multi-select"
   | "checkbox"
-  | "url";
+  | "url"
+  | "formula";
 
 export const FIELD_TYPES: readonly FieldType[] = [
   "text",
@@ -690,6 +691,7 @@ export const FIELD_TYPES: readonly FieldType[] = [
   "multi-select",
   "checkbox",
   "url",
+  "formula",
 ];
 
 /** 字段类型中文标签（字段管理面板与 API 错误消息共用同一口径） */
@@ -701,6 +703,7 @@ export const FIELD_TYPE_LABELS: Record<FieldType, string> = {
   "multi-select": "多选",
   checkbox: "复选框",
   url: "链接",
+  formula: "公式",
 };
 
 export function isFieldType(value: unknown): value is FieldType {
@@ -730,6 +733,8 @@ export interface TableField {
   position: number;
   /** 单选 / 多选的候选项；其余类型恒为空数组 */
   options: string[];
+  /** r30：公式字段的本地表达式（存于 fields.options JSON 的 expression 键）；非公式字段恒 undefined */
+  expression?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -854,6 +859,9 @@ export function validateFieldValue(
         return validationFail(`多选值必须是候选项的子集：${options.join(" / ")}`);
       }
       return validationOk();
+    case "formula":
+      // r30：公式列是读时计算列，永不接受写入值（非法写入零半态拦下）
+      return validationFail("公式字段为只读计算列，不能写入");
   }
 }
 
@@ -971,6 +979,9 @@ export function coerceFieldValue(
       return coerceCheckbox(value);
     case "url":
       return coerceUrl(value);
+    case "formula":
+      // 公式列不参与写入归一；原样返回交给 validateFieldValue 拦下非空写入
+      return value;
   }
 }
 

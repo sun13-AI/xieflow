@@ -1175,6 +1175,52 @@ body {
   font-size: 12px;
 }
 
+/* r30：公式字段（表达式输入 + 实时预览 + 只读计算值 / 错误红标） */
+.bases-formula-expr {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--ink);
+}
+.bases-field-expression-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.bases-formula-preview {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2, #f7f9fc);
+  font-size: 13px;
+}
+.bases-formula-preview ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+.bases-formula-value {
+  color: var(--ok, #157347);
+  font-weight: 600;
+}
+.bases-formula-error {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #b42318;
+  background: #fef3f2;
+  border: 1px solid #fda29b;
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.bases-cell-formula {
+  background: #fbfdff;
+  cursor: default;
+}
+
 .bases-field-add {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) 100px minmax(0, 1.4fr) auto;

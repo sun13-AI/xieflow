@@ -11,7 +11,8 @@
     "./notifications": "./src/notifications.ts",
     "./reports": "./src/reports.ts",
     "./meetings": "./src/meetings.ts",
-    "./docHistory": "./src/docHistory.ts"
+    "./docHistory": "./src/docHistory.ts",
+    "./formula": "./src/formula.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit"

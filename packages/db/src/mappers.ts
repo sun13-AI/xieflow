@@ -142,18 +142,28 @@ export function mapRowToBoardCard(row: Row): BoardCard {
   };
 }
 
-/** 候选项 JSON 解析（坏 JSON 视为无候选项，不让一行坏数据炸掉整表读取） */
-function parseFieldOptions(raw: unknown): string[] {
-  if (typeof raw !== "string" || raw === "") return [];
+/**
+ * r30：字段 options JSON 双形态解析。
+ * - 旧字段 / 非公式字段：JSON 数组，options = 候选项，expression = undefined（既有字段零改动）；
+ * - 公式字段：JSON 对象 { expression: string }，options = 空数组。
+ */
+export function parseFieldOptionsJson(raw: unknown): { options: string[]; expression?: string } {
+  if (typeof raw !== "string" || raw === "") return { options: [] };
   try {
     const parsed: unknown = JSON.parse(raw);
+    if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) {
+      const expr = (parsed as Record<string, unknown>).expression;
+      return typeof expr === "string"
+        ? { options: [], expression: expr }
+        : { options: [] };
+    }
     if (Array.isArray(parsed)) {
-      return parsed.filter((x): x is string => typeof x === "string");
+      return { options: parsed.filter((x): x is string => typeof x === "string") };
     }
   } catch {
     /* 坏 JSON -> 空候选项 */
   }
-  return [];
+  return { options: [] };
 }
 
 /** 记录 data JSON 解析（坏 JSON 视为空对象） */
@@ -185,13 +195,15 @@ export function mapRowToTableField(row: Row): TableField {
   if (!isFieldType(type)) {
     throw new Error(`非法字段类型值：${row.type}`);
   }
+  const parsed = parseFieldOptionsJson(row.options);
   return {
     id: Number(row.id),
     tableId: Number(row.table_id),
     name: String(row.name),
     type,
     position: Number(row.position),
-    options: parseFieldOptions(row.options),
+    options: parsed.options,
+    ...(parsed.expression !== undefined ? { expression: parsed.expression } : {}),
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
   };

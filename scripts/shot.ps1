@@ -54,7 +54,7 @@ param(
   [Parameter(Position = 0)]
   [ValidateSet("up", "shots", "down", "status", "all")]
   [string]$Action = "status",
-  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r26", "r27", "r28", "r29")]
+  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r26", "r27", "r28", "r29", "r30")]
   [string]$Round = "r1",
   [Parameter()]
   [string]$Shot = ""
@@ -956,7 +956,11 @@ function Invoke-Shots {
     }
   }
 
-  if ($Round -eq "r29") {
+  if ($Round -eq "r30") {
+    # r30: all matrix states are deterministic ?shot= pins over the real bases page;
+    # no HTTP seeding needed (computed values are locked by e2e + audit).
+    Write-Output "r30: formula matrix uses deterministic pins (no seed)"
+  } elseif ($Round -eq "r29") {
     # r29: version history + recycle bin matrix. Seed real documents/versions over HTTP;
     # every probe is permanently deleted in the cleanup block below (user data untouched).
     $r29Stamp = "r29-shot-" + (Get-Date -Format "yyyyMMddHHmmss")
@@ -991,7 +995,20 @@ function Invoke-Shots {
     }
   }
 
-  if ($Round -eq "r29") {
+  if ($Round -eq "r30") {
+    # r30: formula field matrix. Every state is a deterministic ?shot= pin
+    # (real data shape + real computed values); truth is locked by e2e + HTTP audit.
+    $r30Base = "http://127.0.0.1:$WebPort/?page=bases"
+    $shots = @(
+      @{ name = "01-formula-empty";  url = "$r30Base&shot=bases-formula-empty";  width = 1280; height = 900 },
+      @{ name = "02-expression-edit"; url = "$r30Base&shot=bases-formula-edit";  width = 1280; height = 900 },
+      @{ name = "03-live-preview";    url = "$r30Base&shot=bases-formula-preview"; width = 1280; height = 900 },
+      @{ name = "04-grid-computed";   url = "$r30Base&shot=bases-formula-grid";   width = 1280; height = 900 },
+      @{ name = "05-error-red";       url = "$r30Base&shot=bases-formula-error";  width = 1280; height = 900 },
+      @{ name = "06-narrow";          url = "$r30Base&shot=bases-formula-narrow&narrow=1"; width = 488; height = 1000 },
+      @{ name = "07-cycle-error";     url = "$r30Base&shot=bases-formula-cycle";  width = 1280; height = 900 }
+    )
+  } elseif ($Round -eq "r29") {
     # r29: version history side panel + recycle bin. 7 states; restore/new-version
     # truth is already locked by e2e + audit, so pins focus on observable UI states.
     $r29Base = "http://127.0.0.1:$WebPort/?page=docs"

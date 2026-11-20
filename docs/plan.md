@@ -233,7 +233,7 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r27 | M10 后·报表中心（跨模块数据看板） | ✅已发版（首轮双通过；六指标手算全对 + 修 README 笔误） | v0.0.33 | e2e 2335 · audit 1904 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r28 | M10 后·会议管理与会议室（预约/冲突检测） | ✅已发版（初验 waizhuan 打回 P2 建室后预约旧 roomId→返工#1 自动选中/深链回显→双复审通过） | v0.0.34 | e2e 2460 · audit 2004 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r29 | M10 后·文档版本历史与回收站 | ✅已发版（首轮双通过；恢复生成 v4 不覆盖 + 软删回收站 + 永久删除真二次确认） | v0.0.35 | e2e 2542 · audit 2060 | 通过（waizhuan）+ UI 通过（阻断岗） |
-| r30 | M10 后·多维表格公式字段（纯本地表达式） | 🔨规划中 | — | — | — |
+| r30 | M10 后·多维表格公式字段（纯本地表达式，零 eval） | ✅研发完成待复验（e2e 2664 / audit 2122；schema v22；未发版） | — | e2e 2664 · audit 2122 | 待 waizhuan / ui |
 
 ## 🏁 项目总账（2026-11-19 · M10 收官）
 
@@ -733,6 +733,17 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 ---
 
 ## 记账区（每轮追加）
+
+### 2026-11-20 · r30 研发（yanfa-r30 · M10 后功能补强：多维表格公式字段，纯本地表达式求值）
+- 交付：schema v21→v22（无新表；重建 fields 表把 type CHECK 白名单 7→8 种，逐列原样拷贝既有字段；options JSON 双形态——旧/非公式字段仍为数组，公式字段为 `{expression}` 对象）；`packages/shared/formula.ts` 纯 TS tokenizer + parser + evaluator（字段引用 `{名}` / 字面量 / + - \* / / 比较 / IF / ROUND；parseFormula / evaluateFormula / compileFormula 结构化错误 / detectFormulaCycles / recomputeFormulas 拓扑序 + 传递污染），**零 eval / 零 Function 构造器 / 零依赖**，api/web 零算法分支
+- api：公式字段新建/编辑校验（非法表达式·未知字段·缺表达式·循环引用 → 400，越权表/字段 id → 404）；GET 表/视图/单条记录回带 `computed`（读时计算，库内公式列恒 null 不落库）+ `cycles`；`POST /api/tables/:id/formulas/preview` 实时试算与编辑预览（draft 表达式不落库）
+- web：字段类型加「公式」（8 种下拉）；表达式输入框 + 实时预览面板 + 错误红条；网格公式列只读绿值 / 错误红标 `⚠`；**18 tab 数量不变**，表格页渲染层变化 → 十八 tab 壳基线同批重拍
+- 断言：e2e 2542 → **2664（+122）** · audit 2004→2060→**2122（+62）**，无一条删改；typecheck 5 包；`pnpm run test:all` exit 0；CI smoke 正则升 v22；README 速查行/双节/r30 矩阵八行/壳 R30 哈希块逐字同步
+- **变异红相 1 组**：`packages/shared/src/formula.ts` 乘法 `a * b` → `a + b`（求值算法改坏）→ e2e 8 红（12×3、12.5×4、优先级、链式、批量重算、数据层装配等）/ audit 5 红（50 / 21 / 80 / 84.8 真 HTTP 值全错）；逐字节还原 SHA `ABF118AE…FA85EB`（改前改后同值、`MUTATION-PROBE r30` 零残留）双套件全绿
+- 「用户第一次用」全链路（真 HTTP）：建表 → 加单价 number / 数量 number → 加小计 formula `{单价}*{数量}` → 录 12.5×4 与 3×7 → GET 回带 50 / 21 且 data 内公式列 null → 改单价为 20 后读时重算 80 → 链式公式预览 84.8 → 甲↔乙循环改写 400 零半态 → 除零 error 红标 → 整表探针删除归零
+- 截图：`docs/ui/r30/` 7 张 + 十八 tab 壳基线同批重拍；7/7、18/18 SHA256 互异，矩阵↔壳重叠 0，全库 297 PNG / 295 互异（同态组仅 r4 已披露 2 组），逐张 `read_image` 目验；首轮登录页废片与二轮 05 面板态废片均全批重拍未入库
+- 危险区：未 push / 未打 tag / 未发版 / 未改 CI release 配置；只走 user_version 迁移、未手改库文件；截图与探针只走 scratch 库（`data/xieflow.db` 只读，原库处于 remote 登录态故未使用）；全程 headless、服务收净、PowerShell 新段全 ASCII、零 token
+- 报告：`docs/feedback/2026-11-21-r30-yanfa.md`（三态纪律 + 自曝节 + 变异红相 + 零 eval 证据）
 
 ### 2026-11-20 · r29 研发（yanfa-r29 · M10 后功能补强：文档版本历史与回收站）
 - 交付：schema v20→v21（document_versions 七列 + UNIQUE(document_id,version) + 外键级联 + 索引；documents.deleted_at 可空列）；`packages/shared/docHistory.ts` 三函数（nextDocVersion / buildVersionNote LCS 增删行摘要 / canRestoreVersion 防恢复已软删）+ 恢复守卫，api/web 零算法分支；无新依赖、零 token、不接实时协同（CRDT 超范围）

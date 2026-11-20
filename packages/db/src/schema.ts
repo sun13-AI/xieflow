@@ -510,6 +510,31 @@ export const MIGRATIONS: Migration[] = [
       { table: "documents", column: "deleted_at", sql: `ALTER TABLE documents ADD COLUMN deleted_at TEXT` },
     ],
   },
+  {
+    version: 22,
+    name: "r30 · fields.type 扩 formula（多维表格公式字段，options JSON 内 expression，读时计算不落库）",
+    // SQLite 无法 ALTER CHECK：重建 fields 表并逐列原样拷贝（id/值/时间逐字不动），
+    // 只把 type 的 CHECK 白名单从 7 种扩为 8 种；无新表、既有字段零改动。
+    // fields 无入向外键（records/views 只引用 tables），重建安全可靠。
+    up: [
+      `DROP INDEX IF EXISTS idx_fields_table`,
+      `ALTER TABLE fields RENAME TO fields_v21`,
+      `CREATE TABLE fields (
+         id INTEGER PRIMARY KEY AUTOINCREMENT,
+         table_id INTEGER NOT NULL REFERENCES tables(id) ON DELETE CASCADE,
+         name TEXT NOT NULL,
+         type TEXT NOT NULL CHECK (type IN ('text','number','date','select','multi-select','checkbox','url','formula')),
+         position INTEGER NOT NULL,
+         options TEXT NOT NULL DEFAULT '[]',
+         created_at TEXT NOT NULL,
+         updated_at TEXT NOT NULL
+       )`,
+      `INSERT INTO fields (id, table_id, name, type, position, options, created_at, updated_at)
+       SELECT id, table_id, name, type, position, options, created_at, updated_at FROM fields_v21`,
+      `DROP TABLE fields_v21`,
+      `CREATE INDEX IF NOT EXISTS idx_fields_table ON fields (table_id)`,
+    ],
+  },
 ];
 
 /** 当前 schema 版本（与 shared 的 SCHEMA_VERSION 保持一致，e2e 会断言二者相等） */

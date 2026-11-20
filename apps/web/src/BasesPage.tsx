@@ -39,7 +39,7 @@ interface BasesData {
   fields: TableField[];
   views: TableView[];
   activeView: TableView | null;
-  records: TableRecord[];
+  records: BasesRecord[];
   total: number;
   page: number;
   pageSize: number;
@@ -52,11 +52,27 @@ type BasesState =
   | { phase: "ready" } & BasesData;
 
 interface RecordQueryResult {
-  records: TableRecord[];
+  records: BasesRecord[];
   total: number;
   page: number;
   pageSize: number;
   totalPages: number;
+}
+
+/** r30：公式单元格读时计算值（error 非空 → 网格红标） */
+interface ComputedCell {
+  value: unknown;
+  error: string | null;
+}
+
+/** r30：记录 + API 回带的公式计算值（computed 不落库，仅 GET 时装配） */
+type BasesRecord = TableRecord & { computed?: Record<string, ComputedCell> };
+
+/** r30：公式试算预览响应（api /api/tables/:id/formulas/preview 的返回体） */
+interface FormulaPreviewData {
+  valid: boolean;
+  references: string[];
+  preview: { recordId: number; value: unknown; error: string | null }[];
 }
 
 /** 导入预览结果（api /api/tables/:id/import.csv/preview 的返回体） */
@@ -174,7 +190,7 @@ function pinSeedFields(now: Date): TableField[] {
   ];
 }
 
-function pinSeedRecords(fields: TableField[]): TableRecord[] {
+function pinSeedRecords(fields: TableField[]): BasesRecord[] {
   const iso = "2026-11-15T08:00:00.000Z";
   const key = (name: string): string => String(fields.find((f) => f.name === name)!.id);
   const rows: Record<string, unknown>[] = [
@@ -217,6 +233,81 @@ function pinSeedRecords(fields: TableField[]): TableRecord[] {
     createdAt: iso,
     updatedAt: iso,
   }));
+}
+
+/**
+ * r30 公式截图钉态：单价 / 数量 / 小计三列 + 真实计算值（截图像素由数据决定）。
+ * 公式列只读；错误态钉除零红标，循环态钉循环引用红标。
+ */
+function pinFormulaFields(now: Date, shot: string): TableField[] {
+  const iso = now.toISOString();
+  const mk = (
+    id: number,
+    name: string,
+    type: FieldType,
+    expression?: string,
+  ): TableField => ({
+    id,
+    tableId: 1,
+    name,
+    type,
+    position: id - 1,
+    options: [],
+    ...(expression !== undefined ? { expression } : {}),
+    createdAt: iso,
+    updatedAt: iso,
+  });
+  const base = [mk(1, "名称", "text"), mk(2, "单价", "number"), mk(3, "数量", "number")];
+  if (shot === "bases-formula-error") {
+    return [
+      ...base,
+      { ...mk(4, "商", "formula"), expression: "{单价} / {零}" },
+      mk(5, "零", "number"),
+    ];
+  }
+  if (shot === "bases-formula-cycle") {
+    return [
+      ...base,
+      { ...mk(4, "甲", "formula"), expression: "{乙} + 1" },
+      { ...mk(5, "乙", "formula"), expression: "{甲} + 1" },
+    ];
+  }
+  return [...base, { ...mk(4, "小计", "formula"), expression: "{单价} * {数量}" }];
+}
+
+function pinFormulaRecords(fields: TableField[], shot: string): BasesRecord[] {
+  const iso = "2026-11-20T08:00:00.000Z";
+  const key = (name: string): string => String(fields.find((f) => f.name === name)!.id);
+  const rows = [
+    { name: "量房", price: 12.5, qty: 4 },
+    { name: "贴砖", price: 3, qty: 7 },
+    { name: "设计", price: 9, qty: 2 },
+  ];
+  return rows.map((r, i) => {
+    const data: Record<string, unknown> = {
+      [key("名称")]: r.name,
+      [key("单价")]: r.price,
+      [key("数量")]: r.qty,
+    };
+    const computed: Record<string, ComputedCell> = {};
+    const sub = fields.find((f) => f.name === "小计");
+    const div = fields.find((f) => f.name === "商");
+    const a = fields.find((f) => f.name === "甲");
+    const b = fields.find((f) => f.name === "乙");
+    if (sub) computed[String(sub.id)] = { value: r.price * r.qty, error: null };
+    if (div) computed[String(div.id)] = { value: null, error: "除零错误：除数不能为 0" };
+    if (a) computed[String(a.id)] = { value: null, error: "循环引用：甲 → 乙 → 甲" };
+    if (b) computed[String(b.id)] = { value: null, error: "循环引用：甲 → 乙 → 甲" };
+    return {
+      id: 11 + i,
+      tableId: 1,
+      data,
+      position: i,
+      createdAt: iso,
+      updatedAt: iso,
+      computed,
+    };
+  });
 }
 
 /** 单元格展示文案（按类型渲染；空值统一显示为占位符） */
@@ -325,6 +416,13 @@ export default function BasesPage() {
   );
   const pinnedImportRef = useRef(false);
   const feedbackRef = useRef(false);
+  /** r30：截图钉态下字段管理面板的预填表达式 / 预览 / 错误 */
+  const [formulaPin, setFormulaPin] = useState<{
+    type: FieldType;
+    expression: string;
+    error: string | null;
+    preview: FormulaPreviewData | null;
+  } | null>(null);
 
   const load = useCallback(
     async (next: BasesQuery): Promise<BasesData | null> => {
@@ -365,6 +463,68 @@ export default function BasesPage() {
         page: 1,
         pageSize: 20,
         totalPages: 0,
+      });
+      return;
+    }
+    // r30 公式字段截图钉态：表达式编辑 / 实时预览 / 网格计算值 / 错误红标 / 循环引用 / 窄屏
+    const formulaShots = [
+      "bases-formula-empty",
+      "bases-formula-edit",
+      "bases-formula-preview",
+      "bases-formula-grid",
+      "bases-formula-error",
+      "bases-formula-cycle",
+      "bases-formula-narrow",
+    ];
+    if (shot !== null && formulaShots.includes(shot)) {
+      const now = new Date();
+      const fields = pinFormulaFields(now, shot);
+      const table: BaseTable = {
+        id: 1,
+        name: "装修预算表",
+        description: "r30 公式字段截图钉态",
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString(),
+      };
+      const showPanel = [
+        "bases-formula-empty",
+        "bases-formula-edit",
+        "bases-formula-preview",
+        "bases-formula-cycle",
+      ].includes(shot);
+      setState({
+        phase: "ready",
+        tables: [table],
+        table,
+        fields,
+        views: [],
+        activeView: null,
+        records: pinFormulaRecords(fields, shot),
+        total: 3,
+        page: 1,
+        pageSize: 20,
+        totalPages: 1,
+      });
+      setFieldsOpen(showPanel);
+      setFormulaPin({
+        type: "formula",
+        expression:
+          shot === "bases-formula-edit" || shot === "bases-formula-preview"
+            ? "{单价} * {数量}"
+            : "",
+        error: shot === "bases-formula-cycle" ? "循环引用：甲 → 乙 → 甲" : null,
+        preview:
+          shot === "bases-formula-preview"
+            ? {
+                valid: true,
+                references: ["单价", "数量"],
+                preview: [
+                  { recordId: 11, value: 50, error: null },
+                  { recordId: 12, value: 21, error: null },
+                  { recordId: 13, value: 18, error: null },
+                ],
+              }
+            : null,
       });
       return;
     }
@@ -1065,8 +1225,9 @@ export default function BasesPage() {
                 <tr key={r.id} data-record-id={r.id}>
                   {visibleColumns.map((f) => {
                     const value = r.data[String(f.id)];
+                    const computedCell = f.type === "formula" ? r.computed?.[String(f.id)] : undefined;
                     const isEditing =
-                      editing !== null && editing.recordId === r.id && editing.fieldId === f.id;
+                      editing !== null && editing.recordId === r.id && editing.fieldId === f.id && f.type !== "formula";
                     return (
                       <td
                         key={f.id}
@@ -1074,7 +1235,8 @@ export default function BasesPage() {
                         data-field-type={f.type}
                         className={`bases-cell bases-cell-${f.type}`}
                         onClick={() => {
-                          if (!isEditing) setEditing({ recordId: r.id, fieldId: f.id });
+                          // r30：公式列只读（读时计算不落库），点单元格不进编辑器
+                          if (!isEditing && f.type !== "formula") setEditing({ recordId: r.id, fieldId: f.id });
                         }}
                       >
                         {isEditing ? (
@@ -1086,7 +1248,11 @@ export default function BasesPage() {
                             onCancel={() => setEditing(null)}
                           />
                         ) : (
-                          <CellView field={f} value={value} />
+                          <CellView
+                            field={f}
+                            value={f.type === "formula" ? computedCell?.value : value}
+                            error={computedCell?.error}
+                          />
                         )}
                       </td>
                     );
@@ -1110,7 +1276,8 @@ export default function BasesPage() {
       </div>
 
       <p className="hint seam-note">
-        字段类型口径：文本 / 数字 / 日期 / 单选 / 多选 / 复选框 / 链接——数值按值排序，日期按时间排序，单选按候选项顺序排序，空值恒排在最后。
+        字段类型口径：文本 / 数字 / 日期 / 单选 / 多选 / 复选框 / 链接 / 公式——数值按值排序，日期按时间排序，单选按候选项顺序排序，空值恒排在最后。
+        公式列只读：用 {'{字段名}'} 引用同表字段，读时计算不落库；错误单元格显示红标。
         视图口径：筛选条件之间是「且」；隐藏列只影响显示，不改数据。
       </p>
 
@@ -1119,6 +1286,10 @@ export default function BasesPage() {
           tableId={table.id}
           fields={fields}
           busy={busy}
+          initialType={formulaPin?.type}
+          initialExpression={formulaPin?.expression}
+          initialError={formulaPin?.error}
+          initialPreview={formulaPin?.preview}
           onClose={() => setFieldsOpen(false)}
           onChanged={async () => {
             await load(query);
@@ -1185,8 +1356,30 @@ export default function BasesPage() {
   );
 }
 
-/** 单元格只读渲染（按字段类型） */
-function CellView({ field, value }: { field: TableField; value: unknown }) {
+/** 单元格只读渲染（按字段类型）；r30 公式列带 error → 红标 */
+function CellView({
+  field,
+  value,
+  error,
+}: {
+  field: TableField;
+  value: unknown;
+  error?: string | null;
+}) {
+  if (field.type === "formula") {
+    if (error) {
+      return (
+        <span className="bases-formula-error" data-state="bases-formula-cell-error" title={error}>
+          ⚠ {error}
+        </span>
+      );
+    }
+    return (
+      <span className="bases-formula-value" data-state="bases-formula-cell-value">
+        {value === null || value === undefined ? "—" : String(value)}
+      </span>
+    );
+  }
   if (field.type === "checkbox") {
     return <span className="bases-check">{value === true ? "☑ 是" : "☐ 否"}</span>;
   }
@@ -1686,17 +1879,52 @@ function FieldsPanel({
   busy,
   onClose,
   onChanged,
+  initialType,
+  initialExpression,
+  initialError,
+  initialPreview,
 }: {
   tableId: number;
   fields: TableField[];
   busy: boolean;
   onClose: () => void;
   onChanged: () => Promise<void>;
+  /** r30：截图钉态预填（真实用户路径下均为 undefined） */
+  initialType?: FieldType;
+  initialExpression?: string;
+  initialError?: string | null;
+  initialPreview?: FormulaPreviewData | null;
 }) {
   const [draftName, setDraftName] = useState("");
-  const [draftType, setDraftType] = useState<FieldType>("text");
+  const [draftType, setDraftType] = useState<FieldType>(initialType ?? "text");
   const [draftOptions, setDraftOptions] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [draftExpression, setDraftExpression] = useState(initialExpression ?? "");
+  const [preview, setPreview] = useState<FormulaPreviewData | null>(initialPreview ?? null);
+  const [error, setError] = useState<string | null>(initialError ?? null);
+
+  /** r30：表达式实时试算（走真实 api，同一 shared 口径；非法/循环 400 → 错误提示） */
+  const runPreview = async (expression: string, fieldId?: number): Promise<void> => {
+    setError(null);
+    setPreview(null);
+    try {
+      const res = await sendJson("POST", `/api/tables/${tableId}/formulas/preview`, {
+        expression,
+        name: draftName || "公式预览",
+        ...(fieldId !== undefined ? { fieldId } : {}),
+      });
+      if (res.status !== 200 || !res.data) {
+        setError(String(res.data?.error ?? `试算失败（HTTP ${res.status}）`));
+        return;
+      }
+      setPreview(res.data as unknown as {
+        valid: boolean;
+        references: string[];
+        preview: { recordId: number; value: unknown; error: string | null }[];
+      });
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : SERVICE_DOWN_MESSAGE);
+    }
+  };
 
   const call = async (fn: () => Promise<Response>): Promise<void> => {
     setError(null);
@@ -1718,11 +1946,18 @@ function FieldsPanel({
       apiFetch(`/api/tables/${tableId}/fields`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name: draftName, type: draftType, options }),
+        body: JSON.stringify({
+          name: draftName,
+          type: draftType,
+          options,
+          ...(draftType === "formula" ? { expression: draftExpression } : {}),
+        }),
       }),
     );
     setDraftName("");
     setDraftOptions("");
+    setDraftExpression("");
+    setPreview(null);
   };
 
   return (
@@ -1792,6 +2027,34 @@ function FieldsPanel({
                     );
                   }}
                 />
+              ) : f.type === "formula" ? (
+                <span className="bases-field-expression-wrap">
+                  <input
+                    type="text"
+                    className="bases-field-options bases-formula-expr"
+                    data-state="bases-field-expression"
+                    defaultValue={f.expression ?? ""}
+                    title={f.expression ?? ""}
+                    onBlur={(e) => {
+                      if (e.target.value === (f.expression ?? "")) return;
+                      void call(async () =>
+                        apiFetch(`/api/fields/${f.id}`, {
+                          method: "PATCH",
+                          headers: { "content-type": "application/json" },
+                          body: JSON.stringify({ expression: e.target.value }),
+                        }),
+                      );
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-small"
+                    data-state="bases-field-preview-button"
+                    onClick={() => void runPreview(f.expression ?? "", f.id)}
+                  >
+                    试算
+                  </button>
+                </span>
               ) : (
                 <span className="bases-field-options bases-field-options-empty">—</span>
               )}
@@ -1836,16 +2099,56 @@ function FieldsPanel({
               onChange={(e) => setDraftOptions(e.target.value)}
             />
           ) : null}
+          {draftType === "formula" ? (
+            <>
+              <input
+                type="text"
+                className="bases-formula-expr"
+                data-state="bases-new-field-expression"
+                placeholder="表达式：{单价} * {数量}"
+                value={draftExpression}
+                onChange={(e) => setDraftExpression(e.target.value)}
+              />
+              <button
+                type="button"
+                className="btn btn-ghost btn-small"
+                data-state="bases-formula-preview-button"
+                disabled={draftExpression.trim() === ""}
+                onClick={() => void runPreview(draftExpression)}
+              >
+                实时预览
+              </button>
+            </>
+          ) : null}
           <button
             type="button"
             className="btn btn-secondary"
             data-state="bases-add-field"
-            disabled={busy || draftName.trim() === ""}
+            disabled={busy || draftName.trim() === "" || (draftType === "formula" && draftExpression.trim() === "")}
             onClick={() => void addField()}
           >
             添加字段
           </button>
         </div>
+        {preview && (
+          <div className="bases-formula-preview" data-state="bases-formula-preview">
+            <p className="hint">
+              试算成功：引用字段 {preview.references.join("、") || "（无）"} · 共 {preview.preview.length} 行
+            </p>
+            <ul>
+              {preview.preview.map((p) => (
+                <li key={p.recordId} data-state="bases-formula-preview-row">
+                  记录 #{p.recordId}：
+                  {p.error ? (
+                    <span className="bases-formula-error">⚠ {p.error}</span>
+                  ) : (
+                    <span className="bases-formula-value">{String(p.value)}</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         {error && (
           <p className="error-message" role="alert" data-state="bases-fields-error">
             {error}

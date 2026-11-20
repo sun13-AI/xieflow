@@ -68,6 +68,14 @@ import {
   type FieldType,
   type ViewFilterCondition,
 } from "@xieflow/shared";
+// r30：公式引擎唯一口径，api 只做校验映射与装配，零解析分支
+import {
+  compileFormula,
+  recomputeFormulas,
+  detectFormulaCycles,
+  type FormulaCompileResult,
+  type FormulaFieldInput,
+} from "@xieflow/shared/formula";
 import {
   AUTH_PERMISSIONS,
   can as authCan,
@@ -1001,10 +1009,42 @@ app.delete("/api/tables/:id", async (req, reply) => {
   }
 });
 
+/**
+ * r30：公式表达式校验——规则全在 shared compileFormula，api 只把结构化错误映射成 400。
+ * 字段引用必须是本表已有字段（改名/越权 id 名都进 unknown field 分支）。
+ */
+function assertFormulaExpression(expression: unknown, fields: readonly { name: string }[]): string {
+  if (typeof expression !== "string") {
+    throw new ValidationError("公式字段必须提供表达式字符串");
+  }
+  const result: FormulaCompileResult = compileFormula(expression, fields);
+  if (!result.ok) {
+    throw new ValidationError(result.error?.message ?? "公式表达式非法");
+  }
+  return expression;
+}
+
+/** 读时计算：把 formula 单元格挂到记录响应上，绝不写回库（_no persistence_）。 */
+function withComputedValues<T extends { records: { id: number; data: Record<string, unknown> }[] }>(
+  fields: readonly { id: number; name: string; type?: string; expression?: string }[],
+  result: T,
+): T & { cycles: { fields: string[]; message: string }[] } {
+  const computation = recomputeFormulas(fields, result.records);
+  return {
+    ...result,
+    records: result.records.map((r) => ({
+      ...r,
+      computed: computation.cells[String(r.id)] ?? {},
+    })),
+    cycles: computation.cycles,
+  };
+}
+
 interface CreateFieldBody {
   name?: unknown;
   type?: unknown;
   options?: unknown;
+  expression?: unknown;
   position?: unknown;
 }
 
@@ -1037,9 +1077,14 @@ app.post("/api/tables/:id/fields", async (req, reply) => {
     if (store.getTable(tableId) === null) {
       return reply.code(404).send({ error: `表格不存在：${tableId}` });
     }
+    // r30：公式字段校验表达式（未知字段 / 语法错误 → 400），字段表用当前已有字段
+    const expression =
+      fieldType === "formula"
+        ? assertFormulaExpression(body.expression, store.listFields(tableId))
+        : undefined;
     const position =
       body.position === undefined || body.position === null ? undefined : Number(body.position);
-    const field = store.createField(tableId, body.name, fieldType, options, position);
+    const field = store.createField(tableId, body.name, fieldType, options, position, expression);
     return reply.code(201).send(field);
   } catch (err) {
     return toErrorReply(err, reply);
@@ -1063,6 +1108,7 @@ interface PatchFieldBody {
   name?: unknown;
   type?: unknown;
   options?: unknown;
+  expression?: unknown;
   position?: unknown;
 }
 
@@ -1087,6 +1133,25 @@ app.patch("/api/fields/:id", async (req, reply) => {
       patch.options = parseOptionsBody(body.options);
     }
     if (body.position !== undefined) patch.position = Number(body.position);
+    const current = store.getField(id)!;
+    const effectiveType = (patch.type ?? current.type) as FieldType;
+    const allFields = store.listFields(current.tableId);
+    if (effectiveType === "formula") {
+      const expression =
+        body.expression !== undefined
+          ? assertFormulaExpression(body.expression, allFields)
+          : current.expression;
+      if (typeof expression !== "string" || expression.trim() === "") {
+        throw new ValidationError("公式字段必须提供表达式");
+      }
+      patch.expression = expression;
+      // 循环引用：用「改动后」的字段集合跑 shared 环检测，命中即 400（零半态）
+      const proposed = allFields.map((f) =>
+        f.id === id ? { ...f, expression, type: "formula" as const } : f,
+      );
+      const cycles = detectFormulaCycles(proposed);
+      if (cycles.length > 0) throw new ValidationError(cycles[0]!.message);
+    }
     return store.updateField(id, patch);
   } catch (err) {
     return toErrorReply(err, reply);
@@ -1195,7 +1260,7 @@ app.get("/api/tables/:id/records", async (req, reply) => {
     const page = parseOptionalQueryId(query.page, "page");
     const pageSize = parseOptionalQueryId(query.pageSize, "pageSize");
     const sortDirection = parseSortDirectionQuery(query.sortDirection);
-    return queryRecords(store.listRecords(tableId), fields, {
+    const computed = withComputedValues(fields, queryRecords(store.listRecords(tableId), fields, {
       filterFieldId,
       filterValue: query.filterValue,
       filters,
@@ -1203,7 +1268,62 @@ app.get("/api/tables/:id/records", async (req, reply) => {
       sortDirection,
       page,
       pageSize,
+    }));
+    return computed;
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+/**
+ * r30：字段变更重算预览（不落库）。前端表达式输入时实时试算所有记录；
+ * 非法表达式 / 未知字段 / 循环引用一律 400（与真正建字段同一 shared 口径）。
+ */
+app.post("/api/tables/:id/formulas/preview", async (req, reply) => {
+  try {
+    const tableId = parseId((req.params as { id: string }).id);
+    const body = (req.body ?? {}) as {
+      expression?: unknown;
+      fieldId?: unknown;
+      name?: unknown;
+    };
+    const store = requireDb();
+    if (store.getTable(tableId) === null) {
+      return reply.code(404).send({ error: `表格不存在：${tableId}` });
+    }
+    const fields = store.listFields(tableId);
+    const draftName =
+      typeof body.name === "string" && body.name.trim() !== "" ? body.name : "公式预览";
+    const expression = assertFormulaExpression(body.expression, [
+      ...fields,
+      { name: draftName },
+    ]);
+    let proposed: FormulaFieldInput[] = [...fields];
+    if (body.fieldId !== undefined && body.fieldId !== null) {
+      const targetId = parseId(String(body.fieldId));
+      const target = fields.find((f) => f.id === targetId);
+      if (!target) return reply.code(404).send({ error: `字段不存在：${targetId}` });
+      proposed = fields.map((f) =>
+        f.id === targetId ? { ...f, type: "formula" as const, expression } : f,
+      );
+    } else {
+      proposed = [...fields, { id: -1, name: draftName, type: "formula", expression }];
+    }
+    const cycles = detectFormulaCycles(proposed);
+    if (cycles.length > 0) throw new ValidationError(cycles[0]!.message);
+    const computation = recomputeFormulas(proposed, store.listRecords(tableId));
+    const fieldId = body.fieldId === undefined || body.fieldId === null ? -1 : Number(body.fieldId);
+    const preview = store.listRecords(tableId).map((r) => {
+      const cell = computation.cells[String(r.id)]?.[String(fieldId)];
+      return { recordId: r.id, value: cell?.value ?? null, error: cell?.error ?? null };
     });
+    return {
+      valid: true,
+      references: compileFormula(expression, proposed).references,
+      fieldId,
+      preview,
+      cycles: [],
+    };
   } catch (err) {
     return toErrorReply(err, reply);
   }
@@ -1216,7 +1336,10 @@ app.get("/api/records/:id", async (req, reply) => {
     if (!record) {
       return reply.code(404).send({ error: `记录不存在：${id}` });
     }
-    return record;
+    const store = requireDb();
+    const fields = store.listFields(record.tableId);
+    const computation = recomputeFormulas(fields, [record]);
+    return { ...record, computed: computation.cells[String(id)] ?? {}, cycles: computation.cycles };
   } catch (err) {
     return toErrorReply(err, reply);
   }
@@ -1364,14 +1487,15 @@ app.get("/api/views/:id/records", async (req, reply) => {
     const query = (req.query ?? {}) as Record<string, unknown>;
     const page = parseOptionalQueryId(query.page, "page");
     const pageSize = parseOptionalQueryId(query.pageSize, "pageSize");
-    const result = queryRecords(store.listRecords(view.tableId), store.listFields(view.tableId), {
+    const fields = store.listFields(view.tableId);
+    const computed = withComputedValues(fields, queryRecords(store.listRecords(view.tableId), fields, {
       filters: view.filterSpec,
       sorts: view.sortSpec,
       visibleFields: view.visibleFields,
       page,
       pageSize,
-    });
-    return { ...result, viewId: view.id, viewName: view.name };
+    }));
+    return { ...computed, viewId: view.id, viewName: view.name };
   } catch (err) {
     return toErrorReply(err, reply);
   }
