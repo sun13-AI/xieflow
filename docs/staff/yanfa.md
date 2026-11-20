@@ -39,3 +39,4 @@
 | r32 | 2026-11-21 | 打印导出 | schema 无迁移 + shared/docExport 语义 HTML/Word BOM/五字符转义 + 隐藏 iframe 打印 spy | e2e 2766/audit 2185，零新依赖 |
 | r33 | 2026-11-21 | 全局搜索 | schema 无迁移 + shared/globalSearch 唯一检索 + 顶栏 Ctrl+K + 八源只读 + deep-link | e2e 2849/audit 2262，排序变异红相 |
 | r34 | 2026-11-21 | 任务依赖 | schema v23 + shared/todoDeps 三函数 + 409 守卫 + 前置面板/阻塞徽标；README 精简回归 6 条改指向归档 | e2e 2961/audit 2324，守卫变异红相 |
+| r35 | 2026-11-21 | ICS 日历 | schema 无迁移 + shared/ics 手写编解码 + 三路由 + 导入预览；返工#1 可复拍 seam 对齐 02=04 | e2e 3069/audit 2396，转义变异红相 |
