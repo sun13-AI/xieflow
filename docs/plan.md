@@ -741,6 +741,22 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 - 验收：全量绿（e2e ≥2672、audit ≥2127），README 双节同步；双 VERDICT 通过
 - 前置：r30 已发版（v0.0.36）✅
 
+### r32 · 文档打印导出增强（HTML 打印版 + Word 兼容，M10 后功能补强）
+- 目标：办公刚需的「打印/另存为 PDF/Word」——零新依赖（宪法危险区：不引 pdf/docx 库），用纯 HTML + @media print + Word 可打开的 HTML-in-doc 方案
+- 交付清单：
+  1. 导出引擎集中 packages/shared/docExport.ts：blocksToPrintHtml(blocks, title, meta)（语义化 HTML + @media print 样式内嵌 + 页码页眉）、blocksToWordHtml(blocks, title)（Word 兼容 MHTML/HTML，base64 UTF-8）、sanitizeExportHtml（块内容转义防注入）——api/web 零算法分支
+  2. api：GET /api/documents/:id/export.html（浏览器可打印为 PDF）、GET /api/documents/:id/export.doc（Word 打开）、GET /api/documents/:id/print-preview（返回 HTML + 元信息）
+  3. web：文档编辑页导出菜单加「打印 / 另存 PDF」「下载 Word(.doc)」；点打印新开隐藏 iframe 调 window.print()（headless 用 spy seam 验证）
+  4. 断言：e2e ≥+30（HTML 结构/转义/打印样式/Word 兼容头）、audit ≥+20（4xx：越权 id/空文档/非法块）
+  5. 截图 ≥6：导出菜单/打印预览/HTML 落盘佐证/Word 落盘佐证/窄屏/错误态
+- 验收标准：
+  1. 全量绿：e2e ≥2715、audit ≥2158，README 双节同步
+  2. **导出真实性**：waizhuan 造含 10 种块的文档→导出 HTML 用浏览器真打开（标题/块序/样式正确）→Word .doc 用 Excel/Word COM 或文本解析验证可打开且内容不丢；XSS 注入块内容被转义
+  3. **零新依赖**：package.json 零变动（grep 验证）；不引外部 CDN
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r31 已发版（v0.0.37）✅
+- 明确边界：不引 pdf/docx 第三方库（危险区），零 token；打印在 headless 下用 spy/seam 不弹系统对话框（r8 教训）
+
 ## 历史轮次（r1~r2 已收档，见下方记账区）
 
 ---
