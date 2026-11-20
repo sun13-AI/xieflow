@@ -236,7 +236,7 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r30 | M10 后·多维表格公式字段（纯本地表达式，零 eval） | ✅已发版（首轮双通过；公式真实性 78/78 + 零 eval + raw computed 恒 null） | v0.0.36 | e2e 2664 · audit 2122 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r31 | M10 后·第九轮轻量清理（字段类型文案回归 + 浮点展示） | ✅已发版（首轮双通过；8 类字段文案 + 84.8 展示格式化，求值语义零改） | v0.0.37 | e2e 2685 · audit 2138 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r32 | M10 后·文档打印导出增强（HTML 打印版 + Word 兼容） | ✅已发版（首轮双通过；Word COM 真开 + XSS 五字符转义 + 零依赖） | v0.0.38 | e2e 2766 · audit 2185 | 通过（waizhuan）+ UI 通过（阻断岗） |
-| r33 | M10 后·全局搜索（跨模块统一检索） | 🔨规划中 | — | — | — |
+| r33 | M10 后·全局搜索（跨模块统一检索） | 🔨研发中（yanfa 交付，待 waizhuan / ui 复验） | — | e2e 2849 · audit 2262 | — |
 
 ## 🏁 项目总账（2026-11-19 · M10 收官）
 
@@ -779,6 +779,18 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 ---
 
 ## 记账区（每轮追加）
+
+### 2026-11-20 · r33 研发（yanfa-r33 · M10 后第十一轮功能补强：全局搜索 / 跨八源只读统一检索）
+- 交付：`packages/shared/src/globalSearch.ts` 唯一检索口径（`normalizeQuery` trim/小写/分词 · `scoreMatch` 标题权重 3 > 正文 1、前缀 10 > 包含 5 · `assembleSearchResults` 跨源聚合/分数降序/每源上限/type:id 去重/deepLink 装配 · `parseSearchTypes` / `parseSearchLimit` / `assertValidSearchQuery` 守卫 · `splitSearchHighlight` 高亮切分 · 八源 tab/id 参数映射），根 index.ts 重导出、子路径 `./globalSearch` 开放；**零新依赖、零 token、零外部搜索服务、无 schema 迁移**
+- api：`GET /api/search?q=&limit=&types=` 一次检索 8 类源（todos / schedules / projects / cards / documents / knowledge_docs / members / meetings，全 `list*` 只读），每条 `{type,id,title,snippet,score,tab,deepLink}`；4xx：空 q / 超长 q / 非法 types / 越权源（users）/ 非法 limit
+- web：顶栏全局搜索框（Ctrl/Cmd+K 聚焦 + 下拉结果面板：类型分组图标 / 黄底高亮 / 分数 / ArrowUp·ArrowDown 选中 / Enter 或点结果 deep-link 跳转）+ 会议页 `meetingId` 深链定位条 + 待办/卡片/成员定位高亮；**18 tab 数量不变**，顶栏变化 → 十八 tab 壳基线同批重拍
+- 断言：e2e 2766 → **2849（+83）** · audit 2185 → **2262（+77）**，无一条删改（既有仅做徽章 r32→r33、当前哈希块 R32→R33、速查行期望值/标签更新）；typecheck 5 包；`pnpm run test:all` exit 0
+- **变异红相 1 组**：`assembleSearchResults` 终排序 `b.score - a.score` → `a.score - b.score`（升序改坏）→ e2e 2 红（分数降序 / 正文命中末位）/ audit 4 红（正文命中最前 + 三处相邻分数逆序）；逐字节还原（SHA `9A8D8086…469BF9` 前后同值、`MUTATION-PROBE r33` 零残留）后双套件全绿
+- 「用户第一次用」全链路（headless CDP 真点，`scripts/r33-firstuse-cdp.mjs`，4 模块同关键词起步）：HTTP 造待办/文档/知识库（正文命中）/会议室+会议 → Ctrl+K 聚焦 → 输入真检索四组 → ArrowDown 选中 → 点会议结果跳 meetings tab 且 `#meetingId` 高亮命中条 → reload 保留 page+meetingId 且仍定位 → HTTP 回查 search/deep-link → 探针归零、端口收净
+- 只读证据：api collector 全 `list*`、源码零写入调用 seam；audit 八源探针前后四张业务表计数逐字节相等 + 重复检索结果逐字节一致；截图与 CDP 全走 scratch 库，`data/xieflow.db` 未作 DB_PATH
+- 截图：`docs/ui/r33/` 7 张（空态/输入中/单类型/多类型/键盘选中/窄屏/真 4xx）+ 十八 tab 壳同批重拍；7/7、18/18 SHA256 互异，矩阵↔壳重叠 0，全库 313 PNG / 311 互异（同态组仅 r4 已披露 2 组），逐张 `read_image` 目验；首轮 01 预填/02 与 04 同态/06 窄屏裁切三处全批重拍，废片未入库
+- 危险区：未 push / 未打 tag / 未发版 / 未改 CI 发布配置；零业务表写入、零用户数据删除、零新依赖、零 token；全程 headless、服务收净、PowerShell 新段全 ASCII
+- 报告：`docs/feedback/2026-11-21-r33-yanfa.md`（三态纪律 + 自曝 + 变异红相 + 只读证据）
 
 ### 2026-11-20 · r32 研发（yanfa-r32 · M10 后第十轮功能补强：文档打印导出增强）
 - 交付：`packages/shared/src/docExport.ts` 唯一导出引擎（`sanitizeExportHtml` 五字符转义+换行 `<br>` / `blocksToPrintHtml` 语义化 HTML+内嵌 `@media print`/`@page`/`counter(page)` 页码页眉 / `blocksToWordHtml` UTF-8 BOM + Word 命名空间 + `WordSection1` + `mso-field-code` + base64(UTF-8) 自证 / `assertExportableBlocks` 空文档与非法块守卫 / `buildExportFileName` / `buildPrintPreview`），根 `index.ts` 重导出，api/web 零算法分支；**零新依赖、六个 package.json 不动、零外链、零 token、无 schema 迁移**

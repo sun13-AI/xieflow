@@ -85,6 +85,11 @@ export default function TodosPage() {
     () => new URLSearchParams(window.location.search).get("shot"),
     [],
   );
+  // r33 deep-link：全局搜索点待办结果后 URL 带 todoId，列表高亮定位（reload 不丢）
+  const focusTodoId = useMemo(
+    () => Number(new URLSearchParams(window.location.search).get("todoId")) || 0,
+    [],
+  );
 
   const load = useCallback(async (): Promise<void> => {
     try {
@@ -273,7 +278,7 @@ export default function TodosPage() {
                 ) : (
                   <ul className="todo-list">
                     {items.map((t) => (
-                      <li key={t.id} className={`todo-item status-${t.status}`} data-todo-id={t.id}>
+                      <li key={t.id} className={`todo-item status-${t.status}${focusTodoId === t.id ? " todo-item-located" : ""}`} data-todo-id={t.id} data-state={focusTodoId === t.id ? "todo-item-located" : "todo-item"}>
                         <div className="todo-title">
                           {t.title}
                           <span className={`status-pill pill-${t.status}`}>{STATUS_LABELS[t.status]}</span>

@@ -158,6 +158,8 @@ function pinSeedBoardMoved(now: Date): BoardFetch {
 export default function BoardPage() {
   const [state, setState] = useState<BoardLoadState>({ phase: "loading" });
   const shot = useMemo(() => new URLSearchParams(window.location.search).get("shot"), []);
+  // r33 deep-link：卡片结果带 cardId，项目结果带 projectId（后者由 fetchBoard 选中）
+  const focusCardId = useMemo(() => Number(new URLSearchParams(window.location.search).get("cardId")) || 0, []);
   const [modalOpen, setModalOpen] = useState(() => shot === "board-modal");
   const [draft, setDraft] = useState<{ title: string; todoId: string }>({ title: "", todoId: "" });
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -503,7 +505,7 @@ export default function BoardPage() {
                   {items.map((card) => {
                     const linked = card.todoId !== null ? todoById.get(card.todoId) : undefined;
                     return (
-                      <li key={card.id} className="board-card" data-card-id={card.id}>
+                      <li key={card.id} className={`board-card${focusCardId === card.id ? " board-card-located" : ""}`} data-card-id={card.id} data-state={focusCardId === card.id ? "board-card-located" : "board-card"}>
                         <div className="board-card-title">
                           {card.title}
                           {linked && (

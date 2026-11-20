@@ -16,12 +16,20 @@
 // r26：+ 通知 tab（站内消息聚合 + 顶栏未读徽标），壳基线扩为十六 tab。
 // r27：+ 报表 tab（跨模块 KPI 看板），壳基线扩为十七 tab。
 // r28：+ 会议 tab（会议室预约 / 冲突检测，本地台账），壳基线扩为十八 tab。
+// r33：+ 顶栏全局搜索（Ctrl/Cmd+K + 跨八源下拉结果 + deep-link 直达），18 tab 数量不变。
 import SyncCard from "./SyncCard";
 import OfflineStatus from "./OfflineStatus";
 // 截图状态真实存在：加载中 / 空数据 / 正常 / 错误 / 窄屏（?narrow=1 显式钉态）
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type ReactElement } from "react";
 import {
   shouldShowTabsMore,
+  SEARCH_SOURCE_TYPES,
+  SEARCH_SOURCE_LABELS,
+  SEARCH_SOURCE_ICONS,
+  buildSearchDeepLink,
+  splitSearchHighlight,
+  type SearchResult,
+  type HighlightSegment,
   type AppSetting,
   type Schedule,
   type Todo,
@@ -64,6 +72,22 @@ type LoadState =
   | { phase: "ready"; settings: AppSetting[]; schemaVersion: number; todaySchedules: Schedule[]; todos: Todo[] };
 
 type PageTab = "home" | "todos" | "schedules" | "projects" | "board" | "bases" | "docs" | "chat" | "knowledge" | "mindmap" | "whiteboard" | "approval" | "assets" | "unit-tasks" | "org" | "notifications" | "reports" | "meetings";
+
+/** r33 截图钉态结果（真实形态与 /api/search 一致；只用于确定性捕获，不是业务数据源） */
+const SHOT_SEARCH_RESULTS: readonly SearchResult[] = [
+  { type: "meetings", id: 11, title: "R33 全局搜索评审会", snippet: "2026-11-21 09:00-10:00 · 第一会议室 · 张三", score: 45, tab: "meetings", deepLink: buildSearchDeepLink("meetings", 11) },
+  { type: "todos", id: 2, title: "整理 R33 全局搜索材料", snippet: "紧急且重要 · 进行中", score: 45, tab: "todos", deepLink: buildSearchDeepLink("todos", 2) },
+  { type: "documents", id: 3, title: "R33 全局搜索设计说明", snippet: "文档 · 更新于 2026-11-21", score: 30, tab: "docs", deepLink: buildSearchDeepLink("documents", 3) },
+  { type: "knowledge_docs", id: 4, title: "跨模块检索规范", snippet: "正文提到 R33 全局搜索与直达约定", score: 15, tab: "knowledge", deepLink: buildSearchDeepLink("knowledge_docs", 4) },
+];
+
+/** r33 高亮渲染：切分口径在 shared，本组件只产 span，零搜索算法分支 */
+function SearchHighlight({ text, query }: { text: string; query: string }): ReactElement {
+  const segments: readonly HighlightSegment[] = splitSearchHighlight(text, query);
+  return <>{segments.map((s, i) => s.hit
+    ? <mark key={i} className="global-search-hit" data-state="global-search-highlight">{s.text}</mark>
+    : <span key={i}>{s.text}</span>)}</>;
+}
 
 /** 健康检查 + 今日日程（工作台卡片数据源；日程查询失败不阻塞工作台） */
 async function fetchHealth(): Promise<{
@@ -230,8 +254,82 @@ export default function App() {
     return { phase: "loading" };
   });
 
-  // r26：顶栏全局未读徽标（真实数来自 /api/notifications/summary；截图钉态用固定数）
+  // r33：全局搜索状态。?shot=search-* 为截图/复验确定性钉态（真实交互同一套组件）。
   const shotName = query.get("shot") ?? "";
+  const searchPin = shotName.startsWith("search-") ? shotName : "";
+  const [searchOpen, setSearchOpen] = useState(searchPin !== "");
+  const [searchText, setSearchText] = useState(
+    searchPin === "search-empty" ? ""
+      : searchPin === "search-single" ? "会议"
+        : searchPin === "search-typing" ? "R33"
+          : searchPin !== "" ? "R33 全局搜索" : "",
+  );
+  const [searchResults, setSearchResults] = useState<readonly SearchResult[]>(
+    searchPin === "search-empty" || searchPin === "search-error" ? []
+      : searchPin === "search-single" ? SHOT_SEARCH_RESULTS.filter((r) => r.type === "meetings")
+        : searchPin === "search-typing" ? SHOT_SEARCH_RESULTS.slice(0, 2)
+          : searchPin !== "" ? SHOT_SEARCH_RESULTS : [],
+  );
+  const [searchSelected, setSearchSelected] = useState(searchPin === "search-keyboard" ? 1 : -1);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState(searchPin === "search-error" ? "真实 4xx 探针：HTTP 400 · 搜索词不能为空（截图钉态）" : "");
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setSearchOpen(true);
+        window.setTimeout(() => searchInputRef.current?.focus(), 0);
+      } else if (e.key === "Escape") {
+        setSearchOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  /** 点结果 / 回车：复用 r26 deep-link——把 page + 定位 id 写地址栏，reload 不丢 */
+  function navigateFromSearch(deepLink: string): void {
+    const params = new URLSearchParams(deepLink.includes("?") ? deepLink.slice(deepLink.indexOf("?") + 1) : "");
+    const target = params.get("page") ?? "home";
+    const url = new URL(window.location.href);
+    for (const [key, value] of params.entries()) url.searchParams.set(key, value);
+    url.searchParams.delete("shot");
+    window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+    setTab(target as PageTab);
+    setSearchOpen(false);
+  }
+
+  useEffect(() => {
+    if (searchPin !== "" || !searchOpen || searchText.trim() === "") {
+      if (searchText.trim() === "") setSearchResults([]);
+      return;
+    }
+    let alive = true;
+    setSearchLoading(true);
+    setSearchError("");
+    const timer = window.setTimeout(() => {
+      apiFetch(`/api/search?q=${encodeURIComponent(searchText.trim())}&limit=20`)
+        .then(async (res) => {
+          const data = (await res.json().catch(() => null)) as { results?: SearchResult[]; error?: string } | null;
+          if (!alive) return;
+          if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`);
+          setSearchResults(data?.results ?? []);
+          setSearchSelected(-1);
+        })
+        .catch((err: unknown) => {
+          if (alive) {
+            setSearchError(err instanceof Error ? err.message : String(err));
+            setSearchResults([]);
+          }
+        })
+        .finally(() => { if (alive) setSearchLoading(false); });
+    }, 150);
+    return () => { alive = false; window.clearTimeout(timer); };
+  }, [searchOpen, searchText, searchPin]);
+
+  // r26：顶栏全局未读徽标（真实数来自 /api/notifications/summary；截图钉态用固定数）
   const pinnedUnread = shotName === "notif-read-badge"
     ? 2
     : shotName.startsWith("notif-") && shotName !== "notif-empty" && shotName !== "notif-error" ? 3 : 0;
@@ -321,6 +419,79 @@ export default function App() {
     <main className={tab === "bases" || tab === "docs" || tab === "chat" || tab === "knowledge" || tab === "mindmap" || tab === "whiteboard" || tab === "approval" || tab === "assets" || tab === "unit-tasks" || tab === "org" || tab === "notifications" || tab === "reports" || tab === "meetings" ? "shell shell-wide" : "shell"}>
       <header className="topbar">
         <span className="logo">协流 XieFlow</span>
+        <div className="global-search" data-state="global-search">
+          <span className="global-search-shortcut" data-state="global-search-shortcut">Ctrl/Cmd+K</span>
+          <input
+            ref={searchInputRef}
+            className="global-search-input"
+            data-state="global-search-input"
+            aria-label="全局搜索"
+            placeholder="搜索待办、文档、会议…"
+            value={searchText}
+            onFocus={() => setSearchOpen(true)}
+            onChange={(e) => { setSearchText(e.target.value); setSearchOpen(true); }}
+            onKeyDown={(e) => {
+              if (e.key === "ArrowDown") {
+                e.preventDefault();
+                setSearchSelected((i) => searchResults.length === 0 ? -1 : Math.min(i + 1, searchResults.length - 1));
+              } else if (e.key === "ArrowUp") {
+                e.preventDefault();
+                setSearchSelected((i) => Math.max(i - 1, -1));
+              } else if (e.key === "Enter" && searchSelected >= 0) {
+                const picked = searchResults[searchSelected];
+                if (picked) navigateFromSearch(picked.deepLink);
+              }
+            }}
+          />
+          {searchOpen && (
+            <div className="global-search-panel" data-state="global-search-panel" role="listbox">
+              {searchError !== "" && (
+                <p className="global-search-error" data-state="global-search-error" role="alert">{searchError}</p>
+              )}
+              {searchText.trim() === "" && searchError === "" && (
+                <p className="global-search-empty" data-state="global-search-empty">
+                  输入关键词，一次检索待办 / 日程 / 项目 / 卡片 / 文档 / 知识库 / 成员 / 会议。
+                </p>
+              )}
+              {searchLoading && <p className="global-search-loading" data-state="global-search-loading">检索中…</p>}
+              {!searchLoading && searchError === "" && searchText.trim() !== "" && searchResults.length === 0 && (
+                <p className="global-search-noresult" data-state="global-search-noresult">没有找到相关内容。</p>
+              )}
+              {SEARCH_SOURCE_TYPES.map((type) => {
+                const group = searchResults.filter((r) => r.type === type);
+                if (group.length === 0) return null;
+                return (
+                  <div className="global-search-group" data-state="global-search-group" data-type={type} key={type}>
+                    <div className="global-search-group-title">
+                      <span aria-hidden="true">{SEARCH_SOURCE_ICONS[type]}</span> {SEARCH_SOURCE_LABELS[type]}
+                      <small>{group.length}</small>
+                    </div>
+                    {group.map((r) => {
+                      const idx = searchResults.indexOf(r);
+                      const selected = idx === searchSelected;
+                      return (
+                        <button
+                          type="button"
+                          key={`${r.type}:${r.id}`}
+                          className={`global-search-result ${selected ? "global-search-result-selected" : ""}`}
+                          data-state="global-search-result"
+                          data-result-type={r.type}
+                          data-result-id={r.id}
+                          data-selected={selected ? "1" : "0"}
+                          onClick={() => navigateFromSearch(r.deepLink)}
+                        >
+                          <span className="global-search-result-title"><SearchHighlight text={r.title} query={searchText} /></span>
+                          <span className="global-search-result-snippet"><SearchHighlight text={r.snippet} query={searchText} /></span>
+                          <span className="global-search-result-score">{r.score}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
         <nav className="tabs" data-state="tabs">
           <button
             type="button"
@@ -475,7 +646,7 @@ export default function App() {
           <span className="tabs-more-fade" aria-hidden="true" />
           <button type="button" className="tabs-more" aria-label="更多导航" onClick={toggleNav}>更多 ›</button>
         </div>
-        <span className="badge">r32 · 文档打印导出增强（HTML 打印 + Word 兼容）</span>
+        <span className="badge">r33 · 全局搜索（跨八源统一检索 + deep-link 直达）</span>
         <OfflineStatus />
         <button type="button" className="nav-toggle" data-state="nav-toggle" aria-label="展开导航" onClick={toggleNav}>☰</button>
         <span className="auth-controls" data-state="auth-controls">

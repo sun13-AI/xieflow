@@ -12,7 +12,8 @@
     "./reports": "./src/reports.ts",
     "./meetings": "./src/meetings.ts",
     "./docHistory": "./src/docHistory.ts",
-    "./formula": "./src/formula.ts"
+    "./formula": "./src/formula.ts",
+    "./globalSearch": "./src/globalSearch.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit"

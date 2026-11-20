@@ -48,21 +48,23 @@ const SHOT_MEMBERS: Member[] = [
   { id: 3, name: "王五（停用）", departmentId: null, role: "member", email: "w@example.com", phone: "", title: "产品", status: "inactive", userId: null },
 ];
 
-function readQuery(): { shot: string; date: string; roomId: string } {
+function readQuery(): { shot: string; date: string; roomId: string; meetingId: string } {
   const p = new URLSearchParams(window.location.search);
-  return { shot: p.get("shot") ?? "", date: p.get("date") ?? "", roomId: p.get("roomId") ?? "" };
+  return { shot: p.get("shot") ?? "", date: p.get("date") ?? "", roomId: p.get("roomId") ?? "", meetingId: p.get("meetingId") ?? "" };
 }
 
 async function getJson<T>(url: string): Promise<T> {
   return (await fetchJsonOrThrow(await apiFetch(url))) as T;
 }
 
-function syncUrl(date: string, roomId: string): void {
+function syncUrl(date: string, roomId: string, meetingId: string): void {
   const url = new URL(window.location.href);
   url.searchParams.set("page", "meetings");
   url.searchParams.set("date", date);
   if (roomId !== "") url.searchParams.set("roomId", roomId);
   else url.searchParams.delete("roomId");
+  // r33 deep-link：定位 id 常驻地址栏，切日期/换室/reload 都保持「正在定位哪一场」
+  if (meetingId !== "") url.searchParams.set("meetingId", meetingId);
   window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
 }
 
@@ -109,7 +111,7 @@ export default function MeetingsPage(): ReactElement {
       const next = resolveSelectedRoomId(roomData.rooms, nextRoom);
       setRoomId(next);
       setForm((f) => ({ ...f, roomId: String(next) }));
-      syncUrl(nextDate, String(next));
+      syncUrl(nextDate, String(next), query.meetingId);
       setPhase("ready");
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -118,7 +120,26 @@ export default function MeetingsPage(): ReactElement {
   }
 
   useEffect(() => {
-    void load(date, roomId);
+    // r33 deep-link：先按 meetingId 取回该场会议的日期/会议室，再装配那一屏并高亮定位。
+    // 不靠「当日第一场」猜，跨日期直达也不会落空；reload 后 URL 参数仍在。
+    async function bootstrap(): Promise<void> {
+      if (!PINNED.has(query.shot) && query.meetingId !== "") {
+        try {
+          const detail = await getJson<Meeting>(`/api/meetings/${query.meetingId}`);
+          if (detail && detail.id > 0) {
+            setDate(detail.date);
+            setRoomId(detail.roomId);
+            setForm((f) => ({ ...f, date: detail.date, roomId: String(detail.roomId) }));
+            await load(detail.date, detail.roomId);
+            return;
+          }
+        } catch {
+          /* 深链 id 失效时回落默认屏，不阻塞页面 */
+        }
+      }
+      await load(date, roomId);
+    }
+    void bootstrap();
     // 钉态与首次装载：后续由交互显式调用 load，避免刷新循环
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -126,14 +147,14 @@ export default function MeetingsPage(): ReactElement {
   function chooseRoom(next: number): void {
     setRoomId(next);
     setForm((f) => ({ ...f, roomId: String(next) }));
-    syncUrl(date, String(next));
+    syncUrl(date, String(next), query.meetingId);
     setConflict([]);
   }
 
   function chooseDate(next: string): void {
     setDate(next);
     setForm((f) => ({ ...f, date: next }));
-    syncUrl(next, String(roomId));
+    syncUrl(next, String(roomId), query.meetingId);
     setConflict([]);
     void load(next, roomId);
   }
@@ -208,6 +229,11 @@ export default function MeetingsPage(): ReactElement {
       <h1>会议管理</h1>
       <p className="meetings-intro">本地会议室预约台账：同室时段重叠会被拒绝（边界相接不冲突），单场最长 {MEETING_MAX_HOURS} 小时；不接视频会议或外部日历。</p>
       {shotNote !== "" && <p className="meetings-shot-note" data-state="meetings-shot-note">{shotNote}</p>}
+      {query.meetingId !== "" && (
+        <p className="meetings-locate-note" data-state="meetings-locate-note">
+          全局搜索定位：会议 #{query.meetingId}（地址栏 meetingId 常驻，reload 后仍定位本场）
+        </p>
+      )}
       {message !== "" && <p className="meetings-ok" data-state="meetings-message">{message}</p>}
       {conflict.length > 0 && (
         <p className="meetings-conflict" role="alert" data-state="meetings-conflict">
@@ -269,11 +295,19 @@ export default function MeetingsPage(): ReactElement {
                     <div className="meeting-grid-row" key={hour} data-state="meeting-grid-row" data-hour={hour}>
                       <span className="meeting-grid-hour">{hour}</span>
                       <span className="meeting-grid-slot">
-                        {booked.map((b) => (
-                          <span className="meeting-grid-bar" key={b.id} data-state="meeting-grid-bar" data-booking-id={b.id}>
-                            {b.start}–{b.end} {b.title}
-                          </span>
-                        ))}
+                        {booked.map((b) => {
+                          const focused = query.meetingId !== "" && Number(query.meetingId) === b.id;
+                          return (
+                            <span
+                              className={`meeting-grid-bar ${focused ? "meeting-grid-bar-focused" : ""}`}
+                              key={b.id}
+                              data-state={focused ? "meeting-grid-bar-focused" : "meeting-grid-bar"}
+                              data-booking-id={b.id}
+                            >
+                              {focused ? "◎ " : ""}{b.start}–{b.end} {b.title}
+                            </span>
+                          );
+                        })}
                       </span>
                     </div>
                   );

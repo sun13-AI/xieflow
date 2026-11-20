@@ -145,6 +145,19 @@
 >（r31 新增 3 张矩阵，十八壳为替换同路径不增总数），r31 当时全库 **300 PNG / 298 互异**，同态组仅 r4 已披露 2 组，r31 零新增。
 > e2e「shell README R31 当前哈希块在场」已被 R32 全批重拍取代（本块保留作历史对照）。
 
+## r33 哈希自查（十八张互异，与当前文件逐字一致；R33 当前哈希块，以下 R32 及以下为历史块）
+
+<!-- R33_HASHES_BEGIN -->
+`workbench=9CA2323F` · `todos=3F5AD20E` · `schedules=22580953` · `projects=85BFB7AB` ·
+`board=1CB855CA` · `bases=1172B8FA` · `docs=92BCE19B` · `chat=0E2B7708` ·
+`knowledge=B105AAA2` · `mindmap=BB1C0AD3` · `whiteboard=84C199D6` · `approval=08A48376` ·
+`assets=67BE807C` · `unit-tasks=51502536` · `org=5297CE1B` · `notifications=63EDDD41` ·
+`reports=89B02714` · `meetings=CF9F6F31` —— **18/18 互异**。
+<!-- R33_HASHES_END -->
+
+> r33 顶栏新增全局搜索框（Ctrl/Cmd+K）+ 下拉结果面板，18 tab 数量不变但壳因顶栏变化全批重拍；
+> 矩阵↔壳重叠 0；全库 313 PNG / 311 互异（+7 = r33 矩阵新增）。
+
 ## r32 哈希自查（十八张互异，与当前文件逐字一致；R32 当前哈希块，R31 及以下为历史块）
 
 <!-- R32_HASHES_BEGIN -->

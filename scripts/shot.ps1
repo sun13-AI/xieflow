@@ -55,7 +55,7 @@ param(
   [Parameter(Position = 0)]
   [ValidateSet("up", "shots", "down", "status", "all")]
   [string]$Action = "status",
-  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r26", "r27", "r28", "r29", "r30", "r31", "r32")]
+  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r26", "r27", "r28", "r29", "r30", "r31", "r32", "r33")]
   [string]$Round = "r1",
   [Parameter()]
   [string]$Shot = ""
@@ -1022,7 +1022,20 @@ function Invoke-Shots {
     }
   }
 
-  if ($Round -eq "r32") {
+  if ($Round -eq "r33") {
+    # r33: top-bar global search matrix. Seven deterministic ?shot= pins over the real
+    # component: empty / typing / single-type / multi-type / keyboard / narrow / real-4xx error.
+    $r33Base = "http://127.0.0.1:$WebPort/?page=home"
+    $shots = @(
+      @{ name = "01-search-empty";    url = "$r33Base&shot=search-empty";         width = 1280; height = 900 },
+      @{ name = "02-search-typing";   url = "$r33Base&shot=search-typing";        width = 1280; height = 900 },
+      @{ name = "03-search-single";   url = "$r33Base&shot=search-single";        width = 1280; height = 900 },
+      @{ name = "04-search-multi";    url = "$r33Base&shot=search-multi";         width = 1280; height = 900 },
+      @{ name = "05-search-keyboard"; url = "$r33Base&shot=search-keyboard";     width = 1280; height = 900 },
+      @{ name = "06-search-narrow";   url = "$r33Base&shot=search-narrow&narrow=1"; width = 488; height = 1100 },
+      @{ name = "07-search-error";    url = "$r33Base&shot=search-error";        width = 1280; height = 900 }
+    )
+  } elseif ($Round -eq "r32") {
     # r32: export menu + print spy + HTML/Word landing evidence + narrow + real 4xx error.
     # Every state uses a deterministic ?shot= pin over one real 10-type-block document.
     $r32Base = "http://127.0.0.1:$WebPort/?page=docs&docId=$r32DocId"

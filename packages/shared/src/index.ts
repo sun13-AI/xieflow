@@ -4376,3 +4376,38 @@ export type {
   PrintPreviewPayload,
 } from "./docExport.js";
 
+// ---- r33：全局搜索（实现集中 globalSearch.ts，根导出供 api / web / 断言共用） ----
+export {
+  SEARCH_SOURCE_TYPES,
+  SEARCH_SOURCE_LABELS,
+  SEARCH_SOURCE_ICONS,
+  SEARCH_SOURCE_TABS,
+  SEARCH_ID_PARAMS,
+  MAX_SEARCH_QUERY,
+  DEFAULT_SEARCH_LIMIT,
+  MAX_SEARCH_LIMIT,
+  DEFAULT_SEARCH_PER_SOURCE,
+  SEARCH_TITLE_WEIGHT,
+  SEARCH_BODY_WEIGHT,
+  SEARCH_PREFIX_SCORE,
+  SEARCH_CONTAINS_SCORE,
+  isSearchSourceType,
+  assertValidSearchSourceType,
+  assertValidSearchQuery,
+  parseSearchTypes,
+  parseSearchLimit,
+  normalizeQuery,
+  scoreMatch,
+  buildSearchDeepLink,
+  splitSearchHighlight,
+  assembleSearchResults,
+} from "./globalSearch.js";
+export type {
+  SearchSourceType,
+  NormalizedQuery,
+  SearchCandidate,
+  SearchSourceInput,
+  SearchResult,
+  HighlightSegment,
+} from "./globalSearch.js";
+

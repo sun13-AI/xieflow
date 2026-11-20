@@ -3955,6 +3955,106 @@ async function auditR28(): Promise<void> {
       const docsAfter32 = await expectStatus("GET", "/api/documents", undefined, 200, "r32 清理后文档列表 -> 200");
       eq(docsAfter32.json.documents.filter((d: any) => String(d.title).includes(stamp32)).length, 0, "r32 本轮探针文档归零");
     }
+
+    // ---- r33：全局搜索（真 HTTP 跨 8 源 + 排序/直达/只读 + 4xx） ----
+    {
+      const KEY = `R33HTTP${Date.now()}`;
+      // 造 8 源探针：知识库正文命中（标题不含关键词）用于验证「标题命中优先」
+      const todo33 = await expectStatus("POST", "/api/todos", { title: `${KEY} 待办`, quadrant: "q1" }, 201, "r33 建待办探针 -> 201");
+      const sch33 = await expectStatus("POST", "/api/schedules", { title: `${KEY} 日程`, date: "2026-11-21", start: "09:00", end: "10:00", repeat: "none" }, 201, "r33 建日程探针 -> 201");
+      const proj33 = await expectStatus("POST", "/api/projects", { name: `${KEY} 项目`, description: "跨源检索" }, 201, "r33 建项目探针 -> 201");
+      const cols33 = await expectStatus("GET", `/api/projects/${proj33.json.id}/columns`, undefined, 200, "r33 项目自动三列 -> 200");
+      const card33 = await expectStatus("POST", `/api/projects/${proj33.json.id}/columns/${cols33.json.columns[0].id}/cards`, { title: `${KEY} 卡片`, description: "看板命中" }, 201, "r33 建卡片探针 -> 201");
+      const doc33 = await expectStatus("POST", "/api/documents", { title: `${KEY} 文档` }, 201, "r33 建文档探针 -> 201");
+      const kb33 = await expectStatus("POST", "/api/knowledge/ingest", { title: "跨源检索规范", sourceType: "text", content: `正文段落提到 ${KEY} 的结论与直达约定。` }, 201, "r33 建知识库探针（关键词仅在正文） -> 201");
+      const mem33 = await expectStatus("POST", "/api/members", { name: `${KEY} 成员`, email: "r33http@example.com", role: "member", title: "研发", phone: "", status: "active" }, 201, "r33 建成员探针 -> 201");
+      const room33 = await expectStatus("POST", "/api/rooms", { name: `${KEY} 会议室`, location: "", capacity: 8, active: true }, 201, "r33 建会议室探针 -> 201");
+      const meet33 = await expectStatus("POST", "/api/meetings", { title: `${KEY} 会议`, roomId: room33.json.id, date: "2026-11-21", start: "09:00", end: "10:00", organizer: "张三", attendees: [] }, 201, "r33 建会议探针 -> 201");
+
+      // 只读基线：检索前各源列表计数（业务表，不含 app_settings）
+      const before33 = {
+        todos: (await req("GET", "/api/todos")).json.todos.length,
+        docs: (await req("GET", "/api/documents")).json.documents.length,
+        members: (await req("GET", "/api/members")).json.members.length,
+        meetings: (await req("GET", "/api/meetings")).json.meetings.length,
+      };
+
+      const search33 = await expectStatus("GET", `/api/search?q=${encodeURIComponent(KEY)}&limit=20`, undefined, 200, "r33 GET /api/search -> 200");
+      eq(search33.json.query, KEY, "r33 响应·query 原样回带");
+      eq(search33.json.types.length, 8, "r33 响应·缺省 types = 八源全查");
+      const rows33: any[] = search33.json.results ?? [];
+      ok(rows33.length >= 8, "r33 跨源·八类探针全部命中（≥8 条）");
+      eq(new Set(rows33.map((r) => r.type)).size, 8, "r33 跨源·结果覆盖全部 8 种 type");
+      const byType33 = new Map(rows33.map((r) => [r.type, r]));
+      const expectedIds33: Record<string, number> = {
+        todos: todo33.json.id, schedules: sch33.json.id, projects: proj33.json.id, cards: card33.json.id,
+        documents: doc33.json.id, knowledge_docs: kb33.json.doc.id, members: mem33.json.id, meetings: meet33.json.id,
+      };
+      for (const type of ["todos", "schedules", "projects", "cards", "documents", "knowledge_docs", "members", "meetings"]) {
+        const hit = byType33.get(type);
+        ok(hit !== undefined, `r33 跨源·${type} 命中在场`);
+        if (hit) ok(hit.id === expectedIds33[type], `r33 跨源·${type} 命中 id 精确`);
+      }
+      const kbRow33 = byType33.get("knowledge_docs");
+      ok(kbRow33 !== undefined && !String(kbRow33.title).includes(KEY) && String(kbRow33.snippet).includes(KEY), "r33 权重·知识库仅正文命中（标题不含关键词）");
+      const titleHitCount33 = rows33.filter((r) => String(r.title).includes(KEY)).length;
+      eq(titleHitCount33, 7, "r33 权重·七条标题命中，正文命中仅一条");
+      const firstBodyIdx33 = rows33.findIndex((r) => r.type === "knowledge_docs");
+      ok(firstBodyIdx33 === rows33.length - 1, "r33 排序·仅正文命中排末位（标题命中优先）");
+      for (let i = 1; i < rows33.length; i++) {
+        ok(rows33[i - 1].score >= rows33[i].score, `r33 排序·第 ${i} 条分数不低于后一条`);
+      }
+      const meetRow33 = byType33.get("meetings");
+      eq(meetRow33?.tab, "meetings", "r33 结果·每条带 tab");
+      eq(meetRow33?.deepLink, `/?page=meetings&meetingId=${meet33.json.id}`, "r33 直达·会议 deepLink 精确（复用 r26 机制）");
+      ok(typeof meetRow33?.score === "number" && meetRow33.score > 0, "r33 结果·score 为正数值");
+      ok(typeof meetRow33?.snippet === "string" && meetRow33.snippet.length > 0, "r33 结果·snippet 非空");
+      const repeated33 = await req("GET", `/api/search?q=${encodeURIComponent(KEY)}&limit=20`);
+      eq(repeated33.json.results, rows33, "r33 只读·重复检索逐字节一致（幂等）");
+      const after33 = {
+        todos: (await req("GET", "/api/todos")).json.todos.length,
+        docs: (await req("GET", "/api/documents")).json.documents.length,
+        members: (await req("GET", "/api/members")).json.members.length,
+        meetings: (await req("GET", "/api/meetings")).json.meetings.length,
+      };
+      eq(after33, before33, "r33 只读·检索前后四张业务表计数不变（零业务表写入）");
+      const typesFilter33 = await expectStatus("GET", `/api/search?q=${encodeURIComponent(KEY)}&types=meetings,todos`, undefined, 200, "r33 types 过滤 -> 200");
+      eq(typesFilter33.json.types, ["todos", "meetings"], "r33 types 过滤·仅指定两源且顺序规范");
+      eq(new Set(typesFilter33.json.results.map((r: any) => r.type)).size, 2, "r33 types 过滤·结果只含两源");
+      const limit33 = await expectStatus("GET", `/api/search?q=${encodeURIComponent(KEY)}&limit=3`, undefined, 200, "r33 limit -> 200");
+      eq(limit33.json.results.length, 3, "r33 limit·总数上限 3 生效");
+      const noHit33 = await expectStatus("GET", "/api/search?q=ZZZ不存在的词ZZZ", undefined, 200, "r33 无命中 -> 200");
+      eq(noHit33.json.results, [], "r33 无命中·返回空数组不编造");
+
+      // 4xx：空 q / 超长 q / 非法 types / 越权源 / 非法 limit
+      const emptyQ33 = await expectStatus("GET", "/api/search?q=", undefined, 400, "r33 4xx·空 q -> 400");
+      ok(String(emptyQ33.json.error).includes("为空"), "r33 4xx·空 q 文案明确");
+      const missingQ33 = await expectStatus("GET", "/api/search", undefined, 400, "r33 4xx·缺 q -> 400");
+      ok(String(missingQ33.json.error).includes("字符串"), "r33 4xx·缺 q 文案明确");
+      await expectStatus("GET", `/api/search?q=${"x".repeat(201)}`, undefined, 400, "r33 4xx·超长 q -> 400");
+      const badTypes33 = await expectStatus("GET", `/api/search?q=${encodeURIComponent(KEY)}&types=todos,evil`, undefined, 400, "r33 4xx·非法 types -> 400");
+      ok(String(badTypes33.json.error).includes("非法搜索源"), "r33 4xx·非法 types 文案明确");
+      const privileged33 = await expectStatus("GET", `/api/search?q=${encodeURIComponent(KEY)}&types=users`, undefined, 400, "r33 4xx·越权源 users -> 400");
+      ok(String(privileged33.json.error).includes("users"), "r33 4xx·越权源回带源名");
+      await expectStatus("GET", `/api/search?q=${encodeURIComponent(KEY)}&limit=0`, undefined, 400, "r33 4xx·limit=0 -> 400");
+      await expectStatus("GET", `/api/search?q=${encodeURIComponent(KEY)}&limit=999`, undefined, 400, "r33 4xx·limit 超上限 -> 400");
+
+      // 直达真实性：GET /api/meetings/:id 用 deepLink 里的 id 回查同一场会议
+      const viaLink33 = await expectStatus("GET", `/api/meetings/${meet33.json.id}`, undefined, 200, "r33 直达·deepLink id 回查会议 -> 200");
+      eq(viaLink33.json.title, `${KEY} 会议`, "r33 直达·回查会议标题逐字相等");
+
+      // 清理：八源探针全部归零（项目级联列/卡片）
+      await expectStatus("DELETE", `/api/meetings/${meet33.json.id}`, undefined, 200, "r33 清理会议探针 -> 200");
+      await expectStatus("DELETE", `/api/rooms/${room33.json.id}`, undefined, 200, "r33 清理会议室探针 -> 200");
+      await expectStatus("DELETE", `/api/members/${mem33.json.id}`, undefined, 200, "r33 清理成员探针 -> 200");
+      await expectStatus("DELETE", `/api/knowledge/docs/${kb33.json.doc.id}`, undefined, 200, "r33 清理知识库探针 -> 200");
+      await expectStatus("DELETE", `/api/documents/${doc33.json.id}`, undefined, 200, "r33 清理文档探针 -> 200");
+      await expectStatus("DELETE", `/api/projects/${proj33.json.id}`, undefined, 200, "r33 清理项目探针（级联卡片） -> 200");
+      await expectStatus("DELETE", `/api/schedules/${sch33.json.id}`, undefined, 200, "r33 清理日程探针 -> 200");
+      await expectStatus("DELETE", `/api/todos/${todo33.json.id}`, undefined, 200, "r33 清理待办探针 -> 200");
+      const afterClean33 = await expectStatus("GET", `/api/search?q=${encodeURIComponent(KEY)}`, undefined, 200, "r33 清理后回查 -> 200");
+      eq(afterClean33.json.results, [], "r33 探针归零·同关键词复搜零结果");
+    }
 }
 
 try {

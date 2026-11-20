@@ -110,7 +110,7 @@ import {
   searchChunks,
 } from "@xieflow/agent";
 import { memberSummary, assertAssignableMember, normalizeMemberRef, resolveMemberForUser } from "@xieflow/shared/org";
-import { localDateStr } from "@xieflow/shared";
+import { localDateStr, QUADRANT_LABELS, TODO_STATUS_LABELS, REPEAT_LABELS } from "@xieflow/shared";
 import {
   NOTIFICATION_TYPES,
   assertValidNotificationType,
@@ -137,6 +137,15 @@ import {
   assertValidMeetingDate,
   meetingAvailability,
 } from "@xieflow/shared/meetings";
+// r33：全局搜索——归一/打分/聚合/每源上限/去重/直达/守卫唯一口径在 shared/globalSearch，路由层零算法分支
+import {
+  assertValidSearchQuery,
+  parseSearchTypes,
+  parseSearchLimit,
+  assembleSearchResults,
+  type SearchSourceType,
+  type SearchSourceInput,
+} from "@xieflow/shared/globalSearch";
 
 /** r27：只读装配当前库全部来源数据（六指标同一快照）；不写任何业务数据 */
 function collectReportSource(store: XieFlowDb): ReportSource {
@@ -171,6 +180,91 @@ function collectReportSource(store: XieFlowDb): ReportSource {
 function reportRangeFromQuery(query: unknown): { from: string; to: string } {
   const q = query as { from?: unknown; to?: unknown };
   return parseReportRange(q.from, q.to);
+}
+
+/**
+ * r33：八源只读装配（全是 list*，零 create/update/delete）。
+ * 每个 builder 只把真实表行映射为 {id,title,snippet} 两字段候选；
+ * 打分 / 排序 / 上限 / 去重 / tab / deepLink 全在 shared/globalSearch，路由层零算法分支。
+ */
+function collectSearchSources(store: XieFlowDb, types: readonly SearchSourceType[]): SearchSourceInput[] {
+  const builders: Record<SearchSourceType, () => SearchSourceInput> = {
+    todos: () => ({
+      type: "todos",
+      items: store.listTodos().map((t) => ({
+        id: t.id,
+        title: t.title,
+        snippet: `${QUADRANT_LABELS[t.quadrant]} · ${TODO_STATUS_LABELS[t.status]}${t.dueDate ? ` · 截止 ${t.dueDate}` : ""}`,
+      })),
+    }),
+    schedules: () => ({
+      type: "schedules",
+      items: store.listSchedules().map((s) => ({
+        id: s.id,
+        title: s.title,
+        snippet: `${s.date} ${s.start}-${s.end} · ${REPEAT_LABELS[s.repeat]}`,
+      })),
+    }),
+    projects: () => ({
+      type: "projects",
+      items: store.listProjects().map((p) => ({
+        id: p.id,
+        title: p.name,
+        snippet: `${p.description ?? ""} · 创建于 ${p.createdAt.slice(0, 10)}`,
+      })),
+    }),
+    cards: () => {
+      const projects = store.listProjects();
+      const nameById = new Map(projects.map((p) => [p.id, p.name]));
+      return {
+        type: "cards",
+        items: projects.flatMap((p) => store.listBoardCardsByProject(p.id)).map((c) => ({
+          id: c.id,
+          title: c.title,
+          snippet: `${nameById.get(c.projectId) ?? ""}${c.description ? ` · ${c.description}` : ""}`,
+        })),
+      };
+    },
+    documents: () => ({
+      type: "documents",
+      items: store.listDocuments().map((d) => ({
+        id: d.id,
+        title: d.title,
+        snippet: `文档 · 更新于 ${d.updatedAt.slice(0, 10)}`,
+      })),
+    }),
+    knowledge_docs: () => ({
+      type: "knowledge_docs",
+      items: store.listKnowledgeDocs().map((k) => ({
+        id: k.id,
+        title: k.title,
+        snippet: `${k.sourceType} · ${k.content}`,
+      })),
+    }),
+    members: () => {
+      const deptById = new Map(store.listDepartments().map((d) => [d.id, d.name]));
+      return {
+        type: "members",
+        items: store.listMembers().map((m) => ({
+          id: m.id,
+          title: m.name,
+          snippet: `${m.title} · ${m.role} · ${m.email}${m.departmentId !== null ? ` · ${deptById.get(m.departmentId) ?? ""}` : ""}`,
+        })),
+      };
+    },
+    meetings: () => {
+      const roomById = new Map(store.listRooms().map((r) => [r.id, r.name]));
+      return {
+        type: "meetings",
+        items: store.listMeetings().map((m) => ({
+          id: m.id,
+          title: m.title,
+          snippet: `${m.date} ${m.start}-${m.end} · ${roomById.get(m.roomId) ?? "会议室"} · ${m.organizer}`,
+        })),
+      };
+    },
+  };
+  return types.map((type) => builders[type]());
 }
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -3844,6 +3938,20 @@ app.delete("/api/meetings/:id/attendees/:memberId", async (req, reply) => {
     }
     const rows = store.listMeetingAttendees(id);
     return { meetingId: id, attendees: rows.map((a) => a.memberId), count: rows.length };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+// r33：全局搜索 GET /api/search?q=&limit=&types= —— 一次检索八源，只读不写
+app.get("/api/search", async (req, reply) => {
+  try {
+    const query = req.query as Record<string, unknown>;
+    const q = assertValidSearchQuery(query.q);
+    const types = parseSearchTypes(query.types);
+    const limit = parseSearchLimit(query.limit);
+    const results = assembleSearchResults(q, collectSearchSources(requireDb(), types), { limit });
+    return { query: q, total: results.length, types, results };
   } catch (err) {
     return toErrorReply(err, reply);
   }

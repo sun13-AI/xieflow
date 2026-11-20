@@ -15,6 +15,7 @@ import { SERVICE_DOWN_MESSAGE, fetchJsonOrThrow, apiFetch } from "./httpClient";
 interface OrgQuery {
   readonly shot: string;
   readonly departmentId: string;
+  readonly memberId: string; // r33 deep-link：全局搜索成员结果定位
 }
 
 type Phase = "loading" | "error" | "ready";
@@ -58,7 +59,7 @@ const SHOT_MEMBERS: Member[] = [
 
 function readQuery(): OrgQuery {
   const p = new URLSearchParams(window.location.search);
-  return { shot: p.get("shot") ?? "", departmentId: p.get("departmentId") ?? "" };
+  return { shot: p.get("shot") ?? "", departmentId: p.get("departmentId") ?? "", memberId: p.get("memberId") ?? "" };
 }
 
 async function getJson<T>(url: string): Promise<T> {
@@ -357,7 +358,7 @@ export default function OrgPage() {
             ) : (
               <div className="org-cards" data-state="org-members">
                 {visible.map((m) => (
-                  <article className="org-card" key={m.id} data-member-id={m.id}>
+                  <article className={`org-card${query.memberId !== "" && Number(query.memberId) === m.id ? " org-card-located" : ""}`} key={m.id} data-member-id={m.id} data-state={query.memberId !== "" && Number(query.memberId) === m.id ? "org-card-located" : "org-card"}>
                     <div className="org-card-head">
                       <strong>{m.name}</strong>
                       <span className={`org-status ${m.status === "active" ? "org-status-on" : ""}`}>

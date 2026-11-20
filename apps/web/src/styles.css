@@ -4101,3 +4101,28 @@ html.force-narrow .meeting-grid-body { max-height: 300px; overflow-y: auto; }
 @media (max-width: 900px) {
   .meetings-columns { grid-template-columns: 1fr; }
 }
+
+/* ---- r33：顶栏全局搜索（Ctrl/Cmd+K + 下拉结果面板）---- */
+.global-search { position: relative; display: flex; align-items: center; gap: 4px; margin-left: 10px; z-index: 40; }
+.global-search-shortcut { font-size: 9px; color: var(--ink-2); background: #f1f5f9; border: 1px solid var(--line); border-radius: 4px; padding: 2px 4px; white-space: nowrap; }
+.global-search-input { width: 210px; max-width: 26vw; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; font-size: 11px; background: #fff; color: var(--ink); }
+.global-search-input:focus { outline: 2px solid #bfdbfe; border-color: var(--accent); }
+.global-search-panel { position: absolute; top: 34px; left: 0; width: 420px; max-width: 88vw; max-height: 460px; overflow-y: auto; background: #fff; border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 12px 32px rgba(15,23,42,.16); padding: 6px; z-index: 60; }
+.global-search-empty, .global-search-noresult, .global-search-loading { margin: 0; padding: 14px 10px; font-size: 11px; color: var(--ink-2); line-height: 1.6; }
+.global-search-error { margin: 0; padding: 10px; font-size: 11px; color: #b42318; background: #fef3f2; border-radius: 6px; }
+.global-search-group { margin: 4px 0 8px; }
+.global-search-group-title { display: flex; align-items: center; gap: 5px; padding: 5px 7px; font-size: 10px; font-weight: 600; color: var(--ink-2); background: #f7f9fc; border-radius: 5px; }
+.global-search-group-title small { margin-left: auto; color: #94a3b8; }
+.global-search-result { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; width: 100%; text-align: left; padding: 7px 9px; border: 0; border-radius: 6px; background: transparent; cursor: pointer; }
+.global-search-result:hover { background: #f1f5f9; }
+.global-search-result-selected { background: #eaf2ff; box-shadow: inset 3px 0 0 var(--accent); }
+.global-search-result-title { font-size: 12px; color: var(--ink); font-weight: 600; }
+.global-search-result-snippet { grid-column: 1; font-size: 10px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.global-search-result-score { grid-column: 2; grid-row: 1 / span 2; align-self: center; font-size: 10px; color: var(--accent); font-variant-numeric: tabular-nums; }
+.global-search-hit { background: #fde68a; color: #78350f; border-radius: 2px; padding: 0 1px; }
+html.force-narrow .global-search-input { width: 150px; max-width: 42vw; }
+html.force-narrow .global-search-shortcut { display: none; }
+html.force-narrow .global-search-panel { left: 0; right: auto; width: min(92vw, 420px); max-height: 420px; }
+.meeting-grid-bar-focused { outline: 2px solid #f59e0b; background: #fef3c7; font-weight: 700; }
+.meetings-locate-note { margin: 6px 0; padding: 6px 9px; font-size: 11px; color: #92400e; background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; }
+.todo-item-located, .board-card-located, .org-card-located { outline: 2px solid #f59e0b; background: #fffbeb; }
