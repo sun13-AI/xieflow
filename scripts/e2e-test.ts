@@ -386,6 +386,32 @@ import {
   type Notification,
   type NotificationContext,
 } from "@xieflow/shared/notifications";
+// r27：报表中心（跨模块数据看板）——六指标唯一口径在 shared/reports
+import {
+  REPORT_METRICS,
+  REPORT_METRIC_LABELS,
+  REPORT_PRESETS,
+  REPORT_SPARK_BUCKETS,
+  isReportMetric,
+  assertValidReportMetric,
+  parseReportRange,
+  reportRangeFromPreset,
+  reportRangeDays,
+  shiftReportRange,
+  reportWindow,
+  inReportRange,
+  reportPercent,
+  computeTodoCompletion,
+  computeScheduleLoad,
+  computeBoardThroughput,
+  computeApprovalSla,
+  computeAssetTurnover,
+  computeDocOutput,
+  assembleReport,
+  selectReportMetric,
+  filterReportDetail,
+  type ReportOverview,
+} from "@xieflow/shared/reports";
 import {
   createMockProvider,
   MOCK_PROVIDER_ID,
@@ -4976,7 +5002,7 @@ try {
     ok(/<SyncCard\s*\/>/.test(appSrc), "r19 工作台设置区渲染多端同步卡");
     ok(!/(^|[^A-Za-z])fetch\s*\(/.test(syncSrc), "r19 同步卡无裸 fetch（统一 apiFetch）");
     ok(/\bapiFetch\b/.test(syncSrc), "r19 同步卡经 apiFetch 发请求（401 清态链路一致）");
-    eq((appSrc.match(/data-tab="/g) ?? []).length, 16, "r26 tab 口径：通知新增第十六 tab（r23 基线 15）");
+    eq((appSrc.match(/data-tab="/g) ?? []).length, 17, "r27 tab 口径：报表新增第十七 tab（r26 基线 16）");
     ok(!/r19 · 多端同步与冲突处理（M9 收官）/.test(appSrc), "r19 旧徽章已由 r20 替换（无残留）");
     ok(/sync-modal/.test(syncSrc) && /data-side="local"/.test(syncSrc) && /data-side="remote"/.test(syncSrc), "r19 冲突弹窗提供本地/远端两个选边按钮");
     ok(/sync-modal-warning/.test(syncSrc) && /不可撤销/.test(syncSrc), "r19 返工#1 选边后果提示前置（写入递增且不可撤销）");
@@ -5119,7 +5145,7 @@ try {
     ok(/overflow-x:\s*hidden/.test(cssSrc), "r20 禁止横向溢出");
     ok(/min-height:\s*44px/.test(cssSrc), "r20 触摸目标 >=44px");
     ok(/bottom-nav|net-status/.test(cssSrc), "r20 底栏/状态条样式在场");
-    eq((appSrc.match(/data-tab="/g) ?? []).length, 16, "r26 口径：通知 tab 计入壳基线共 16（r23 基线 15）");
+    eq((appSrc.match(/data-tab="/g) ?? []).length, 17, "r27 口径：报表 tab 计入壳基线共 17（r26 基线 16）");
     ok(/app\.post\("\/api\/offline\/replay"/.test(serverSrc), "r20 api 提供真重放端点（队列 4xx 由 audit 锁定）");
   }
 
@@ -5195,7 +5221,7 @@ try {
     ok(/data-state="tabs-more"/.test(app22), "r22 更多按钮有稳定 data-state seam（截图/复验可寻址）");
     ok(/tabs-more-fade/.test(css22) && /linear-gradient/.test(css22), "r22 底栏右侧渐隐遮罩在场");
     ok(/html\.nav-open \.tabs-more\s*\{[^}]*display:\s*none/.test(css22), "r22 菜单展开时隐藏更多按钮");
-    ok(/r26 · 通知中心/.test(app22), "r26 徽章推进到通知中心轮（r23 旧徽章已替换无残留）");
+    ok(/r27 · 报表中心/.test(app22), "r27 徽章推进到报表中心轮（r26 旧徽章已替换无残留）");
 
     // (B) DEPLOY.md 三处补强 / 根 README 脚本清单（真实文档契约）
     const deploy22 = readFileSync("docs/DEPLOY.md", "utf8");
@@ -5207,7 +5233,7 @@ try {
     // (C) shell README 与实际字节逐字一致（14 张哈希 + 全库计数）
     const shellReadme = readFileSync("docs/ui/shell/README.md", "utf8");
     ok(/r25 同批重拍/.test(shellReadme) && /r25 哈希自查/.test(shellReadme), "r25 shell README 整段推进到 r25 口径（r23/r24 历史对照保留）");
-    const hashBlock = shellReadme.match(/R26_HASHES_BEGIN([\s\S]*?)R26_HASHES_END/);
+    const hashBlock = shellReadme.match(/R27_HASHES_BEGIN([\s\S]*?)R27_HASHES_END/);
     const listed = Array.from((hashBlock?.[1] ?? "").matchAll(/([a-z-]+)=([0-9A-F]{8})/g)).map(
       (m) => `${m[1]}=${m[2]}`,
     ).sort();
@@ -5216,7 +5242,7 @@ try {
       const h = createHash("sha256").update(readFileSync(`docs/ui/shell/${f}`)).digest("hex").slice(0, 8).toUpperCase();
       return `${f.replace("-tab-active.png", "")}=${h}`;
     });
-    eq(listed, actual, "r26 shell README 16 张哈希与实际文件逐字一致");
+    eq(listed, actual, "r27 shell README 17 张哈希与实际文件逐字一致");
 
     const walkPng = (dir: string): string[] =>
       readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
@@ -5409,8 +5435,8 @@ try {
     const shellReadme = readFileSync("docs/ui/shell/README.md", "utf8");
 
     ok(app.includes('data-tab="org"'), "r23 App.tsx 存在组织 tab 按钮");
-    ok(app.includes("r26 · 通知中心"), "r26 App.tsx 徽章推进到通知中心");
-    ok(app.includes('| "org" | "notifications";'), "r26 App.tsx PageTab 联合类型含 org + notifications");
+    ok(app.includes("r27 · 报表中心"), "r27 App.tsx 徽章推进到报表中心");
+    ok(app.includes('| "notifications" | "reports"'), "r27 App.tsx PageTab 联合类型含 notifications + reports");
     ok(app.includes("<OrgPage />"), "r23 App.tsx 渲染 OrgPage 组件");
     ok(orgPage.includes("buildDepartmentTree") && orgPage.includes("@xieflow/shared/org"), "r23 组织页树装配走 shared/org 纯函数");
     ok(orgPage.includes("searchMembers") && orgPage.includes("@xieflow/shared/org"), "r23 组织页搜索走 shared/org 纯函数");
@@ -5430,22 +5456,22 @@ try {
     eq(r23Png.length, 7, "r23 目录恰好 7 张 PNG");
     eq(new Set(r23Png.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 7, "r23 七张 PNG SHA256 两两互异");
     const shellPng = walkPng23("docs/ui/shell");
-    eq(shellPng.length, 16, "壳基线恰好 16 张 PNG（新增通知 tab）");
-    eq(new Set(shellPng.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 16, "壳基线 16 张 SHA256 两两互异");
-    const r23HashBlock = shellReadme.match(/<!-- R26_HASHES_BEGIN -->([\s\S]*?)<!-- R26_HASHES_END -->/);
-    ok(r23HashBlock !== null, "r26 shell README 含 R26_HASHES 自查块");
+    eq(shellPng.length, 17, "壳基线恰好 17 张 PNG（新增报表 tab，随 r27 推进）");
+    eq(new Set(shellPng.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 17, "壳基线 17 张 SHA256 两两互异");
+    const r23HashBlock = shellReadme.match(/<!-- R27_HASHES_BEGIN -->([\s\S]*?)<!-- R27_HASHES_END -->/);
+    ok(r23HashBlock !== null, "shell README 含 R27_HASHES 当前自查块（随 r27 推进）");
     if (r23HashBlock) {
       const listed = [...r23HashBlock[1]!.matchAll(/`([a-z-]+)=([0-9A-F]{8})`/g)].map((m) => [m[1], m[2]]);
-      eq(listed.length, 16, "r26 shell README 列出 16 张哈希");
+      eq(listed.length, 17, "r26 shell README 列出 17 张哈希");
       const mismatches = listed.filter(([name, hash]) => {
         const file = shellPng.find((p) => p.replace(/\\/g, "/").endsWith(`/${name}-tab-active.png`));
         return !file || createHash("sha256").update(readFileSync(file)).digest("hex").slice(0, 8).toUpperCase() !== hash;
       });
-      eq(mismatches, [], "r26 shell README 16 张哈希与实际文件逐字一致");
+      eq(mismatches, [], "r26 shell README 17 张哈希与实际文件逐字一致");
     }
-    ok(rootReadme.includes("e2e（2237 断言）+ HTTP 审计（1809 断言）"), "r23 口径随 r24 速查行推进");
+    ok(rootReadme.includes("e2e（2335 断言）+ HTTP 审计（1904 断言）"), "r23 口径随 r24 速查行推进");
     ok(
-      rootReadme.includes("- e2e **2237** 项") && rootReadme.includes("- HTTP audit **1809** 项") &&
+      rootReadme.includes("- e2e **2335** 项") && rootReadme.includes("- HTTP audit **1904** 项") &&
         rootReadme.includes("### r24 矩阵") && rootReadme.includes("e2e 1952 → **2041（+89）**"),
       "根 README 双节规模推进到 r24（r23 历史行保留）",
     );
@@ -5673,21 +5699,21 @@ try {
     eq(r24Png.length, 7, "r24 目录恰好 7 张 PNG");
     eq(new Set(r24Png.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 7, "r24 七张 PNG SHA256 两两互异");
     const shellPng = walkPng("docs/ui/shell");
-    eq(shellPng.length, 16, "r26 壳基线已扩为 16 张 PNG");
-    eq(new Set(shellPng.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 16, "壳基线 16 张 SHA256 两两互异");
-    const hashBlock = shellReadme.match(/<!-- R26_HASHES_BEGIN -->([\s\S]*?)<!-- R26_HASHES_END -->/);
+    eq(shellPng.length, 17, "随 r27 推进：壳基线已扩为 17 张 PNG");
+    eq(new Set(shellPng.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 17, "壳基线 17 张 SHA256 两两互异");
+    const hashBlock = shellReadme.match(/<!-- R27_HASHES_BEGIN -->([\s\S]*?)<!-- R27_HASHES_END -->/);
     ok(hashBlock !== null, "shell README 哈希自查块在场");
     if (hashBlock) {
       const listed = [...hashBlock[1]!.matchAll(/`([a-z-]+)=([0-9A-F]{8})`/g)].map((m) => [m[1], m[2]]);
-      eq(listed.length, 16, "shell README 列出 16 张哈希");
+      eq(listed.length, 17, "shell README 列出 17 张哈希");
       const mismatches = listed.filter(([name, hash]) => {
         const file = shellPng.find((p) => p.replace(/\\/g, "/").endsWith(`/${name}-tab-active.png`));
         return !file || createHash("sha256").update(readFileSync(file)).digest("hex").slice(0, 8).toUpperCase() !== hash;
       });
-      eq(mismatches, [], "shell README 16 张哈希与实际文件逐字一致");
+      eq(mismatches, [], "shell README 17 张哈希与实际文件逐字一致");
     }
     ok((r24Index.match(/^\| \d\d-[^|]*\.png \|/gm) ?? []).length === 7, "r24 截图索引含七张矩阵行");
-    ok(rootReadme.includes("e2e（2237 断言）+ HTTP 审计（1809 断言）"), "r24 根 README 速查行数字同步");
+    ok(rootReadme.includes("e2e（2335 断言）+ HTTP 审计（1904 断言）"), "r24 根 README 速查行数字同步");
     ok(rootReadme.includes("### r24 矩阵") && rootReadme.includes("e2e 1952 → **2041（+89）**"), "r24 根 README 双节规模与矩阵索引同步");
   }
 
@@ -5827,13 +5853,13 @@ try {
     eq(matrix25.length, 7, "r25 目录恰好 7 张 PNG");
     eq(new Set(matrix25.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 7, "r25 七张 PNG SHA256 两两互异");
     const shells25 = walkPng25("docs/ui/shell");
-    eq(shells25.length, 16, "r26 壳基线已扩为 16 张 PNG");
-    eq(new Set(shells25.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 16, "壳基线 16 张 SHA256 两两互异");
-    const hash25 = shell25.match(/<!-- R26_HASHES_BEGIN -->([\s\S]*?)<!-- R26_HASHES_END -->/);
+    eq(shells25.length, 17, "随 r27 推进：壳基线已扩为 17 张 PNG");
+    eq(new Set(shells25.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 17, "壳基线 17 张 SHA256 两两互异");
+    const hash25 = shell25.match(/<!-- R27_HASHES_BEGIN -->([\s\S]*?)<!-- R27_HASHES_END -->/);
     ok(hash25 !== null, "shell README R26 当前哈希块在场");
     if (hash25) {
       const listed25 = [...hash25[1]!.matchAll(/`([a-z-]+)=([0-9A-F]{8})`/g)].map((m) => [m[1], m[2]]);
-      eq(listed25.length, 16, "shell README R26 块列出 16 张哈希");
+      eq(listed25.length, 17, "shell README R27 块列出 17 张哈希");
       const mismatches25 = listed25.filter(([name, hash]) => {
         const file = shells25.find((p) => p.replace(/\\/g, "/").endsWith(`/${name}-tab-active.png`));
         return !file || createHash("sha256").update(readFileSync(file)).digest("hex").slice(0, 8).toUpperCase() !== hash;
@@ -5843,7 +5869,7 @@ try {
     ok(shell25.includes("**r23 基线**") && shell25.includes("**r24 基线**"), "shell README 保留 r23/r24 历史对照行");
     ok(shell25.includes("90166EF8") || shell25.includes("物资壳"), "shell README 如实记录物资壳与 r23 同字节事实");
     ok((r25Index.match(/^\| \d\d-[^|]*\.png \|/gm) ?? []).length === 7, "r25 截图索引含七张矩阵行");
-    ok(root25.includes("e2e（2237 断言）+ HTTP 审计（1809 断言）"), "r25 根 README 速查行数字同步");
+    ok(root25.includes("e2e（2335 断言）+ HTTP 审计（1904 断言）"), "r25 根 README 速查行数字同步");
     ok(root25.includes("### r25 矩阵") && root25.includes("e2e 2041 → **2096（+55）**"), "r25 根 README 双节规模与矩阵索引同步");
   }
 
@@ -6070,9 +6096,9 @@ try {
     ok(schemaSource26.includes("version: 19") && schemaSource26.includes("CREATE TABLE IF NOT EXISTS notifications"), "r26 schema v19 迁移在场");
     ok(ci26.includes("(2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19)"), "r26 CI smoke 正则升 v19");
     ok(shot26.includes('"r26"') && ["01-notif-empty", "02-notif-unread", "03-notif-filtered", "04-notif-read", "05-notif-refreshed", "06-narrow", "07-error", "08-notif-badge-decrement"].every((s) => shot26.includes(s)), "r26 shot.ps1 ValidateSet 与八张矩阵名齐备");
-    ok(shell26.includes("<!-- R26_HASHES_BEGIN -->") && shell26.includes("<!-- R26_HASHES_END -->"), "r26 shell README 哈希块在场");
+    ok(shell26.includes("<!-- R26_HASHES_BEGIN -->") && shell26.includes("<!-- R26_HASHES_END -->"), "r26 shell README 历史哈希块在场（当前块见 R27）");
     ok((r26Index.match(/^\| \[?\d\d-[^|\]]*\.png/gm) ?? []).length === 9, "r26 截图索引含九张矩阵行（返工#2 补 09）");
-    ok(root26.includes("e2e（2237 断言）+ HTTP 审计（1809 断言）"), "返工#1 根 README 速查行数字逐字同步");
+    ok(root26.includes("e2e（2335 断言）+ HTTP 审计（1904 断言）"), "返工#1 根 README 速查行数字逐字同步");
 
     // (J) 截图矩阵与十六 tab 壳基线（SHA 两两互异 + README 哈希逐字一致）
     const walkPng26 = (dir: string): string[] => {
@@ -6088,18 +6114,234 @@ try {
     eq(matrix26.length, 9, "r26 目录恰好 9 张 PNG（返工#2 补 09）");
     eq(new Set(matrix26.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 9, "r26 九张 PNG SHA256 两两互异");
     const shells26 = walkPng26("docs/ui/shell");
-    eq(shells26.length, 16, "r26 壳基线 16 张 PNG");
-    eq(new Set(shells26.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 16, "r26 壳基线 16 张 SHA256 两两互异");
-    const hash26 = shell26.match(/<!-- R26_HASHES_BEGIN -->([\s\S]*?)<!-- R26_HASHES_END -->/);
+    eq(shells26.length, 17, "随 r27 推进：壳基线 17 张 PNG");
+    eq(new Set(shells26.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 17, "r26 壳基线 17 张 SHA256 两两互异（随 r27 推进）");
+    const hash26 = shell26.match(/<!-- R27_HASHES_BEGIN -->([\s\S]*?)<!-- R27_HASHES_END -->/);
     ok(hash26 !== null, "shell README R26 当前哈希块在场");
     if (hash26) {
       const listed26 = [...hash26[1]!.matchAll(/`([a-z-]+)=([0-9A-F]{8})`/g)].map((m) => ({ name: m[1]!, hash: m[2]! }));
-      eq(listed26.length, 16, "shell README R26 块列出 16 张哈希");
+      eq(listed26.length, 17, "shell README R27 块列出 17 张哈希");
       const mismatches26 = listed26.filter(({ name, hash }) => {
         const file = shells26.find((p) => p.replace(/\\/g, "/").endsWith(`/${name}-tab-active.png`));
         return !file || createHash("sha256").update(readFileSync(file)).digest("hex").slice(0, 8).toUpperCase() !== hash;
       });
       eq(mismatches26, [], "shell README R26 哈希与实际文件逐字一致");
+    }
+  }
+
+  // 62. r27：报表中心（跨模块数据看板）——六指标纯函数 / 时间范围 / 环比 / 空数据 / 渲染 seam
+  section("r27 报表中心：shared 规则 / 六指标算法 / 时间范围 / 渲染层 seam");
+  {
+    // 所有样本手算可核：当前区间 2026-11-01..07（7 天），前一等长区间 2026-10-25..31
+    const R = { from: "2026-11-01", to: "2026-11-07" };
+    const now27 = new Date("2026-11-20T12:00:00.000Z");
+    const todos27 = [
+      { id: 1, title: "T1", status: "done", createdAt: "2026-11-01T08:00:00.000Z" },
+      { id: 2, title: "T2", status: "done", createdAt: "2026-11-02T08:00:00.000Z" },
+      { id: 3, title: "T3", status: "done", createdAt: "2026-11-03T08:00:00.000Z" },
+      { id: 4, title: "T4", status: "open", createdAt: "2026-11-04T08:00:00.000Z" },
+      { id: 5, title: "T5", status: "open", createdAt: "2026-11-05T08:00:00.000Z" },
+      { id: 6, title: "P1", status: "done", createdAt: "2026-10-26T08:00:00.000Z" },
+      { id: 7, title: "P2", status: "open", createdAt: "2026-10-27T08:00:00.000Z" },
+    ];
+    const schedules27 = [
+      { id: 11, title: "S1", date: "2026-11-01", start: "09:00" },
+      { id: 12, title: "S2", date: "2026-11-01", start: "10:00" },
+      { id: 13, title: "S3", date: "2026-11-03", start: "09:00" },
+      { id: 14, title: "S4", date: "2026-11-07", start: "09:00" },
+      { id: 15, title: "P1", date: "2026-10-27", start: "09:00" },
+      { id: 16, title: "P2", date: "2026-10-28", start: "09:00" },
+    ];
+    const columns27 = [{ id: 1, name: "待办" }, { id: 2, name: "进行中" }, { id: 3, name: "已完成" }];
+    const cards27 = [
+      { id: 21, title: "C1", columnId: 3, todoId: 1, updatedAt: "2026-11-01T10:00:00.000Z" },
+      { id: 22, title: "C2", columnId: 3, todoId: 2, updatedAt: "2026-11-02T10:00:00.000Z" },
+      { id: 23, title: "C3", columnId: 2, todoId: 4, updatedAt: "2026-11-02T10:00:00.000Z" },
+      { id: 24, title: "C4", columnId: 3, todoId: 3, updatedAt: "2026-11-05T10:00:00.000Z" },
+      { id: 25, title: "P1", columnId: 3, todoId: 6, updatedAt: "2026-10-27T10:00:00.000Z" },
+      { id: 26, title: "P2", columnId: 3, todoId: 99, updatedAt: "2026-10-28T10:00:00.000Z" },
+    ];
+    const approvals27 = [
+      { id: 31, title: "A1", status: "approved", createdAt: "2026-11-01T08:00:00.000Z", updatedAt: "2026-11-01T10:00:00.000Z" },
+      { id: 32, title: "A2", status: "rejected", createdAt: "2026-11-02T09:00:00.000Z", updatedAt: "2026-11-02T13:00:00.000Z" },
+      { id: 33, title: "A3", status: "pending", createdAt: "2026-11-03T09:00:00.000Z", updatedAt: "2026-11-03T09:30:00.000Z" },
+      { id: 34, title: "P1", status: "approved", createdAt: "2026-10-27T08:00:00.000Z", updatedAt: "2026-10-27T14:00:00.000Z" },
+    ];
+    const steps27 = [
+      { id: 1, approvalId: 31, action: "submit", actedAt: "2026-11-01T08:00:00.000Z" },
+      { id: 2, approvalId: 31, action: "approve", actedAt: "2026-11-01T10:00:00.000Z" },
+      { id: 3, approvalId: 32, action: "submit", actedAt: "2026-11-02T09:00:00.000Z" },
+      { id: 4, approvalId: 32, action: "reject", actedAt: "2026-11-02T13:00:00.000Z" },
+      { id: 5, approvalId: 34, action: "submit", actedAt: "2026-10-27T08:00:00.000Z" },
+      { id: 6, approvalId: 34, action: "approve", actedAt: "2026-10-27T14:00:00.000Z" },
+    ];
+    const txs27 = [
+      { id: 41, assetId: 1, type: "in", quantity: 10, createdAt: "2026-11-01T08:00:00.000Z" },
+      { id: 42, assetId: 1, type: "out", quantity: 4, createdAt: "2026-11-02T08:00:00.000Z" },
+      { id: 43, assetId: 2, type: "out", quantity: 3, createdAt: "2026-11-03T08:00:00.000Z" },
+      { id: 44, assetId: 2, type: "transfer", quantity: 99, createdAt: "2026-11-04T08:00:00.000Z" },
+      { id: 45, assetId: 3, type: "out", quantity: 2, createdAt: "2026-11-06T08:00:00.000Z" },
+      { id: 46, assetId: 1, type: "out", quantity: 3, createdAt: "2026-10-27T08:00:00.000Z" },
+    ];
+    const docs27 = [
+      { id: 51, title: "D1", createdAt: "2026-11-01T08:00:00.000Z" },
+      { id: 52, title: "D2", createdAt: "2026-11-03T08:00:00.000Z" },
+      { id: 53, title: "D3", createdAt: "2026-11-07T08:00:00.000Z" },
+      { id: 54, title: "P1", createdAt: "2026-10-28T08:00:00.000Z" },
+    ];
+    const source27 = {
+      todos: todos27, schedules: schedules27, boardCards: cards27, boardColumns: columns27,
+      approvals: approvals27, approvalSteps: steps27, assetTransactions: txs27, documents: docs27,
+    };
+
+    // (A) 契约与守卫
+    eq([...REPORT_METRICS], ["todoCompletion", "scheduleLoad", "boardThroughput", "approvalSla", "assetTurnover", "docOutput"], "r27 六指标唯一枚举与顺序");
+    eq(REPORT_METRIC_LABELS.approvalSla, "审批时效", "r27 审批时效中文标签");
+    eq(REPORT_METRIC_LABELS.assetTurnover, "库存周转", "r27 库存周转中文标签");
+    eq([...REPORT_PRESETS], ["7d", "30d", "90d"], "r27 时间预设 7/30/90 天");
+    eq(REPORT_SPARK_BUCKETS, 7, "r27 迷你条固定七桶");
+    eq(isReportMetric("docOutput"), true, "r27 合法指标判定");
+    eq(isReportMetric("hack"), false, "r27 未知指标判定 false");
+    await throws(() => assertValidReportMetric("hack"), "r27 未知名 metric 守卫抛错");
+    noThrow(() => assertValidReportMetric("todoCompletion"), "r27 合法 metric 守卫放行");
+
+    // (B) 时间范围：闭区间 / 缺省 / 非法 / 等长前一区间
+    eq(parseReportRange("2026-11-01", "2026-11-07"), R, "r27 显式时间范围逐字解析");
+    eq(parseReportRange("", "", now27), { from: "2026-10-22", to: "2026-11-20" }, "r27 缺省回落最近 30 天含今天");
+    eq(reportRangeFromPreset("7d", now27), { from: "2026-11-14", to: "2026-11-20" }, "r27 近 7 天预设含今天");
+    eq(reportRangeFromPreset("90d", now27), { from: "2026-08-23", to: "2026-11-20" }, "r27 近 90 天预设");
+    await throws(() => reportRangeFromPreset("365d", now27), "r27 非法预设抛错");
+    await throws(() => parseReportRange("2026-02-30", "2026-03-01"), "r27 非真实日历日期被拒");
+    await throws(() => parseReportRange("2026-11-08", "2026-11-07"), "r27 from>to 被拒");
+    await throws(() => parseReportRange("2026-11-01", ""), "r27 单边日期被拒");
+    eq(reportRangeDays(R), 7, "r27 区间天数闭区间口径");
+    eq(shiftReportRange(R, -1), { from: "2026-10-25", to: "2026-10-31" }, "r27 前一等长区间");
+    eq(reportWindow(R).previous.from, "2026-10-25", "r27 reportWindow 前一区间起点");
+    eq(inReportRange("2026-11-07T23:59:59.000Z", R), true, "r27 末日时间戳落区间");
+    eq(inReportRange("2026-11-08T00:00:00.000Z", R), false, "r27 次日不落区间");
+    eq(inReportRange(null, R), false, "r27 空日期不落区间");
+    eq(reportPercent(0, 0), 0, "r27 零分母完成率不除零");
+    eq(reportPercent(1, 3), 33, "r27 完成率四舍五入");
+
+    // (C) 六指标算法手算核对
+    const cTodo = computeTodoCompletion(todos27, R);
+    const pTodo = computeTodoCompletion(todos27, shiftReportRange(R, -1));
+    eq(cTodo.value, 60, "r27 待办完成率 3/5=60%");
+    eq(pTodo.value, 50, "r27 前一区间完成率 1/2=50%");
+    eq(cTodo.unit, "%", "r27 完成率单位");
+    eq(cTodo.detail.length, 5, "r27 完成率明细只含区间内五条");
+    eq(cTodo.spark.length, REPORT_SPARK_BUCKETS, "r27 完成率迷你条七桶");
+    eq(computeTodoCompletion([], R).value, 0, "r27 零待办完成率 0 不崩");
+
+    const cSch = computeScheduleLoad(schedules27, R);
+    eq(cSch.value, 4, "r27 日程分布区间内四场");
+    eq(computeScheduleLoad(schedules27, shiftReportRange(R, -1)).value, 2, "r27 前一区间两场");
+    eq(cSch.detail.map((d) => d.key), ["2026-11-01", "2026-11-03", "2026-11-07"], "r27 日程明细按日期聚合");
+    eq(cSch.detail[0]?.value, 2, "r27 11-01 两场日程");
+    eq(cSch.unit, "场", "r27 日程单位");
+
+    const cBoard = computeBoardThroughput(cards27, columns27, todos27, R);
+    eq(cBoard.value, 3, "r27 看板吞吐 3 张完成卡片（open 待办与幽灵 id 不计）");
+    eq(computeBoardThroughput(cards27, columns27, todos27, shiftReportRange(R, -1)).value, 1, "r27 前一区间吞吐 1 张");
+    eq(cBoard.detail, [{ key: "column-3", label: "已完成", value: 3, note: "完成卡片" }], "r27 吞吐按列聚合且列名可辨");
+    eq(cBoard.unit, "张", "r27 吞吐单位");
+
+    const cSla = computeApprovalSla(approvals27, steps27, R);
+    eq(cSla.value, 3, "r27 审批时效平均 (2+4)/2=3 小时");
+    eq(computeApprovalSla(approvals27, steps27, shiftReportRange(R, -1)).value, 6, "r27 前一区间审批 6 小时");
+    eq(cSla.detail.length, 2, "r27 pending 审批不计入时效明细");
+    eq(cSla.detail[0]?.value, 2, "r27 首单耗时从 submit 到 approve 精确 2 小时");
+    eq(computeApprovalSla(approvals27, [], R).value, 3, "r27 无步骤时回落 createdAt/updatedAt 仍为 3 小时");
+    eq(cSla.unit, "小时", "r27 时效单位");
+
+    const cTx = computeAssetTurnover(txs27, R);
+    eq(cTx.value, 9, "r27 库存周转只计出库 4+3+2=9");
+    eq(computeAssetTurnover(txs27, shiftReportRange(R, -1)).value, 3, "r27 前一区间出库 3");
+    eq(cTx.detail.map((r) => r.value), [4, 3, 2], "r27 周转按物资出库聚合");
+    eq(cTx.detail[0]?.note, "入库 10 / 出库 4", "r27 周转明细带入库对照");
+    eq(cTx.unit, "件", "r27 周转单位");
+
+    const cDoc = computeDocOutput(docs27, R);
+    eq(cDoc.value, 3, "r27 文档产出三篇");
+    eq(computeDocOutput(docs27, shiftReportRange(R, -1)).value, 1, "r27 前一区间一篇");
+    eq(cDoc.detail.map((d) => d.key), ["51", "52", "53"], "r27 文档明细逐篇");
+    eq(cDoc.unit, "篇", "r27 文档单位");
+
+    // (D) 一次装配 + 环比 + 下钻 + 空数据
+    const overview27: ReportOverview = assembleReport(source27, R);
+    eq(overview27.range, R, "r27 总览回显当前区间");
+    eq(overview27.previousRange, { from: "2026-10-25", to: "2026-10-31" }, "r27 总览回显环比区间");
+    eq(overview27.days, 7, "r27 总览区间天数");
+    eq(Object.keys(overview27.metrics), [...REPORT_METRICS], "r27 总览六指标齐备");
+    eq([...overview27.metricOrder], [...REPORT_METRICS], "r27 KPI 卡顺序与枚举一致");
+    eq(overview27.metrics.todoCompletion.value, 60, "r27 总览完成率 60");
+    eq(overview27.metrics.todoCompletion.previous, 50, "r27 总览完成率上期 50");
+    eq(overview27.metrics.todoCompletion.delta, 10, "r27 完成率环比 +10 个百分点");
+    eq(overview27.metrics.todoCompletion.deltaPct, 20, "r27 完成率环比百分比 20%");
+    eq(overview27.metrics.scheduleLoad.delta, 2, "r27 日程环比 +2");
+    eq(overview27.metrics.scheduleLoad.deltaPct, 100, "r27 日程环比 100%");
+    eq(overview27.metrics.approvalSla.delta, -3, "r27 审批时效环比 -3 小时");
+    eq(overview27.metrics.approvalSla.deltaPct, -50, "r27 审批时效环比 -50%");
+    eq(overview27.metrics.assetTurnover.delta, 6, "r27 库存周转环比 +6");
+    eq(overview27.metrics.docOutput.deltaPct, 200, "r27 文档产出环比 200%");
+    eq(selectReportMetric(overview27, "boardThroughput").value, 3, "r27 单项下钻与总览同口径");
+    await throws(() => selectReportMetric(overview27, "bogus"), "r27 下钻未知指标抛错");
+    eq(filterReportDetail(overview27.metrics.docOutput, 52).map((r) => r.label), ["D2"], "r27 明细按实体 id 过滤");
+    eq(filterReportDetail(overview27.metrics.docOutput, 999999), [], "r27 越权 id 明细为空（api 映射 404）");
+    eq(filterReportDetail(overview27.metrics.boardThroughput, 3).length, 1, "r27 看板按列 id 下钻");
+    const empty27 = assembleReport({}, R);
+    eq([...REPORT_METRICS].map((m) => empty27.metrics[m].value), [0, 0, 0, 0, 0, 0], "r27 空数据六指标全 0 不崩");
+    eq([...REPORT_METRICS].every((m) => empty27.metrics[m].spark.length === REPORT_SPARK_BUCKETS), true, "r27 空数据迷你条仍七桶");
+    eq([...REPORT_METRICS].every((m) => empty27.metrics[m].detail.length === 0), true, "r27 空数据明细为空列表");
+    eq([...REPORT_METRICS].every((m) => empty27.metrics[m].delta === 0), true, "r27 空数据环比为 0");
+
+    // (E) 渲染层 / API / 脚本 seam（web 与 api 零算法分支）
+    const app27 = readFileSync("apps/web/src/App.tsx", "utf8");
+    const page27 = readFileSync("apps/web/src/ReportsPage.tsx", "utf8");
+    const api27 = readFileSync("apps/api/src/server.ts", "utf8");
+    const sharedPkg27 = readFileSync("packages/shared/package.json", "utf8");
+    const shot27 = readFileSync("scripts/shot.ps1", "utf8");
+    const shell27 = readFileSync("docs/ui/shell/README.md", "utf8");
+    const r27Index = readFileSync("docs/ui/r27/README.md", "utf8");
+    ok(app27.includes('type PageTab = "home"') && app27.includes('| "reports"'), "r27 十七 tab 类型含报表页");
+    ok(app27.includes('data-tab="reports"') && />\s*报表\s*</.test(app27), "r27 顶栏报表 tab 在场");
+    ok(app27.includes("r27 · 报表中心"), "r27 徽章推进到报表中心轮");
+    ok(page27.includes("assembleReport") && page27.includes("REPORT_METRICS"), "r27 报表页消费 shared 唯一口径零算法分支");
+    ok(page27.includes("reports-empty") && page27.includes("reports-error") && page27.includes("reports-drill"), "r27 空态/错误态/下钻钉态在场");
+    ok(api27.includes('app.get("/api/reports/overview"') && api27.includes('app.get("/api/reports/:metric"'), "r27 两条报表路由在场");
+    ok(api27.includes("assembleReport") && api27.includes("parseReportRange"), "r27 api 只装配 shared 规则零算法分支");
+    ok(sharedPkg27.includes('"./reports": "./src/reports.ts"'), "r27 shared/reports 子路径导出在场");
+    ok(shot27.includes('"r27"') && ["01-reports-overview", "02-reports-empty", "03-reports-range", "04-reports-drilldown", "05-reports-six-cards", "06-narrow", "07-error"].every((s) => shot27.includes(s)), "r27 shot.ps1 ValidateSet 与七张矩阵名齐备");
+    ok(shot27.includes('@{ page = "reports";'), "r27 shell baseline 清单含报表 tab");
+    ok(shell27.includes("<!-- R27_HASHES_BEGIN -->") && shell27.includes("<!-- R27_HASHES_END -->"), "r27 shell README 哈希块在场");
+    ok((r27Index.match(/^\| \[?\d\d-[^|\]]*\.png/gm) ?? []).length === 7, "r27 截图索引含七张矩阵行");
+
+    // (F) 截图矩阵与十七 tab 壳基线（SHA 两两互异 + README 哈希逐字一致）
+    const walkPng27 = (dir: string): string[] => {
+      const out: string[] = [];
+      for (const f of readdirSync(dir, { withFileTypes: true })) {
+        const p = `${dir}/${f.name}`;
+        if (f.isDirectory()) out.push(...walkPng27(p));
+        else if (f.name.endsWith(".png")) out.push(p);
+      }
+      return out;
+    };
+    const matrix27 = walkPng27("docs/ui/r27");
+    eq(matrix27.length, 7, "r27 目录恰好 7 张 PNG");
+    eq(new Set(matrix27.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 7, "r27 七张 PNG SHA256 两两互异");
+    const shells27 = walkPng27("docs/ui/shell");
+    eq(shells27.length, 17, "r27 壳基线 17 张 PNG（新增报表 tab）");
+    eq(new Set(shells27.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 17, "r27 壳基线 17 张 SHA256 两两互异");
+    const hash27 = shell27.match(/<!-- R27_HASHES_BEGIN -->([\s\S]*?)<!-- R27_HASHES_END -->/);
+    ok(hash27 !== null, "shell README R27 当前哈希块在场");
+    if (hash27) {
+      const listed27 = [...hash27[1]!.matchAll(/`([a-z-]+)=([0-9A-F]{8})`/g)].map((m) => ({ name: m[1]!, hash: m[2]! }));
+      eq(listed27.length, 17, "shell README R27 块列出 17 张哈希");
+      const mismatches27 = listed27.filter(({ name, hash }) => {
+        const file = shells27.find((p) => p.replace(/\\/g, "/").endsWith(`/${name}-tab-active.png`));
+        return !file || createHash("sha256").update(readFileSync(file)).digest("hex").slice(0, 8).toUpperCase() !== hash;
+      });
+      eq(mismatches27, [], "shell README R27 哈希与实际文件逐字一致");
     }
   }
 

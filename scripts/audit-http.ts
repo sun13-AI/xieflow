@@ -3220,6 +3220,7 @@ async function audit() {
     eq(tree25.json && tree25.json.tree, [], "r25 清理后部门归零");
   }
   await auditR26();
+  await auditR27();
 }
 
 /** r26 通知中心：真事件聚合 / refresh 幂等 / 4xx；由 audit() 末尾调用（不污染 r19 同步基线） */
@@ -3352,6 +3353,120 @@ async function auditR26(): Promise<void> {
     await expectStatus("DELETE", `/api/schedules/${sched26.json.id}`, undefined, 200, "r26 清理日程 -> 200");
     const afterClean26 = await expectStatus("GET", "/api/notifications?pageSize=100", undefined, 200, "r26 清理后列表 -> 200");
     eq((((afterClean26.json && afterClean26.json.notifications) ?? []) as any[]).filter((n: any) => own26.some((o: any) => o.id === n.id)).length, 0, "r26 清理后本轮通知归零");
+  }
+}
+
+/** r27 报表中心：真 HTTP 装配 / 六指标手算核对 / 单项下钻 / 4xx；由 audit() 末尾调用 */
+async function auditR27(): Promise<void> {
+  console.log("\n== Report r27: real HTTP assembly / hand-check / drilldown / 4xx ==");
+  {
+    const h27 = await expectStatus("GET", "/api/health", undefined, 200, "r27 health 真 HTTP 200");
+    eq(h27.json && h27.json.schemaVersion, 19, "r27 health.schemaVersion=19（报表轮无新迁移）");
+    const today27 = new Date().toISOString().slice(0, 10);
+    const q27 = `from=${today27}&to=${today27}`;
+    const stamp27 = Date.now().toString(36);
+    const metrics27 = ["todoCompletion", "scheduleLoad", "boardThroughput", "approvalSla", "assetTurnover", "docOutput"];
+    // 直接按 HTTP 回传的明细手算 value，独立于实现自证算法成立
+    const handCheck27 = (m: any): number => {
+      const rows: any[] = Array.isArray(m && m.detail) ? m.detail : [];
+      if (m.metric === "todoCompletion") return rows.length === 0 ? 0 : Math.round((rows.filter((r) => r.value === 1).length / rows.length) * 100);
+      if (m.metric === "approvalSla") return rows.length === 0 ? 0 : Math.round(rows.reduce((s, r) => s + r.value, 0) / rows.length);
+      return rows.reduce((s, r) => s + r.value, 0);
+    };
+
+    const base27 = await expectStatus("GET", `/api/reports/overview?${q27}`, undefined, 200, "r27 overview 真 HTTP 200");
+    eq(Object.keys(base27.json && base27.json.metrics || {}), metrics27, "r27 overview 六指标一次返回");
+    eq(base27.json && base27.json.metricOrder, metrics27, "r27 KPI 卡顺序与枚举一致");
+    eq(base27.json && base27.json.range, { from: today27, to: today27 }, "r27 overview 回显闭区间");
+    eq(base27.json && base27.json.days, 1, "r27 单日闭区间天数=1");
+    for (const key of metrics27) {
+      eq(base27.json.metrics[key].value, handCheck27(base27.json.metrics[key]), `r27 基线 ${key} 数值与明细手算一致`);
+    }
+
+    // 空范围：六指标全 0 且不崩（只读，不造数）
+    const empty27 = await expectStatus("GET", "/api/reports/overview?from=1900-01-01&to=1900-01-02", undefined, 200, "r27 空范围 overview -> 200");
+    eq(metrics27.map((k) => empty27.json.metrics[k].value), [0, 0, 0, 0, 0, 0], "r27 空范围六指标全 0");
+    eq(metrics27.every((k) => empty27.json.metrics[k].detail.length === 0), true, "r27 空范围六明细为空");
+    const emptyOne27 = await expectStatus("GET", "/api/reports/docOutput?from=1900-01-01&to=1900-01-02", undefined, 200, "r27 空范围单项下钻 -> 200");
+    eq(emptyOne27.json && emptyOne27.json.value, 0, "r27 空范围下钻数值 0");
+
+    // 造已知数据：2 张待办（1 done）/ 今日日程 / 文档 / 物资出库 5 / 看板完成卡 / 审批提交后通过
+    const todoA27 = await expectStatus("POST", "/api/todos", { title: `r27完成待办-${stamp27}`, quadrant: "q1" }, 201, "r27 造完成待办 -> 201");
+    await expectStatus("PATCH", `/api/todos/${todoA27.json.id}`, { status: "done" }, 200, "r27 待办转 done -> 200");
+    eq((await expectStatus("GET", `/api/todos/${todoA27.json.id}`, undefined, 200, "r27 回查 done 待办 -> 200")).json.status, "done", "r27 待办状态真为 done");
+    const todoB27 = await expectStatus("POST", "/api/todos", { title: `r27未完成-${stamp27}`, quadrant: "q2" }, 201, "r27 造未完成待办 -> 201");
+    const sched27 = await expectStatus("POST", "/api/schedules", { title: `r27今日日程-${stamp27}`, date: today27, start: "09:00", end: "10:00" }, 201, "r27 造今日日程 -> 201");
+    eq(sched27.json && sched27.json.date, today27, "r27 日程日期真为今天");
+    const doc27 = await expectStatus("POST", "/api/documents", { title: `r27报表文档-${stamp27}` }, 201, "r27 造报表文档 -> 201");
+    const asset27 = await expectStatus("POST", "/api/assets", {
+      name: `r27周转物资-${stamp27}`, category: "office", quantity: 10, unit: "个", location: "仓", custodian: "保管员",
+    }, 201, "r27 造周转物资 -> 201");
+    const tx27 = await expectStatus("POST", `/api/assets/${asset27.json.id}/transactions`, {
+      type: "out", quantity: 5, operator: "r27审计",
+    }, 201, "r27 造出库 5 件流水 -> 201");
+    eq(tx27.json && tx27.json.quantity, 5, "r27 流水数量真为 5");
+    const project27 = await expectStatus("POST", "/api/projects", { name: `r27报表项目-${stamp27}` }, 201, "r27 造报表项目 -> 201");
+    const cols27 = await expectStatus("GET", `/api/projects/${project27.json.id}/columns`, undefined, 200, "r27 项目默认列 -> 200");
+    const doneCol27 = (cols27.json.columns || []).find((c: any) => c.name === "已完成") || (cols27.json.columns || [])[0];
+    ok(!!doneCol27, "r27 项目含默认列（看板吞吐载体）");
+    const card27 = await expectStatus("POST", `/api/projects/${project27.json.id}/columns/${doneCol27.id}/cards`, {
+      title: `r27完成卡-${stamp27}`, todoId: todoA27.json.id,
+    }, 201, "r27 造关联 done 待办的完成卡 -> 201");
+    eq(card27.json && card27.json.todoId, todoA27.json.id, "r27 卡片真关联 done 待办");
+    const appr27 = await expectStatus("POST", "/api/approvals", {
+      title: `r27审批-${stamp27}`, type: "expense", applicantId: "r27发起人", currentAssignee: "r27审批人",
+    }, 201, "r27 造审批 -> 201");
+    await expectStatus("POST", `/api/approvals/${appr27.json.id}/submit`, { actor: "r27发起人" }, 200, "r27 审批提交 -> 200");
+    await expectStatus("POST", `/api/approvals/${appr27.json.id}/approve`, { actor: "r27审批人" }, 200, "r27 审批通过 -> 200");
+    eq((await expectStatus("GET", `/api/approvals/${appr27.json.id}`, undefined, 200, "r27 回查审批 -> 200")).json.status, "approved", "r27 审批真为 approved");
+
+    // 真 HTTP 装配：所有指标从当前库快照算出，数值与明细手算逐项对上
+    const after27 = await expectStatus("GET", `/api/reports/overview?${q27}`, undefined, 200, "r27 造数后 overview -> 200");
+    for (const key of metrics27) {
+      eq(after27.json.metrics[key].value, handCheck27(after27.json.metrics[key]), `r27 造数后 ${key} 数值与明细手算一致`);
+    }
+    eq(after27.json.metrics.todoCompletion.detail.some((r: any) => r.key === String(todoA27.json.id) && r.value === 1), true, "r27 完成待办出现在完成率明细且记 1");
+    eq(after27.json.metrics.todoCompletion.detail.some((r: any) => r.key === String(todoB27.json.id) && r.value === 0 && r.note === "open"), true, "r27 未完成待办记 0 且标 open");
+    eq(after27.json.metrics.scheduleLoad.detail.some((r: any) => r.key === today27), true, "r27 今日日程进入日程分布明细");
+    eq(after27.json.metrics.docOutput.detail.some((r: any) => r.key === String(doc27.json.id)), true, "r27 新文档进入产出明细");
+    eq(after27.json.metrics.assetTurnover.detail.some((r: any) => r.key === String(asset27.json.id) && r.value === 5), true, "r27 出库 5 件进入周转明细");
+    eq(after27.json.metrics.boardThroughput.detail.some((r: any) => r.key === `column-${doneCol27.id}`), true, "r27 完成卡进入吞吐明细");
+    eq(after27.json.metrics.approvalSla.detail.some((r: any) => r.key === String(appr27.json.id)), true, "r27 已通过审批进入时效明细");
+    eq(after27.json.metrics.scheduleLoad.value, base27.json.metrics.scheduleLoad.value + 1, "r27 日程指标真 +1");
+    eq(after27.json.metrics.docOutput.value, base27.json.metrics.docOutput.value + 1, "r27 文档指标真 +1");
+    eq(after27.json.metrics.assetTurnover.value, base27.json.metrics.assetTurnover.value + 5, "r27 周转指标真 +5");
+    eq(after27.json.metrics.boardThroughput.value, base27.json.metrics.boardThroughput.value + 1, "r27 吞吐指标真 +1");
+
+    // 单项下钻六条：与 overview 同口径同数值
+    for (const key of metrics27) {
+      const one27 = await expectStatus("GET", `/api/reports/${key}?${q27}`, undefined, 200, `r27 下钻 ${key} -> 200`);
+      eq(one27.json && one27.json.value, after27.json.metrics[key].value, `r27 下钻 ${key} 数值与 overview 一致`);
+      eq(one27.json && one27.json.metric, key, `r27 下钻 ${key} 回显指标名`);
+    }
+    const scoped27 = await expectStatus("GET", `/api/reports/docOutput?${q27}&id=${doc27.json.id}`, undefined, 200, "r27 按实体 id 下钻 -> 200");
+    eq(scoped27.json && scoped27.json.detail.length, 1, "r27 实体 id 下钻只回一行");
+    eq(scoped27.json && scoped27.json.entityId, doc27.json.id, "r27 实体 id 回显");
+
+    // 4xx：非法范围 / 未知名 metric / 越权 id / 非法 id；4xx 后原结果零半态
+    await expectStatus("GET", "/api/reports/overview?from=2026-11-08&to=2026-11-07", undefined, 400, "r27 from>to -> 400");
+    await expectStatus("GET", "/api/reports/overview?from=2026-02-30&to=2026-03-01", undefined, 400, "r27 非法日期 -> 400");
+    await expectStatus("GET", "/api/reports/overview?from=2026-11-01", undefined, 400, "r27 单边日期 -> 400");
+    await expectStatus("GET", "/api/reports/hack?" + q27, undefined, 400, "r27 未知名 metric -> 400");
+    await expectStatus("GET", `/api/reports/docOutput?${q27}&id=abc`, undefined, 400, "r27 非法实体 id -> 400");
+    await expectStatus("GET", `/api/reports/docOutput?${q27}&id=99999999`, undefined, 404, "r27 越权实体 id -> 404");
+    const after4xx27 = await expectStatus("GET", `/api/reports/overview?${q27}`, undefined, 200, "r27 4xx 后 overview 仍 200（零半态）");
+    eq(after4xx27.json.metrics.docOutput.value, after27.json.metrics.docOutput.value, "r27 4xx 未改写报表快照");
+
+    // 清理：只删本轮探针，回读六指标恢复基线
+    await expectStatus("DELETE", `/api/approvals/${appr27.json.id}`, undefined, 200, "r27 清理审批 -> 200");
+    await expectStatus("DELETE", `/api/projects/${project27.json.id}`, undefined, 200, "r27 清理项目（级联列/卡） -> 200");
+    await expectStatus("DELETE", `/api/assets/${asset27.json.id}`, undefined, 200, "r27 清理物资 -> 200");
+    await expectStatus("DELETE", `/api/schedules/${sched27.json.id}`, undefined, 200, "r27 清理日程 -> 200");
+    await expectStatus("DELETE", `/api/documents/${doc27.json.id}`, undefined, 200, "r27 清理文档 -> 200");
+    await expectStatus("DELETE", `/api/todos/${todoA27.json.id}`, undefined, 200, "r27 清理完成待办 -> 200");
+    await expectStatus("DELETE", `/api/todos/${todoB27.json.id}`, undefined, 200, "r27 清理未完成待办 -> 200");
+    const clean27 = await expectStatus("GET", `/api/reports/overview?${q27}`, undefined, 200, "r27 清理后 overview -> 200");
+    eq(metrics27.map((k) => clean27.json.metrics[k].value), metrics27.map((k) => base27.json.metrics[k].value), "r27 清理后六指标逐项恢复基线");
   }
 }
 

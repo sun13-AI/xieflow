@@ -2,6 +2,17 @@
 
 > 宪法见设计包 AGENTS.md；轮次规则见 RUNBOOK.md（均在 D:\work\好东西\xieflow-design\）。
 
+### 2026-11-20 · r27 研发（yanfa-r27 · M10 后功能补强：报表中心 / 跨模块数据看板）
+- 交付：`packages/shared/reports.ts` 六指标纯函数（computeTodoCompletion / computeScheduleLoad / computeBoardThroughput / computeApprovalSla / computeAssetTurnover / computeDocOutput + assembleReport / parseReportRange / reportWindow / selectReportMetric），api/web 零算法分支；无新依赖、无 schema 迁移（只读既有表）
+- api：`GET /api/reports/overview?from=&to=` 六指标一次返回 + `GET /api/reports/:metric?from=&to=[&id=]` 单项下钻（未知名 metric 400 / 越权 id 404 / 非法范围 400）
+- web：新增第十七 tab「报表」（六张 KPI 卡：数值 + 环比 + CSS 迷你条；明细表点卡切换；近 7/30/90 天 + 自定义范围；`?metric=&from=&to=` 深链 reload 不丢），十七 tab 壳基线同批重拍
+- 断言：e2e 2237→**2335（+98）** · audit 1809→**1904（+95）**，无一条删改；typecheck 5 包；`pnpm run test:all` exit 0；CI smoke 正则保持 `(2|…|19)`；README 速查行/双节/r27 矩阵索引/壳 R27 哈希块逐字同步
+- **变异红相 1 组**：`computeTodoCompletion` 完成率分子 `done`→`done+1` 改坏 → e2e 6 红 / audit 2 红；逐字节还原（SHA `9B4A4659…D4455`）双套件全绿
+- 「用户第一次用」全链路：造数据 → 看报表 → 切时间范围 → 点 KPI 下钻 → reload 保持（详见 r27 yanfa 报告）
+- 截图：`docs/ui/r27/` 7 张 + 十七 tab 壳基线同批重拍；7/7、17/17 SHA256 互异，矩阵↔壳重叠 0，全库 275 PNG / 273 互异（同态组仅 r4 已披露 2 组），逐张 `read_image` 目验
+- 危险区：未 push / 未打 tag / 未发版 / 未改 CI release 配置；仓库 `data/xieflow.db` 只读（截图/审计走 scratch 库）；全程 headless、服务收净、PowerShell 新段全 ASCII、零 token
+- 报告：`docs/feedback/2026-11-20-r27-yanfa.md`（三态纪律 + 自曝节 + 变异红相 + 全链路证据）
+
 ### 2026-11-20 · r26 研发（yanfa-r26 · M10 后功能补强：通知中心 / 站内消息聚合）
 - 交付：schema v18→v19（notifications 八列 + 四索引）；`packages/shared/notifications.ts` 五件套（buildNotification / shouldNotify / notificationSummary / queryNotifications / notificationTargetTab + collectNotificationCandidates），api/web 零算法分支
 - api：notifications CRUD + 未读过滤/分页 + `POST /:id/read` + `/read-all` + `/refresh`（幂等）+ `/summary`；同步 409 事件旁路落一条 `sync_conflict` 通知，不破坏 r19 零半态
@@ -200,7 +211,7 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r24 | M10 后·组织成员接入审批/物资（向后兼容） | ✅已发版（首轮双通过；向后兼容 64/64 + 变异红相独立复现） | v0.0.30 | e2e 2041 · audit 1667 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r25 | M10 后·第三轮遗留清理（shell 哈希块/审批 actorMemberId/文档口径） | ✅已发版（首轮双通过；P3 actorMemberId 真修 35/35） | v0.0.31 | e2e 2096 · audit 1723 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r26 | M10 后·通知中心（站内消息聚合） | ✅已发版（初验 waizhuan 打回 P2 通知不定位→返工#1 deep-link refId→UI 打回零图证→返工#2 补 09 图→双终审通过） | v0.0.32 | e2e 2237 · audit 1809 | 通过（waizhuan）+ UI 终审通过（U1/U2/U3 全零） |
-| r27 | M10 后·报表中心（跨模块数据看板） | 🔨规划中 | — | — | — |
+| r27 | M10 后·报表中心（跨模块数据看板） | ✅已实现（待 waizhuan/ui 复验；研发未发版） | — | e2e 2335 · audit 1904 | 待双 VERDICT |
 
 ## 🏁 项目总账（2026-11-19 · M10 收官）
 

@@ -14,6 +14,7 @@
 // r20：+ 顶栏在线圆点 / 离线队列徽标 / 立即同步 + PWA 离线缓存 + ≤600px 底部导航（无新 tab）。
 // r23：+ 组织 tab（部门树 + 人员目录），壳基线扩为十五 tab。
 // r26：+ 通知 tab（站内消息聚合 + 顶栏未读徽标），壳基线扩为十六 tab。
+// r27：+ 报表 tab（跨模块 KPI 看板），壳基线扩为十七 tab。
 import SyncCard from "./SyncCard";
 import OfflineStatus from "./OfflineStatus";
 // 截图状态真实存在：加载中 / 空数据 / 正常 / 错误 / 窄屏（?narrow=1 显式钉态）
@@ -39,6 +40,7 @@ import AssetsPage from "./AssetsPage";
 import UnitTasksPage from "./UnitTasksPage";
 import OrgPage from "./OrgPage";
 import NotificationsPage from "./NotificationsPage";
+import ReportsPage from "./ReportsPage";
 import { LoginPage, RegisterPage } from "./AuthPages";
 import {
   AUTH_CLEARED_EVENT,
@@ -59,7 +61,7 @@ type LoadState =
   | { phase: "error"; message: string }
   | { phase: "ready"; settings: AppSetting[]; schemaVersion: number; todaySchedules: Schedule[]; todos: Todo[] };
 
-type PageTab = "home" | "todos" | "schedules" | "projects" | "board" | "bases" | "docs" | "chat" | "knowledge" | "mindmap" | "whiteboard" | "approval" | "assets" | "unit-tasks" | "org" | "notifications";
+type PageTab = "home" | "todos" | "schedules" | "projects" | "board" | "bases" | "docs" | "chat" | "knowledge" | "mindmap" | "whiteboard" | "approval" | "assets" | "unit-tasks" | "org" | "notifications" | "reports";
 
 /** 健康检查 + 今日日程（工作台卡片数据源；日程查询失败不阻塞工作台） */
 async function fetchHealth(): Promise<{
@@ -191,7 +193,9 @@ export default function App() {
                                 ? "org"
                                 : page === "notifications"
                                   ? "notifications"
-                                  : "home";
+                                  : page === "reports"
+                                    ? "reports"
+                                    : "home";
   });
   // r26 返工#1：通知跳转把目标 tab 与 refId 定位参数写进地址栏，reload 后仍定位同一实体
   function navigateFromNotification(target: string, params: Readonly<Record<string, string>> = {}): void {
@@ -310,7 +314,7 @@ export default function App() {
   const todoById = new Map(state.phase === "ready" ? state.todos.map((t) => [t.id, t]) : []);
 
   return (
-    <main className={tab === "bases" || tab === "docs" || tab === "chat" || tab === "knowledge" || tab === "mindmap" || tab === "whiteboard" || tab === "approval" || tab === "assets" || tab === "unit-tasks" || tab === "org" || tab === "notifications" ? "shell shell-wide" : "shell"}>
+    <main className={tab === "bases" || tab === "docs" || tab === "chat" || tab === "knowledge" || tab === "mindmap" || tab === "whiteboard" || tab === "approval" || tab === "assets" || tab === "unit-tasks" || tab === "org" || tab === "notifications" || tab === "reports" ? "shell shell-wide" : "shell"}>
       <header className="topbar">
         <span className="logo">协流 XieFlow</span>
         <nav className="tabs" data-state="tabs">
@@ -445,13 +449,21 @@ export default function App() {
               <span className="notif-badge" data-state="notif-badge" aria-label="未读通知">{shownUnread}</span>
             )}
           </button>
+          <button
+            type="button"
+            className={`tab ${tab === "reports" ? "tab-active" : ""}`}
+            data-tab="reports"
+            onClick={() => setTab("reports")}
+          >
+            报表
+          </button>
           <span className="topbar-notif" data-state="notif-badge-global">未读 {shownUnread}</span>
         </nav>
         <div className="tabs-more-wrap" data-state="tabs-more" data-more-visible={moreVisible ? "1" : "0"}>
           <span className="tabs-more-fade" aria-hidden="true" />
           <button type="button" className="tabs-more" aria-label="更多导航" onClick={toggleNav}>更多 ›</button>
         </div>
-        <span className="badge">r26 · 通知中心（站内消息聚合）</span>
+        <span className="badge">r27 · 报表中心（跨模块数据看板）</span>
         <OfflineStatus />
         <button type="button" className="nav-toggle" data-state="nav-toggle" aria-label="展开导航" onClick={toggleNav}>☰</button>
         <span className="auth-controls" data-state="auth-controls">
@@ -493,6 +505,8 @@ export default function App() {
         <OrgPage />
       ) : tab === "notifications" ? (
         <NotificationsPage onNavigate={(target, params) => navigateFromNotification(target, params)} />
+      ) : tab === "reports" ? (
+        <ReportsPage />
       ) : (
         <>
           {state.phase === "loading" && (

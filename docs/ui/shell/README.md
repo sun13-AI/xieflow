@@ -1,4 +1,4 @@
-# docs/ui/shell · 十六 tab 壳激活态基线（r4 返工 #1 B 固化；r17 起十四 tab，r23 扩十五，r26 扩十六并同批重拍）
+# docs/ui/shell · 十七 tab 壳激活态基线（r4 返工 #1 B 固化；r17 起十四 tab，r23 扩十五，r26 扩十六，r27 扩十七并同批重拍）
 
 > r2 U1-1（工作台）→ r3 U1-2（待办）→ r4 U1-1（工作台+待办+日程三页全漏）——
 > 「壳变更 → 继承页 tab 激活证据断档」三轮连漏后，ui-reviewer 建议固化为 shot.ps1
@@ -27,7 +27,9 @@
 > 因钉态数据时序差异改变），逐名哈希在下方历史行如实对照，不宣称「逐位全异」。
 > **r26 新增第十六 tab「通知」**：`?page=notifications` 聚合站内消息 + 顶栏未读徽标，补 `notifications-tab-active.png`；
 > 徽章推进 r26「通知中心（站内消息聚合）」+ schema v19 → **十六张同批重拍**，与 r25 十五张同名文件逐位全异。
-> 窄屏 390/488px 形态见 `docs/ui/r22/`、`docs/ui/r23/06-narrow.png`、`docs/ui/r24/06-narrow.png`、`docs/ui/r25/06-narrow.png` 与 `docs/ui/r26/06-narrow.png`。
+> **r27 新增第十七 tab「报表」**：`?page=reports` 跨模块 KPI 看板（六卡 + 环比 + 迷你条 + 明细下钻），补 `reports-tab-active.png`；
+> 徽章推进 r27「报表中心（跨模块数据看板）」→ **十七张同批重拍**，与 r26 十六张逐位全异。
+> 窄屏 390/488px 形态见 `docs/ui/r22/`、`docs/ui/r23/06-narrow.png`、`docs/ui/r24/06-narrow.png`、`docs/ui/r25/06-narrow.png`、`docs/ui/r26/06-narrow.png` 与 `docs/ui/r27/06-narrow.png`。
 
 | 文件 | 形态 | 对应断言 |
 |---|---|---|
@@ -47,6 +49,7 @@
 | unit-tasks-tab-active.png | 单位任务激活（?page=unit-tasks；真实 0 条任务态 + 「＋ 新建任务」入口 + 空树引导 + r23 徽章） | audit「r17 清理后任务归零」；e2e「空任务列表装配为空树」 |
 | org-tab-active.png | **组织激活（r23 新增）**（?page=org；真实 0 部门 0 人员空态 + 部门树面板 + 人员卡片面板 + 新建部门/人员入口 + r23 徽章） | audit「r23 GET /api/org/tree -> 200 且 tree=[] / members=[]」；e2e「r23 部门树 / 搜索 / schema v16」 |
 | notifications-tab-active.png | **通知激活（r26 新增）**（?page=notifications；零通知空态 + 六类筛选 + 计数口径图例 + 十六药丸壳 + r26 徽章） | e2e「r26 通知 tab / deep-link seam」；audit「GET /api/notifications 空列表」 |
+| reports-tab-active.png | **报表激活（r27 新增）**（?page=reports；六张 KPI 卡 + 时间范围 + 明细空态 + 十七药丸壳 + r27 徽章） | e2e「r27 十七 tab 类型含报表页 / 报表页消费 shared 口径」；audit「GET /api/reports/overview 空库六指标全 0」 |
 
 ## r25 哈希自查（十五张互异，历史块；当前文件见下方 R26 块）
 
@@ -57,7 +60,7 @@
 `assets=90166EF8` · `unit-tasks=2A81BA59` · `org=870B5A43` —— **15/15 互异**。
 <!-- R25_HASHES_END -->
 
-## r26 哈希自查（十六张互异，与当前文件逐字一致；R25 块作为历史保留）
+## r26 哈希自查（十六张互异，历史块；当前文件见下方 R27 块）
 
 <!-- R26_HASHES_BEGIN -->
 `workbench=9709D035` · `todos=6CFF1969` · `schedules=16204696` · `projects=A509274E` ·
@@ -66,6 +69,18 @@
 `assets=E7A3F5CC` · `unit-tasks=8FDA145D` · `org=FBB3C5CA` · `notifications=1983938C`
 —— **16/16 互异**。
 <!-- R26_HASHES_END -->
+
+## r27 哈希自查（十七张互异，与当前文件逐字一致；R26 块作为历史保留）
+
+<!-- R27_HASHES_BEGIN -->
+`workbench=0881BB79` · `todos=0EB05F7B` · `schedules=72A450E6` · `projects=304317A6` ·
+`board=7F79DBD1` · `bases=09653EB2` · `docs=1C60DD8C` · `chat=BD47C6FA` ·
+`knowledge=6812E127` · `mindmap=183426BE` · `whiteboard=18C516D4` · `approval=6B45A8D6` ·
+`assets=D010C64F` · `unit-tasks=0B3869B9` · `org=1C14209A` · `notifications=B15EF500` ·
+`reports=BFC9BDD2` —— **17/17 互异**。
+<!-- R27_HASHES_END -->
+
+> e2e「shell README R27 哈希与实际文件逐字一致」逐张复算 SHA256 锁定本表；r27 新增第十七 tab「报表」。
 
 > e2e「shell README R26 哈希与实际文件逐字一致」逐张复算 SHA256 锁定本表；r26 新增第十六 tab「通知」。
 
@@ -98,10 +113,10 @@
 
 ## 机制说明
 
-- 拍摄入口：`scripts/shot.ps1` 的 `Invoke-ShellBaseline`（r4 返工 #1 加入；r8 由 6 扩 7，r10 扩 8，r12 扩 9，r14 扩 10，r15 扩 11，r16 扩 12，r17 扩 14；r18~r22 数量不变仍 14；**r23 扩 15，r26 扩 16**）。
-- 触发条件：`-Round r4` 及以后的 `shots` / `all` 动作（r1~r3 历史轮不回拍）；r21 因未改渲染层沿用 r20 字节，r22 补拍闭合口径，r23 因新增 tab 全量重拍，r25 因渲染层改动全量重拍，r26 与 r26 返工 #1 均因通知/日程/审批渲染层改动全量重拍。
+- 拍摄入口：`scripts/shot.ps1` 的 `Invoke-ShellBaseline`（r4 返工 #1 加入；r8 由 6 扩 7，r10 扩 8，r12 扩 9，r14 扩 10，r15 扩 11，r16 扩 12，r17 扩 14；r18~r22 数量不变仍 14；**r23 扩 15，r26 扩 16，r27 扩 17**）。
+- 触发条件：`-Round r4` 及以后的 `shots` / `all` 动作（r1~r3 历史轮不回拍）；r21 因未改渲染层沿用 r20 字节，r22 补拍闭合口径，r23 因新增 tab 全量重拍，r25 因渲染层改动全量重拍，r26 与 r26 返工 #1 均因通知/日程/审批渲染层改动全量重拍，r27 因新增报表 tab 与徽章推进全量重拍。
 - 落盘：本目录，文件名 `<tab>-tab-active.png`（与 App.tsx PageTab 一一对应；新增/改名 tab 时须同步脚本内 $tabs 清单）。
 - 认证页为独立路由、同步卡在工作台内、更多入口为底栏布局件，三者均不进 `$tabs`；「组织」是真 tab，r23 起进基线。
 - 同态说明：壳基线各张与各轮页面矩阵均不同字节；全库唯一残留同态组在 r4 目录内部
-  （`r4/01 = r4/16` = `9E5C0C23`、`r4/05 = r4/13` = `8397A028`），如实注记；**全库 267 PNG / 265 互异**（r26 返工 #2 只补 `r26/09-notif-deeplink-target.png`，壳 16 张未重拍），返工 #1 / #2 均零新增同态组。
+  （`r4/01 = r4/16` = `9E5C0C23`、`r4/05 = r4/13` = `8397A028`），如实注记；**全库 275 PNG / 273 互异**（r27 新增 7 张矩阵 + 1 张壳文件，其余 16 壳为替换同路径不增总数），r26 返工 / r27 均零新增同态组。
 - `mindmap-tab-active` 与 `docs/ui/r14/` 矩阵 02/03/04 分形：0 张导图空态 / Markdown 编辑态 / 树视图态 / 折叠态，四态互异。

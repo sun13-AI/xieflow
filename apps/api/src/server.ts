@@ -108,6 +108,49 @@ import {
   notificationDeepLinkParams,
   collectNotificationCandidates,
 } from "@xieflow/shared/notifications";
+// r27：报表中心——所有算法/时间范围/环比口径只在 shared/reports，路由层零分支
+import {
+  parseReportRange,
+  assembleReport,
+  assertValidReportMetric,
+  filterReportDetail,
+  type ReportSource,
+} from "@xieflow/shared/reports";
+
+/** r27：只读装配当前库全部来源数据（六指标同一快照）；不写任何业务数据 */
+function collectReportSource(store: XieFlowDb): ReportSource {
+  const projects = store.listProjects();
+  const boardColumns: { id: number; name: string }[] = [];
+  const boardCards: NonNullable<ReportSource["boardCards"]>[number][] = [];
+  for (const project of projects) {
+    for (const column of store.listBoardColumns(project.id)) {
+      boardColumns.push({ id: column.id, name: column.name });
+      for (const card of store.listBoardCards(column.id)) {
+        boardCards.push({ id: card.id, title: card.title, columnId: card.columnId, todoId: card.todoId, updatedAt: card.updatedAt });
+      }
+    }
+  }
+  const approvals = store.listApprovals();
+  const approvalSteps = approvals.flatMap((a) => store.listApprovalSteps(a.id).map((s) => ({
+    id: s.id, approvalId: s.approvalId, action: s.action, actedAt: s.actedAt,
+  })));
+  return {
+    todos: store.listTodos().map((t) => ({ id: t.id, title: t.title, status: t.status, createdAt: t.createdAt, updatedAt: t.updatedAt })),
+    schedules: store.listSchedules().map((s) => ({ id: s.id, title: s.title, date: s.date, start: s.start })),
+    boardColumns,
+    boardCards,
+    approvals,
+    approvalSteps,
+    assetTransactions: store.listAssetTransactions(),
+    documents: store.listDocuments(),
+  };
+}
+
+/** 报表查询参数只读装配：非法范围由 shared parseReportRange 抛 ValidationError -> 400 */
+function reportRangeFromQuery(query: unknown): { from: string; to: string } {
+  const q = query as { from?: unknown; to?: unknown };
+  return parseReportRange(q.from, q.to);
+}
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = join(__dirname, "..", "..", "..", "data");
@@ -3286,6 +3329,35 @@ app.delete("/api/notifications/:id", async (req, reply) => {
     const id = parseId((req.params as { id: string }).id);
     if (!requireDb().deleteNotification(id)) return reply.code(404).send({ error: `通知不存在：${id}` });
     return { deleted: true, id };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+/** r27 报表总览：六类指标一次返回；from/to 闭区间，缺省最近 30 天 */
+app.get("/api/reports/overview", async (req, reply) => {
+  try {
+    const range = reportRangeFromQuery(req.query);
+    return assembleReport(collectReportSource(requireDb()), range);
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+/** r27 单项下钻：/api/reports/:metric?from=&to=[&id=]；未知 metric -> 400，越权 id -> 404 */
+app.get("/api/reports/:metric", async (req, reply) => {
+  try {
+    const params = req.params as { metric: string };
+    assertValidReportMetric(params.metric);
+    const range = reportRangeFromQuery(req.query);
+    const overview = assembleReport(collectReportSource(requireDb()), range);
+    const result = overview.metrics[params.metric as keyof typeof overview.metrics];
+    const rawId = (req.query as { id?: unknown }).id;
+    if (rawId === undefined || rawId === null || rawId === "") return result;
+    const id = parseId(String(rawId));
+    const detail = filterReportDetail(result, id);
+    if (detail.length === 0) return reply.code(404).send({ error: `报表实体不存在：${id}` });
+    return { ...result, detail, entityId: id, range: overview.range };
   } catch (err) {
     return toErrorReply(err, reply);
   }
