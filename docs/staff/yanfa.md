@@ -32,3 +32,4 @@
 | r25 | 2026-11-19 | 第三轮清理 | P3 actorMemberId 真修（v18 actionCount）+ shell R25 当前块/R23R24 对照 + U3 三项 | e2e 2096/audit 1723，变异红相 8+7 红 |
 | r26 | 2026-11-20 | 通知中心+双重返工 | schema v19 + shared/notifications + 16 tab；返工#1 deep-link refId 定位，返工#2 补 09 图证 | e2e 2237/audit 1809，双 VERDICT 闭环 |
 | r27 | 2026-11-20 | 报表中心 | schema 无迁移 + shared/reports 十函数 + 17 tab 六 KPI 卡；首轮截图登录页坑自曝并废片重拍 | e2e 2335/audit 1904，变异红相完成率 |
+| r28 | 2026-11-20 | 会议管理+返工 | schema v20 三表 + shared/meetings 冲突检测 + 18 tab；返工#1 建室自动选中/深链回显 | e2e 2460/audit 2004，变异红相 2 组 |
