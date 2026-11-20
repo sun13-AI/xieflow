@@ -238,7 +238,7 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r32 | M10 后·文档打印导出增强（HTML 打印版 + Word 兼容） | ✅已发版（首轮双通过；Word COM 真开 + XSS 五字符转义 + 零依赖） | v0.0.38 | e2e 2766 · audit 2185 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r33 | M10 后·全局搜索（跨模块统一检索） | ✅已发版（首轮双通过；跨八源只读检索 + 变异红相 + deep-link 直达） | v0.0.39 | e2e 2849 · audit 2262 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r34 | M10 后·任务依赖与阻塞关系（待办前置） | ✅已发版（首轮双通过；依赖守卫 40/40 + 既有状态机零回归） | v0.0.40 | e2e 2961 · audit 2324 | 通过（waizhuan）+ UI 通过（阻断岗） |
-| r35 | M10 后·第十三轮（待定切片） | 🔨规划中 | — | — | — |
+| r35 | M10 后·日历 ICS 导出与订阅（标准 iCalendar） | 🔨规划中 | — | — | — |
 
 ## 🏁 项目总账（2026-11-19 · M10 收官）
 
@@ -792,6 +792,22 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
   4. 双 VERDICT（waizhuan + ui 阻断岗）通过
 - 前置：r33 已发版（v0.0.39）✅
 - 明确边界：只做 finish-to-start 依赖，不做甘特图/时间约束（超范围）；零新依赖、零 token
+
+### r35 · 日历 ICS 导出与订阅（标准 iCalendar，M10 后功能补强）
+- 目标：日程页数据可导出为标准 .ics（Outlook/Google Calendar/Apple 日历可导入）+ 提供订阅 URL（只读 token-free 的本地 feeds）
+- 交付清单：
+  1. ICS 引擎集中 packages/shared/ics.ts：escapeIcsText（文本转义 , ; \ 换行）、formatIcsDate（UTC `YYYYMMDDTHHMMSSZ`）、buildIcsCalendar(schedules, meta)（VCALENDAR/VEVENT 完整头、UID 稳定、DTSTART/DTEND/SUMMARY/DESCRIPTION/LOCATION）、parseIcsCalendar(ics)（回读解析，验证往返）——api/web 零算法分支
+  2. api：GET /api/schedules/export.ics?from=&to=（时间范围过滤，content-type text/calendar）、GET /api/todos/due.ics（待办截止日作为 VEVENT）、GET /api/feeds/:key.ics（订阅 key=用户本地随机串，存 settings，非密钥文件）
+  3. web：日程页加「导出 .ics」按钮 + 订阅设置卡（生成/复制订阅 URL）+ 导入 .ics 预览（解析后确认写入）
+  4. 断言：e2e ≥+35（转义/日期格式/往返/VEVENT 字段/范围过滤/导入预览）、audit ≥+25（4xx：非法范围/越权 key/坏 ICS）
+  5. 截图 ≥7：ICS 导出菜单/落盘佐证/订阅卡/导入预览/导入成功/窄屏/错误态
+- 验收标准：
+  1. 全量绿：e2e ≥2996、audit ≥2349，README 双节同步（精简版三处）
+  2. **标准兼容**：waizhuan 造含中文/逗号/换行/引号的日程→导出 .ics→用独立解析器（或 Outlook/Excel COM 等价）真打开验证不乱码不丢字段；导出→导入往返逐字段相等
+  3. **零新依赖**：手写 ICS 编解码，package.json 零变动
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r34 已发版（v0.0.40）✅
+- 明确边界：订阅 key 是本地随机串（存 settings），不是密钥/token（宪法危险区：不写密钥文件）；不接外部日历服务；零 token
 
 ## 历史轮次（r1~r2 已收档，见下方记账区）
 
