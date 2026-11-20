@@ -535,6 +535,19 @@ export const MIGRATIONS: Migration[] = [
       `CREATE INDEX IF NOT EXISTS idx_fields_table ON fields (table_id)`,
     ],
   },
+  {
+    version: 23,
+    name: "r34 · todo_dependencies 表（任务依赖与阻塞关系：finish-to-start 前置）",
+    up: [
+      `CREATE TABLE IF NOT EXISTS todo_dependencies (
+        todo_id INTEGER NOT NULL REFERENCES todos(id) ON DELETE CASCADE,
+        depends_on_todo_id INTEGER NOT NULL REFERENCES todos(id) ON DELETE CASCADE,
+        UNIQUE (todo_id, depends_on_todo_id)
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_todo_dependencies_todo ON todo_dependencies (todo_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_todo_dependencies_depends ON todo_dependencies (depends_on_todo_id)`,
+    ],
+  },
 ];
 
 /** 当前 schema 版本（与 shared 的 SCHEMA_VERSION 保持一致，e2e 会断言二者相等） */

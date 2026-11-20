@@ -55,7 +55,7 @@ param(
   [Parameter(Position = 0)]
   [ValidateSet("up", "shots", "down", "status", "all")]
   [string]$Action = "status",
-  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r26", "r27", "r28", "r29", "r30", "r31", "r32", "r33")]
+  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r26", "r27", "r28", "r29", "r30", "r31", "r32", "r33", "r34")]
   [string]$Round = "r1",
   [Parameter()]
   [string]$Shot = ""
@@ -1022,7 +1022,21 @@ function Invoke-Shots {
     }
   }
 
-  if ($Round -eq "r33") {
+  if ($Round -eq "r34") {
+    # r34: task dependency matrix. Seven deterministic ?shot= pins over the real
+    # TodosPage dependency UI: empty / add / blocked list / satisfied / cycle
+    # error / narrow / 409 blocked error. Real values are locked by e2e + HTTP audit.
+    $r34Base = "http://127.0.0.1:$WebPort/?page=todos"
+    $shots = @(
+      @{ name = "01-dep-empty";       url = "$r34Base&shot=dep-empty";        width = 1280; height = 900 },
+      @{ name = "02-dep-add";         url = "$r34Base&shot=dep-add";          width = 1280; height = 900 },
+      @{ name = "03-dep-blocked-list"; url = "$r34Base&shot=dep-blocked-list"; width = 1280; height = 900 },
+      @{ name = "04-dep-satisfied";   url = "$r34Base&shot=dep-satisfied";    width = 1280; height = 900 },
+      @{ name = "05-dep-cycle-error"; url = "$r34Base&shot=dep-cycle-error";  width = 1280; height = 900 },
+      @{ name = "06-dep-narrow";      url = "$r34Base&shot=dep-narrow&narrow=1"; width = 488; height = 1100 },
+      @{ name = "07-dep-error";       url = "$r34Base&shot=dep-error";        width = 1280; height = 900 }
+    )
+  } elseif ($Round -eq "r33") {
     # r33: top-bar global search matrix. Seven deterministic ?shot= pins over the real
     # component: empty / typing / single-type / multi-type / keyboard / narrow / real-4xx error.
     $r33Base = "http://127.0.0.1:$WebPort/?page=home"

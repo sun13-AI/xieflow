@@ -157,7 +157,7 @@ async function audit() {
     eq(h.json && h.json.ok, true, "health.ok = true");
     // r4 起动态对表：health.schemaVersion 必须等于迁移队列最高版本（不再硬编码 2/3，
     // r3 v0.0.6 CI 红教训——静态硬编码在每轮迁移后必过期）
-    eq(h.json && h.json.schemaVersion, 22, "health.schemaVersion = 18（r25 迁移后）");
+    eq(h.json && h.json.schemaVersion, 23, "health.schemaVersion = 18（r25 迁移后）");
     const s = await req("GET", "/api/settings");
     eq(s.status, 200, "GET /api/settings -> 200");
     ok(Array.isArray(s.json && s.json.settings), "settings 返回数组");
@@ -254,7 +254,7 @@ async function audit() {
   {
     // health 探针反映 schema v8（r4 起迁移后动态推进）
     const h3 = await req("GET", "/api/health");
-    eq(h3.json && h3.json.schemaVersion, 22, "health.schemaVersion = 18（r25 迁移后复核）");
+    eq(h3.json && h3.json.schemaVersion, 23, "health.schemaVersion = 18（r25 迁移后复核）");
 
     const r = await expectStatus(
       "POST",
@@ -2630,7 +2630,7 @@ async function audit() {
     const st0 = await expectStatus("GET", "/api/sync/status", undefined, 200, "r19 GET status -> 200");
     eq(st0.json && st0.json.total, 0, "r19 初始无实体版本");
     eq(st0.json && st0.json.lastChangeId, 0, "r19 初始 lastChangeId=0");
-    eq(st0.json && st0.json.schemaVersion, 22, "r19 status 回带 schema v18（r25 推进）");
+    eq(st0.json && st0.json.schemaVersion, 23, "r19 status 回带 schema v18（r25 推进）");
     const ch0 = await expectStatus("GET", "/api/sync/changes?since=0&limit=50", undefined, 200, "r19 GET changes 空 -> 200");
     eq(ch0.json && ch0.json.count, 0, "r19 初始变更日志为空");
     eq(ch0.json && ch0.json.changes, [], "r19 初始 changes 数组为空");
@@ -2851,7 +2851,7 @@ async function audit() {
     // health：真 HTTP 200 + 真读库语义
     const h = await expectStatus("GET", DEPLOY_PATHS.health, undefined, 200, "r21 GET 契约健康路径 -> 200");
     eq(h.json && h.json.ok, true, "r21 health.ok=true");
-    eq(h.json && h.json.schemaVersion, 22, "r21 health.schemaVersion=18（部署版本一致）");
+    eq(h.json && h.json.schemaVersion, 23, "r21 health.schemaVersion=18（部署版本一致）");
     ok(isServerMode(h.json && h.json.mode), "r21 health.mode 为 local|remote 之一（契约模式合法）");
 
     // mode：模式探针公开可达，回显一致
@@ -2906,7 +2906,7 @@ async function audit() {
   console.log("\n== Org r23: departments / members / tree / search / 4xx ==");
   {
     const h23 = await expectStatus("GET", "/api/health", undefined, 200, "r23 health 真 HTTP 200");
-    eq(h23.json && h23.json.schemaVersion, 22, "r23 health.schemaVersion=18（迁移真生效）");
+    eq(h23.json && h23.json.schemaVersion, 23, "r23 health.schemaVersion=18（迁移真生效）");
     const tree0 = await expectStatus("GET", "/api/org/tree", undefined, 200, "r23 空组织树 -> 200");
     eq(tree0.json && tree0.json.tree, [], "r23 空组织树 tree=[]");
     eq(tree0.json && tree0.json.departments, [], "r23 空组织树 departments=[]");
@@ -2997,7 +2997,7 @@ async function audit() {
   console.log("\n== Org r24: member_id in approvals / assets / usage / 4xx ==");
   {
     const h24 = await expectStatus("GET", "/api/health", undefined, 200, "r24 health 真 HTTP 200");
-    eq(h24.json && h24.json.schemaVersion, 22, "r24 health.schemaVersion=18（迁移真生效）");
+    eq(h24.json && h24.json.schemaVersion, 23, "r24 health.schemaVersion=18（迁移真生效）");
 
     const dept = await expectStatus("POST", "/api/departments", { name: "r24审计研发中心" }, 201, "r24 建部门 -> 201");
     const alice = await expectStatus("POST", "/api/members", {
@@ -3135,7 +3135,7 @@ async function audit() {
   console.log("\n== Approval r25: actorMemberId / linked member / action usage ==");
   {
     const h25 = await expectStatus("GET", "/api/health", undefined, 200, "r25 health 真 HTTP 200");
-    eq(h25.json && h25.json.schemaVersion, 22, "r25 health.schemaVersion=18（v18 迁移真生效）");
+    eq(h25.json && h25.json.schemaVersion, 23, "r25 health.schemaVersion=18（v18 迁移真生效）");
 
     const uname25 = `r25.actor.${Date.now()}`;
     const user25 = await expectStatus("POST", "/api/auth/register", { username: uname25, password: "Passw0rd!" }, 201, "r25 注册登录用户 -> 201");
@@ -3230,7 +3230,7 @@ async function auditR26(): Promise<void> {
   console.log("\n== Notification r26: real event aggregation / idempotent refresh / 4xx ==");
   {
     const h26 = await expectStatus("GET", "/api/health", undefined, 200, "r26 health 真 HTTP 200");
-    eq(h26.json && h26.json.schemaVersion, 22, "r26 health.schemaVersion=19（v19 迁移真生效）");
+    eq(h26.json && h26.json.schemaVersion, 23, "r26 health.schemaVersion=19（v19 迁移真生效）");
     const today = new Date();
     const pad26 = (n: number): string => String(n).padStart(2, "0");
     const todayStr26 = `${today.getFullYear()}-${pad26(today.getMonth() + 1)}-${pad26(today.getDate())}`;
@@ -3363,7 +3363,7 @@ async function auditR27(): Promise<void> {
   console.log("\n== Report r27: real HTTP assembly / hand-check / drilldown / 4xx ==");
   {
     const h27 = await expectStatus("GET", "/api/health", undefined, 200, "r27 health 真 HTTP 200");
-    eq(h27.json && h27.json.schemaVersion, 22, "r27 health.schemaVersion=19（报表轮无新迁移）");
+    eq(h27.json && h27.json.schemaVersion, 23, "r27 health.schemaVersion=19（报表轮无新迁移）");
     const today27 = new Date().toISOString().slice(0, 10);
     const q27 = `from=${today27}&to=${today27}`;
     const stamp27 = Date.now().toString(36);
@@ -3477,7 +3477,7 @@ async function auditR28(): Promise<void> {
   console.log("\n== Meeting r28: real HTTP booking / 409 conflicts / attendees / 4xx ==");
   {
     const h28 = await expectStatus("GET", "/api/health", undefined, 200, "r28 health 真 HTTP 200");
-    eq(h28.json && h28.json.schemaVersion, 22, "r28 health.schemaVersion=20（v20 迁移真生效）");
+    eq(h28.json && h28.json.schemaVersion, 23, "r28 health.schemaVersion=20（v20 迁移真生效）");
     const stamp28 = Date.now().toString(36);
     const day28 = "2027-02-18";
 
@@ -3660,7 +3660,7 @@ async function auditR28(): Promise<void> {
   {
     const stamp29 = `r29-${Date.now()}`;
     const h29 = await expectStatus("GET", "/api/health", undefined, 200, "r29 health -> 200");
-    eq(h29.json && h29.json.schemaVersion, 22, "r29 health.schemaVersion=21（v21 迁移真生效）");
+    eq(h29.json && h29.json.schemaVersion, 23, "r29 health.schemaVersion=21（v21 迁移真生效）");
 
     const docA29 = await expectStatus("POST", "/api/documents", { title: `${stamp29}-A` }, 201, "r29 建探针文档 A -> 201");
     const docB29 = await expectStatus("POST", "/api/documents", { title: `${stamp29}-B` }, 201, "r29 建探针文档 B -> 201");
@@ -3737,7 +3737,7 @@ async function auditR28(): Promise<void> {
   {
     const stamp30 = `r30-${Date.now()}`;
     const h30 = await expectStatus("GET", "/api/health", undefined, 200, "r30 health -> 200");
-    eq(h30.json && h30.json.schemaVersion, 22, "r30 health.schemaVersion=22（v22 迁移真生效）");
+    eq(h30.json && h30.json.schemaVersion, 23, "r30 health.schemaVersion=22（v22 迁移真生效）");
 
     const tbl30 = await expectStatus("POST", "/api/tables", { name: `${stamp30}-formula` }, 201, "r30 建表 -> 201");
     const tid30 = tbl30.json.id;
@@ -4054,6 +4054,85 @@ async function auditR28(): Promise<void> {
       await expectStatus("DELETE", `/api/todos/${todo33.json.id}`, undefined, 200, "r33 清理待办探针 -> 200");
       const afterClean33 = await expectStatus("GET", `/api/search?q=${encodeURIComponent(KEY)}`, undefined, 200, "r33 清理后回查 -> 200");
       eq(afterClean33.json.results, [], "r33 探针归零·同关键词复搜零结果");
+    }
+
+    // ---- r34：任务依赖（真 HTTP：CRUD / 409 阻塞链 / 4xx / 级联归零） ----
+    {
+      const KEY = `R34HTTP${Date.now()}`;
+      const a = await expectStatus("POST", "/api/todos", { title: `${KEY} A`, quadrant: "q1" }, 201, "r34 建 A -> 201");
+      const b = await expectStatus("POST", "/api/todos", { title: `${KEY} B`, quadrant: "q1" }, 201, "r34 建 B -> 201");
+      const c = await expectStatus("POST", "/api/todos", { title: `${KEY} C`, quadrant: "q1" }, 201, "r34 建 C -> 201");
+      const A = a.json.id; const B = b.json.id; const C = c.json.id;
+      ok(A && B && C, "r34 三待办探针 id 真回带");
+
+      const empty34 = await expectStatus("GET", `/api/todos/${B}/dependencies`, undefined, 200, "r34 空前置列表 -> 200");
+      eq(empty34.json.dependencies, [], "r34 空前置·列表为空");
+      eq(empty34.json.blockedBy, 0, "r34 空前置·blockedBy=0");
+      eq(empty34.json.canStart, true, "r34 空前置·canStart=true");
+
+      const postAB = await expectStatus("POST", `/api/todos/${B}/dependencies`, { dependsOnTodoId: A }, 201, "r34 POST B 依赖 A -> 201");
+      eq(postAB.json.todoId, B, "r34 POST·回带 todoId");
+      eq(postAB.json.dependsOnTodoId, A, "r34 POST·回带 dependsOnTodoId");
+      await expectStatus("POST", `/api/todos/${C}/dependencies`, { dependsOnTodoId: B }, 201, "r34 POST C 依赖 B -> 201");
+
+      const listB = await expectStatus("GET", `/api/todos/${B}/dependencies`, undefined, 200, "r34 GET B 前置 -> 200");
+      eq(listB.json.dependencies.length, 1, "r34 GET·B 恰一条前置");
+      eq(listB.json.dependencies[0].dependsOnTodoId, A, "r34 GET·前置 id 精确");
+      eq(listB.json.dependencies[0].title, `${KEY} A`, "r34 GET·前置回带标题");
+      eq(listB.json.dependencies[0].status, "open", "r34 GET·前置回带状态 open");
+      eq(listB.json.blockedBy, 1, "r34 GET·B 被 1 项阻塞");
+
+      const blocked34 = await expectStatus("GET", "/api/todos/blocked", undefined, 200, "r34 GET /api/todos/blocked -> 200");
+      const myBlocked = blocked34.json.blocked.filter((x: any) => [A, B, C].includes(x.todoId));
+      eq(myBlocked.map((x: any) => x.todoId).sort(), [B, C].sort(), "r34 阻塞列表·A 未完成时 B/C 均阻塞");
+      ok(blocked34.json.count >= 2, "r34 阻塞列表·count 与 blocked 条数一致口径");
+
+      // 灵魂：A→B→C 链，A 未完成时 B/C 转 done 必须 409
+      const blockB = await expectStatus("PATCH", `/api/todos/${B}`, { status: "done" }, 409, "r34 409·B 前置未完成转 done 被拒");
+      eq(blockB.json.code, "DEPENDENCY_BLOCKED", "r34 409·回带阻塞码");
+      eq(blockB.json.blockers, [A], "r34 409·回带未完成前置 id");
+      const stillOpenB = await expectStatus("GET", `/api/todos/${B}`, undefined, 200, "r34 409 后回查 B -> 200");
+      eq(stillOpenB.json.status, "open", "r34 409·零半态：B 仍是 open");
+      await expectStatus("PATCH", `/api/todos/${C}`, { status: "done" }, 409, "r34 409·C 前置未完成转 done 被拒");
+
+      // 4xx：自依赖 / 环 / 重复依赖 / 越权 id / 非法 body
+      const self34 = await expectStatus("POST", `/api/todos/${B}/dependencies`, { dependsOnTodoId: B }, 400, "r34 4xx·自依赖 -> 400");
+      ok(String(self34.json.error).includes("自身"), "r34 4xx·自依赖文案明确");
+      const cycle34 = await expectStatus("POST", `/api/todos/${A}/dependencies`, { dependsOnTodoId: C }, 400, "r34 4xx·A→B→C 后加 C→A 成环 -> 400");
+      ok(String(cycle34.json.error).includes("循环依赖"), "r34 4xx·环文案明确");
+      ok(Array.isArray(cycle34.json.cycle), "r34 4xx·环响应回带 cycle 路径供 UI 红条");
+      const dup34 = await expectStatus("POST", `/api/todos/${B}/dependencies`, { dependsOnTodoId: A }, 409, "r34 4xx·重复依赖 -> 409");
+      eq(dup34.json.code, "DUPLICATE_DEPENDENCY", "r34 4xx·重复依赖码在场");
+      await expectStatus("POST", `/api/todos/999999/dependencies`, { dependsOnTodoId: A }, 404, "r34 4xx·越权 todoId -> 404");
+      await expectStatus("POST", `/api/todos/${B}/dependencies`, { dependsOnTodoId: 999999 }, 404, "r34 4xx·越权前置 id -> 404");
+      await expectStatus("POST", `/api/todos/${B}/dependencies`, { dependsOnTodoId: 0 }, 400, "r34 4xx·dependsOnTodoId=0 -> 400");
+      await expectStatus("POST", `/api/todos/${B}/dependencies`, {}, 400, "r34 4xx·缺 dependsOnTodoId -> 400");
+      await expectStatus("GET", `/api/todos/${B}/dependencies`, undefined, 200, "r34 4xx 后回查 B 前置 -> 200");
+      const after4xx = await expectStatus("GET", `/api/todos/${B}/dependencies`, undefined, 200, "r34 4xx·零半态回查前置仍一条");
+      eq(after4xx.json.dependencies.length, 1, "r34 4xx·零半态：未多写依赖");
+
+      // 解锁闭环：A done -> B 可 done -> C 可 done
+      await expectStatus("PATCH", `/api/todos/${A}`, { status: "done" }, 200, "r34 A 无前置 -> done 200");
+      const blockedAfterA = await expectStatus("GET", "/api/todos/blocked", undefined, 200, "r34 A done 后回查阻塞 -> 200");
+      eq(blockedAfterA.json.blocked.filter((x: any) => x.todoId === B).length, 0, "r34 A done 后 B 解锁");
+      eq(blockedAfterA.json.blocked.filter((x: any) => x.todoId === C).length, 1, "r34 A done 后 C 仍阻塞（B 未完成）");
+      await expectStatus("PATCH", `/api/todos/${B}`, { status: "done" }, 200, "r34 A done 后 B -> done 200");
+      const listBAfter = await expectStatus("GET", `/api/todos/${B}/dependencies`, undefined, 200, "r34 B done 后回查前置 -> 200");
+      eq(listBAfter.json.dependencies[0].status, "done", "r34 B done 后前置状态回带 done");
+      eq(listBAfter.json.canStart, true, "r34 B done 后 canStart=true");
+      await expectStatus("PATCH", `/api/todos/${C}`, { status: "done" }, 200, "r34 B done 后 C -> done 200");
+      const blockedAll = await expectStatus("GET", "/api/todos/blocked", undefined, 200, "r34 全链完成后回查阻塞 -> 200");
+      eq(blockedAll.json.blocked.filter((x: any) => [A, B, C].includes(x.todoId)).length, 0, "r34 全链完成后零阻塞");
+
+      // 移除与级联：DELETE 前置 -> 列表清零；删 A -> B 侧依赖 CASCADE 清
+      await expectStatus("DELETE", `/api/todos/${C}/dependencies/${B}`, undefined, 200, "r34 DELETE 前置 -> 200");
+      eq((await expectStatus("GET", `/api/todos/${C}/dependencies`, undefined, 200, "r34 删除后回查 C 前置 -> 200")).json.dependencies.length, 0, "r34 删除前置后列表清零");
+      await expectStatus("DELETE", `/api/todos/${A}`, undefined, 200, "r34 删 A -> 200（级联清 B 侧依赖）");
+      eq((await expectStatus("GET", `/api/todos/${B}/dependencies`, undefined, 200, "r34 级联后回查 B 前置 -> 200")).json.dependencies.length, 0, "r34 级联·删前置实体后依赖行清零");
+      await expectStatus("DELETE", `/api/todos/${B}`, undefined, 200, "r34 清理 B -> 200");
+      await expectStatus("DELETE", `/api/todos/${C}`, undefined, 200, "r34 清理 C -> 200");
+      const finalBlocked = await expectStatus("GET", "/api/todos/blocked", undefined, 200, "r34 清理后回查阻塞 -> 200");
+      eq(finalBlocked.json.blocked.filter((x: any) => [A, B, C].includes(x.todoId)).length, 0, "r34 探针归零·阻塞列表不含已删探针");
     }
 }
 

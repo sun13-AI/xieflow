@@ -13,7 +13,7 @@ pnpm install
 powershell -File scripts\start.ps1 start   # api:8787 + web:5173
 powershell -File scripts\start.ps1 stop
 # 开发模式：pnpm dev:api / pnpm dev:web
-pnpm run test:all    # typecheck + e2e（2849 断言）+ HTTP 审计（2262 断言）
+pnpm run test:all    # typecheck + e2e（2961 断言）+ HTTP 审计（2324 断言）
 ```
 
 - 打包：`pnpm run pack`（免安装目录 `release/xieflow-portable/`，双击 `start.cmd` 即用）/ `pnpm run dist`（setup zip）；均单端口 8080，数据落目录内 `data/`
@@ -26,18 +26,18 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 
 ## 界面与测试对照
 
-按宪法第一条：**界面更新必须带截图证据（每次，无例外）**，截图与实现同一提交。当前轮 r33 全局搜索（7 张 + 十八 tab 壳基线）：
+按宪法第一条：**界面更新必须带截图证据（每次，无例外）**，截图与实现同一提交。当前轮 r34 任务依赖与阻塞关系（7 张 + 十八 tab 壳基线）：
 
 | 截图 | 形态 | 对应断言 |
 |---|---|---|
-| [01-search-empty.png](docs/ui/r33/01-search-empty.png) | 顶栏搜索框空态 | e2e「顶栏全局搜索框在场」「空查询零结果」 |
-| [02-search-typing.png](docs/ui/r33/02-search-typing.png) | 输入中命中高亮 | e2e「大小写不敏感命中」 |
-| [03-search-single.png](docs/ui/r33/03-search-single.png) | 单类型结果 | audit「types 过滤」 |
-| [04-search-multi.png](docs/ui/r33/04-search-multi.png) | 跨 4 源结果 + 分数 | audit「跨源八类探针」「标题命中优先」 |
-| [05-search-keyboard.png](docs/ui/r33/05-search-keyboard.png) | 键盘选中高亮 | e2e「键盘上下选在场」 |
-| [06-search-narrow.png](docs/ui/r33/06-search-narrow.png) | 488px 窄屏下拉 | 截图 seam + SHA 自查 |
-| [07-search-error.png](docs/ui/r33/07-search-error.png) | 真 4xx 空 q | audit「空 q -> 400」 |
-| [shell/](docs/ui/shell/README.md) | 十八 tab 壳基线（r33 同批重拍） | e2e「shell README R33 哈希逐字一致」 |
+| [01-dep-empty.png](docs/ui/r34/01-dep-empty.png) | 前置任务空态 | e2e「前置任务面板 seam 在场」 |
+| [02-dep-add.png](docs/ui/r34/02-dep-add.png) | 已添加前置 + 状态徽标 | audit「POST 依赖 201 / GET 回带状态」 |
+| [03-dep-blocked-list.png](docs/ui/r34/03-dep-blocked-list.png) | 列表阻塞态「被 N 项阻塞」 | audit「A 未完成 B/C 均阻塞」 |
+| [04-dep-satisfied.png](docs/ui/r34/04-dep-satisfied.png) | A done 后前置满足 | audit「A done 后 B 解锁」 |
+| [05-dep-cycle-error.png](docs/ui/r34/05-dep-cycle-error.png) | 循环依赖红条 | audit「环 -> 400 + cycle 路径」 |
+| [06-dep-narrow.png](docs/ui/r34/06-dep-narrow.png) | 488px 窄屏阻塞列表 | 截图 seam + SHA 自查 |
+| [07-dep-error.png](docs/ui/r34/07-dep-error.png) | 真 409 阻塞错误条 | audit「409 DEPENDENCY_BLOCKED」 |
+| [shell/](docs/ui/shell/README.md) | 十八 tab 壳基线（r34 同批重拍） | e2e「shell README R34 哈希逐字一致」 |
 
 **历史逐轮截图索引（r1~r32 全量、逐张对照断言）见 [README 归档](docs/README-ARCHIVE.md) 与 [docs/ui/](docs/ui/) 各轮 README**；矩阵 SHA256 互异、同态组仅 r4 已披露 2 组。
 
@@ -45,7 +45,7 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 
 ### 断言规模（每轮更新，下降 = 回归 = 冻结发版）
 
-- **当前 r33**：e2e **2849**（服务离线口径；api 在线 +1）· HTTP audit **2262** · typecheck 5 包全绿；**无一条断言被删**，仅期望值/标签随行为推进。
+- **当前 r34**：e2e **2961**（服务离线口径；api 在线 +1）· HTTP audit **2324** · typecheck 5 包全绿；**无一条断言被删**，仅期望值/标签随行为推进。
 - 纪律：断言只涨不缩；禁自洽占位；关键行为做变异红相留痕（改坏实现 → 断言变红 → 逐字节还原全绿）。
 - **逐轮规模变化（r1~r32 的完整记账）见 [README 归档](docs/README-ARCHIVE.md)**；CI smoke 正则随 schema 版本同步至 v22；CI 三平台 verify + tag 触发 Release。
 

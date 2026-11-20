@@ -250,6 +250,50 @@ body {
 .pill-done { background: #e6f4e5; color: var(--success); }
 .pill-archived { background: var(--bg); color: var(--ink-2); }
 
+/* r34：任务依赖与阻塞态 */
+.blocked-pill {
+  font-size: 11px;
+  border-radius: 999px;
+  padding: 1px 8px;
+  margin-left: 6px;
+  background: #fee2e2;
+  color: #b91c1c;
+  font-weight: 600;
+}
+.satisfied-pill {
+  font-size: 11px;
+  border-radius: 999px;
+  padding: 1px 8px;
+  margin-left: 6px;
+  background: #ecfdf5;
+  color: #047857;
+}
+.dep-action-error, .dep-cycle-error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin: 8px 0;
+  font-size: 13px;
+}
+.dep-panel {
+  border-top: 1px dashed var(--border);
+  padding-top: 8px;
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: #fbfcfe;
+  border-radius: 6px;
+  padding: 8px;
+}
+.dep-panel-head { font-size: 12px; font-weight: 600; color: var(--ink-2); }
+.dep-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.dep-list li { display: flex; align-items: center; gap: 6px; font-size: 12px; flex-wrap: wrap; }
+.dep-candidates { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12px; }
+.dep-candidate { white-space: nowrap; }
+
 .todo-due {
   font-size: 12px;
   color: var(--ink-2);

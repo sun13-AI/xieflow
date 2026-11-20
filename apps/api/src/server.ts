@@ -146,6 +146,13 @@ import {
   type SearchSourceType,
   type SearchSourceInput,
 } from "@xieflow/shared/globalSearch";
+// r34：任务依赖——判定/环/拓扑/阻塞链唯一口径在 shared/todoDeps，路由层零算法分支
+import {
+  blockersForTodo,
+  DependencyBlockedError,
+  DependencyCycleError,
+  DuplicateDependencyError,
+} from "@xieflow/shared/todoDeps";
 
 /** r27：只读装配当前库全部来源数据（六指标同一快照）；不写任何业务数据 */
 function collectReportSource(store: XieFlowDb): ReportSource {
@@ -371,6 +378,32 @@ function toErrorReply(err: unknown, reply: FastifyReply): FastifyReply {
   return reply.code(400).send({ error: message });
 }
 
+/** r34 依赖错误映射：阻塞/重复 → 409，环/自依赖 → 400，越权 id → 404；其余沿用统一映射 */
+function dependencyErrorReply(err: unknown, reply: FastifyReply): FastifyReply {
+  if (err instanceof DependencyBlockedError) {
+    return reply.code(409).send({
+      error: err.message,
+      code: "DEPENDENCY_BLOCKED",
+      todoId: err.todoId,
+      blockers: [...err.blockers],
+    });
+  }
+  if (err instanceof DuplicateDependencyError) {
+    return reply.code(409).send({ error: err.message, code: "DUPLICATE_DEPENDENCY" });
+  }
+  if (err instanceof DependencyCycleError) {
+    return reply.code(400).send({
+      error: err.message,
+      code: "DEPENDENCY_CYCLE",
+      cycle: [...err.cycle],
+    });
+  }
+  if (err instanceof Error && /待办不存在|前置待办不存在/.test(err.message)) {
+    return reply.code(404).send({ error: err.message });
+  }
+  return toErrorReply(err, reply);
+}
+
 function requireDb(): XieFlowDb {
   if (!db) throw new Error("数据库未连接");
   return db;
@@ -434,6 +467,24 @@ app.get("/api/todos", async () => {
   return { todos, summary: computeTodoSummary(todos) };
 });
 
+/** r34：被阻塞任务列表（静态路由先于 /:id 注册；算法只在 shared） */
+app.get("/api/todos/blocked", async () => {
+  const store = requireDb();
+  const graph = store.dependencyGraph();
+  const byId = new Map(store.listTodos().map((t) => [t.id, t]));
+  return {
+    blocked: graph.blocked.map((b) => ({
+      todoId: b.todoId,
+      title: byId.get(b.todoId)?.title ?? "",
+      blockers: [...b.blockers],
+      chain: [...b.chain],
+      blockedBy: b.blockers.length,
+    })),
+    count: graph.blocked.length,
+    cycle: graph.cycle ? [...graph.cycle] : null,
+  };
+});
+
 app.get("/api/todos/:id", async (req, reply) => {
   try {
     const id = parseId((req.params as { id: string }).id);
@@ -466,7 +517,8 @@ app.patch("/api/todos/:id", async (req, reply) => {
     }
     return store.transitionTodo(id, body.status);
   } catch (err) {
-    return toErrorReply(err, reply);
+    // r34：转 done 时未完成前置抛 DependencyBlockedError → 409（既有 400 语义不变）
+    return dependencyErrorReply(err, reply);
   }
 });
 
@@ -480,6 +532,69 @@ app.delete("/api/todos/:id", async (req, reply) => {
     return { deleted: true };
   } catch (err) {
     return toErrorReply(err, reply);
+  }
+});
+
+// ---- r34：任务依赖（规则全在 shared/todoDeps，本层只做装配与 4xx 映射） ----
+
+interface DependencyBody {
+  dependsOnTodoId?: unknown;
+}
+
+/** GET /api/todos/:id/dependencies —— 前置列表 + 每条状态 + 阻塞摘要 */
+app.get("/api/todos/:id/dependencies", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const store = requireDb();
+    if (!store.getTodo(id)) return reply.code(404).send({ error: `待办不存在：${id}` });
+    const deps = store.listDependenciesOf(id);
+    const todos = store.listTodos();
+    const byId = new Map(todos.map((t) => [t.id, t]));
+    const blockers = blockersForTodo(id, deps, todos);
+    return {
+      todoId: id,
+      dependencies: deps.map((d) => ({
+        ...d,
+        title: byId.get(d.dependsOnTodoId)?.title ?? "",
+        status: byId.get(d.dependsOnTodoId)?.status ?? null,
+      })),
+      blockers,
+      blockedBy: blockers.length,
+      canStart: blockers.length === 0,
+    };
+  } catch (err) {
+    return dependencyErrorReply(err, reply);
+  }
+});
+
+/** POST /api/todos/:id/dependencies —— 添加前置（自依赖/环 400，重复 409，越权 404） */
+app.post("/api/todos/:id/dependencies", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const body = (req.body ?? {}) as DependencyBody;
+    if (body.dependsOnTodoId === undefined || body.dependsOnTodoId === null) {
+      throw new ValidationError("缺少 dependsOnTodoId");
+    }
+    if (typeof body.dependsOnTodoId !== "number") {
+      throw new ValidationError("dependsOnTodoId 必须是正整数");
+    }
+    const dep = requireDb().createTodoDependency(id, body.dependsOnTodoId);
+    return reply.code(201).send(dep);
+  } catch (err) {
+    return dependencyErrorReply(err, reply);
+  }
+});
+
+/** DELETE /api/todos/:id/dependencies/:dependsOnTodoId —— 移除前置（幂等） */
+app.delete("/api/todos/:id/dependencies/:dependsOnTodoId", async (req, reply) => {
+  try {
+    const params = req.params as { id: string; dependsOnTodoId: string };
+    const id = parseId(params.id);
+    const dependsOnTodoId = parseId(params.dependsOnTodoId);
+    const deleted = requireDb().deleteTodoDependency(id, dependsOnTodoId);
+    return { deleted };
+  } catch (err) {
+    return dependencyErrorReply(err, reply);
   }
 });
 

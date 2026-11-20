@@ -233,6 +233,17 @@ import {
   type Notification,
   type NewNotification,
 } from "@xieflow/shared/notifications";
+// r34：任务依赖——判定 / 环检测 / 拓扑阻塞链唯一口径在 shared/todoDeps
+import {
+  assertValidDependency,
+  buildDependencyGraph,
+  blockersForTodo,
+  DuplicateDependencyError,
+  DependencyBlockedError,
+  type TodoDependency,
+  type TodoBlocker,
+  type DependencyGraph,
+} from "@xieflow/shared/todoDeps";
 import { REPEATS_ORDER } from "./repeat-order.js";
 
 export { MIGRATIONS, CURRENT_SCHEMA_VERSION, assertMigrationsConsistent };
@@ -385,6 +396,11 @@ export class XieFlowDb {
     if (!canTransitionTodo(todo.status, to)) {
       throw new Error(`非法状态流转：${todo.status} → ${to}`);
     }
+    // r34 状态机守卫：转 done 必须没有未完成前置（既有状态机语义不变，仅在有依赖时新增拦截）
+    if (to === "done") {
+      const blockers = blockersForTodo(id, this.listTodoDependencies(), this.listTodos());
+      if (blockers.length > 0) throw new DependencyBlockedError(id, blockers);
+    }
     this.db.run("UPDATE todos SET status = ?, updated_at = ? WHERE id = ?", [
       to,
       new Date().toISOString(),
@@ -396,6 +412,73 @@ export class XieFlowDb {
   deleteTodo(id: number): boolean {
     const res = this.db.run("DELETE FROM todos WHERE id = ?", [id]);
     return res.changes > 0;
+  }
+
+  // ---- todo dependencies（r34：finish-to-start 前置 / 阻塞链） ----
+
+  /** 全部依赖对（按 todo_id / depends_on_todo_id 升序，装配确定性） */
+  listTodoDependencies(): TodoDependency[] {
+    const rows = this.db.all(
+      "SELECT todo_id, depends_on_todo_id FROM todo_dependencies ORDER BY todo_id, depends_on_todo_id",
+    );
+    return rows.map((row) => ({
+      todoId: Number((row as { todo_id: unknown }).todo_id),
+      dependsOnTodoId: Number((row as { depends_on_todo_id: unknown }).depends_on_todo_id),
+    }));
+  }
+
+  /** 某待办的直接前置依赖 */
+  listDependenciesOf(todoId: number): TodoDependency[] {
+    const rows = this.db.all(
+      "SELECT todo_id, depends_on_todo_id FROM todo_dependencies WHERE todo_id = ? ORDER BY depends_on_todo_id",
+      [todoId],
+    );
+    return rows.map((row) => ({
+      todoId: Number((row as { todo_id: unknown }).todo_id),
+      dependsOnTodoId: Number((row as { depends_on_todo_id: unknown }).depends_on_todo_id),
+    }));
+  }
+
+  /**
+   * 建立依赖：shared 守卫（非法 id / 自依赖 / 环）先行，实体存在性与重复由本层检查。
+   * 校验全部通过才写一行；任一失败零半态。
+   */
+  createTodoDependency(todoId: number, dependsOnTodoId: number): TodoDependency {
+    const deps = this.listTodoDependencies();
+    assertValidDependency(deps, todoId, dependsOnTodoId);
+    if (this.getTodo(todoId) === null) {
+      throw new Error(`待办不存在：${todoId}`);
+    }
+    if (this.getTodo(dependsOnTodoId) === null) {
+      throw new Error(`前置待办不存在：${dependsOnTodoId}`);
+    }
+    if (deps.some((d) => d.todoId === todoId && d.dependsOnTodoId === dependsOnTodoId)) {
+      throw new DuplicateDependencyError(todoId, dependsOnTodoId);
+    }
+    this.db.run(
+      "INSERT INTO todo_dependencies (todo_id, depends_on_todo_id) VALUES (?, ?)",
+      [todoId, dependsOnTodoId],
+    );
+    return { todoId, dependsOnTodoId };
+  }
+
+  /** 移除一条前置；重复移除返回 false（幂等） */
+  deleteTodoDependency(todoId: number, dependsOnTodoId: number): boolean {
+    const res = this.db.run(
+      "DELETE FROM todo_dependencies WHERE todo_id = ? AND depends_on_todo_id = ?",
+      [todoId, dependsOnTodoId],
+    );
+    return res.changes > 0;
+  }
+
+  /** 被阻塞任务列表（拓扑/阻塞链算法只在 shared，本层只提供数据） */
+  listBlockedTodos(): readonly TodoBlocker[] {
+    return buildDependencyGraph(this.listTodos(), this.listTodoDependencies()).blocked;
+  }
+
+  /** 全量依赖图（api GET /api/todos/blocked 装配用） */
+  dependencyGraph(): DependencyGraph {
+    return buildDependencyGraph(this.listTodos(), this.listTodoDependencies());
   }
 
   // ---- schedules（r3：日程 + 双向联动） ----

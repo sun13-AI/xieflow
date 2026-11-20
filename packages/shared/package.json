@@ -13,7 +13,8 @@
     "./meetings": "./src/meetings.ts",
     "./docHistory": "./src/docHistory.ts",
     "./formula": "./src/formula.ts",
-    "./globalSearch": "./src/globalSearch.ts"
+    "./globalSearch": "./src/globalSearch.ts",
+    "./todoDeps": "./src/todoDeps.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit"

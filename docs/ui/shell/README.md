@@ -145,6 +145,19 @@
 >（r31 新增 3 张矩阵，十八壳为替换同路径不增总数），r31 当时全库 **300 PNG / 298 互异**，同态组仅 r4 已披露 2 组，r31 零新增。
 > e2e「shell README R31 当前哈希块在场」已被 R32 全批重拍取代（本块保留作历史对照）。
 
+## r34 哈希自查（十八张互异，与当前文件逐字一致；R34 当前哈希块，以下 R33 及以下为历史块）
+
+<!-- R34_HASHES_BEGIN -->
+`workbench=38362519` · `todos=80F5F579` · `schedules=6FA8D98E` · `projects=59A544C6` ·
+`board=9EAAE846` · `bases=4E00A2E7` · `docs=61979EBB` · `chat=16107365` ·
+`knowledge=7803BCD0` · `mindmap=A69D7C96` · `whiteboard=E928BFA1` · `approval=B7AE5AB4` ·
+`assets=27C73ED9` · `unit-tasks=6AE20860` · `org=CAEAC3CE` · `notifications=634C1F07` ·
+`reports=A85270CD` · `meetings=B5E9E583` —— **18/18 互异**。
+<!-- R34_HASHES_END -->
+
+> r34 待办页加前置任务面板 / 阻塞态 / 循环红条，18 tab 数量不变但壳因待办页变化全批重拍；
+> 矩阵↔壳重叠 0；全库 320 PNG / 318 互异（+7 = r34 矩阵新增），同态组仅 r4 已披露 2 组。
+
 ## r33 哈希自查（十八张互异，与当前文件逐字一致；R33 当前哈希块，以下 R32 及以下为历史块）
 
 <!-- R33_HASHES_BEGIN -->
