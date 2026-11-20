@@ -511,6 +511,26 @@ import {
   InvalidIcsError,
   ICS_UID_DOMAIN,
 } from "@xieflow/shared/ics";
+// r36：日报/周报自动生成——时间窗过滤 / 段落装配 / 打印版 / 摘要 / 保存守卫唯一口径在 shared/workReports
+import {
+  WORK_REPORT_TYPES,
+  WORK_REPORT_LABELS,
+  isWorkReportType,
+  assertValidWorkReportType,
+  parseWorkReportPeriod,
+  startOfWorkReportWeek,
+  endOfWorkReportWeek,
+  nextWorkReportDate,
+  inWorkReportWindow,
+  collectReportData,
+  reportSummary,
+  buildReportMarkdown,
+  buildReportHtml,
+  escapeWorkReportHtml,
+  assertValidWorkReportSave,
+  type WorkReportSource,
+  type WorkReportPeriod,
+} from "@xieflow/shared/workReports";
 // r29：文档版本历史与回收站——三函数唯一口径在 shared/docHistory
 import {
   nextDocVersion,
@@ -5114,7 +5134,7 @@ try {
     ok(/<SyncCard\s*\/>/.test(appSrc), "r19 工作台设置区渲染多端同步卡");
     ok(!/(^|[^A-Za-z])fetch\s*\(/.test(syncSrc), "r19 同步卡无裸 fetch（统一 apiFetch）");
     ok(/\bapiFetch\b/.test(syncSrc), "r19 同步卡经 apiFetch 发请求（401 清态链路一致）");
-    eq((appSrc.match(/data-tab="/g) ?? []).length, 18, "r28 tab 口径：会议新增第十八 tab（r27 基线 17）");
+    eq((appSrc.match(/data-tab="/g) ?? []).length, 19, "r28 tab 口径：会议新增第十八 tab（r27 基线 17）");
     ok(!/r19 · 多端同步与冲突处理（M9 收官）/.test(appSrc), "r19 旧徽章已由 r20 替换（无残留）");
     ok(/sync-modal/.test(syncSrc) && /data-side="local"/.test(syncSrc) && /data-side="remote"/.test(syncSrc), "r19 冲突弹窗提供本地/远端两个选边按钮");
     ok(/sync-modal-warning/.test(syncSrc) && /不可撤销/.test(syncSrc), "r19 返工#1 选边后果提示前置（写入递增且不可撤销）");
@@ -5257,7 +5277,7 @@ try {
     ok(/overflow-x:\s*hidden/.test(cssSrc), "r20 禁止横向溢出");
     ok(/min-height:\s*44px/.test(cssSrc), "r20 触摸目标 >=44px");
     ok(/bottom-nav|net-status/.test(cssSrc), "r20 底栏/状态条样式在场");
-    eq((appSrc.match(/data-tab="/g) ?? []).length, 18, "r28 口径：会议 tab 计入壳基线共 18（r27 基线 17）");
+    eq((appSrc.match(/data-tab="/g) ?? []).length, 19, "r28 口径：会议 tab 计入壳基线共 19（r27 基线 17）");
     ok(/app\.post\("\/api\/offline\/replay"/.test(serverSrc), "r20 api 提供真重放端点（队列 4xx 由 audit 锁定）");
   }
 
@@ -5333,7 +5353,7 @@ try {
     ok(/data-state="tabs-more"/.test(app22), "r22 更多按钮有稳定 data-state seam（截图/复验可寻址）");
     ok(/tabs-more-fade/.test(css22) && /linear-gradient/.test(css22), "r22 底栏右侧渐隐遮罩在场");
     ok(/html\.nav-open \.tabs-more\s*\{[^}]*display:\s*none/.test(css22), "r22 菜单展开时隐藏更多按钮");
-    ok(/r35 · 日历 ICS 导出与订阅（标准 iCalendar）/.test(app22), "r22 徽章随 r33 推进（旧徽章已替换无残留）");
+    ok(/r36 · 日报与周报自动生成（模板化汇总）/.test(app22), "r22 徽章随 r33 推进（旧徽章已替换无残留）");
 
     // (B) DEPLOY.md 三处补强 / 根 README 脚本清单（真实文档契约）
     const deploy22 = readFileSync("docs/DEPLOY.md", "utf8");
@@ -5347,7 +5367,7 @@ try {
     // (C) shell README 与实际字节逐字一致（14 张哈希 + 全库计数）
     const shellReadme = readFileSync("docs/ui/shell/README.md", "utf8");
     ok(/r25 同批重拍/.test(shellReadme) && /r25 哈希自查/.test(shellReadme), "r25 shell README 整段推进到 r25 口径（r23/r24 历史对照保留）");
-    const hashBlock = shellReadme.match(/<!-- R35_HASHES_BEGIN -->([\s\S]*?)<!-- R35_HASHES_END -->/);
+    const hashBlock = shellReadme.match(/<!-- R36_HASHES_BEGIN -->([\s\S]*?)<!-- R36_HASHES_END -->/);
     const listed = Array.from((hashBlock?.[1] ?? "").matchAll(/([a-z-]+)=([0-9A-F]{8})/g)).map(
       (m) => `${m[1]}=${m[2]}`,
     ).sort();
@@ -5549,7 +5569,7 @@ try {
     const shellReadme = readFileSync("docs/ui/shell/README.md", "utf8");
 
     ok(app.includes('data-tab="org"'), "r23 App.tsx 存在组织 tab 按钮");
-    ok(app.includes("r35 · 日历 ICS 导出与订阅（标准 iCalendar）"), "r23 App.tsx 徽章随 r31 推进");
+    ok(app.includes("r36 · 日报与周报自动生成（模板化汇总）"), "r23 App.tsx 徽章随 r31 推进");
     ok(app.includes('| "notifications" | "reports"'), "r27 App.tsx PageTab 联合类型含 notifications + reports");
     ok(app.includes("<OrgPage />"), "r23 App.tsx 渲染 OrgPage 组件");
     ok(orgPage.includes("buildDepartmentTree") && orgPage.includes("@xieflow/shared/org"), "r23 组织页树装配走 shared/org 纯函数");
@@ -5570,20 +5590,20 @@ try {
     eq(r23Png.length, 7, "r23 目录恰好 7 张 PNG");
     eq(new Set(r23Png.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 7, "r23 七张 PNG SHA256 两两互异");
     const shellPng = walkPng23("docs/ui/shell");
-    eq(shellPng.length, 18, "随 r28 推进：壳基线已扩为 18 张 PNG（新增会议 tab）");
-    eq(new Set(shellPng.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 18, "壳基线 18 张 SHA256 两两互异");
-    const r23HashBlock = shellReadme.match(/<!-- R35_HASHES_BEGIN -->([\s\S]*?)<!-- R35_HASHES_END -->/);
+    eq(shellPng.length, 19, "随 r28 推进：壳基线已扩为 19 张 PNG（新增会议 tab）");
+    eq(new Set(shellPng.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 19, "壳基线 19 张 SHA256 两两互异");
+    const r23HashBlock = shellReadme.match(/<!-- R36_HASHES_BEGIN -->([\s\S]*?)<!-- R36_HASHES_END -->/);
     ok(r23HashBlock !== null, "shell README 含 R32_HASHES 当前自查块（随 r32 推进）");
     if (r23HashBlock) {
       const listed = [...r23HashBlock[1]!.matchAll(/`([a-z-]+)=([0-9A-F]{8})`/g)].map((m) => [m[1], m[2]]);
-      eq(listed.length, 18, "r26 shell README 列出 18 张哈希");
+      eq(listed.length, 19, "r26 shell README 列出 19 张哈希");
       const mismatches = listed.filter(([name, hash]) => {
         const file = shellPng.find((p) => p.replace(/\\/g, "/").endsWith(`/${name}-tab-active.png`));
         return !file || createHash("sha256").update(readFileSync(file)).digest("hex").slice(0, 8).toUpperCase() !== hash;
       });
       eq(mismatches, [], "r26 shell README 18 张哈希与实际文件逐字一致");
     }
-    ok(rootReadme.includes("e2e（3069 断言）+ HTTP 审计（2396 断言）"), "r23 口径随 r24 速查行推进");
+    ok(rootReadme.includes("e2e（3167 断言）+ HTTP 审计（2471 断言）"), "r23 口径随 r24 速查行推进");
     ok(
       ARCHIVE_README.includes("- e2e **2766** 项") && ARCHIVE_README.includes("- HTTP audit **2185** 项") &&
         ARCHIVE_README.includes("### r24 矩阵") && ARCHIVE_README.includes("e2e 1952 → **2041（+89）**"),
@@ -5813,13 +5833,13 @@ try {
     eq(r24Png.length, 7, "r24 目录恰好 7 张 PNG");
     eq(new Set(r24Png.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 7, "r24 七张 PNG SHA256 两两互异");
     const shellPng = walkPng("docs/ui/shell");
-    eq(shellPng.length, 18, "随 r28 推进：壳基线已扩为 18 张 PNG");
-    eq(new Set(shellPng.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 18, "壳基线 18 张 SHA256 两两互异");
-    const hashBlock = shellReadme.match(/<!-- R35_HASHES_BEGIN -->([\s\S]*?)<!-- R35_HASHES_END -->/);
+    eq(shellPng.length, 19, "随 r28 推进：壳基线已扩为 19 张 PNG");
+    eq(new Set(shellPng.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 19, "壳基线 19 张 SHA256 两两互异");
+    const hashBlock = shellReadme.match(/<!-- R36_HASHES_BEGIN -->([\s\S]*?)<!-- R36_HASHES_END -->/);
     ok(hashBlock !== null, "shell README 哈希自查块在场");
     if (hashBlock) {
       const listed = [...hashBlock[1]!.matchAll(/`([a-z-]+)=([0-9A-F]{8})`/g)].map((m) => [m[1], m[2]]);
-      eq(listed.length, 18, "shell README 列出 18 张哈希");
+      eq(listed.length, 19, "shell README 列出 19 张哈希");
       const mismatches = listed.filter(([name, hash]) => {
         const file = shellPng.find((p) => p.replace(/\\/g, "/").endsWith(`/${name}-tab-active.png`));
         return !file || createHash("sha256").update(readFileSync(file)).digest("hex").slice(0, 8).toUpperCase() !== hash;
@@ -5827,7 +5847,7 @@ try {
       eq(mismatches, [], "shell README 18 张哈希与实际文件逐字一致");
     }
     ok((r24Index.match(/^\| \d\d-[^|]*\.png \|/gm) ?? []).length === 7, "r24 截图索引含七张矩阵行");
-    ok(rootReadme.includes("e2e（3069 断言）+ HTTP 审计（2396 断言）"), "r24 根 README 速查行数字同步");
+    ok(rootReadme.includes("e2e（3167 断言）+ HTTP 审计（2471 断言）"), "r24 根 README 速查行数字同步");
     ok(ARCHIVE_README.includes("### r24 矩阵") && ARCHIVE_README.includes("e2e 1952 → **2041（+89）**"), "r24 双节规模与矩阵索引历史行归档后仍同步");
   }
 
@@ -5967,13 +5987,13 @@ try {
     eq(matrix25.length, 7, "r25 目录恰好 7 张 PNG");
     eq(new Set(matrix25.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 7, "r25 七张 PNG SHA256 两两互异");
     const shells25 = walkPng25("docs/ui/shell");
-    eq(shells25.length, 18, "随 r28 推进：壳基线已扩为 18 张 PNG");
-    eq(new Set(shells25.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 18, "壳基线 18 张 SHA256 两两互异");
-    const hash25 = shell25.match(/<!-- R35_HASHES_BEGIN -->([\s\S]*?)<!-- R35_HASHES_END -->/);
+    eq(shells25.length, 19, "随 r28 推进：壳基线已扩为 19 张 PNG");
+    eq(new Set(shells25.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 19, "壳基线 19 张 SHA256 两两互异");
+    const hash25 = shell25.match(/<!-- R36_HASHES_BEGIN -->([\s\S]*?)<!-- R36_HASHES_END -->/);
     ok(hash25 !== null, "shell README R32 当前哈希块在场");
     if (hash25) {
       const listed25 = [...hash25[1]!.matchAll(/`([a-z-]+)=([0-9A-F]{8})`/g)].map((m) => [m[1], m[2]]);
-      eq(listed25.length, 18, "shell README R29 块列出 18 张哈希");
+      eq(listed25.length, 19, "shell README R29 块列出 19 张哈希");
       const mismatches25 = listed25.filter(([name, hash]) => {
         const file = shells25.find((p) => p.replace(/\\/g, "/").endsWith(`/${name}-tab-active.png`));
         return !file || createHash("sha256").update(readFileSync(file)).digest("hex").slice(0, 8).toUpperCase() !== hash;
@@ -5983,7 +6003,7 @@ try {
     ok(shell25.includes("**r23 基线**") && shell25.includes("**r24 基线**"), "shell README 保留 r23/r24 历史对照行");
     ok(shell25.includes("90166EF8") || shell25.includes("物资壳"), "shell README 如实记录物资壳与 r23 同字节事实");
     ok((r25Index.match(/^\| \d\d-[^|]*\.png \|/gm) ?? []).length === 7, "r25 截图索引含七张矩阵行");
-    ok(root25.includes("e2e（3069 断言）+ HTTP 审计（2396 断言）"), "r25 根 README 速查行数字同步");
+    ok(root25.includes("e2e（3167 断言）+ HTTP 审计（2471 断言）"), "r25 根 README 速查行数字同步");
     ok(ARCHIVE_README.includes("### r25 矩阵") && ARCHIVE_README.includes("e2e 2041 → **2096（+55）**"), "r25 双节规模与矩阵索引历史行归档后仍同步");
   }
 
@@ -6212,7 +6232,7 @@ try {
     ok(shot26.includes('"r26"') && ["01-notif-empty", "02-notif-unread", "03-notif-filtered", "04-notif-read", "05-notif-refreshed", "06-narrow", "07-error", "08-notif-badge-decrement"].every((s) => shot26.includes(s)), "r26 shot.ps1 ValidateSet 与八张矩阵名齐备");
     ok(shell26.includes("<!-- R26_HASHES_BEGIN -->") && shell26.includes("<!-- R26_HASHES_END -->"), "r26 shell README 历史哈希块在场（当前块见 R28）");
     ok((r26Index.match(/^\| \[?\d\d-[^|\]]*\.png/gm) ?? []).length === 9, "r26 截图索引含九张矩阵行（返工#2 补 09）");
-    ok(root26.includes("e2e（3069 断言）+ HTTP 审计（2396 断言）"), "返工#1 根 README 速查行数字逐字同步");
+    ok(root26.includes("e2e（3167 断言）+ HTTP 审计（2471 断言）"), "返工#1 根 README 速查行数字逐字同步");
 
     // (J) 截图矩阵与十六 tab 壳基线（SHA 两两互异 + README 哈希逐字一致）
     const walkPng26 = (dir: string): string[] => {
@@ -6228,13 +6248,13 @@ try {
     eq(matrix26.length, 9, "r26 目录恰好 9 张 PNG（返工#2 补 09）");
     eq(new Set(matrix26.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 9, "r26 九张 PNG SHA256 两两互异");
     const shells26 = walkPng26("docs/ui/shell");
-    eq(shells26.length, 18, "随 r28 推进：壳基线 18 张 PNG");
-    eq(new Set(shells26.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 18, "壳基线 18 张 SHA256 两两互异（随 r28 推进）");
-    const hash26 = shell26.match(/<!-- R35_HASHES_BEGIN -->([\s\S]*?)<!-- R35_HASHES_END -->/);
+    eq(shells26.length, 19, "随 r28 推进：壳基线 19 张 PNG");
+    eq(new Set(shells26.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 19, "壳基线 19 张 SHA256 两两互异（随 r28 推进）");
+    const hash26 = shell26.match(/<!-- R36_HASHES_BEGIN -->([\s\S]*?)<!-- R36_HASHES_END -->/);
     ok(hash26 !== null, "shell README R32 当前哈希块在场");
     if (hash26) {
       const listed26 = [...hash26[1]!.matchAll(/`([a-z-]+)=([0-9A-F]{8})`/g)].map((m) => ({ name: m[1]!, hash: m[2]! }));
-      eq(listed26.length, 18, "shell README R29 块列出 18 张哈希");
+      eq(listed26.length, 19, "shell README R29 块列出 19 张哈希");
       const mismatches26 = listed26.filter(({ name, hash }) => {
         const file = shells26.find((p) => p.replace(/\\/g, "/").endsWith(`/${name}-tab-active.png`));
         return !file || createHash("sha256").update(readFileSync(file)).digest("hex").slice(0, 8).toUpperCase() !== hash;
@@ -6419,7 +6439,7 @@ try {
     const r27Index = readFileSync("docs/ui/r27/README.md", "utf8");
     ok(app27.includes('type PageTab = "home"') && app27.includes('| "reports"'), "r27 十七 tab 类型含报表页");
     ok(app27.includes('data-tab="reports"') && />\s*报表\s*</.test(app27), "r27 顶栏报表 tab 在场");
-    ok(app27.includes("r35 · 日历 ICS 导出与订阅（标准 iCalendar）"), "r27 徽章随 r31 推进");
+    ok(app27.includes("r36 · 日报与周报自动生成（模板化汇总）"), "r27 徽章随 r31 推进");
     ok(page27.includes("assembleReport") && page27.includes("REPORT_METRICS"), "r27 报表页消费 shared 唯一口径零算法分支");
     ok(page27.includes("reports-empty") && page27.includes("reports-error") && page27.includes("reports-drill"), "r27 空态/错误态/下钻钉态在场");
     ok(api27.includes('app.get("/api/reports/overview"') && api27.includes('app.get("/api/reports/:metric"'), "r27 两条报表路由在场");
@@ -6444,13 +6464,13 @@ try {
     eq(matrix27.length, 7, "r27 目录恰好 7 张 PNG");
     eq(new Set(matrix27.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 7, "r27 七张 PNG SHA256 两两互异");
     const shells27 = walkPng27("docs/ui/shell");
-    eq(shells27.length, 18, "r28 壳基线 18 张 PNG（新增会议 tab）");
-    eq(new Set(shells27.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 18, "r28 壳基线 18 张 SHA256 两两互异（随 r28 推进）");
-    const hash27 = shell27.match(/<!-- R35_HASHES_BEGIN -->([\s\S]*?)<!-- R35_HASHES_END -->/);
+    eq(shells27.length, 19, "r28 壳基线 19 张 PNG（新增会议 tab）");
+    eq(new Set(shells27.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 19, "r28 壳基线 19 张 SHA256 两两互异（随 r28 推进）");
+    const hash27 = shell27.match(/<!-- R36_HASHES_BEGIN -->([\s\S]*?)<!-- R36_HASHES_END -->/);
     ok(hash27 !== null, "shell README R32 当前哈希块在场");
     if (hash27) {
       const listed27 = [...hash27[1]!.matchAll(/`([a-z-]+)=([0-9A-F]{8})`/g)].map((m) => ({ name: m[1]!, hash: m[2]! }));
-      eq(listed27.length, 18, "shell README R29 块列出 18 张哈希");
+      eq(listed27.length, 19, "shell README R29 块列出 19 张哈希");
       const mismatches27 = listed27.filter(({ name, hash }) => {
         const file = shells27.find((p) => p.replace(/\\/g, "/").endsWith(`/${name}-tab-active.png`));
         return !file || createHash("sha256").update(readFileSync(file)).digest("hex").slice(0, 8).toUpperCase() !== hash;
@@ -6654,7 +6674,7 @@ try {
     const shot28 = readFileSync("scripts/shot.ps1", "utf8");
     const ci28 = readFileSync(".github/workflows/ci.yml", "utf8");
     ok(app28.includes('| "meetings"') && app28.includes('data-tab="meetings"'), "r28 第十八 tab 与顶栏按钮在场");
-    ok(app28.includes("r35 · 日历 ICS 导出与订阅（标准 iCalendar）"), "r28 徽章随 r31 推进");
+    ok(app28.includes("r36 · 日报与周报自动生成（模板化汇总）"), "r28 徽章随 r31 推进");
     ok(page28.includes("meetingAvailability") && page28.includes("formatClockMinutes"), "r28 会议页消费 shared 唯一口径");
     ok(!/startMinutes\s*[<>]|durationMinutes\s*[<>]/.test(page28), "r28 会议页零算法分支（不自行判时段）");
     ok(api28.includes('app.post("/api/meetings"') && api28.includes('app.get("/api/rooms/:id/availability"'), "r28 预约与可用性路由在场");
@@ -6680,15 +6700,15 @@ try {
     eq(matrix28.length, 7, "r28 目录恰好 7 张 PNG");
     eq(new Set(matrix28.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 7, "r28 七张 PNG SHA256 两两互异");
     const shells28 = walkPng28("docs/ui/shell");
-    eq(shells28.length, 18, "r28 壳基线 18 张 PNG（新增会议 tab）");
-    eq(new Set(shells28.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 18, "r28 壳基线 18 张 SHA256 两两互异");
+    eq(shells28.length, 19, "r28 壳基线 19 张 PNG（新增会议 tab）");
+    eq(new Set(shells28.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 19, "r28 壳基线 19 张 SHA256 两两互异");
     ok(r28Index.includes("<!-- R28_HASHES_BEGIN -->") && r28Index.includes("<!-- R28_HASHES_END -->"), "r28 索引哈希自查块在场");
     const shell28 = readFileSync("docs/ui/shell/README.md", "utf8");
-    const hash28 = shell28.match(/<!-- R35_HASHES_BEGIN -->([\s\S]*?)<!-- R35_HASHES_END -->/);
+    const hash28 = shell28.match(/<!-- R36_HASHES_BEGIN -->([\s\S]*?)<!-- R36_HASHES_END -->/);
     ok(hash28 !== null, "shell README R32 当前哈希块在场");
     if (hash28) {
       const listed28 = [...hash28[1]!.matchAll(/`([a-z-]+)=([0-9A-F]{8})`/g)].map((m) => ({ name: m[1]!, hash: m[2]! }));
-      eq(listed28.length, 18, "shell README R29 块列出 18 张哈希");
+      eq(listed28.length, 19, "shell README R29 块列出 19 张哈希");
       const mismatches28 = listed28.filter(({ name, hash }) => {
         const file = shells28.find((p) => p.replace(/\\/g, "/").endsWith(`/${name}-tab-active.png`));
         return !file || createHash("sha256").update(readFileSync(file)).digest("hex").slice(0, 8).toUpperCase() !== hash;
@@ -6828,8 +6848,8 @@ try {
 
     // (F) 渲染层 / API / 脚本 seam：规则集中，18 tab 不变
     const app29 = readFileSync("apps/web/src/App.tsx", "utf8");
-    eq((app29.match(/data-tab="/g) ?? []).length, 18, "r29 本轮不改 tab 数量（仍 18）");
-    ok(app29.includes("r35 · 日历 ICS 导出与订阅（标准 iCalendar）"), "r29 徽章推进到轻量清理轮");
+    eq((app29.match(/data-tab="/g) ?? []).length, 19, "r29 本轮不改 tab 数量（仍 19）");
+    ok(app29.includes("r36 · 日报与周报自动生成（模板化汇总）"), "r29 徽章推进到轻量清理轮");
     const docsPage29 = readFileSync("apps/web/src/DocsPage.tsx", "utf8");
     ok(docsPage29.includes("版本历史") && docsPage29.includes("回收站"), "r29 文档页含版本历史侧栏与回收站入口");
     ok(docsPage29.includes("@xieflow/shared/docHistory"), "r29 文档页消费 shared 唯一口径");
@@ -6862,8 +6882,8 @@ try {
     eq(matrix29.length, 7, "r29 目录恰好 7 张 PNG");
     eq(new Set(matrix29.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 7, "r29 七张 PNG SHA256 两两互异");
     const shells29 = walkPng29("docs/ui/shell");
-    eq(shells29.length, 18, "r29 十八 tab 壳基线 18 张 PNG");
-    eq(new Set(shells29.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 18, "r29 壳基线 18 张 SHA256 两两互异");
+    eq(shells29.length, 19, "r29 十九 tab 壳基线 19 张（随 r36 推进） PNG");
+    eq(new Set(shells29.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 19, "r29 壳基线 19 张 SHA256 两两互异");
     const r29Index = readFileSync("docs/ui/r29/README.md", "utf8");
     ok(r29Index.includes("<!-- R29_HASHES_BEGIN -->") && r29Index.includes("<!-- R29_HASHES_END -->"), "r29 索引哈希自查块在场");
   }
@@ -7092,8 +7112,8 @@ try {
     ok(web30.includes("f.type !== \"formula\""), "r30 公式列只读不进编辑器");
     ok(web30.includes("{单价} * {数量}"), "r30 表达式示例可见于字段面板");
     const app30 = readFileSync("apps/web/src/App.tsx", "utf8");
-    ok(app30.includes("r35 · 日历 ICS 导出与订阅（标准 iCalendar）"), "r30 徽章推进到轻量清理轮");
-    eq((app30.match(/data-tab="/g) ?? []).length, 18, "r30 本轮不改 tab 数量（仍 18）");
+    ok(app30.includes("r36 · 日报与周报自动生成（模板化汇总）"), "r30 徽章推进到轻量清理轮");
+    eq((app30.match(/data-tab="/g) ?? []).length, 19, "r30 本轮不改 tab 数量（仍 19）");
     const sharedPkg30 = readFileSync("packages/shared/package.json", "utf8");
     ok(sharedPkg30.includes('"./formula": "./src/formula.ts"'), "r30 shared/formula 子路径导出在场");
     const schemaSrc30 = readFileSync("packages/db/src/schema.ts", "utf8");
@@ -7126,11 +7146,11 @@ try {
       "r30 七张 PNG SHA256 两两互异",
     );
     const shells30 = walkPng30("docs/ui/shell");
-    eq(shells30.length, 18, "r30 十八 tab 壳基线 18 张 PNG");
+    eq(shells30.length, 19, "r30 十九 tab 壳基线 19 张（随 r36 推进） PNG");
     eq(
       new Set(shells30.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size,
-      18,
-      "r30 壳基线 18 张 SHA256 两两互异",
+      19,
+      "r30 壳基线 19 张 SHA256 两两互异（随 r36 推进）",
     );
     const r30Index = readFileSync("docs/ui/r30/README.md", "utf8");
     ok(r30Index.includes("<!-- R30_HASHES_BEGIN -->") && r30Index.includes("<!-- R30_HASHES_END -->"), "r30 索引哈希自查块在场");
@@ -7305,8 +7325,8 @@ try {
     ok(web32.includes("__xieflowPrintSpy"), "r32 web·headless 打印 spy seam 在场（不弹系统对话框）");
     ok(web32.includes("/print-preview") && web32.includes("/export.doc"), "r32 web·预览与 Word 下载真走 HTTP 导出端点");
     const app32 = readOpt32("apps/web/src/App.tsx");
-    ok(app32.includes("r35 · 日历 ICS 导出与订阅"), "r32 App·轮次徽章推进到 r33");
-    eq((app32.match(/data-tab="/g) ?? []).length, 18, "r32 App·十八 tab 数量不变");
+    ok(app32.includes("r36 · 日报与周报自动生成"), "r32 App·轮次徽章推进到 r33");
+    eq((app32.match(/data-tab="/g) ?? []).length, 19, "r32 App·十九 tab 数量（随 r36 推进）");
     const shot32 = readOpt32("scripts/shot.ps1");
     ok(shot32.includes('"r32"'), "r32 shot.ps1·ValidateSet 纳入 r32");
     for (const name of ["01-export-menu", "02-print-preview", "03-html-landing", "04-word-landing", "05-narrow", "06-error"]) {
@@ -7333,8 +7353,8 @@ try {
     eq(matrix32.length, 6, "r32 截图·矩阵恰好 6 张 PNG");
     eq(new Set(matrix32.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 6, "r32 截图·六张 SHA256 两两互异");
     const shells32 = walkPng32("docs/ui/shell");
-    eq(shells32.length, 18, "r32 截图·十八 tab 壳基线 18 张");
-    eq(new Set(shells32.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 18, "r32 截图·壳基线 18 张 SHA256 互异");
+    eq(shells32.length, 19, "r32 截图·十九 tab 壳基线 19 张（随 r36 推进）");
+    eq(new Set(shells32.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 19, "r32 截图·壳基线 19 张 SHA256 互异");
     const shellSet32 = new Set(shells32.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex")));
     eq(matrix32.filter((p) => shellSet32.has(createHash("sha256").update(readFileSync(p)).digest("hex"))).length, 0, "r32 截图·矩阵与壳基线零重叠");
     const idx32 = readOpt32("docs/ui/r32/README.md");
@@ -7457,8 +7477,8 @@ try {
     ok(/metaKey|ctrlKey/.test(app33) && app33.includes('"k"'), "r33 web·Ctrl/Cmd+K 快捷键在场");
     ok(app33.includes("ArrowDown") && app33.includes("ArrowUp"), "r33 web·键盘上下选在场");
     ok(app33.includes("/api/search") && app33.includes("navigateFromSearch"), "r33 web·搜索走真 HTTP 且点结果走 deep-link 跳转");
-    ok(app33.includes("r35 · 日历 ICS 导出与订阅"), "r33 App·轮次徽章推进到 r33");
-    eq((app33.match(/data-tab="/g) ?? []).length, 18, "r33 App·十八 tab 数量不变（顶栏加搜索框不加 tab）");
+    ok(app33.includes("r36 · 日报与周报自动生成"), "r33 App·轮次徽章推进到 r33");
+    eq((app33.match(/data-tab="/g) ?? []).length, 19, "r33 App·十九 tab 数量（随 r36 推进）（顶栏加搜索框不加 tab）");
     const shot33 = readOpt33("scripts/shot.ps1");
     ok(shot33.includes('"r33"'), "r33 shot.ps1·ValidateSet 纳入 r33");
     for (const name of ["01-search-empty", "02-search-typing", "03-search-single", "04-search-multi", "05-search-keyboard", "06-search-narrow", "07-search-error"]) {
@@ -7479,8 +7499,8 @@ try {
     eq(matrix33.length, 7, "r33 截图·矩阵恰好 7 张 PNG");
     eq(new Set(matrix33.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 7, "r33 截图·七张 SHA256 两两互异");
     const shells33 = walkPng33("docs/ui/shell");
-    eq(shells33.length, 18, "r33 截图·十八 tab 壳基线 18 张");
-    eq(new Set(shells33.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 18, "r33 截图·壳基线 18 张 SHA256 互异");
+    eq(shells33.length, 19, "r33 截图·十九 tab 壳基线 19 张（随 r36 推进）");
+    eq(new Set(shells33.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 19, "r33 截图·壳基线 19 张 SHA256 互异");
     const shellSet33 = new Set(shells33.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex")));
     eq(matrix33.filter((p) => shellSet33.has(createHash("sha256").update(readFileSync(p)).digest("hex"))).length, 0, "r33 截图·矩阵与壳基线零重叠");
     const idx33 = readOpt33("docs/ui/r33/README.md");
@@ -7644,8 +7664,8 @@ try {
     ok(web34.includes("/api/todos/blocked") && web34.includes("/api/todos/"), "r34 web·前置与阻塞走真 HTTP");
     ok(web34.includes('data-action="dep-add"') && web34.includes('data-action="dep-remove"'), "r34 web·添加/移除前置按钮在场");
     const app34 = readFileSync("apps/web/src/App.tsx", "utf8");
-    ok(app34.includes("r35 · 日历 ICS 导出与订阅"), "r34 App·轮次徽章推进到 r34");
-    eq((app34.match(/data-tab="/g) ?? []).length, 18, "r34 App·十八 tab 数量不变");
+    ok(app34.includes("r36 · 日报与周报自动生成"), "r34 App·轮次徽章推进到 r34");
+    eq((app34.match(/data-tab="/g) ?? []).length, 19, "r34 App·十九 tab 数量（随 r36 推进）");
     const ci34 = readFileSync(".github/workflows/ci.yml", "utf8");
     ok(ci34.includes("|22|23)"), "r34 CI·HTTP smoke 正则升 v23");
     const shot34 = readFileSync("scripts/shot.ps1", "utf8");
@@ -7668,8 +7688,8 @@ try {
     eq(matrix34.length, 7, "r34 截图·矩阵恰好 7 张 PNG");
     eq(new Set(matrix34.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 7, "r34 截图·七张 SHA256 两两互异");
     const shells34 = walkPng34("docs/ui/shell");
-    eq(shells34.length, 18, "r34 截图·十八 tab 壳基线 18 张");
-    eq(new Set(shells34.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 18, "r34 截图·壳基线 18 张 SHA256 互异");
+    eq(shells34.length, 19, "r34 截图·十九 tab 壳基线 19 张（随 r36 推进）");
+    eq(new Set(shells34.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 19, "r34 截图·壳基线 19 张 SHA256 互异");
     const shellSet34 = new Set(shells34.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex")));
     eq(matrix34.filter((p) => shellSet34.has(createHash("sha256").update(readFileSync(p)).digest("hex"))).length, 0, "r34 截图·矩阵与壳基线零重叠");
     const docIdx34 = readFileSync("docs/ui/r34/README.md", "utf8");
@@ -7677,8 +7697,8 @@ try {
     const shellIdx34 = readFileSync("docs/ui/shell/README.md", "utf8");
     ok(shellIdx34.includes("<!-- R34_HASHES_BEGIN -->") && shellIdx34.includes("R34 当前哈希块"), "r34 壳索引·R34 当前哈希块在场");
     const rootR34 = readFileSync("README.md", "utf8");
-    ok(rootR34.includes("docs/ui/r35/01-ics-export-menu.png") && rootR34.includes("docs/ui/shell/README.md"), "r34 历史 seam·根 README 当前矩阵索引已同步");
-    ok(rootR34.includes("当前 r35"), "r34 历史 seam·根 README 断言规模节推进到当前轮");
+    ok(rootR34.includes("docs/ui/r36/01-wr-empty.png") && rootR34.includes("docs/ui/shell/README.md"), "r34 历史 seam·根 README 当前矩阵索引已同步");
+    ok(rootR34.includes("当前 r36"), "r34 历史 seam·根 README 断言规模节推进到当前轮");
   }
 
   // 71. r35：日历 ICS 导出与订阅（TDD：断言先于实现落地，宪法四条）
@@ -7815,8 +7835,8 @@ try {
     ok(web35.includes("/api/schedules/import.ics") && web35.includes("/api/feeds/key"), "r35 web·预览与订阅走真 HTTP");
     ok(!/function\s+escapeIcsText|function\s+parseIcsCalendar/.test(web35), "r35 web·零 ICS 算法分支");
     const app35 = readFileSync("apps/web/src/App.tsx", "utf8");
-    ok(app35.includes("r35 · 日历 ICS 导出与订阅"), "r35 App·轮次徽章推进到 r35");
-    eq((app35.match(/data-tab="/g) ?? []).length, 18, "r35 App·十八 tab 数量不变");
+    ok(app35.includes("r36 · 日报与周报自动生成"), "r35 App·轮次徽章推进到 r35");
+    eq((app35.match(/data-tab="/g) ?? []).length, 19, "r35 App·十九 tab 数量（随 r36 推进）");
     const shot35 = readFileSync("scripts/shot.ps1", "utf8");
     ok(shot35.includes('"r35"'), "r35 shot.ps1·ValidateSet 纳入 r35");
     for (const name of ["01-ics-export-menu", "02-ics-saved", "03-ics-feed-card", "04-ics-import-preview", "05-ics-import-success", "06-ics-narrow", "07-ics-error"]) {
@@ -7826,8 +7846,8 @@ try {
     ok(!/"(ical|node-ical|ical.js|rrule|luxon|dayjs|date-fns)"/.test(pkg35), "r35 零新依赖·清单无 ICS/日期库");
     eq(SCHEMA_VERSION, 23, "r35 schema·本轮无 schema 变化（v23）");
     const rootR35 = readFileSync("README.md", "utf8");
-    ok(rootR35.includes("docs/ui/r35/01-ics-export-menu.png") && rootR35.includes("docs/ui/shell/README.md"), "r35 根 README·矩阵索引已同步（三处之一）");
-    ok(rootR35.includes("当前 r35"), "r35 根 README·断言规模节推进到当前 r35");
+    ok(rootR35.includes("docs/ui/r36/01-wr-empty.png") && rootR35.includes("docs/ui/shell/README.md"), "r35 根 README·矩阵索引已同步（三处之一）");
+    ok(rootR35.includes("当前 r36"), "r35 根 README·断言规模节推进到当前 r36");
 
     // (G) 截图矩阵 + 十八 tab 壳（同批重拍，哈希互异）
     const walkPng35 = (dir: string): string[] => {
@@ -7843,14 +7863,203 @@ try {
     eq(matrix35.length, 7, "r35 截图·矩阵恰好 7 张 PNG");
     eq(new Set(matrix35.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 7, "r35 截图·七张 SHA256 两两互异");
     const shells35 = walkPng35("docs/ui/shell");
-    eq(shells35.length, 18, "r35 截图·十八 tab 壳基线 18 张");
-    eq(new Set(shells35.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 18, "r35 截图·壳基线 18 张 SHA256 互异");
+    eq(shells35.length, 19, "r35 截图·十九 tab 壳基线 19 张（随 r36 推进）");
+    eq(new Set(shells35.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 19, "r35 截图·壳基线 19 张 SHA256 互异");
     const shellSet35 = new Set(shells35.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex")));
     eq(matrix35.filter((p) => shellSet35.has(createHash("sha256").update(readFileSync(p)).digest("hex"))).length, 0, "r35 截图·矩阵与壳基线零重叠");
     const docIdx35 = readFileSync("docs/ui/r35/README.md", "utf8");
     ok(docIdx35.includes("<!-- R35_HASHES_BEGIN -->") && docIdx35.includes("01-ics-export-menu.png"), "r35 索引·哈希自查块与矩阵图名在场");
     const shellIdx35 = readFileSync("docs/ui/shell/README.md", "utf8");
-    ok(shellIdx35.includes("<!-- R35_HASHES_BEGIN -->") && shellIdx35.includes("R35 当前哈希块"), "r35 壳索引·R35 当前哈希块在场");
+    ok(shellIdx35.includes("<!-- R35_HASHES_BEGIN -->") && shellIdx35.includes("r35 哈希自查"), "r35 壳索引·R35 历史哈希块在场（当前块见 R36）");
+  }
+
+  // 72. r36：日报与周报自动生成（TDD：断言先于实现落地，宪法四条）
+  {
+    section("r36 工作报告：时间窗 / 段落装配 / 打印版 / 摘要 / 保存守卫 / seam");
+
+    // (A) 类型与周期解析：daily 单日、weekly 周一到周日、ISO 周锚点、非法输入
+    eq([...WORK_REPORT_TYPES], ["daily", "weekly"], "r36 类型·唯一枚举顺序");
+    eq(WORK_REPORT_LABELS.daily, "日报", "r36 类型·日报标签");
+    eq(WORK_REPORT_LABELS.weekly, "周报", "r36 类型·周报标签");
+    eq(isWorkReportType("daily"), true, "r36 类型·daily 识别");
+    eq(isWorkReportType("weekly"), true, "r36 类型·weekly 识别");
+    eq(isWorkReportType("monthly"), false, "r36 类型·未知类型拒绝");
+    eq(isWorkReportType(null), false, "r36 类型·空值拒绝");
+    let badType36 = false;
+    try { assertValidWorkReportType("dailyx"); } catch (e) { badType36 = e instanceof ValidationError; }
+    eq(badType36, true, "r36 类型·守卫抛 ValidationError");
+    eq(parseWorkReportPeriod("daily", "2026-11-21").from, "2026-11-21", "r36 周期·日报 from=锚日");
+    eq(parseWorkReportPeriod("daily", "2026-11-21").to, "2026-11-21", "r36 周期·日报 to=锚日");
+    eq(parseWorkReportPeriod("daily", "2026-11-21").type, "daily", "r36 周期·日报 type 回带");
+    eq(startOfWorkReportWeek("2026-11-21"), "2026-11-16", "r36 周期·周六回退到周一");
+    eq(startOfWorkReportWeek("2026-11-16"), "2026-11-16", "r36 周期·周一自身");
+    eq(endOfWorkReportWeek("2026-11-21"), "2026-11-22", "r36 周期·周日为闭区间末日");
+    eq(nextWorkReportDate("2026-11-21"), "2026-11-22", "r36 周期·次日");
+    eq(nextWorkReportDate("2026-11-30"), "2026-12-01", "r36 周期·跨月次日");
+    eq(nextWorkReportDate("2026-12-31"), "2027-01-01", "r36 周期·跨年次日");
+    const week36 = parseWorkReportPeriod("weekly", "2026-11-21");
+    eq([week36.from, week36.to], ["2026-11-16", "2026-11-22"], "r36 周期·周报自然周闭区间");
+    eq(parseWorkReportPeriod("weekly", "2026-W48").from, "2026-11-23", "r36 周期·ISO 周锚点转周一");
+    let badDate36 = false;
+    try { parseWorkReportPeriod("daily", "2026-02-30"); } catch (e) { badDate36 = e instanceof ValidationError; }
+    eq(badDate36, true, "r36 周期·不存在的日历日 400 守卫");
+    let badWeek36 = false;
+    try { parseWorkReportPeriod("weekly", "2026-W99"); } catch (e) { badWeek36 = e instanceof ValidationError; }
+    eq(badWeek36, true, "r36 周期·非法 ISO 周 400 守卫");
+    let badTypePeriod36 = false;
+    try { parseWorkReportPeriod("monthly", "2026-11-21"); } catch (e) { badTypePeriod36 = e instanceof ValidationError; }
+    eq(badTypePeriod36, true, "r36 周期·非法 type 400 守卫");
+
+    // (B) 时间窗过滤：完成按 updatedAt、新建/进行中按 createdAt||updatedAt、阻塞按当前未完成前置
+    const src36: WorkReportSource = {
+      todos: [
+        { id: 1, title: "完成产品验收", status: "done", createdAt: "2026-11-19T08:00:00.000Z", updatedAt: "2026-11-21T10:00:00.000Z" },
+        { id: 2, title: "同步口径复核", status: "done", createdAt: "2026-11-20T08:00:00.000Z", updatedAt: "2026-11-20T09:00:00.000Z" },
+        { id: 3, title: "补齐回归断言", status: "open", createdAt: "2026-11-21T08:00:00.000Z", updatedAt: "2026-11-21T08:00:00.000Z", dueDate: null },
+        { id: 4, title: "整理报表需求", status: "open", createdAt: "2026-11-20T08:00:00.000Z", updatedAt: "2026-11-21T09:30:00.000Z", dueDate: null },
+        { id: 5, title: "窄屏适配", status: "open", createdAt: "2026-11-21T08:00:00.000Z", updatedAt: "2026-11-21T08:00:00.000Z", dueDate: null },
+        { id: 6, title: "窗外新建", status: "open", createdAt: "2026-11-18T08:00:00.000Z", updatedAt: "2026-11-18T08:00:00.000Z", dueDate: null },
+        { id: 7, title: "窗外完成", status: "done", createdAt: "2026-11-18T08:00:00.000Z", updatedAt: "2026-11-20T08:00:00.000Z" },
+        { id: 8, title: "下周交付", status: "open", createdAt: "2026-11-21T08:00:00.000Z", updatedAt: "2026-11-21T08:00:00.000Z", dueDate: "2026-11-24" },
+      ],
+      schedules: [
+        { id: 11, title: "需求评审", date: "2026-11-21", start: "09:00", end: "10:00" },
+        { id: 12, title: "研发对齐", date: "2026-11-21", start: "10:00", end: "11:00" },
+        { id: 13, title: "窗外日程", date: "2026-11-22", start: "09:00", end: "10:00" },
+        { id: 14, title: "上周日程", date: "2026-11-14", start: "09:00", end: "10:00" },
+        { id: 15, title: "下周规划", date: "2026-11-23", start: "14:00", end: "15:00" },
+      ],
+      blocked: [{ todoId: 5, blockers: [3] }],
+    };
+    const day36 = parseWorkReportPeriod("daily", "2026-11-21");
+    eq(inWorkReportWindow("2026-11-21T10:00:00.000Z", day36), true, "r36 窗口·窗内时间戳");
+    eq(inWorkReportWindow("2026-11-20T10:00:00.000Z", day36), false, "r36 窗口·窗外时间戳");
+    eq(inWorkReportWindow("2026-11-22", day36), false, "r36 窗口·上界严格闭区间");
+    eq(inWorkReportWindow(null, day36), false, "r36 窗口·空值不入窗");
+    const srcSnapshot36 = JSON.stringify(src36);
+    const daily36 = collectReportData(src36, day36);
+    eq(srcSnapshot36, JSON.stringify(src36), "r36 收集·纯函数不改输入快照");
+    eq(daily36.completed.map((x) => x.id), [1], "r36 日报·完成项按 updatedAt 过滤到 1 条");
+    eq(daily36.completed[0]?.at, "2026-11-21", "r36 日报·完成项日期取 updatedAt 前 10 位");
+    eq(daily36.ongoing.map((x) => x.id), [3, 4, 8], "r36 日报·进行中=窗内 open 且非阻塞，按 id 升序");
+    eq(daily36.blocked.map((x) => x.todoId), [5], "r36 日报·阻塞项按 dependencies 回带");
+    eq(daily36.blocked[0]?.blockers, [3], "r36 日报·阻塞项回带前置 id");
+    eq(daily36.blocked[0]?.title, "窄屏适配", "r36 日报·阻塞项回带真实标题");
+    eq(daily36.schedules.map((x) => x.id), [11, 12], "r36 日报·日程只含当日且按 start 排序");
+    eq(daily36.next.map((x) => x.id), [13], "r36 日报·明日计划取次日日程");
+    eq(daily36.nextTodos.map((x) => x.id), [], "r36 日报·明日待办仅取 dueDate=次日");
+    const week36b = parseWorkReportPeriod("weekly", "2026-11-21");
+    const weekly36 = collectReportData(src36, week36b);
+    eq(weekly36.completed.map((x) => x.id), [2, 7, 1], "r36 周报·完成项覆盖整周并按 updatedAt 日期/id 排序（20 日两条在前，21 日在后）");
+    eq(weekly36.ongoing.map((x) => x.id), [3, 4, 6, 8], "r36 周报·进行中覆盖整周（含窗外日的窗内新建）");
+    eq(weekly36.blocked.map((x) => x.todoId), [5], "r36 周报·阻塞项按周聚合");
+    eq(weekly36.schedules.map((x) => x.id), [11, 12, 13], "r36 周报·日程 7 天聚合且窗外日程不进");
+    eq(weekly36.next.map((x) => x.id), [15], "r36 周报·下周计划取下一自然周日程");
+    eq(weekly36.nextTodos.map((x) => x.id), [8], "r36 周报·下周待办按 dueDate 聚合");
+    const empty36 = collectReportData({ todos: [], schedules: [], blocked: [] }, day36);
+    eq(reportSummary(empty36), { completed: 0, ongoing: 0, blocked: 0, schedules: 0, next: 0, total: 0 }, "r36 摘要·空数据全 0");
+
+    // (C) reportSummary 计数摘要
+    eq(reportSummary(daily36), { completed: 1, ongoing: 3, blocked: 1, schedules: 2, next: 1, total: 5 }, "r36 摘要·日报逐项手算");
+    eq(reportSummary(weekly36), { completed: 3, ongoing: 4, blocked: 1, schedules: 3, next: 1, total: 8 }, "r36 摘要·周报逐项手算");
+    const sumSnap36 = JSON.stringify(reportSummary(weekly36));
+    reportSummary(weekly36);
+    eq(JSON.stringify(reportSummary(weekly36)), sumSnap36, "r36 摘要·重复调用稳定");
+
+    // (D) buildReportMarkdown：标题 / 完成 / 进行中 / 阻塞 / 日程 / 明日计划六段
+    const md36 = buildReportMarkdown(daily36);
+    eq(md36.split("\n")[0], "# 协流日报 · 2026-11-21", "r36 Markdown·日报标题段");
+    ok(md36.includes("## 完成（1）") && md36.includes("- 完成产品验收（#1）"), "r36 Markdown·完成段逐项装配");
+    ok(md36.includes("## 进行中（3）") && md36.includes("- 整理报表需求（#4）"), "r36 Markdown·进行中段逐项装配");
+    ok(md36.includes("## 阻塞（1）") && md36.includes("- 窄屏适配（#5，被 #3 阻塞）"), "r36 Markdown·阻塞段逐项装配");
+    ok(md36.includes("## 日程（2）") && md36.includes("- 09:00–10:00 需求评审"), "r36 Markdown·日程段按时段装配");
+    ok(md36.includes("## 明日计划（1）") && md36.includes("- 2026-11-22 09:00–10:00 窗外日程"), "r36 Markdown·明日计划段装配");
+    ok(md36.includes("零 token"), "r36 Markdown·模板化汇总注明零 token");
+    const mdWeekly36 = buildReportMarkdown(weekly36);
+    eq(mdWeekly36.split("\n")[0], "# 协流周报 · 2026-11-16 ~ 2026-11-22", "r36 Markdown·周报标题含区间");
+    ok(mdWeekly36.includes("## 完成（3）"), "r36 Markdown·周报完成段手算 3 条");
+    ok(mdWeekly36.includes("## 下周计划（2）"), "r36 Markdown·周报计划段标题随类型切换（1 日程 + 1 待办 = 2）");
+    const mdEmpty36 = buildReportMarkdown(empty36);
+    eq((mdEmpty36.match(/暂无/g) ?? []).length, 6, "r36 Markdown·空数据六段各一条暂无");
+    eq(buildReportMarkdown(daily36), md36, "r36 Markdown·重复装配逐字节稳定");
+    ok(!md36.includes("undefined") && !md36.includes("NaN"), "r36 Markdown·无 undefined/NaN 泄漏");
+
+    // (E) buildReportHtml：打印版（内嵌 @media print，五字符转义）
+    eq(escapeWorkReportHtml('a&b<c>d"e\'f'), "a&amp;b&lt;c&gt;d&quot;e&#39;f", "r36 HTML·五字符转义");
+    eq(escapeWorkReportHtml("x\\y"), "x\\y", "r36 HTML·反斜杠原样");
+    const html36 = buildReportHtml(daily36);
+    ok(html36.startsWith("<!doctype html>") && html36.includes("@media print"), "r36 HTML·打印版文档头与打印样式");
+    ok(html36.includes("完成产品验收") && html36.includes("窄屏适配"), "r36 HTML·段落真数据落进打印版");
+    const evil36 = collectReportData({
+      todos: [{ id: 9, title: '<script>alert("x")</script>', status: "done", createdAt: "2026-11-21T08:00:00.000Z", updatedAt: "2026-11-21T09:00:00.000Z" }],
+      schedules: [], blocked: [],
+    }, day36);
+    ok(!buildReportHtml(evil36).includes("<script>"), "r36 HTML·脚本标签被转义（XSS 五字符）");
+
+    // (F) 保存守卫：空内容 / 非法日期 / 越权 id / 合法归一化
+    let emptyMd36 = false;
+    try { assertValidWorkReportSave({ title: "日报", markdown: "   ", type: "daily", date: "2026-11-21" }); }
+    catch (e) { emptyMd36 = e instanceof ValidationError; }
+    eq(emptyMd36, true, "r36 保存守卫·空 Markdown 400");
+    let emptyTitle36 = false;
+    try { assertValidWorkReportSave({ title: "", markdown: "# 日报", type: "daily", date: "2026-11-21" }); }
+    catch (e) { emptyTitle36 = e instanceof ValidationError; }
+    eq(emptyTitle36, true, "r36 保存守卫·空标题 400");
+    let badSaveDate36 = false;
+    try { assertValidWorkReportSave({ title: "日报", markdown: "# 日报", type: "daily", date: "2026-13-01" }); }
+    catch (e) { badSaveDate36 = e instanceof ValidationError; }
+    eq(badSaveDate36, true, "r36 保存守卫·非法日期 400");
+    let badSaveId36 = false;
+    try { assertValidWorkReportSave({ title: "日报", markdown: "# 日报", type: "daily", date: "2026-11-21", documentId: 0 }); }
+    catch (e) { badSaveId36 = e instanceof ValidationError; }
+    eq(badSaveId36, true, "r36 保存守卫·越权/非法 documentId 400");
+    const saveOk36 = assertValidWorkReportSave({ title: "  日报  ", markdown: "# 日报\n- 完成项", type: "daily", date: "2026-11-21" });
+    eq(saveOk36.title, "日报", "r36 保存守卫·标题 trim 归一");
+    eq(saveOk36.type, "daily", "r36 保存守卫·type 回带");
+    eq(saveOk36.period.from, "2026-11-21", "r36 保存守卫·period 与生成口径同源");
+
+    // (G) api / web / App / shot / README seam（契约真实存在，非恒真占位）
+    const api36 = readFileSync("apps/api/src/server.ts", "utf8");
+    ok(api36.includes('app.get("/api/reports/daily"'), "r36 api·日报路由在场");
+    ok(api36.includes('app.get("/api/reports/weekly"'), "r36 api·周报路由在场");
+    ok(api36.includes('app.post("/api/reports/save"'), "r36 api·存为文档路由在场");
+    ok(api36.includes('from "@xieflow/shared/workReports"'), "r36 api·只装配 shared/workReports");
+    ok(!/function\s+collectReportData|function\s+buildReportMarkdown/.test(api36), "r36 api·零报告算法分支");
+    const web36 = readFileSync("apps/web/src/WorkReportsPage.tsx", "utf8");
+    ok(web36.includes('data-state="wr-markdown"'), "r36 web·可编辑 Markdown seam 在场");
+    ok(web36.includes('data-state="wr-summary"'), "r36 web·计数摘要 seam 在场");
+    ok(web36.includes('data-state="wr-saved"'), "r36 web·存为文档回执 seam 在场");
+    ok(web36.includes('data-state="wr-error"'), "r36 web·错误态 seam 在场");
+    ok(web36.includes("/api/reports/daily") && web36.includes("/api/reports/save"), "r36 web·生成与保存走真 HTTP");
+    ok(!/function\s+collectReportData|function\s+buildReportMarkdown/.test(web36), "r36 web·零报告算法分支");
+    const app36 = readFileSync("apps/web/src/App.tsx", "utf8");
+    ok(app36.includes("r36 · 日报与周报自动生成"), "r36 App·轮次徽章推进到 r36");
+    eq((app36.match(/data-tab="/g) ?? []).length, 19, "r36 App·十九 tab（报告 tab 新增）");
+    ok(app36.includes('data-tab="work-reports"') && />\s*报告\s*</.test(app36), "r36 App·报告 tab 激活态入口在场");
+    eq(SCHEMA_VERSION, 23, "r36 schema·本轮无 schema 变化（v23，复用 documents/blocks）");
+    const pkgShared36 = readFileSync("packages/shared/package.json", "utf8");
+    ok(pkgShared36.includes('"./workReports"'), "r36 子路径·@xieflow/shared/workReports 已登记");
+    const pkg36 = readFileSync("package.json", "utf8");
+    ok(!/"(marked|markdown-it|showdown|turndown|dayjs|luxon)"/.test(pkg36), "r36 零新依赖·清单无 Markdown/日期库");
+    const rootR36 = readFileSync("README.md", "utf8");
+    ok(rootR36.includes("docs/ui/r36/01-wr-empty.png") && rootR36.includes("docs/ui/shell/README.md"), "r36 根 README·矩阵索引已同步（三处之一）");
+    ok(rootR36.includes("当前 r36"), "r36 根 README·断言规模节推进到当前 r36");
+
+    // (H) 截图矩阵 + 十九 tab 壳（同批重拍，哈希互异）
+    const walkPng36 = (dir: string): string[] => readdirSync(dir).filter((n) => n.endsWith(".png")).map((n) => `${dir}/${n}`);
+    const matrix36 = walkPng36("docs/ui/r36");
+    eq(matrix36.length, 7, "r36 截图·矩阵恰好 7 张 PNG");
+    eq(new Set(matrix36.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 7, "r36 截图·七张 SHA256 两两互异");
+    const shells36 = walkPng36("docs/ui/shell");
+    eq(shells36.length, 19, "r36 截图·十九 tab 壳基线 19 张（新增报告 tab）");
+    eq(new Set(shells36.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 19, "r36 截图·壳基线 19 张 SHA256 互异");
+    const shellSet36 = new Set(shells36.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex")));
+    eq(matrix36.filter((p) => shellSet36.has(createHash("sha256").update(readFileSync(p)).digest("hex"))).length, 0, "r36 截图·矩阵与壳基线零重叠");
+    const docIdx36 = readFileSync("docs/ui/r36/README.md", "utf8");
+    ok(docIdx36.includes("<!-- R36_HASHES_BEGIN -->") && docIdx36.includes("01-wr-empty.png"), "r36 索引·哈希自查块与矩阵图名在场");
+    const shellIdx36 = readFileSync("docs/ui/shell/README.md", "utf8");
+    ok(shellIdx36.includes("<!-- R36_HASHES_BEGIN -->") && shellIdx36.includes("R36 当前哈希块"), "r36 壳索引·R36 当前哈希块在场");
+    ok(shellIdx36.includes("work-reports-tab-active.png"), "r36 壳索引·报告 tab 激活态图在场");
   }
 
   // 60. HTTP 冒烟 /api/health

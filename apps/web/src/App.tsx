@@ -17,6 +17,7 @@
 // r27：+ 报表 tab（跨模块 KPI 看板），壳基线扩为十七 tab。
 // r28：+ 会议 tab（会议室预约 / 冲突检测，本地台账），壳基线扩为十八 tab。
 // r33：+ 顶栏全局搜索（Ctrl/Cmd+K + 跨八源下拉结果 + deep-link 直达），18 tab 数量不变。
+// r36：+ 报告 tab（日报/周报自动生成：时间窗汇总 + Markdown 预览 + 存为文档），壳基线扩为十九 tab。
 import SyncCard from "./SyncCard";
 import OfflineStatus from "./OfflineStatus";
 // 截图状态真实存在：加载中 / 空数据 / 正常 / 错误 / 窄屏（?narrow=1 显式钉态）
@@ -50,6 +51,7 @@ import UnitTasksPage from "./UnitTasksPage";
 import OrgPage from "./OrgPage";
 import NotificationsPage from "./NotificationsPage";
 import ReportsPage from "./ReportsPage";
+import WorkReportsPage from "./WorkReportsPage";
 import MeetingsPage from "./MeetingsPage";
 import { LoginPage, RegisterPage } from "./AuthPages";
 import {
@@ -71,7 +73,7 @@ type LoadState =
   | { phase: "error"; message: string }
   | { phase: "ready"; settings: AppSetting[]; schemaVersion: number; todaySchedules: Schedule[]; todos: Todo[] };
 
-type PageTab = "home" | "todos" | "schedules" | "projects" | "board" | "bases" | "docs" | "chat" | "knowledge" | "mindmap" | "whiteboard" | "approval" | "assets" | "unit-tasks" | "org" | "notifications" | "reports" | "meetings";
+type PageTab = "home" | "todos" | "schedules" | "projects" | "board" | "bases" | "docs" | "chat" | "knowledge" | "mindmap" | "whiteboard" | "approval" | "assets" | "unit-tasks" | "org" | "notifications" | "reports" | "work-reports" | "meetings";
 
 /** r33 截图钉态结果（真实形态与 /api/search 一致；只用于确定性捕获，不是业务数据源） */
 const SHOT_SEARCH_RESULTS: readonly SearchResult[] = [
@@ -221,9 +223,11 @@ export default function App() {
                                   ? "notifications"
                                   : page === "reports"
                                     ? "reports"
-                                    : page === "meetings"
-                                      ? "meetings"
-                                      : "home";
+                                    : page === "work-reports"
+                                      ? "work-reports"
+                                      : page === "meetings"
+                                        ? "meetings"
+                                        : "home";
   });
   // r26 返工#1：通知跳转把目标 tab 与 refId 定位参数写进地址栏，reload 后仍定位同一实体
   function navigateFromNotification(target: string, params: Readonly<Record<string, string>> = {}): void {
@@ -416,7 +420,7 @@ export default function App() {
   const todoById = new Map(state.phase === "ready" ? state.todos.map((t) => [t.id, t]) : []);
 
   return (
-    <main className={tab === "bases" || tab === "docs" || tab === "chat" || tab === "knowledge" || tab === "mindmap" || tab === "whiteboard" || tab === "approval" || tab === "assets" || tab === "unit-tasks" || tab === "org" || tab === "notifications" || tab === "reports" || tab === "meetings" ? "shell shell-wide" : "shell"}>
+    <main className={tab === "bases" || tab === "docs" || tab === "chat" || tab === "knowledge" || tab === "mindmap" || tab === "whiteboard" || tab === "approval" || tab === "assets" || tab === "unit-tasks" || tab === "org" || tab === "notifications" || tab === "reports" || tab === "work-reports" || tab === "meetings" ? "shell shell-wide" : "shell"}>
       <header className="topbar">
         <span className="logo">协流 XieFlow</span>
         <div className="global-search" data-state="global-search">
@@ -634,6 +638,14 @@ export default function App() {
           </button>
           <button
             type="button"
+            className={`tab ${tab === "work-reports" ? "tab-active" : ""}`}
+            data-tab="work-reports"
+            onClick={() => setTab("work-reports")}
+          >
+            报告
+          </button>
+          <button
+            type="button"
             className={`tab ${tab === "meetings" ? "tab-active" : ""}`}
             data-tab="meetings"
             onClick={() => setTab("meetings")}
@@ -646,7 +658,7 @@ export default function App() {
           <span className="tabs-more-fade" aria-hidden="true" />
           <button type="button" className="tabs-more" aria-label="更多导航" onClick={toggleNav}>更多 ›</button>
         </div>
-        <span className="badge">r35 · 日历 ICS 导出与订阅（标准 iCalendar）</span>
+        <span className="badge">r36 · 日报与周报自动生成（模板化汇总）</span>
         <OfflineStatus />
         <button type="button" className="nav-toggle" data-state="nav-toggle" aria-label="展开导航" onClick={toggleNav}>☰</button>
         <span className="auth-controls" data-state="auth-controls">
@@ -690,6 +702,8 @@ export default function App() {
         <NotificationsPage onNavigate={(target, params) => navigateFromNotification(target, params)} />
       ) : tab === "reports" ? (
         <ReportsPage />
+      ) : tab === "work-reports" ? (
+        <WorkReportsPage />
       ) : tab === "meetings" ? (
         <MeetingsPage />
       ) : (

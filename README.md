@@ -13,7 +13,7 @@ pnpm install
 powershell -File scripts\start.ps1 start   # api:8787 + web:5173
 powershell -File scripts\start.ps1 stop
 # 开发模式：pnpm dev:api / pnpm dev:web
-pnpm run test:all    # typecheck + e2e（3069 断言）+ HTTP 审计（2396 断言）
+pnpm run test:all    # typecheck + e2e（3167 断言）+ HTTP 审计（2471 断言）
 ```
 
 - 打包：`pnpm run pack`（免安装目录 `release/xieflow-portable/`，双击 `start.cmd` 即用）/ `pnpm run dist`（setup zip）；均单端口 8080，数据落目录内 `data/`
@@ -26,18 +26,18 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 
 ## 界面与测试对照
 
-按宪法第一条：**界面更新必须带截图证据（每次，无例外）**，截图与实现同一提交。当前轮 r35 日历 ICS 导出与订阅（7 张 + 十八 tab 壳基线）：
+按宪法第一条：**界面更新必须带截图证据（每次，无例外）**，截图与实现同一提交。当前轮 r36 日报与周报自动生成（7 张 + 十九 tab 壳基线）：
 
 | 截图 | 形态 | 对应断言 |
 |---|---|---|
-| [01-ics-export-menu.png](docs/ui/r35/01-ics-export-menu.png) | 导出菜单：本月日程 / 待办截止 | audit「GET export.ics -> 200 / text/calendar」 |
-| [02-ics-saved.png](docs/ui/r35/02-ics-saved.png) | 真落盘回执：`xieflow-schedules-2026-11-01-2026-11-30.ics` + 2 条事件 / 941 字节（**= 04 导入源**） | audit「下载文件名带范围 / VEVENT 回读」；CDP 落盘文件字节一致 |
-| [03-ics-feed-card.png](docs/ui/r35/03-ics-feed-card.png) | 订阅卡：本地随机 key + 复制 URL（仅写剪贴板、无可见 toast） | audit「key 存 settings / 错 key 404」 |
-| [04-ics-import-preview.png](docs/ui/r35/04-ics-import-preview.png) | 02 同一落盘文件导入：textarea 真实 ICS 片段 + 2 条预览与 02 逐字段对应 | audit「预览逐项还原 / 零写入」；CDP 往返逐字核验 |
-| [05-ics-import-success.png](docs/ui/r35/05-ics-import-success.png) | 成功绿条 2 条 + 同屏网格非空（10/11 日 chip 在场） | audit「写入 +1 / reload 不丢（CDP）」 |
-| [06-ics-narrow.png](docs/ui/r35/06-ics-narrow.png) | 488px 窄屏导入面板 | 截图 seam + SHA 自查 |
-| [07-ics-error.png](docs/ui/r35/07-ics-error.png) | 坏 ICS 错误红条（纯用户文案，无 audit 标签） | audit「坏 ICS -> 400」 |
-| [shell/](docs/ui/shell/README.md) | 十八 tab 壳基线（r35 同批重拍） | e2e「shell README R35 哈希逐字一致」 |
+| [01-wr-empty.png](docs/ui/r36/01-wr-empty.png) | 报告空态：六段各一条「暂无」，摘要全 0 | e2e「r36 Markdown·空数据六段各一条暂无」 |
+| [02-wr-daily.png](docs/ui/r36/02-wr-daily.png) | 日报有数据：完成 1 / 进行中 3 / 阻塞 1 / 日程 2 / 下一步 1 / 合计 5；阻塞回带 `#3` | audit「r36 日报·结构化阻塞项 blockers 精确」 |
+| [03-wr-weekly.png](docs/ui/r36/03-wr-weekly.png) | 周报有数据：`2026-11-16 ~ 2026-11-22` 自然周，完成 2 / 日程 3 / 合计 6 | audit「r36 周报·聚合 7 天真数据」 |
+| [04-wr-edit.png](docs/ui/r36/04-wr-edit.png) | Markdown 编辑态：人工补充行 + 「已修改，尚未存为文档」 | e2e「r36 web·可编辑 Markdown seam」；CDP 真点 |
+| [05-wr-saved.png](docs/ui/r36/05-wr-saved.png) | 存为文档后绿条（8 块）；真保存链路由 audit + CDP 背书 | audit「r36 保存·全文含报告真内容」 |
+| [06-wr-narrow.png](docs/ui/r36/06-wr-narrow.png) | 488px 窄屏：按钮纵排 / 摘要单列 / 生成全宽 | 截图 seam + SHA 自查 |
+| [07-wr-error.png](docs/ui/r36/07-wr-error.png) | 错误红条：报告生成失败 + 重试（无内部标签） | audit「r36 4xx·非法日期 / 越权 id / 空内容」 |
+| [shell/](docs/ui/shell/README.md) | 十九 tab 壳基线（r36 同批重拍，新增报告 tab 激活态） | e2e「shell README R36 哈希逐字一致」 |
 
 **历史逐轮截图索引（r1~r32 全量、逐张对照断言）见 [README 归档](docs/README-ARCHIVE.md) 与 [docs/ui/](docs/ui/) 各轮 README**；矩阵 SHA256 互异、同态组仅 r4 已披露 2 组。
 
@@ -45,7 +45,7 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 
 ### 断言规模（每轮更新，下降 = 回归 = 冻结发版）
 
-- **当前 r35**：e2e **3069**（服务离线口径；api 在线 +1）· HTTP audit **2396** · typecheck 5 包全绿；**无一条断言被删**，仅期望值/标签随行为推进。
+- **当前 r36**：e2e **3167**（服务离线口径；api 在线 +1）· HTTP audit **2471** · typecheck 5 包全绿；**无一条断言被删**，仅期望值/标签随行为推进。
 - 纪律：断言只涨不缩；禁自洽占位；关键行为做变异红相留痕（改坏实现 → 断言变红 → 逐字节还原全绿）。
 - **逐轮规模变化（r1~r32 的完整记账）见 [README 归档](docs/README-ARCHIVE.md)**；CI smoke 正则随 schema 版本同步至 v23；CI 三平台 verify + tag 触发 Release。
 

@@ -39,6 +39,7 @@ import {
   planMarkdownImport,
   shouldCommitMarkdownImport,
   blocksToMarkdown,
+  markdownToBlocks,
   buildDocumentMdFileName,
   // r32：导出引擎唯一实现在 shared/docExport，api 只装配 HTTP 响应、零算法分支
   blocksToPrintHtml,
@@ -158,10 +159,23 @@ import {
 // r34：任务依赖——判定/环/拓扑/阻塞链唯一口径在 shared/todoDeps，路由层零算法分支
 import {
   blockersForTodo,
+  buildDependencyGraph,
   DependencyBlockedError,
   DependencyCycleError,
   DuplicateDependencyError,
 } from "@xieflow/shared/todoDeps";
+// r36：日报/周报自动生成——窗口过滤/装配/打印/摘要/保存守卫唯一口径在 shared/workReports，路由零算法分支
+import {
+  collectReportData,
+  buildReportMarkdown,
+  buildReportHtml,
+  reportSummary,
+  parseWorkReportPeriod,
+  assertValidWorkReportSave,
+  type WorkReportSource,
+  type WorkReportType,
+  type WorkReportPeriod,
+} from "@xieflow/shared/workReports";
 
 /** r27：只读装配当前库全部来源数据（六指标同一快照）；不写任何业务数据 */
 function collectReportSource(store: XieFlowDb): ReportSource {
@@ -189,6 +203,38 @@ function collectReportSource(store: XieFlowDb): ReportSource {
     approvalSteps,
     assetTransactions: store.listAssetTransactions(),
     documents: store.listDocuments(),
+  };
+}
+
+/** r36：只读装配报告来源（todos / schedules / 依赖阻塞图 / documents），全是 list*，零写入 */
+function collectWorkReportSource(store: XieFlowDb): WorkReportSource {
+  const todos = store.listTodos();
+  const blocked = buildDependencyGraph(todos, store.listTodoDependencies()).blocked;
+  return {
+    todos: todos.map((t) => ({
+      id: t.id, title: t.title, status: t.status,
+      createdAt: t.createdAt, updatedAt: t.updatedAt, dueDate: t.dueDate,
+    })),
+    schedules: store.listSchedules().map((s) => ({
+      id: s.id, title: s.title, date: s.date, start: s.start, end: s.end,
+    })),
+    blocked: blocked.map((b) => ({ todoId: b.todoId, blockers: b.blockers })),
+    documents: store.listDocuments().map((d) => ({
+      id: d.id, title: d.title, createdAt: d.createdAt, updatedAt: d.updatedAt,
+    })),
+  };
+}
+
+/** r36：唯一装配出口——日报/周报共用同一份 shared 口径，路由层零分支 */
+function renderWorkReport(type: WorkReportType, period: WorkReportPeriod): Record<string, unknown> {
+  const data = collectReportData(collectWorkReportSource(requireDb()), period);
+  return {
+    type,
+    period,
+    data,
+    summary: reportSummary(data),
+    markdown: buildReportMarkdown(data),
+    html: buildReportHtml(data),
   };
 }
 
@@ -3941,6 +3987,57 @@ app.get("/api/reports/overview", async (req, reply) => {
   try {
     const range = reportRangeFromQuery(req.query);
     return assembleReport(collectReportSource(requireDb()), range);
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+/** r36 日报：GET /api/reports/daily?date=YYYY-MM-DD（缺省今天）；非法日期 -> 400 */
+app.get("/api/reports/daily", async (req, reply) => {
+  try {
+    const period = parseWorkReportPeriod("daily", (req.query as { date?: unknown }).date);
+    return renderWorkReport("daily", period);
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+/** r36 周报：GET /api/reports/weekly?week=YYYY-MM-DD|YYYY-Www（缺省本周）；非法周 -> 400 */
+app.get("/api/reports/weekly", async (req, reply) => {
+  try {
+    const period = parseWorkReportPeriod("weekly", (req.query as { week?: unknown }).week);
+    return renderWorkReport("weekly", period);
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+/**
+ * r36 存为文档：POST /api/reports/save
+ * 复用既有 documents + blocks（零新 schema）：markdownToBlocks 解析后单事务整篇替换。
+ * 空内容 -> 400；documentId 不存在（越权 id）-> 404。
+ */
+app.post("/api/reports/save", async (req, reply) => {
+  try {
+    const payload = assertValidWorkReportSave(req.body);
+    const store = requireDb();
+    const existing = payload.documentId === undefined ? null : store.getDocument(payload.documentId);
+    if (payload.documentId !== undefined && existing === null) {
+      return reply.code(404).send({ error: `报告目标文档不存在：${payload.documentId}` });
+    }
+    const created = existing === null;
+    const target = existing ?? store.createDocument(payload.title);
+    const blocks = markdownToBlocks(payload.markdown);
+    if (blocks.length === 0) throw new ValidationError("报告内容解析后为空，未写入任何块");
+    const imported = store.importBlocks(target.id, blocks);
+    return reply.code(created ? 201 : 200).send({
+      document: store.getDocument(target.id),
+      documentId: target.id,
+      imported: imported.length,
+      type: payload.type,
+      period: payload.period,
+      created,
+    });
   } catch (err) {
     return toErrorReply(err, reply);
   }

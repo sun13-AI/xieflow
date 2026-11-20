@@ -4234,6 +4234,110 @@ async function auditR28(): Promise<void> {
       if (noDueTodo) await expectStatus("DELETE", `/api/todos/${noDueTodo.id}`, undefined, 200, "r35 清理无截止待办 -> 200");
       eq(await countMine(), 0, "r35 探针归零·范围内无本轮日程");
     }
+
+    // ---- r36：日报 / 周报 / 存为文档（真 HTTP + 4xx + 零半态） ----
+    {
+      const KEY = `R36HTTP${Date.now()}`;
+      const pad = (n: number): string => String(n).padStart(2, "0");
+      const now36 = new Date();
+      const TODAY = `${now36.getFullYear()}-${pad(now36.getMonth() + 1)}-${pad(now36.getDate())}`;
+      const tomorrow = new Date(now36.getFullYear(), now36.getMonth(), now36.getDate() + 1);
+      const TOMORROW = `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}`;
+      const docIds: number[] = [];
+      const todoIds: number[] = [];
+      const scheduleIds: number[] = [];
+
+      const doneTodo = await expectStatus("POST", "/api/todos", { title: `${KEY} 日报完成项`, quadrant: "q1" }, 201, "r36 建日报完成探针 -> 201");
+      todoIds.push(doneTodo.json.id);
+      await expectStatus("PATCH", `/api/todos/${doneTodo.json.id}`, { status: "done" }, 200, "r36 完成探针转 done -> 200");
+      const openTodo = await expectStatus("POST", "/api/todos", { title: `${KEY} 日报进行中`, quadrant: "q2" }, 201, "r36 建进行中探针 -> 201");
+      todoIds.push(openTodo.json.id);
+      const blockedTodo = await expectStatus("POST", "/api/todos", { title: `${KEY} 日报阻塞项`, quadrant: "q3" }, 201, "r36 建阻塞探针 -> 201");
+      todoIds.push(blockedTodo.json.id);
+      await expectStatus("POST", `/api/todos/${blockedTodo.json.id}/dependencies`, { dependsOnTodoId: openTodo.json.id }, 201, "r36 阻塞探针加未完成前置 -> 201");
+      const planTodo = await expectStatus("POST", "/api/todos", { title: `${KEY} 明日待办`, quadrant: "q2", dueDate: TOMORROW }, 201, "r36 建明日待办探针 -> 201");
+      todoIds.push(planTodo.json.id);
+      const s1 = await expectStatus("POST", "/api/schedules", { title: `${KEY} 今日日程`, date: TODAY, start: "09:00", end: "10:00", repeat: "none", todoId: null }, 201, "r36 建今日日程探针 -> 201");
+      scheduleIds.push(s1.json.id);
+      const s2 = await expectStatus("POST", "/api/schedules", { title: `${KEY} 明日日程`, date: TOMORROW, start: "15:00", end: "16:00", repeat: "none", todoId: null }, 201, "r36 建明日日程探针 -> 201");
+      scheduleIds.push(s2.json.id);
+
+      const daily = await expectStatus("GET", `/api/reports/daily?date=${TODAY}`, undefined, 200, "r36 GET 日报 -> 200");
+      eq(daily.json.type, "daily", "r36 日报·type 回带 daily");
+      eq([daily.json.period.from, daily.json.period.to], [TODAY, TODAY], "r36 日报·周期闭区间为单日");
+      ok(daily.json.markdown.startsWith(`# 协流日报 · ${TODAY}`), "r36 日报·Markdown 标题段");
+      for (const section of ["完成", "进行中", "阻塞", "日程", "产出", "明日计划"]) {
+        ok(daily.json.markdown.includes(`## ${section}（`), `r36 日报·Markdown 含「${section}」段`);
+      }
+      ok(daily.json.markdown.includes(`${KEY} 日报完成项（#${doneTodo.json.id}）`), "r36 日报·完成项真数据入段");
+      ok(daily.json.markdown.includes(`${KEY} 日报进行中（#${openTodo.json.id}）`), "r36 日报·进行中项真数据入段");
+      ok(daily.json.markdown.includes(`${KEY} 日报阻塞项（#${blockedTodo.json.id}，被 #${openTodo.json.id} 阻塞）`), "r36 日报·阻塞项回带前置 id");
+      ok(daily.json.markdown.includes(`09:00–10:00 ${KEY} 今日日程`), "r36 日报·日程段含今日探针");
+      ok(daily.json.markdown.includes(`${TOMORROW} 15:00–16:00 ${KEY} 明日日程`), "r36 日报·明日计划段含次日探针");
+      ok(daily.json.markdown.includes(`- 待办：${KEY} 明日待办（#${planTodo.json.id}，截止 ${TOMORROW}）`), "r36 日报·明日待办按 dueDate 进计划段");
+      ok(daily.json.markdown.includes("零 token"), "r36 日报·模板化零 token 注明");
+      const mineDone = daily.json.data.completed.filter((x: any) => x.title === `${KEY} 日报完成项`);
+      eq(mineDone.length, 1, "r36 日报·结构化完成项按 updatedAt 入窗");
+      const mineOngoing = daily.json.data.ongoing.filter((x: any) => x.title === `${KEY} 日报进行中`);
+      eq(mineOngoing.length, 1, "r36 日报·结构化进行中项在窗");
+      const mineBlocked = daily.json.data.blocked.filter((x: any) => x.todoId === blockedTodo.json.id);
+      eq(mineBlocked.length, 1, "r36 日报·结构化阻塞项由 r34 依赖图回带");
+      eq(mineBlocked[0]?.blockers, [openTodo.json.id], "r36 日报·结构化阻塞项 blockers 精确");
+      eq(daily.json.data.schedules.filter((x: any) => x.title === `${KEY} 今日日程`).length, 1, "r36 日报·结构化日程只含今日");
+      eq(daily.json.data.next.filter((x: any) => x.title === `${KEY} 明日日程`).length, 1, "r36 日报·结构化明日计划含次日");
+      eq(daily.json.data.nextTodos.filter((x: any) => x.title === `${KEY} 明日待办`).length, 1, "r36 日报·结构化明日待办按 dueDate");
+      const sumDaily = daily.json.summary;
+      ok(sumDaily.total === sumDaily.completed + sumDaily.ongoing + sumDaily.blocked, "r36 日报·摘要 total 恒等式成立");
+      ok(sumDaily.completed >= 1 && sumDaily.ongoing >= 2 && sumDaily.blocked >= 1, "r36 日报·摘要计数覆盖全部探针");
+      ok(daily.json.html.includes("@media print") && daily.json.html.includes("打印 / 另存 PDF"), "r36 日报·打印版 HTML 在场");
+      ok(daily.json.html.includes(`${KEY} 日报完成项`), "r36 日报·打印版含真数据");
+      const dailyAgain = await expectStatus("GET", `/api/reports/daily?date=${TODAY}`, undefined, 200, "r36 日报重复生成 -> 200");
+      eq(dailyAgain.json.markdown, daily.json.markdown, "r36 日报·同日两次 Markdown 逐字节稳定");
+
+      const weekly = await expectStatus("GET", `/api/reports/weekly?week=${TODAY}`, undefined, 200, "r36 GET 周报 -> 200");
+      eq(weekly.json.type, "weekly", "r36 周报·type 回带 weekly");
+      ok(weekly.json.markdown.startsWith("# 协流周报 · "), "r36 周报·标题段含周区间");
+      ok(weekly.json.markdown.includes(`${KEY} 日报完成项`) && weekly.json.markdown.includes(`${KEY} 今日日程`), "r36 周报·聚合 7 天真数据");
+      ok(weekly.json.markdown.includes("## 下周计划（"), "r36 周报·计划段标题为下周计划");
+      ok(weekly.json.summary.completed >= daily.json.summary.completed, "r36 周报·完成计数不小于单日");
+      const isoWeek = await expectStatus("GET", "/api/reports/weekly?week=2026-W48", undefined, 200, "r36 周报 ISO 周锚点 -> 200");
+      eq(isoWeek.json.period.from, "2026-11-23", "r36 周报·YYYY-Www 归一到周一");
+
+      await expectStatus("GET", "/api/reports/daily?date=2026-02-30", undefined, 400, "r36 4xx·不存在日历日 -> 400");
+      await expectStatus("GET", "/api/reports/daily?date=not-a-date", undefined, 400, "r36 4xx·非法日期 -> 400");
+      await expectStatus("GET", "/api/reports/weekly?week=2026-W99", undefined, 400, "r36 4xx·不存在 ISO 周 -> 400");
+      await expectStatus("GET", "/api/reports/weekly?week=garbage", undefined, 400, "r36 4xx·非法周锚点 -> 400");
+
+      const saveBody = {
+        title: `${KEY} 生成的日报`,
+        markdown: `# ${KEY} 生成的日报\n\n## 完成（1）\n\n- ${KEY} 日报完成项（#${doneTodo.json.id}）\n`,
+        type: "daily",
+        date: TODAY,
+      };
+      await expectStatus("POST", "/api/reports/save", { ...saveBody, markdown: "   \n" }, 400, "r36 4xx·空内容 -> 400");
+      await expectStatus("POST", "/api/reports/save", { ...saveBody, title: "" }, 400, "r36 4xx·空标题 -> 400");
+      await expectStatus("POST", "/api/reports/save", { ...saveBody, date: "2026-13-01" }, 400, "r36 4xx·保存非法日期 -> 400");
+      await expectStatus("POST", "/api/reports/save", { ...saveBody, documentId: 99999999 }, 404, "r36 4xx·越权/不存在文档 id -> 404");
+      const saved = await expectStatus("POST", "/api/reports/save", saveBody, 201, "r36 POST 存为文档 -> 201");
+      docIds.push(saved.json.documentId);
+      ok(saved.json.created === true && saved.json.imported >= 2, "r36 保存·新建文档且块数 >0");
+      eq(saved.json.document.title, saveBody.title, "r36 保存·文档标题逐字回带");
+      const savedBlocks = await expectStatus("GET", `/api/documents/${saved.json.documentId}/blocks`, undefined, 200, "r36 回查保存后块列表 -> 200");
+      eq(savedBlocks.json.blocks.length, saved.json.imported, "r36 保存·块列表数与回执一致");
+      const savedText = await expectStatus("GET", `/api/documents/${saved.json.documentId}/text`, undefined, 200, "r36 回查文档全文 -> 200");
+      ok(savedText.json.text.includes(`${KEY} 日报完成项`), "r36 保存·全文含报告真内容（文档页可编辑）");
+      const rewritten = await expectStatus("POST", "/api/reports/save", { ...saveBody, markdown: `${saveBody.markdown}\n- ${KEY} 人工补充\n`, documentId: saved.json.documentId }, 200, "r36 POST 覆盖存为文档 -> 200");
+      eq(rewritten.json.created, false, "r36 覆盖保存·created=false");
+      const blocksAfter = await expectStatus("GET", `/api/documents/${saved.json.documentId}/blocks`, undefined, 200, "r36 覆盖后回查块 -> 200");
+      eq(blocksAfter.json.blocks.length, rewritten.json.imported, "r36 覆盖保存·整篇替换不叠加旧块");
+      ok(blocksAfter.json.blocks.length === savedBlocks.json.blocks.length + 1, "r36 覆盖保存·块数按新内容增加（零半态替换）");
+
+      for (const id of scheduleIds) await expectStatus("DELETE", `/api/schedules/${id}`, undefined, 200, `r36 清理日程 ${id} -> 200`);
+      for (const id of todoIds) await expectStatus("DELETE", `/api/todos/${id}`, undefined, 200, `r36 清理待办 ${id} -> 200`);
+      for (const id of docIds) await expectStatus("DELETE", `/api/documents/${id}`, undefined, 200, `r36 清理报告文档 ${id} -> 200`);
+      const finalDaily = await expectStatus("GET", `/api/reports/daily?date=${TODAY}`, undefined, 200, "r36 清理后回查日报 -> 200");
+      ok(!finalDaily.json.markdown.includes(KEY), "r36 探针归零·日报不再含本轮 KEY");
+    }
 }
 
 try {

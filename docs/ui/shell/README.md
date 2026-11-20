@@ -1,4 +1,4 @@
-# docs/ui/shell · 十八 tab 壳激活态基线（r4 返工 #1 B 固化；r17 起十四 tab，r23 扩十五，r26 扩十六，r27 扩十七，r28 扩十八；r29/r30/r31/r32/r33/r34/r35 同批重拍）
+# docs/ui/shell · 十九 tab 壳激活态基线（r4 返工 #1 B 固化；r17 起十四 tab，r23 扩十五，r26 扩十六，r27 扩十七，r28 扩十八；r36 扩十九）
 
 > r2 U1-1（工作台）→ r3 U1-2（待办）→ r4 U1-1（工作台+待办+日程三页全漏）——
 > 「壳变更 → 继承页 tab 激活证据断档」三轮连漏后，ui-reviewer 建议固化为 shot.ps1
@@ -46,28 +46,45 @@
 > **r35 tab 数量仍不变（十八）**：日程页加 ICS 导出 / 订阅设置卡 / 导入预览面板 + 徽章推进
 > r35「日历 ICS 导出与订阅（标准 iCalendar）」→ **十八张同批重拍**，与 r34 十八张同名文件全异；
 > 返工 #1 只重拍 r35 矩阵 02/04/05/07 与改 07 用户文案，shell 渲染形态不变，十八壳字节沿用 r35 首轮。
-> 窄屏 390/488px 形态见 `docs/ui/r22/`、`docs/ui/r23/06-narrow.png`、`docs/ui/r24/06-narrow.png`、`docs/ui/r25/06-narrow.png`、`docs/ui/r26/06-narrow.png`、`docs/ui/r27/06-narrow.png`、`docs/ui/r28/06-narrow.png`、`docs/ui/r29/07-narrow.png`、`docs/ui/r30/06-narrow.png`、`docs/ui/r32/05-narrow.png`、`docs/ui/r33/06-search-narrow.png`、`docs/ui/r34/06-dep-narrow.png` 与 `docs/ui/r35/06-ics-narrow.png`。
+> **r36 新增第十九 tab「报告」**：`?page=work-reports` 日报/周报自动生成（时间窗汇总 + Markdown 预览 + 存为文档 + 打印），补 `work-reports-tab-active.png`；
+> 徽章推进 r36「日报与周报自动生成（模板化汇总）」→ **十九张同批重拍**，与 r35 十八张同名文件全异。
+> 窄屏 390/488px 形态见 `docs/ui/r22/`、`docs/ui/r23/06-narrow.png`、`docs/ui/r24/06-narrow.png`、`docs/ui/r25/06-narrow.png`、`docs/ui/r26/06-narrow.png`、`docs/ui/r27/06-narrow.png`、`docs/ui/r28/06-narrow.png`、`docs/ui/r29/07-narrow.png`、`docs/ui/r30/06-narrow.png`、`docs/ui/r32/05-narrow.png`、`docs/ui/r33/06-search-narrow.png`、`docs/ui/r34/06-dep-narrow.png`、`docs/ui/r35/06-ics-narrow.png` 与 `docs/ui/r36/06-wr-narrow.png`。
 
 | 文件 | 形态 | 对应断言 |
 |---|---|---|
-| workbench-tab-active.png | 工作台激活（默认页；schema **v18** + 里程碑 M10 多端与单机版 + 服务模式卡「本机/远端」 + 多端同步卡 + r35 徽章 + 顶栏在线状态区 + 登录按钮） | e2e「r23 schema v16 / 外壳 seam」；audit「r23 health / mode / todos 路由契约」 |
-| todos-tab-active.png | 待办激活（?page=todos；四象限 + 计数卡 + 徽标 + r35 徽章） | audit「GET 列表 -> 200」+ summary 计数组端到端形态 |
-| schedules-tab-active.png | 日程激活（?page=schedules；月视图 + 今天高亮 + 导出 .ics / 订阅设置 / 导入 .ics 三入口 + r35 徽章） | e2e「新库 schedules 为空 / r35 导出菜单 seam」；audit「GET 空区间 -> 200」 |
-| projects-tab-active.png | 项目激活（?page=projects；空态 + 新建入口 + r35 徽章） | audit「GET /api/projects -> 200」空列表形态 |
-| board-tab-active.png | 看板激活（?page=board；无项目空态引导 + r35 徽章） | audit「GET /api/projects -> 200」空列表形态的看板侧消费 |
-| bases-tab-active.png | 表格激活（?page=bases；零表首次使用空态 + 空态文案「8 种字段类型齐备（含公式）」+「＋ 新建表」+ 十八药丸壳 + r35 徽章） | audit「r31 GET /api/tables -> 200」空列表形态；e2e「r31 空态文案八类 / 旧七类零残留」 |
-| docs-tab-active.png | 文档激活（?page=docs；零文档首次使用空态 + 工具栏「回收站 / 导入 Markdown / 导出 .md / 导出 ▾ / ＋ 新建文档 / 打印预览」+ 十八药丸壳 + r35 徽章） | audit「r29 GET 文档列表 / 回收站 -> 200」空列表形态；e2e「建文档默认首块自动在场 + 零版本」「r32 导出菜单 seam」 |
-| chat-tab-active.png | AI 工作台激活（?page=chat；真实 0 会话态三栏引导 + 12 工具目录 + r35 徽章） | audit「r11 GET /api/tools -> 200」；e2e「默认注册表恰 12 个工具」 |
-| knowledge-tab-active.png | 知识库激活（?page=knowledge；真实 0 篇文档态 + 入库引导 + 十八药丸壳 + r35 徽章） | audit「r12 GET 知识库文档列表 -> 200」空列表形态 |
-| mindmap-tab-active.png | 导图激活（?page=mindmap；真实 0 张导图态 + Markdown 源/树视图双栏空态 + r35 徽章） | audit「r14 清理后导图归零」；e2e「新库导图列表为空」 |
-| whiteboard-tab-active.png | 白板激活（?page=whiteboard；真实 0 张白板态 + 无限画布网格 + 工具条空态 + r35 徽章） | audit「r15 清理后白板归零」；e2e「新库白板列表为空」 |
-| approval-tab-active.png | 审批激活（?page=approval；真实 0 条审批态 + 三视角切换 + 空列表引导 + 选人入口 + r35 徽章） | audit「r16 清理后审批归零」；e2e「新库审批列表为空」 |
-| assets-tab-active.png | 物资激活（?page=assets；真实 0 笔物资态 + 左栏空列表引导 + 右栏未选引导 + r35 徽章；折叠态无选人入口） | audit「r17 清理后物资归零」；e2e「新库物资列表为空」 |
-| unit-tasks-tab-active.png | 单位任务激活（?page=unit-tasks；真实 0 条任务态 + 「＋ 新建任务」入口 + 空树引导 + r35 徽章） | audit「r17 清理后任务归零」；e2e「空任务列表装配为空树」 |
-| org-tab-active.png | **组织激活（r23 新增）**（?page=org；真实 0 部门 0 人员空态 + 部门树面板 + 人员卡片面板 + 新建部门/人员入口 + r35 徽章） | audit「r23 GET /api/org/tree -> 200 且 tree=[] / members=[]」；e2e「r23 部门树 / 搜索 / schema v16」 |
-| notifications-tab-active.png | **通知激活（r26 新增）**（?page=notifications；零通知空态 + 六类筛选 + 计数口径图例 + 十八药丸壳 + r35 徽章） | e2e「r26 通知 tab / deep-link seam」；audit「GET /api/notifications 空列表」 |
-| reports-tab-active.png | **报表激活（r27 新增）**（?page=reports；六张 KPI 卡 + 时间范围 + 明细空态 + 十八药丸壳 + r35 徽章） | e2e「r27 十七 tab 类型含报表页 / 报表页消费 shared 口径」；audit「GET /api/reports/overview 空库六指标全 0」 |
-| meetings-tab-active.png | **会议激活（r28 新增）**（?page=meetings；零会议室 / 零成员空态：「还没有会议室——先在下方新建一间。」/「该日期暂无可用会议室。」/「通讯录暂无成员。」+ 十八药丸壳 + r35 徽章；各轮 shell 零数据最小集惯例，不是三室态） | e2e「r28 十八 tab 与顶栏按钮在场 / 会议页消费 shared 唯一口径」；audit「r28 清理后本轮会议归零」 |
+| workbench-tab-active.png | 工作台激活（默认页；schema **v18** + 里程碑 M10 多端与单机版 + 服务模式卡「本机/远端」 + 多端同步卡 + r36 徽章 + 顶栏在线状态区 + 登录按钮） | e2e「r23 schema v16 / 外壳 seam」；audit「r23 health / mode / todos 路由契约」 |
+| todos-tab-active.png | 待办激活（?page=todos；四象限 + 计数卡 + 徽标 + r36 徽章） | audit「GET 列表 -> 200」+ summary 计数组端到端形态 |
+| schedules-tab-active.png | 日程激活（?page=schedules；月视图 + 今天高亮 + 导出 .ics / 订阅设置 / 导入 .ics 三入口 + r36 徽章） | e2e「新库 schedules 为空 / r35 导出菜单 seam」；audit「GET 空区间 -> 200」 |
+| projects-tab-active.png | 项目激活（?page=projects；空态 + 新建入口 + r36 徽章） | audit「GET /api/projects -> 200」空列表形态 |
+| board-tab-active.png | 看板激活（?page=board；无项目空态引导 + r36 徽章） | audit「GET /api/projects -> 200」空列表形态的看板侧消费 |
+| bases-tab-active.png | 表格激活（?page=bases；零表首次使用空态 + 空态文案「8 种字段类型齐备（含公式）」+「＋ 新建表」+ 十九药丸壳 + r36 徽章） | audit「r31 GET /api/tables -> 200」空列表形态；e2e「r31 空态文案八类 / 旧七类零残留」 |
+| docs-tab-active.png | 文档激活（?page=docs；零文档首次使用空态 + 工具栏「回收站 / 导入 Markdown / 导出 .md / 导出 ▾ / ＋ 新建文档 / 打印预览」+ 十九药丸壳 + r36 徽章） | audit「r29 GET 文档列表 / 回收站 -> 200」空列表形态；e2e「建文档默认首块自动在场 + 零版本」「r32 导出菜单 seam」 |
+| chat-tab-active.png | AI 工作台激活（?page=chat；真实 0 会话态三栏引导 + 12 工具目录 + r36 徽章） | audit「r11 GET /api/tools -> 200」；e2e「默认注册表恰 12 个工具」 |
+| knowledge-tab-active.png | 知识库激活（?page=knowledge；真实 0 篇文档态 + 入库引导 + 十九药丸壳 + r36 徽章） | audit「r12 GET 知识库文档列表 -> 200」空列表形态 |
+| mindmap-tab-active.png | 导图激活（?page=mindmap；真实 0 张导图态 + Markdown 源/树视图双栏空态 + r36 徽章） | audit「r14 清理后导图归零」；e2e「新库导图列表为空」 |
+| whiteboard-tab-active.png | 白板激活（?page=whiteboard；真实 0 张白板态 + 无限画布网格 + 工具条空态 + r36 徽章） | audit「r15 清理后白板归零」；e2e「新库白板列表为空」 |
+| approval-tab-active.png | 审批激活（?page=approval；真实 0 条审批态 + 三视角切换 + 空列表引导 + 选人入口 + r36 徽章） | audit「r16 清理后审批归零」；e2e「新库审批列表为空」 |
+| assets-tab-active.png | 物资激活（?page=assets；真实 0 笔物资态 + 左栏空列表引导 + 右栏未选引导 + r36 徽章；折叠态无选人入口） | audit「r17 清理后物资归零」；e2e「新库物资列表为空」 |
+| unit-tasks-tab-active.png | 单位任务激活（?page=unit-tasks；真实 0 条任务态 + 「＋ 新建任务」入口 + 空树引导 + r36 徽章） | audit「r17 清理后任务归零」；e2e「空任务列表装配为空树」 |
+| org-tab-active.png | **组织激活（r23 新增）**（?page=org；真实 0 部门 0 人员空态 + 部门树面板 + 人员卡片面板 + 新建部门/人员入口 + r36 徽章） | audit「r23 GET /api/org/tree -> 200 且 tree=[] / members=[]」；e2e「r23 部门树 / 搜索 / schema v16」 |
+| notifications-tab-active.png | **通知激活（r26 新增）**（?page=notifications；零通知空态 + 六类筛选 + 计数口径图例 + 十九药丸壳 + r36 徽章） | e2e「r26 通知 tab / deep-link seam」；audit「GET /api/notifications 空列表」 |
+| reports-tab-active.png | **报表激活（r27 新增）**（?page=reports；六张 KPI 卡 + 时间范围 + 明细空态 + 十九药丸壳 + r36 徽章） | e2e「r27 十七 tab 类型含报表页 / 报表页消费 shared 口径」；audit「GET /api/reports/overview 空库六指标全 0」 |
+| work-reports-tab-active.png | **报告激活（r36 新增）**（?page=work-reports；真实 0 数据日报空态 + 日报/周报切换 + 日期锚点 + 「生成报告 / 存为文档 / 打印」三按钮 + 十九药丸壳 + r36 徽章） | e2e「r36 App·十九 tab / 报告 tab 激活态 seam」；audit「GET /api/reports/daily 空库六段皆暂无 / summary 全 0」 |
+| meetings-tab-active.png | **会议激活（r28 新增）**（?page=meetings；零会议室 / 零成员空态：「还没有会议室——先在下方新建一间。」/「该日期暂无可用会议室。」/「通讯录暂无成员。」+ 十九药丸壳 + r36 徽章；各轮 shell 零数据最小集惯例，不是三室态） | e2e「r28 十八 tab 与顶栏按钮在场 / 会议页消费 shared 唯一口径」；audit「r28 清理后本轮会议归零」 |
+
+## r36 哈希自查（十九张互异，与当前文件逐字一致；R36 当前哈希块，以下 R35 及以下为历史块）
+
+<!-- R36_HASHES_BEGIN -->
+`workbench=D7A7BD5A` · `todos=77E9D48D` · `schedules=A1F5E9AB` · `projects=DD4AF156` ·
+`board=73D59F20` · `bases=1BD2E22A` · `docs=30EF4BA7` · `chat=0D843A9E` ·
+`knowledge=99918481` · `mindmap=594D31B4` · `whiteboard=39146E44` · `approval=0844FFB0` ·
+`assets=55CC5F2A` · `unit-tasks=95F1ED6F` · `org=392DB0C3` · `notifications=FE6746C4` ·
+`reports=4A743935` · `work-reports=72981AEF` · `meetings=F0AE6624` —— **19/19 互异**。
+<!-- R36_HASHES_END -->
+
+> r36 新增第十九 tab「报告」（`?page=work-reports`）+ 顶栏徽章推进 + 报告页主按钮可见性修复 → 十九张同批重拍；
+> 矩阵↔壳重叠 0；全库 335 PNG / 333 互异（+8 = r36 矩阵 7 张 + 新增 work-reports 壳 1 张），同态组仅 r4 已披露 2 组。
+> 首轮 remote 模式误拍登录页（19 张同哈希）与次轮主按钮白字白底废片均已全批重拍、未入库。
 
 ## r25 哈希自查（十五张互异，历史块；当前文件见下方 R26 块）
 
@@ -152,7 +169,7 @@
 >（r31 新增 3 张矩阵，十八壳为替换同路径不增总数），r31 当时全库 **300 PNG / 298 互异**，同态组仅 r4 已披露 2 组，r31 零新增。
 > e2e「shell README R31 当前哈希块在场」已被 R32 全批重拍取代（本块保留作历史对照）。
 
-## r35 哈希自查（十八张互异，与当前文件逐字一致；R35 当前哈希块，以下 R34 及以下为历史块）
+## r35 哈希自查（十八张互异，历史块；当前文件见上方 R36 块）
 
 <!-- R35_HASHES_BEGIN -->
 `workbench=D6C682F3` · `todos=EC2803EA` · `schedules=0CEAC049` · `projects=D66AE501` ·
@@ -238,10 +255,10 @@
 
 ## 机制说明
 
-- 拍摄入口：`scripts/shot.ps1` 的 `Invoke-ShellBaseline`（r4 返工 #1 加入；r8 由 6 扩 7，r10 扩 8，r12 扩 9，r14 扩 10，r15 扩 11，r16 扩 12，r17 扩 14；r18~r22 数量不变仍 14；**r23 扩 15，r26 扩 16，r27 扩 17，r28 扩 18**）。
-- 触发条件：`-Round r4` 及以后的 `shots` / `all` 动作（r1~r3 历史轮不回拍）；r21 因未改渲染层沿用 r20 字节，r22 补拍闭合口径，r23 因新增 tab 全量重拍，r25 因渲染层改动全量重拍，r26 与 r26 返工 #1 均因通知/日程/审批渲染层改动全量重拍，r27 因新增报表 tab 与徽章推进全量重拍，r28 因新增会议 tab 全量重拍，r29 因文档页版本历史侧栏 / 回收站入口 + 徽章推进全量重拍，r30 因表格页公式列 / 表达式面板 + 徽章推进全量重拍，r31 因表格页空态文案 / 浮点展示格式化 + 徽章推进全量重拍，r32 因文档页导出菜单 / 打印 iframe / HTML·Word 佐证面板 + 徽章推进全量重拍，r33 因全局搜索顶栏 + 徽章推进全量重拍，r34 因待办前置任务/阻塞链 + 徽章推进全量重拍，r35 因日程页 ICS 导出/订阅/导入 + 徽章推进全量重拍（tab 数仍 18；返工 #1 只重拍 r35 矩阵 02/04/05/07，壳形态未变、十八壳沿用 r35 首轮字节）。
+- 拍摄入口：`scripts/shot.ps1` 的 `Invoke-ShellBaseline`（r4 返工 #1 加入；r8 由 6 扩 7，r10 扩 8，r12 扩 9，r14 扩 10，r15 扩 11，r16 扩 12，r17 扩 14；r18~r22 数量不变仍 14；**r23 扩 15，r26 扩 16，r27 扩 17，r28 扩 18，r36 扩 19**）。
+- 触发条件：`-Round r4` 及以后的 `shots` / `all` 动作（r1~r3 历史轮不回拍）；r21 因未改渲染层沿用 r20 字节，r22 补拍闭合口径，r23 因新增 tab 全量重拍，r25 因渲染层改动全量重拍，r26 与 r26 返工 #1 均因通知/日程/审批渲染层改动全量重拍，r27 因新增报表 tab 与徽章推进全量重拍，r28 因新增会议 tab 全量重拍，r29 因文档页版本历史侧栏 / 回收站入口 + 徽章推进全量重拍，r30 因表格页公式列 / 表达式面板 + 徽章推进全量重拍，r31 因表格页空态文案 / 浮点展示格式化 + 徽章推进全量重拍，r32 因文档页导出菜单 / 打印 iframe / HTML·Word 佐证面板 + 徽章推进全量重拍，r33 因全局搜索顶栏 + 徽章推进全量重拍，r34 因待办前置任务/阻塞链 + 徽章推进全量重拍，r35 因日程页 ICS 导出/订阅/导入 + 徽章推进全量重拍（tab 数仍 18；返工 #1 只重拍 r35 矩阵 02/04/05/07，壳形态未变、十八壳沿用 r35 首轮字节），r36 因新增报告 tab + 徽章推进 + 主按钮可见性修复十九张全量重拍（首轮 remote 登录页废片全批重拍）。
 - 落盘：本目录，文件名 `<tab>-tab-active.png`（与 App.tsx PageTab 一一对应；新增/改名 tab 时须同步脚本内 $tabs 清单）。
 - 认证页为独立路由、同步卡在工作台内、更多入口为底栏布局件，三者均不进 `$tabs`；「组织」是真 tab，r23 起进基线。
 - 同态说明：壳基线各张与各轮页面矩阵均不同字节；全库唯一残留同态组在 r4 目录内部
-  （`r4/01 = r4/16` = `9E5C0C23`、`r4/05 = r4/13` = `8397A028`），如实注记；**全库 327 PNG / 325 互异**（r35 新增 7 张矩阵，十八壳与返工 #1 的 4 张重拍均为替换同路径不增总数），r29~r35 均零新增同态组。
+  （`r4/01 = r4/16` = `9E5C0C23`、`r4/05 = r4/13` = `8397A028`），如实注记；**全库 335 PNG / 333 互异**（r36 新增 7 张矩阵 + 1 张 work-reports 壳），r29~r36 均零新增同态组。
 - `mindmap-tab-active` 与 `docs/ui/r14/` 矩阵 02/03/04 分形：0 张导图空态 / Markdown 编辑态 / 树视图态 / 折叠态，四态互异。

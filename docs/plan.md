@@ -239,7 +239,7 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r33 | M10 后·全局搜索（跨模块统一检索） | ✅已发版（首轮双通过；跨八源只读检索 + 变异红相 + deep-link 直达） | v0.0.39 | e2e 2849 · audit 2262 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r34 | M10 后·任务依赖与阻塞关系（待办前置） | ✅已发版（首轮双通过；依赖守卫 40/40 + 既有状态机零回归） | v0.0.40 | e2e 2961 · audit 2324 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r35 | M10 后·日历 ICS 导出与订阅（标准 iCalendar） | ✅已发版（初验 UI 打回 U1 图证链→返工#1 同一 ICS 往返→双终审通过） | v0.0.41 | e2e 3069 · audit 2396 | 通过（waizhuan）+ UI 终审通过（U1=0） |
-| r36 | M10 后·日报与周报自动生成 | 🔨规划中 | — | — | — |
+| r36 | M10 后·日报与周报自动生成 | ✅研发完成（待 waizhuan 复验 / lead 发版） | — | e2e 3167 · audit 2471 | 待复验 |
 
 ## 🏁 项目总账（2026-11-19 · M10 收官）
 
@@ -831,6 +831,17 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 ---
 
 ## 记账区（每轮追加）
+
+### 2026-11-20 · r36 研发（yanfa-r36 · M10 后功能补强：日报与周报自动生成）
+- 交付：`packages/shared/src/workReports.ts` 唯一口径（`parseWorkReportPeriod` 日/自然周/ISO 周锚点 · `inWorkReportWindow` 闭区间过滤 · `collectReportData` 完成按 updatedAt / 新建进行中按 createdAt||updatedAt / 阻塞取 r34 依赖图 · `buildReportMarkdown` 六段 · `buildReportHtml` 打印版五字符转义 · `reportSummary` 计数 · `assertValidWorkReportSave` 守卫）；`@xieflow/shared/workReports` 子路径登记；api/web 零算法分支；零新依赖、零 token、无 schema 迁移（复用 documents + blocks）
+- api：`GET /api/reports/daily?date=`、`GET /api/reports/weekly?week=`（Markdown + 结构化数据 + 摘要 + 打印 HTML）、`POST /api/reports/save`（新建 201 / 覆盖 200，空内容 400 / 越权文档 id 404 / 非法日期 400）——audit 75 条真 HTTP 全绿
+- web：新增第十九 tab「报告」（`?page=work-reports`）——日报/周报切换 + 日期/周锚点 + 可编辑 Markdown 预览 + 计数摘要 + 存为文档回执 + 打印导出 + 错误红条；十九 tab 壳基线同批重拍
+- 断言：e2e 3069 → **3167（+98）** · audit 2396 → **2471（+75）**，无一条删除；typecheck 5 包；`pnpm run test:all` exit 0
+- **变异红相 1 组**：`inWorkReportWindow` 上界 `day <= period.to` → `day < period.to`（末日被错误排除）→ e2e 18 红 / audit 15 红；逐字节还原（SHA `7080BE3D…B3B14`，`MUTATION-PROBE r36` 零残留）双套件全绿
+- 「用户第一次用」全链路：`scripts/r36-firstuse-cdp.mjs`（headless CDP 真点，16 步全绿）造 4 待办/2 日程 → 看日报 → 切周报 → 编辑 Markdown → 存为文档 → 文档页打开 → reload 不丢 → HTTP truth 回查 → 探针清理、服务收净
+- 截图：`docs/ui/r36/` 7 张 + `docs/ui/shell/` 十九 tab 同批重拍；7/7、19/19 SHA256 互异，矩阵↔壳重叠 0，全库 335 PNG / 333 互异，逐张 `read_image` 目验；首轮 remote 登录页废片与次轮主按钮白字白底废片均全批重拍未入库；索引 / shell README R36 块 / 精简版根 README 同一提交
+- 危险区：未 push / 未打 tag / 未发版 / 未改 CI 发布配置；无 schema 迁移、未手改库文件；截图与 CDP 走 scratch 库并在批次末删除，仓库 `data/xieflow.db` 未作 DB_PATH；全程 headless、服务收净、PowerShell 新段全 ASCII、零 token
+- 报告：`docs/feedback/2026-11-20-r36-yanfa.md`（三态纪律 + 自曝 + 变异红相 + 全链路证据）
 
 ### 2026-11-20 · r33 研发（yanfa-r33 · M10 后第十一轮功能补强：全局搜索 / 跨八源只读统一检索）
 - 交付：`packages/shared/src/globalSearch.ts` 唯一检索口径（`normalizeQuery` trim/小写/分词 · `scoreMatch` 标题权重 3 > 正文 1、前缀 10 > 包含 5 · `assembleSearchResults` 跨源聚合/分数降序/每源上限/type:id 去重/deepLink 装配 · `parseSearchTypes` / `parseSearchLimit` / `assertValidSearchQuery` 守卫 · `splitSearchHighlight` 高亮切分 · 八源 tab/id 参数映射），根 index.ts 重导出、子路径 `./globalSearch` 开放；**零新依赖、零 token、零外部搜索服务、无 schema 迁移**

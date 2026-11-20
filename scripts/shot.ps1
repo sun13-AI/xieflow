@@ -30,6 +30,7 @@
 #   powershell -File scripts\shot.ps1 shots -Round r29 # capture r29 version history / recycle bin matrix + 18-tab shell baseline
 #   powershell -File scripts\shot.ps1 shots -Round r31 # capture r31 bases empty-text + formula float-display matrix + 18-tab shell baseline
 #   powershell -File scripts\shot.ps1 shots -Round r24 # capture r24 member-picker matrix + 15-tab shell baseline
+#   powershell -File scripts\shot.ps1 shots -Round r36 # capture r36 report tab matrix + 19-tab shell baseline
 #   powershell -File scripts\shot.ps1 shots -Round r11 -Shot 08-docs-diff-inline # rework#1: re-capture ONLY the diff-inline evidence (no other matrix/shell re-shot)
 #   powershell -File scripts\shot.ps1 shots -Round r26 -Shot 09-notif-deeplink-target # r26 rework#2: seed 3 pending approvals, CDP-click the SECOND notification, capture ONLY 09 (no other matrix/shell re-shot)
 #   powershell -File scripts\shot.ps1 down            # stop servers
@@ -55,7 +56,7 @@ param(
   [Parameter(Position = 0)]
   [ValidateSet("up", "shots", "down", "status", "all")]
   [string]$Action = "status",
-  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r26", "r27", "r28", "r29", "r30", "r31", "r32", "r33", "r34", "r35")]
+  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r26", "r27", "r28", "r29", "r30", "r31", "r32", "r33", "r34", "r35", "r36")]
   [string]$Round = "r1",
   [Parameter()]
   [string]$Shot = ""
@@ -156,6 +157,7 @@ function Find-Browser {
 # r26: the SIXTEENTH tab (notifications) was added -> sixteen active states in one batch.
 # r27: the SEVENTEENTH tab (reports) was added -> seventeen active states in one batch.
 # r28: the EIGHTEENTH tab (meetings) was added -> eighteen active states in one batch.
+# r36: the NINETEENTH tab (work-reports) was added -> nineteen active states in one batch.
 function Invoke-ShellBaseline {
   param([string]$BrowserPath)
   $shellDir = Join-Path $Root "docs\ui\shell"
@@ -179,6 +181,7 @@ function Invoke-ShellBaseline {
     @{ page = "org";       file = "org-tab-active" },
     @{ page = "notifications"; file = "notifications-tab-active" },
     @{ page = "reports";       file = "reports-tab-active" },
+    @{ page = "work-reports";  file = "work-reports-tab-active" },
     @{ page = "meetings";      file = "meetings-tab-active" }
   )
   foreach ($t in $tabs) {
@@ -1022,7 +1025,21 @@ function Invoke-Shots {
     }
   }
 
-  if ($Round -eq "r35") {
+  if ($Round -eq "r36") {
+    # r36: report tab matrix. Seven deterministic ?shot= pins over the real
+    # WorkReportsPage (all markdown assembled by shared/workReports): empty /
+    # daily / weekly / editable / saved receipt / narrow / error state.
+    $r36Base = "http://127.0.0.1:$WebPort/?page=work-reports"
+    $shots = @(
+      @{ name = "01-wr-empty";   url = "$r36Base&shot=wr-empty";   width = 1280; height = 900 },
+      @{ name = "02-wr-daily";   url = "$r36Base&shot=wr-daily";   width = 1280; height = 900 },
+      @{ name = "03-wr-weekly";  url = "$r36Base&shot=wr-weekly";  width = 1280; height = 900 },
+      @{ name = "04-wr-edit";    url = "$r36Base&shot=wr-edit";    width = 1280; height = 900 },
+      @{ name = "05-wr-saved";   url = "$r36Base&shot=wr-saved";   width = 1280; height = 900 },
+      @{ name = "06-wr-narrow";  url = "$r36Base&shot=wr-narrow&narrow=1"; width = 488; height = 1100 },
+      @{ name = "07-wr-error";   url = "$r36Base&shot=wr-error";   width = 1280; height = 900 }
+    )
+  } elseif ($Round -eq "r35") {
     # r35: calendar ICS matrix. Seven deterministic ?shot= pins over the real
     # SchedulesPage ICS UI: export menu / saved receipt / feed card / import
     # preview / import success / narrow / real-4xx-shaped error state.
