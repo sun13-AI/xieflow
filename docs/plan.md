@@ -212,7 +212,7 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r25 | M10 后·第三轮遗留清理（shell 哈希块/审批 actorMemberId/文档口径） | ✅已发版（首轮双通过；P3 actorMemberId 真修 35/35） | v0.0.31 | e2e 2096 · audit 1723 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r26 | M10 后·通知中心（站内消息聚合） | ✅已发版（初验 waizhuan 打回 P2 通知不定位→返工#1 deep-link refId→UI 打回零图证→返工#2 补 09 图→双终审通过） | v0.0.32 | e2e 2237 · audit 1809 | 通过（waizhuan）+ UI 终审通过（U1/U2/U3 全零） |
 | r27 | M10 后·报表中心（跨模块数据看板） | ✅已发版（首轮双通过；六指标手算全对 + 修 README 笔误） | v0.0.33 | e2e 2335 · audit 1904 | 通过（waizhuan）+ UI 通过（阻断岗） |
-| r28 | M10 后·第六轮（待定切片） | 🔨规划中 | — | — | — |
+| r28 | M10 后·会议管理与会议室（预约/冲突检测） | 🔨规划中 | — | — | — |
 
 ## 🏁 项目总账（2026-11-19 · M10 收官）
 
@@ -652,6 +652,23 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
   4. 双 VERDICT（waizhuan + ui 阻断岗）通过
 - 前置：r26 已发版（v0.0.32）✅
 - 明确边界：本轮只读不改任何业务数据；不引外部图表库（用 CSS/纯 SVG 迷你条），零新依赖、零 token
+
+### r28 · 会议管理与会议室（预约 / 冲突检测，M10 后功能补强）
+- 目标：协同办公标配的会议预约——会议室台账 + 时段预约 + 冲突检测 + 参会人（来自 r23 通讯录）——本轮只做本地预约管理，**不碰视频会议**（宪法「明确不做」）
+- 交付清单：
+  1. schema v19→v20：rooms 表（id/name/capacity/location/equipment/floor）、meetings 表（id/title/room_id/start_at/end_at/organizer_member_id/agenda/status:booked|cancelled/created_at）、meeting_attendees 表（meeting_id/member_id，可空关联通讯录）
+  2. 会议规则集中 packages/shared/meetings.ts：detectTimeConflict(newMeeting, existing)（同会议室时段重叠判定，边界相接不冲突）、validateMeetingWindow(start, end)（结束必须晚于开始/最长 8 小时）、normalizeAttendees(ids)（去重/校验）——api/web 零算法分支
+  3. api：rooms CRUD、meetings CRUD + 预约（冲突返回 409 + 冲突会议 id）、按日期/会议室查询日程、attendees 管理；GET /api/rooms/:id/availability?date=（时段占用表）
+  4. web：新增「会议」tab——左会议室列表（容量/设备）+ 中周/日视图时段网格 + 右预约表单（标题/时段/参会人从通讯录选）；冲突时红条提示冲突会议
+  5. 断言：e2e ≥+35（冲突检测/边界相接/窗口校验/预约 CRUD/可用性查询）、audit ≥+25（含 409 冲突/4xx：时段倒挂/超长/越权 room_id/停用参会人）
+  6. 截图 ≥7：会议空态/会议室列表/时段网格/预约表单/冲突提示/窄屏/错误态
+- 验收标准：
+  1. 全量绿：e2e ≥2370、audit ≥1929，README 双节同步
+  2. **冲突检测真实性**：waizhuan 造同会议室重叠时段→409+冲突 id；边界相接（9:00-10:00 与 10:00-11:00）不冲突；跨会议室同时段不冲突
+  3. **新增「会议」tab 补该 tab 激活态图**（十八 tab 壳基线）
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r27 已发版（v0.0.33）✅
+- 明确边界：只做本地预约台账，**不接视频会议/外部日历**（宪法明确不做），零 token
 
 ## 历史轮次（r1~r2 已收档，见下方记账区）
 
