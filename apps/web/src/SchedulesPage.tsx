@@ -133,6 +133,145 @@ export default function SchedulesPage() {
   }));
   const [submitError, setSubmitError] = useState<string | null>(null);
 
+  // r35：ICS 导出 / 订阅设置 / 导入预览（解析与规划走 shared + api，本页只装配与渲染）
+  type IcsPanel = "export" | "feed" | "import" | null;
+  interface IcsDraft {
+    title: string;
+    date: string;
+    start: string;
+    end: string;
+    repeat: string;
+  }
+  interface IcsPreview {
+    count: number;
+    events: Array<{ uid: string; summary: string; dtStart: string; dtEnd: string; description: string; location: string }>;
+    drafts: IcsDraft[];
+  }
+  const pinnedDraft = (title: string, date: string): IcsDraft => ({
+    title,
+    date,
+    start: "10:00",
+    end: "11:00",
+    repeat: "none",
+  });
+  const pinnedPreview = (): IcsPreview => {
+    const seed = pinSeed(new Date()).schedules.slice(0, 2);
+    return {
+      count: seed.length,
+      events: seed.map((s) => ({
+        uid: `schedule-${s.id}-${s.date.replace(/-/g, "")}@xieflow.local`,
+        summary: s.title,
+        dtStart: `${s.date}T${s.start}:00`,
+        dtEnd: `${s.date}T${s.end}:00`,
+        description: `协流 XieFlow 日程\n重复规则：${REPEAT_LABELS[s.repeat]}\n原始日期：${s.date}`,
+        location: "协流 XieFlow · 日程",
+      })),
+      drafts: seed.map((s) => pinnedDraft(s.title, s.date)),
+    };
+  };
+  const [icsPanel, setIcsPanel] = useState<IcsPanel>(() => {
+    if (shot === "ics-export-menu" || shot === "ics-saved") return "export";
+    if (shot === "ics-feed-card") return "feed";
+    if (shot === "ics-import-preview" || shot === "ics-import-success" || shot === "ics-error") return "import";
+    if (shot === "ics-narrow") return "import";
+    return null;
+  });
+  const [icsSaved, setIcsSaved] = useState<{ filename: string; count: number; bytes: number } | null>(
+    () => shot === "ics-saved" ? { filename: `xieflow-schedules-${localDateStr(new Date())}-${localDateOffset(30, new Date())}.ics`, count: 3, bytes: 1842 } : null,
+  );
+  const [icsFeedKey, setIcsFeedKey] = useState<string | null>(
+    () => shot === "ics-feed-card" ? "r35feedpin0000000000000000" : null,
+  );
+  const [icsImportText, setIcsImportText] = useState("");
+  const [icsPreview, setIcsPreview] = useState<IcsPreview | null>(
+    () => (shot === "ics-import-preview" || shot === "ics-import-success" || shot === "ics-narrow") ? pinnedPreview() : null,
+  );
+  const [icsImportedCount, setIcsImportedCount] = useState<number | null>(
+    () => shot === "ics-import-success" ? 2 : null,
+  );
+  const [icsError, setIcsError] = useState<string | null>(
+    () => shot === "ics-error" ? "ICS 解析失败：缺少 VCALENDAR 头尾（对应 audit「坏 ICS -> 400」）" : null,
+  );
+  const [icsBusy, setIcsBusy] = useState(false);
+
+  const icsErrorText = (err: unknown): string => err instanceof Error ? err.message : String(err);
+
+  /** 真取 API 响应 → Blob 触发浏览器下载 → 页面回显落盘佐证（文件名/事件数/字节数） */
+  const exportIcs = async (kind: "schedules" | "todos"): Promise<void> => {
+    setIcsError(null);
+    setIcsBusy(true);
+    try {
+      const url = kind === "schedules"
+        ? `/api/schedules/export.ics?from=${monthStart}&to=${monthEnd}`
+        : "/api/todos/due.ics";
+      const res = await apiFetch(url);
+      const text = await res.text();
+      if (!res.ok) {
+        let message = `导出失败（HTTP ${res.status}）`;
+        try { message = (JSON.parse(text) as { error?: string }).error ?? message; } catch { /* 非 JSON 错误体 */ }
+        throw new Error(message);
+      }
+      const filename = kind === "schedules"
+        ? `xieflow-schedules-${monthStart}-${monthEnd}.ics`
+        : "xieflow-todos-due.ics";
+      const href = URL.createObjectURL(new Blob([text], { type: "text/calendar;charset=utf-8" }));
+      const a = document.createElement("a");
+      a.href = href;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.setTimeout(() => URL.revokeObjectURL(href), 1000);
+      setIcsSaved({ filename, count: (text.match(/BEGIN:VEVENT/g) ?? []).length, bytes: new TextEncoder().encode(text).length });
+    } catch (err) {
+      setIcsError(icsErrorText(err));
+    } finally {
+      setIcsBusy(false);
+    }
+  };
+
+  /** 本地随机订阅 key（存 settings，不是密钥/token） */
+  const generateFeedKey = async (): Promise<void> => {
+    setIcsError(null);
+    setIcsBusy(true);
+    try {
+      const res = await apiFetch("/api/feeds/key", { method: "POST" });
+      const data = (await fetchJsonOrThrow(res)) as { key: string; url: string };
+      setIcsFeedKey(data.key);
+    } catch (err) {
+      setIcsError(icsErrorText(err));
+    } finally {
+      setIcsBusy(false);
+    }
+  };
+
+  /** 导入预览：只解析不写库；确认后再 commit */
+  const postImport = async (commit: boolean): Promise<void> => {
+    setIcsError(null);
+    setIcsBusy(true);
+    try {
+      const res = await apiFetch("/api/schedules/import.ics", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ics: icsImportText, commit }),
+      });
+      const data = (await fetchJsonOrThrow(res)) as IcsPreview & { count: number };
+      if (commit) {
+        setIcsImportedCount(data.count);
+        setIcsPreview(null);
+        setIcsImportText("");
+        await load();
+      } else {
+        setIcsImportedCount(null);
+        setIcsPreview(data);
+      }
+    } catch (err) {
+      setIcsError(icsErrorText(err));
+    } finally {
+      setIcsBusy(false);
+    }
+  };
+
   const monthStart = useMemo(
     () => localDateStr(new Date(cursor.year, cursor.month, 1)),
     [cursor],
@@ -304,10 +443,117 @@ export default function SchedulesPage() {
             今天
           </button>
         </div>
+        <div className="ics-tools">
+          <button
+            type="button"
+            className="btn btn-secondary btn-small"
+            data-action="ics-toggle-export"
+            onClick={() => { setIcsPanel(icsPanel === "export" ? null : "export"); setIcsError(null); }}
+          >
+            导出 .ics
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary btn-small"
+            data-action="ics-toggle-feed"
+            onClick={() => { setIcsPanel(icsPanel === "feed" ? null : "feed"); setIcsError(null); }}
+          >
+            订阅设置
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary btn-small"
+            data-action="ics-toggle-import"
+            onClick={() => { setIcsPanel(icsPanel === "import" ? null : "import"); setIcsError(null); }}
+          >
+            导入 .ics
+          </button>
+        </div>
         <span className="hint">{linkedScheduleId > 0
           ? `已定位通知引用的日程 #${linkedScheduleId}（高亮块即目标）`
           : "点任意日期新建日程；点日程块可改期（关联待办会同步）。"}</span>
       </div>
+
+      {icsPanel === "export" && (
+        <section className="card ics-panel" data-state="ics-export-menu">
+          <h3>导出标准日历文件（iCalendar）</h3>
+          <p className="hint">Outlook / Google Calendar / Apple 日历可直接打开；中文、逗号、换行与引号均已按标准转义。</p>
+          <div className="ics-actions">
+            <button type="button" className="btn btn-primary btn-small" data-action="ics-export-schedules" disabled={icsBusy} onClick={() => void exportIcs("schedules")}>导出本月日程 (.ics)</button>
+            <button type="button" className="btn btn-secondary btn-small" data-action="ics-export-todos" disabled={icsBusy} onClick={() => void exportIcs("todos")}>导出待办截止日 (.ics)</button>
+          </div>
+          {icsSaved && (
+            <p className="hint ics-saved" data-state="ics-saved">
+              ✓ 已保存 {icsSaved.filename}（{icsSaved.count} 条事件 / {icsSaved.bytes} 字节），可在下载目录打开。
+            </p>
+          )}
+        </section>
+      )}
+
+      {icsPanel === "feed" && (
+        <section className="card ics-panel" data-state="ics-feed-card">
+          <h3>日历订阅设置</h3>
+          <p className="hint">订阅 key 是本地随机串（存 settings），不是密钥/token；仅本机可用的只读订阅源。</p>
+          {icsFeedKey ? (
+            <div className="ics-feed">
+              <p className="ics-field" data-field="ics-feed-key">订阅 key：<code>{icsFeedKey}</code></p>
+              <p className="ics-field" data-field="ics-feed-url">订阅 URL：<code>/api/feeds/{icsFeedKey}.ics</code></p>
+              <button
+                type="button"
+                className="btn btn-secondary btn-small"
+                data-action="ics-feed-copy"
+                onClick={() => void navigator.clipboard?.writeText(`${window.location.origin}/api/feeds/${icsFeedKey}.ics`)}
+              >
+                复制 URL
+              </button>
+            </div>
+          ) : (
+            <button type="button" className="btn btn-primary btn-small" data-action="ics-feed-generate" disabled={icsBusy} onClick={() => void generateFeedKey()}>生成订阅地址</button>
+          )}
+        </section>
+      )}
+
+      {icsPanel === "import" && (
+        <section className="card ics-panel" data-state="ics-import-panel">
+          <h3>导入 .ics（先预览，确认后写入）</h3>
+          <label className="field">
+            <span className="field-label">粘贴 .ics 全文（支持中文 / 逗号 / 换行转义）</span>
+            <textarea
+              data-field="ics-text"
+              rows={4}
+              value={icsImportText}
+              placeholder="BEGIN:VCALENDAR ..."
+              onChange={(e) => setIcsImportText(e.target.value)}
+            />
+          </label>
+          <div className="ics-actions">
+            <button type="button" className="btn btn-secondary btn-small" data-action="ics-import-preview" disabled={icsBusy} onClick={() => void postImport(false)}>解析预览</button>
+            <button type="button" className="btn btn-primary btn-small" data-action="ics-import-commit" disabled={icsBusy || icsPreview === null} onClick={() => void postImport(true)}>确认写入</button>
+          </div>
+          {icsPreview && (
+            <div className="ics-preview" data-state="ics-import-preview">
+              <p className="hint">解析到 {icsPreview.count} 条事件（X-XIEFLOW-* 元数据用于还原重复规则）：</p>
+              <table>
+                <thead><tr><th>标题</th><th>日期</th><th>时间</th><th>重复</th></tr></thead>
+                <tbody>
+                  {icsPreview.drafts.map((d, i) => (
+                    <tr key={`${d.title}-${i}`} data-row="ics-draft">
+                      <td>{d.title}</td><td>{d.date}</td><td>{d.start}–{d.end}</td><td>{d.repeat}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {icsImportedCount !== null && (
+            <p className="hint ics-success" data-state="ics-import-success">✓ 已成功导入 {icsImportedCount} 条日程，刷新后仍在月视图中。</p>
+          )}
+        </section>
+      )}
+
+      {icsError && (
+        <p className="error-message" data-state="ics-error" role="alert">{icsError}</p>
+      )}
 
       {schedules.length === 0 && (
         <section className="card" data-state="schedule-empty">

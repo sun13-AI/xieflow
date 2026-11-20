@@ -145,6 +145,19 @@
 >（r31 新增 3 张矩阵，十八壳为替换同路径不增总数），r31 当时全库 **300 PNG / 298 互异**，同态组仅 r4 已披露 2 组，r31 零新增。
 > e2e「shell README R31 当前哈希块在场」已被 R32 全批重拍取代（本块保留作历史对照）。
 
+## r35 哈希自查（十八张互异，与当前文件逐字一致；R35 当前哈希块，以下 R34 及以下为历史块）
+
+<!-- R35_HASHES_BEGIN -->
+`workbench=D6C682F3` · `todos=EC2803EA` · `schedules=0CEAC049` · `projects=D66AE501` ·
+`board=1D910E72` · `bases=60664FBD` · `docs=49E7B43C` · `chat=0EDD2B83` ·
+`knowledge=1238C4AD` · `mindmap=9423B6E1` · `whiteboard=A58D3813` · `approval=958D478E` ·
+`assets=04F3F356` · `unit-tasks=3B9731ED` · `org=C1C0092F` · `notifications=0906E38A` ·
+`reports=040A589B` · `meetings=4890F1F9` —— **18/18 互异**。
+<!-- R35_HASHES_END -->
+
+> r35 日程页加 ICS 导出菜单 / 落盘回执 / 订阅设置卡 / 导入预览与确认，18 tab 数量不变但渲染层变化 → 十八张同批重拍；
+> 矩阵↔壳重叠 0；全库 327 PNG / 325 互异（+7 = r35 矩阵新增），同态组仅 r4 已披露 2 组。
+
 ## r34 哈希自查（十八张互异，与当前文件逐字一致；R34 当前哈希块，以下 R33 及以下为历史块）
 
 <!-- R34_HASHES_BEGIN -->

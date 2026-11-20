@@ -34,6 +34,7 @@ import {
   expectedDeployStatus,
   missingDeployMarkers,
 } from "@xieflow/shared/deploy";
+import { parseIcsCalendar, buildIcsCalendar, scheduleToIcsEvent, formatIcsDate } from "@xieflow/shared/ics";
 import { isServerMode } from "@xieflow/shared/auth";
 import { formatFormulaDisplay } from "@xieflow/shared/formula";
 import { createMockProvider, MOCK_PROVIDER_ID } from "@xieflow/agent";
@@ -4133,6 +4134,105 @@ async function auditR28(): Promise<void> {
       await expectStatus("DELETE", `/api/todos/${C}`, undefined, 200, "r34 清理 C -> 200");
       const finalBlocked = await expectStatus("GET", "/api/todos/blocked", undefined, 200, "r34 清理后回查阻塞 -> 200");
       eq(finalBlocked.json.blocked.filter((x: any) => [A, B, C].includes(x.todoId)).length, 0, "r34 探针归零·阻塞列表不含已删探针");
+    }
+
+    // ---- r35：ICS 导出 / 订阅 key / 导入预览与确认（真 HTTP + 4xx） ----
+    {
+      const KEY = `R35HTTP${Date.now()}`;
+      const title35 = `${KEY} 评审, "终版"; 第一行\n第二行`;
+      const s1 = await expectStatus("POST", "/api/schedules", { title: title35, date: "2026-11-21", start: "10:00", end: "11:30", repeat: "none", todoId: null }, 201, "r35 建含转义字符的日程 -> 201");
+      const s2 = await expectStatus("POST", "/api/schedules", { title: `${KEY} 窗外日程`, date: "2026-12-05", start: "09:00", end: "10:00", repeat: "none", todoId: null }, 201, "r35 建窗外日程 -> 201");
+      ok(Boolean(s1.json?.id && s2.json?.id), "r35 两日程探针 id 真回带");
+
+      const exp = await reqText("/api/schedules/export.ics?from=2026-11-01&to=2026-11-30");
+      eq(exp.status, 200, "r35 GET export.ics -> 200");
+      ok(String(exp.headers.get("content-type")).includes("text/calendar"), "r35 export·Content-Type 为 text/calendar");
+      ok(String(exp.headers.get("content-disposition")).includes("xieflow-schedules-2026-11-01-2026-11-30.ics"), "r35 export·下载文件名带范围");
+      ok(exp.text.startsWith("BEGIN:VCALENDAR\r\nVERSION:2.0\r\n"), "r35 export·标准头与 CRLF");
+      ok(exp.text.includes("CALSCALE:GREGORIAN") && exp.text.includes("METHOD:PUBLISH"), "r35 export·CALSCALE/METHOD 完整");
+      ok(exp.text.includes(`${KEY} 评审\\, "终版"\\; 第一行\\n第二行`), "r35 export·逗号/分号/换行已转义未丢");
+      ok(!exp.text.includes("20261205T"), "r35 export·窗外日程不在范围内");
+      const cal35 = parseIcsCalendar(exp.text);
+      const mine35 = cal35.events.filter((e) => e.summary.includes(KEY));
+      eq(mine35.length, 1, "r35 export·范围内仅本探针一条");
+      eq(mine35[0]?.summary, title35, "r35 export·SUMMARY 回读逐字相等");
+      eq(mine35[0]?.dtStart, formatIcsDate(new Date("2026-11-21T10:00:00")), "r35 export·DTSTART 本地 10:00 转 UTC 正确");
+      eq(mine35[0]?.repeat, "none", "r35 export·重复规则元数据在场");
+      ok(Boolean(mine35[0]?.uid.startsWith(`schedule-${s1.json.id}-20261121@`)), "r35 export·UID 稳定且含 id/日期");
+      const expAgain = await reqText("/api/schedules/export.ics?from=2026-11-01&to=2026-11-30");
+      eq(expAgain.text, exp.text, "r35 export·同范围两次导出逐字节稳定");
+      await expectStatus("GET", "/api/schedules/export.ics?from=bad&to=2026-11-30", undefined, 400, "r35 4xx·非法 from -> 400");
+      await expectStatus("GET", "/api/schedules/export.ics?from=2026-11-01&to=bad", undefined, 400, "r35 4xx·非法 to -> 400");
+      await expectStatus("GET", "/api/schedules/export.ics?from=2026-11-30&to=2026-11-01", undefined, 400, "r35 4xx·from 晚于 to -> 400");
+      await expectStatus("GET", "/api/schedules/export.ics", undefined, 400, "r35 4xx·缺 from/to -> 400");
+      const emptyExp = await reqText("/api/schedules/export.ics?from=2020-01-01&to=2020-01-02");
+      eq(emptyExp.status, 200, "r35 export·空范围 -> 200");
+      ok(!emptyExp.text.includes("BEGIN:VEVENT"), "r35 export·空范围无 VEVENT");
+
+      const dueTodo = await expectStatus("POST", "/api/todos", { title: `${KEY} 截止`, quadrant: "q1", dueDate: "2026-11-27" }, 201, "r35 建有截止待办 -> 201");
+      await expectStatus("POST", "/api/todos", { title: `${KEY} 无截止`, quadrant: "q1" }, 201, "r35 建无截止待办 -> 201");
+      const due = await reqText("/api/todos/due.ics");
+      eq(due.status, 200, "r35 GET /api/todos/due.ics -> 200");
+      ok(String(due.headers.get("content-type")).includes("text/calendar"), "r35 due·Content-Type 为 text/calendar");
+      const dueMine = parseIcsCalendar(due.text).events.filter((e) => e.summary.includes(KEY));
+      eq(dueMine.length, 1, "r35 due·仅含截止待办一条");
+      eq(dueMine[0]?.dtStart, formatIcsDate(new Date("2026-11-27T09:00:00")), "r35 due·默认 09:00 本地时段");
+      ok(Boolean(dueMine[0]?.uid.startsWith(`todo-due-${dueTodo.json.id}@`)), "r35 due·UID 稳定");
+
+      const feedKey = await expectStatus("POST", "/api/feeds/key", {}, 200, "r35 POST 生成订阅 key -> 200");
+      ok(/^[0-9a-f]{24}$/.test(String(feedKey.json?.key)), "r35 key·本地随机串 24 位 hex");
+      eq(feedKey.json.url, `/api/feeds/${feedKey.json.key}.ics`, "r35 key·回带订阅 URL");
+      const settings = await expectStatus("GET", "/api/settings", undefined, 200, "r35 GET settings -> 200");
+      ok(settings.json.settings.some((s: any) => s.key === "calendar_feed_key" && s.value === feedKey.json.key), "r35 key·确实存 settings（非密钥文件）");
+      const feed = await reqText(`/api/feeds/${feedKey.json.key}.ics`);
+      eq(feed.status, 200, "r35 GET 正确 key 订阅源 -> 200");
+      ok(String(feed.headers.get("content-type")).includes("text/calendar"), "r35 feed·Content-Type 为 text/calendar");
+      ok(parseIcsCalendar(feed.text).events.some((e) => e.summary === title35), "r35 feed·订阅源含中文转义日程（回读逐字相等）");
+      const feedBad = await expectStatus("GET", "/api/feeds/deadbeefdeadbeefdeadbeef.ics", undefined, 404, "r35 4xx·越权/错误 key -> 404");
+      ok(String(feedBad.json.error).includes("订阅 key"), "r35 4xx·错误 key 文案明确");
+      const feedKey2 = await expectStatus("POST", "/api/feeds/key", {}, 200, "r35 重新生成 key -> 200");
+      ok(feedKey2.json.key !== feedKey.json.key, "r35 key·重新生成后串变化");
+      await expectStatus("GET", `/api/feeds/${feedKey.json.key}.ics`, undefined, 404, "r35 4xx·旧 key 立即失效 -> 404");
+
+      const importIcs = buildIcsCalendar([scheduleToIcsEvent(s1.json)], { calendarName: "r35 audit import" });
+      const rangeUrl = "/api/schedules?from=2026-11-01&to=2026-11-30";
+      const countMine = async (): Promise<number> => {
+        const r = await expectStatus("GET", rangeUrl, undefined, 200, "r35 回查范围日程 -> 200");
+        return r.json.schedules.filter((s: any) => s.title.includes(KEY)).length;
+      };
+      const beforePreview = await countMine();
+      const preview = await expectStatus("POST", "/api/schedules/import.ics", { ics: importIcs }, 200, "r35 POST 导入预览 -> 200");
+      eq(preview.json.count, 1, "r35 预览·事件计数 1");
+      eq(preview.json.drafts.length, 1, "r35 预览·drafts 一条");
+      eq(preview.json.drafts[0].title, title35, "r35 预览·标题逐字还原");
+      eq(preview.json.drafts[0].date, "2026-11-21", "r35 预览·日期还原");
+      eq(preview.json.drafts[0].start, "10:00", "r35 预览·开始时间还原");
+      eq(await countMine(), beforePreview, "r35 预览·零写入（预览不落库）");
+      const commit = await expectStatus("POST", "/api/schedules/import.ics", { ics: importIcs, commit: true }, 201, "r35 POST 确认写入 -> 201");
+      eq(commit.json.count, 1, "r35 写入·确认计数 1");
+      const afterCommit = await countMine();
+      eq(afterCommit, beforePreview + 1, "r35 写入·范围内日程 +1");
+      const imported = (await expectStatus("GET", rangeUrl, undefined, 200, "r35 写入后回查 -> 200")).json.schedules
+        .filter((s: any) => s.title === title35)
+        .sort((a: any, b: any) => b.id - a.id)[0];
+      ok(Boolean(imported?.id), "r35 写入·导入日程真回带 id");
+      eq([imported.date, imported.start, imported.end, imported.repeat], ["2026-11-21", "10:00", "11:30", "none"], "r35 写入·字段与预览草稿逐项一致");
+      const badIcs = await expectStatus("POST", "/api/schedules/import.ics", { ics: "garbage" }, 400, "r35 4xx·坏 ICS -> 400");
+      ok(String(badIcs.json.error).includes("ICS"), "r35 4xx·坏 ICS 错误文案含 ICS");
+      await expectStatus("POST", "/api/schedules/import.ics", {}, 400, "r35 4xx·缺 ics -> 400");
+      await expectStatus("POST", "/api/schedules/import.ics", { ics: importIcs.replace("VERSION:2.0", "VERSION:1.0") }, 400, "r35 4xx·非 2.0 日历 -> 400");
+      eq(await countMine(), afterCommit, "r35 4xx·坏 ICS 后零半态（未多写）");
+
+      for (const id of [imported?.id, s2.json.id, s1.json.id]) {
+        if (id) await expectStatus("DELETE", `/api/schedules/${id}`, undefined, 200, `r35 清理日程 ${id} -> 200`);
+      }
+      for (const todoId of [dueTodo.json.id]) {
+        if (todoId) await expectStatus("DELETE", `/api/todos/${todoId}`, undefined, 200, "r35 清理截止待办 -> 200");
+      }
+      const noDueTodo = (await expectStatus("GET", "/api/todos", undefined, 200, "r35 清理前回查待办 -> 200")).json.todos
+        .find((t: any) => t.title === `${KEY} 无截止`);
+      if (noDueTodo) await expectStatus("DELETE", `/api/todos/${noDueTodo.id}`, undefined, 200, "r35 清理无截止待办 -> 200");
+      eq(await countMine(), 0, "r35 探针归零·范围内无本轮日程");
     }
 }
 

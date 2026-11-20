@@ -8,6 +8,7 @@
 import Fastify from "fastify";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { mkdirSync } from "node:fs";
+import { randomBytes } from "node:crypto";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { openDatabase, type XieFlowDb } from "@xieflow/db";
@@ -75,6 +76,14 @@ import {
   type FieldType,
   type ViewFilterCondition,
 } from "@xieflow/shared";
+// r35：ICS 编解码/导入规划唯一实现在 shared/ics，api 只装配 HTTP 响应、零算法分支
+import {
+  buildIcsCalendar,
+  scheduleToIcsEvent,
+  todoDueToIcsEvent,
+  planIcsImport,
+  icsFeedWindow,
+} from "@xieflow/shared/ics";
 // r30：公式引擎唯一口径，api 只做校验映射与装配，零解析分支
 import {
   compileFormula,
@@ -430,6 +439,39 @@ app.get("/api/settings", async () => {
   return { settings: requireDb().listSettings() };
 });
 
+// ---- r35：本地订阅 key（settings 里的随机串，非密钥/token，不写密钥文件） ----
+const ICS_FEED_SETTING_KEY = "calendar_feed_key";
+
+app.post("/api/feeds/key", async () => {
+  const key = randomBytes(12).toString("hex");
+  requireDb().setSetting(ICS_FEED_SETTING_KEY, key);
+  return { key, url: `/api/feeds/${key}.ics` };
+});
+
+/** 只读订阅源：key 必须等于本地 settings 串；不匹配/未生成 → 404（越权 key） */
+app.get("/api/feeds/:key.ics", async (req, reply) => {
+  const key = (req.params as { key: string }).key;
+  const stored = requireDb().getSetting(ICS_FEED_SETTING_KEY)?.value;
+  if (!stored || stored !== key) {
+    return reply.code(404).send({ error: "订阅 key 无效或已失效" });
+  }
+  const window = icsFeedWindow();
+  const store = requireDb();
+  const schedules = assembleRangeSchedules(store.listSchedules(), window);
+  const events = [
+    ...schedules.map(scheduleToIcsEvent),
+    ...store.listTodos().flatMap((t) => {
+      const ev = todoDueToIcsEvent(t);
+      return ev ? [ev] : [];
+    }),
+  ];
+  const ics = buildIcsCalendar(events, { calendarName: "协流 XieFlow 订阅" });
+  return reply
+    .header("content-type", "text/calendar; charset=utf-8")
+    .header("content-disposition", 'attachment; filename="xieflow-feed.ics"')
+    .send(ics);
+});
+
 // ---- todos（r2：列表/详情/新建/状态流转/删除 + 汇总计数） ----
 
 interface CreateTodoBody {
@@ -483,6 +525,19 @@ app.get("/api/todos/blocked", async () => {
     count: graph.blocked.length,
     cycle: graph.cycle ? [...graph.cycle] : null,
   };
+});
+
+/** r35：待办截止日导出为 VEVENT（默认 09:00~10:00，规则在 shared/todoDueToIcsEvent） */
+app.get("/api/todos/due.ics", async (_req, reply) => {
+  const events = requireDb().listTodos().flatMap((t) => {
+    const ev = todoDueToIcsEvent(t);
+    return ev ? [ev] : [];
+  });
+  const ics = buildIcsCalendar(events, { calendarName: "协流 XieFlow 待办截止" });
+  return reply
+    .header("content-type", "text/calendar; charset=utf-8")
+    .header("content-disposition", 'attachment; filename="xieflow-todos-due.ics"')
+    .send(ics);
 });
 
 app.get("/api/todos/:id", async (req, reply) => {
@@ -664,6 +719,51 @@ app.get("/api/schedules", async (req, reply) => {
     // 装配规则集中在 shared（r3 返工#1 A）：本体落窗 + repeat 实例展开（含锚日在窗外的日程）+ 并集去重
     const schedules = assembleRangeSchedules(store.listSchedules(), { from, to });
     return { schedules };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+/** r35：时间范围导出标准 .ics（区间规则复用 r3 assembleRangeSchedules；非法范围 400） */
+app.get("/api/schedules/export.ics", async (req, reply) => {
+  try {
+    const q = (req.query ?? {}) as { from?: string; to?: string };
+    const from = q.from ?? "";
+    const to = q.to ?? "";
+    assertValidScheduleDate(from);
+    assertValidScheduleDate(to);
+    if (to < from) {
+      throw new ValidationError(`查询区间非法：from 晚于 to（${from} → ${to}）`);
+    }
+    const schedules = assembleRangeSchedules(requireDb().listSchedules(), { from, to });
+    const ics = buildIcsCalendar(schedules.map(scheduleToIcsEvent), {
+      calendarName: "协流 XieFlow 日程",
+    });
+    return reply
+      .header("content-type", "text/calendar; charset=utf-8")
+      .header("content-disposition", `attachment; filename="xieflow-schedules-${from}-${to}.ics"`)
+      .send(ics);
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+/** r35：ICS 导入预览/确认写入（解析与草稿规划在 shared；commit 前全部校验完成，零半态） */
+app.post("/api/schedules/import.ics", async (req, reply) => {
+  try {
+    const body = (req.body ?? {}) as { ics?: unknown; commit?: unknown };
+    if (typeof body.ics !== "string") {
+      throw new ValidationError("缺少 ICS 内容");
+    }
+    const plan = planIcsImport(body.ics);
+    if (body.commit !== true) {
+      return { events: plan.events, drafts: plan.drafts, count: plan.count };
+    }
+    const store = requireDb();
+    const schedules = plan.drafts.map((d) =>
+      store.createSchedule(d.title, d.date, d.start, d.end, null, d.repeat),
+    );
+    return reply.code(201).send({ count: schedules.length, schedules });
   } catch (err) {
     return toErrorReply(err, reply);
   }

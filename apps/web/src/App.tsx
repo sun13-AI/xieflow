@@ -646,7 +646,7 @@ export default function App() {
           <span className="tabs-more-fade" aria-hidden="true" />
           <button type="button" className="tabs-more" aria-label="更多导航" onClick={toggleNav}>更多 ›</button>
         </div>
-        <span className="badge">r34 · 任务依赖（前置任务 + 阻塞链 + 环检测）</span>
+        <span className="badge">r35 · 日历 ICS 导出与订阅（标准 iCalendar）</span>
         <OfflineStatus />
         <button type="button" className="nav-toggle" data-state="nav-toggle" aria-label="展开导航" onClick={toggleNav}>☰</button>
         <span className="auth-controls" data-state="auth-controls">

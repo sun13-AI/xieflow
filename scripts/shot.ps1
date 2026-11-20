@@ -55,7 +55,7 @@ param(
   [Parameter(Position = 0)]
   [ValidateSet("up", "shots", "down", "status", "all")]
   [string]$Action = "status",
-  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r26", "r27", "r28", "r29", "r30", "r31", "r32", "r33", "r34")]
+  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r26", "r27", "r28", "r29", "r30", "r31", "r32", "r33", "r34", "r35")]
   [string]$Round = "r1",
   [Parameter()]
   [string]$Shot = ""
@@ -1022,7 +1022,21 @@ function Invoke-Shots {
     }
   }
 
-  if ($Round -eq "r34") {
+  if ($Round -eq "r35") {
+    # r35: calendar ICS matrix. Seven deterministic ?shot= pins over the real
+    # SchedulesPage ICS UI: export menu / saved receipt / feed card / import
+    # preview / import success / narrow / real-4xx-shaped error state.
+    $r35Base = "http://127.0.0.1:$WebPort/?page=schedules"
+    $shots = @(
+      @{ name = "01-ics-export-menu";   url = "$r35Base&shot=ics-export-menu";     width = 1280; height = 900 },
+      @{ name = "02-ics-saved";         url = "$r35Base&shot=ics-saved";           width = 1280; height = 900 },
+      @{ name = "03-ics-feed-card";     url = "$r35Base&shot=ics-feed-card";       width = 1280; height = 900 },
+      @{ name = "04-ics-import-preview"; url = "$r35Base&shot=ics-import-preview"; width = 1280; height = 900 },
+      @{ name = "05-ics-import-success"; url = "$r35Base&shot=ics-import-success"; width = 1280; height = 900 },
+      @{ name = "06-ics-narrow";        url = "$r35Base&shot=ics-narrow&narrow=1"; width = 488; height = 1100 },
+      @{ name = "07-ics-error";         url = "$r35Base&shot=ics-error";           width = 1280; height = 900 }
+    )
+  } elseif ($Round -eq "r34") {
     # r34: task dependency matrix. Seven deterministic ?shot= pins over the real
     # TodosPage dependency UI: empty / add / blocked list / satisfied / cycle
     # error / narrow / 409 blocked error. Real values are locked by e2e + HTTP audit.

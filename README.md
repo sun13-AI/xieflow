@@ -13,7 +13,7 @@ pnpm install
 powershell -File scripts\start.ps1 start   # api:8787 + web:5173
 powershell -File scripts\start.ps1 stop
 # 开发模式：pnpm dev:api / pnpm dev:web
-pnpm run test:all    # typecheck + e2e（2961 断言）+ HTTP 审计（2324 断言）
+pnpm run test:all    # typecheck + e2e（3069 断言）+ HTTP 审计（2396 断言）
 ```
 
 - 打包：`pnpm run pack`（免安装目录 `release/xieflow-portable/`，双击 `start.cmd` 即用）/ `pnpm run dist`（setup zip）；均单端口 8080，数据落目录内 `data/`
@@ -26,18 +26,18 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 
 ## 界面与测试对照
 
-按宪法第一条：**界面更新必须带截图证据（每次，无例外）**，截图与实现同一提交。当前轮 r34 任务依赖与阻塞关系（7 张 + 十八 tab 壳基线）：
+按宪法第一条：**界面更新必须带截图证据（每次，无例外）**，截图与实现同一提交。当前轮 r35 日历 ICS 导出与订阅（7 张 + 十八 tab 壳基线）：
 
 | 截图 | 形态 | 对应断言 |
 |---|---|---|
-| [01-dep-empty.png](docs/ui/r34/01-dep-empty.png) | 前置任务空态 | e2e「前置任务面板 seam 在场」 |
-| [02-dep-add.png](docs/ui/r34/02-dep-add.png) | 已添加前置 + 状态徽标 | audit「POST 依赖 201 / GET 回带状态」 |
-| [03-dep-blocked-list.png](docs/ui/r34/03-dep-blocked-list.png) | 列表阻塞态「被 N 项阻塞」 | audit「A 未完成 B/C 均阻塞」 |
-| [04-dep-satisfied.png](docs/ui/r34/04-dep-satisfied.png) | A done 后前置满足 | audit「A done 后 B 解锁」 |
-| [05-dep-cycle-error.png](docs/ui/r34/05-dep-cycle-error.png) | 循环依赖红条 | audit「环 -> 400 + cycle 路径」 |
-| [06-dep-narrow.png](docs/ui/r34/06-dep-narrow.png) | 488px 窄屏阻塞列表 | 截图 seam + SHA 自查 |
-| [07-dep-error.png](docs/ui/r34/07-dep-error.png) | 真 409 阻塞错误条 | audit「409 DEPENDENCY_BLOCKED」 |
-| [shell/](docs/ui/shell/README.md) | 十八 tab 壳基线（r34 同批重拍） | e2e「shell README R34 哈希逐字一致」 |
+| [01-ics-export-menu.png](docs/ui/r35/01-ics-export-menu.png) | 导出菜单：本月日程 / 待办截止 | audit「GET export.ics -> 200 / text/calendar」 |
+| [02-ics-saved.png](docs/ui/r35/02-ics-saved.png) | 落盘回执：文件名 + 事件数 + 字节 | audit「下载文件名带范围 / VEVENT 回读」 |
+| [03-ics-feed-card.png](docs/ui/r35/03-ics-feed-card.png) | 订阅卡：本地随机 key + 复制 URL | audit「key 存 settings / 错 key 404」 |
+| [04-ics-import-preview.png](docs/ui/r35/04-ics-import-preview.png) | 导入预览表：标题/日期/时间/重复 | audit「预览逐项还原 / 零写入」 |
+| [05-ics-import-success.png](docs/ui/r35/05-ics-import-success.png) | 确认写入成功绿条 | audit「写入 +1 / reload 不丢（CDP）」 |
+| [06-ics-narrow.png](docs/ui/r35/06-ics-narrow.png) | 488px 窄屏导入面板 | 截图 seam + SHA 自查 |
+| [07-ics-error.png](docs/ui/r35/07-ics-error.png) | 坏 ICS 错误红条 | audit「坏 ICS -> 400」 |
+| [shell/](docs/ui/shell/README.md) | 十八 tab 壳基线（r35 同批重拍） | e2e「shell README R35 哈希逐字一致」 |
 
 **历史逐轮截图索引（r1~r32 全量、逐张对照断言）见 [README 归档](docs/README-ARCHIVE.md) 与 [docs/ui/](docs/ui/) 各轮 README**；矩阵 SHA256 互异、同态组仅 r4 已披露 2 组。
 
@@ -45,7 +45,7 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 
 ### 断言规模（每轮更新，下降 = 回归 = 冻结发版）
 
-- **当前 r34**：e2e **2961**（服务离线口径；api 在线 +1）· HTTP audit **2324** · typecheck 5 包全绿；**无一条断言被删**，仅期望值/标签随行为推进。
+- **当前 r35**：e2e **3069**（服务离线口径；api 在线 +1）· HTTP audit **2396** · typecheck 5 包全绿；**无一条断言被删**，仅期望值/标签随行为推进。
 - 纪律：断言只涨不缩；禁自洽占位；关键行为做变异红相留痕（改坏实现 → 断言变红 → 逐字节还原全绿）。
 - **逐轮规模变化（r1~r32 的完整记账）见 [README 归档](docs/README-ARCHIVE.md)**；CI smoke 正则随 schema 版本同步至 v23；CI 三平台 verify + tag 触发 Release。
 
