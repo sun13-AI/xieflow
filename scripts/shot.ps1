@@ -24,6 +24,7 @@
 #      --window-size clamps narrow widths to 500px; see docs/ui/r22/README.md)
 #   powershell -File scripts\shot.ps1 shots -Round r23 # capture r23 org matrix + 15-tab shell baseline
 #   powershell -File scripts\shot.ps1 shots -Round r25 # capture r25 actor-badge / dept-filter / manual-hint matrix + 15-tab shell baseline
+#   powershell -File scripts\shot.ps1 shots -Round r26 # capture r26 notification center matrix + 16-tab shell baseline
 #   powershell -File scripts\shot.ps1 shots -Round r24 # capture r24 member-picker matrix + 15-tab shell baseline
 #   powershell -File scripts\shot.ps1 shots -Round r11 -Shot 08-docs-diff-inline # rework#1: re-capture ONLY the diff-inline evidence (no other matrix/shell re-shot)
 #   powershell -File scripts\shot.ps1 down            # stop servers
@@ -49,7 +50,7 @@ param(
   [Parameter(Position = 0)]
   [ValidateSet("up", "shots", "down", "status", "all")]
   [string]$Action = "status",
-  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25")]
+  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r26")]
   [string]$Round = "r1",
   [Parameter()]
   [string]$Shot = ""
@@ -147,6 +148,7 @@ function Find-Browser {
 # r16: the TWELFTH tab (approval) was added -> twelve active states in one batch.
 # r17: the THIRTEENTH/FOURTEENTH tabs (assets + unit-tasks) were added -> fourteen active states.
 # r23: the FIFTEENTH tab (org) was added -> fifteen active states in one batch.
+# r26: the SIXTEENTH tab (notifications) was added -> sixteen active states in one batch.
 function Invoke-ShellBaseline {
   param([string]$BrowserPath)
   $shellDir = Join-Path $Root "docs\ui\shell"
@@ -167,7 +169,8 @@ function Invoke-ShellBaseline {
     @{ page = "approval";   file = "approval-tab-active" },
     @{ page = "assets";     file = "assets-tab-active" },
     @{ page = "unit-tasks"; file = "unit-tasks-tab-active" },
-    @{ page = "org";       file = "org-tab-active" }
+    @{ page = "org";       file = "org-tab-active" },
+    @{ page = "notifications"; file = "notifications-tab-active" }
   )
   foreach ($t in $tabs) {
     $url = "http://127.0.0.1:$WebPort/"
@@ -910,7 +913,20 @@ function Invoke-Shots {
     }
   }
 
-  if ($Round -eq "r25") {
+  if ($Round -eq "r26") {
+    # r26: notification center matrix. All seven states use deterministic ?shot= pins;
+    # real aggregation / idempotency / navigation are locked by audit-http + CDP assertions.
+    $r26Base = "http://127.0.0.1:$WebPort/?page=notifications"
+    $shots = @(
+      @{ name = "01-notif-empty";      url = "$r26Base&shot=notif-empty";    width = 1280; height = 900 },
+      @{ name = "02-notif-unread";     url = "$r26Base&shot=notif-unread";   width = 1280; height = 900 },
+      @{ name = "03-notif-filtered";   url = "$r26Base&shot=notif-filtered"; width = 1280; height = 900 },
+      @{ name = "04-notif-read";       url = "$r26Base&shot=notif-read";     width = 1280; height = 900 },
+      @{ name = "05-notif-refreshed";  url = "$r26Base&shot=notif-refreshed"; width = 1280; height = 900 },
+      @{ name = "06-narrow";           url = "$r26Base&shot=notif-unread&narrow=1"; width = 488; height = 1000 },
+      @{ name = "07-error";            url = "$r26Base&shot=notif-error";   width = 1280; height = 900 }
+    )
+  } elseif ($Round -eq "r25") {
     # r25: approval action actor badge / picker department filter / named badge /
     # manual-edit hint / assets detail badge / narrow / error. All states are
     # deterministic ?shot= pins; real link + usage are locked by HTTP/CDP assertions.

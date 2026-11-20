@@ -44,6 +44,7 @@ import {
   mapRowToEntityVersion,
   mapRowToDepartment,
   mapRowToMember,
+  mapRowToNotification,
 } from "./mappers.js";
 import type {
   AppSetting,
@@ -205,6 +206,12 @@ import {
   type DepartmentInput,
   type MemberInput,
 } from "@xieflow/shared/org";
+import {
+  assertValidNotificationType,
+  assertValidNotificationRef,
+  type Notification,
+  type NewNotification,
+} from "@xieflow/shared/notifications";
 import { REPEATS_ORDER } from "./repeat-order.js";
 
 export { MIGRATIONS, CURRENT_SCHEMA_VERSION, assertMigrationsConsistent };
@@ -2870,5 +2877,96 @@ export class XieFlowDb {
   /** GET /api/org/tree：部门树带直属人员，装配规则唯一在 shared buildOrgTree */
   getOrgTree(): OrgTreeNode[] {
     return buildOrgTree(this.listDepartments(), this.listMembers());
+  }
+
+  // ---- r26：通知中心（schema v19；守卫/模板/分组规则全在 shared/notifications） ----
+
+  /** 全量通知（created_at 降序同刻 id 降序的稳定顺序；过滤分页由 shared queryNotifications） */
+  listNotifications(): Notification[] {
+    return this.db
+      .all("SELECT id, type, title, body, ref_type, ref_id, read_at, created_at FROM notifications ORDER BY created_at DESC, id DESC")
+      .map(mapRowToNotification);
+  }
+
+  getNotification(id: number): Notification | null {
+    const row = this.db.get(
+      "SELECT id, type, title, body, ref_type, ref_id, read_at, created_at FROM notifications WHERE id = ?",
+      [id],
+    );
+    return row ? mapRowToNotification(row) : null;
+  }
+
+  /** 写入前统一守卫（api 400 映射唯一来源；本层不做类型/引用算法） */
+  private assertNotificationWritable(input: NewNotification): NewNotification {
+    assertValidNotificationType(input.type);
+    assertValidNotificationRef(input.refType, input.refId);
+    if (typeof input.title !== "string" || input.title.trim() === "") {
+      throw new ValidationError("通知标题不能为空");
+    }
+    return {
+      type: input.type,
+      title: input.title,
+      body: typeof input.body === "string" ? input.body : String(input.body ?? ""),
+      refType: input.refType,
+      refId: Math.trunc(input.refId),
+      readAt: input.readAt ?? null,
+      createdAt: typeof input.createdAt === "string" && input.createdAt !== "" ? input.createdAt : new Date().toISOString(),
+    };
+  }
+
+  createNotification(input: NewNotification): Notification {
+    const n = this.assertNotificationWritable(input);
+    const res = this.db.run(
+      `INSERT INTO notifications (type, title, body, ref_type, ref_id, read_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [n.type, n.title, n.body, n.refType, n.refId, n.readAt, n.createdAt],
+    );
+    const created = this.getNotification(Number(res.lastInsertRowid));
+    if (!created) throw new Error("通知写入后读回失败");
+    return created;
+  }
+
+  /** refresh 幂等唯一入口：同 type/ref_type/ref_id/title 只落一条，重复调用不新增 */
+  upsertNotification(input: NewNotification): { created: boolean; notification: Notification } {
+    const n = this.assertNotificationWritable(input);
+    const existing = this.db.get(
+      `SELECT id, type, title, body, ref_type, ref_id, read_at, created_at FROM notifications
+       WHERE type = ? AND ref_type = ? AND ref_id = ? AND title = ? ORDER BY id DESC LIMIT 1`,
+      [n.type, n.refType, n.refId, n.title],
+    );
+    if (existing) return { created: false, notification: mapRowToNotification(existing) };
+    return { created: true, notification: this.createNotification(n) };
+  }
+
+  /** PATCH 内容更新（标题非空守卫与写库唯一入口；已读状态只允许通过 read 路由改） */
+  updateNotificationContent(
+    id: number,
+    patch: { readonly title?: unknown; readonly body?: unknown },
+  ): Notification | null {
+    const existing = this.getNotification(id);
+    if (!existing) return null;
+    const title = patch.title === undefined ? existing.title : patch.title;
+    if (typeof title !== "string" || title.trim() === "") throw new ValidationError("通知标题不能为空");
+    const body = patch.body === undefined ? existing.body : String(patch.body ?? "");
+    this.db.run("UPDATE notifications SET title = ?, body = ? WHERE id = ?", [title, body, id]);
+    return this.getNotification(id);
+  }
+
+  markNotificationRead(id: number, readAt: string = new Date().toISOString()): Notification | null {
+    const existing = this.getNotification(id);
+    if (!existing) return null;
+    if (existing.readAt === null) {
+      this.db.run("UPDATE notifications SET read_at = ? WHERE id = ?", [readAt, id]);
+      return this.getNotification(id);
+    }
+    return existing;
+  }
+
+  /** 批量已读：只更新未读行，返回本次真实更新条数（重复调用返回 0） */
+  markAllNotificationsRead(readAt: string = new Date().toISOString()): number {
+    return this.db.run("UPDATE notifications SET read_at = ? WHERE read_at IS NULL", [readAt]).changes;
+  }
+
+  deleteNotification(id: number): boolean {
+    return this.db.run("DELETE FROM notifications WHERE id = ?", [id]).changes > 0;
   }
 }

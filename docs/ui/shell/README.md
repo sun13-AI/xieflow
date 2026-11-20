@@ -54,6 +54,18 @@
 `assets=90166EF8` · `unit-tasks=2A81BA59` · `org=870B5A43` —— **15/15 互异**。
 <!-- R25_HASHES_END -->
 
+## r26 哈希自查（十六张互异，与当前文件逐字一致；R25 块作为历史保留）
+
+<!-- R26_HASHES_BEGIN -->
+`workbench=9709D035` · `todos=6CFF1969` · `schedules=2331CF4B` · `projects=A974F7A3` ·
+`board=42268E80` · `bases=2FBDC73C` · `docs=3CB72906` · `chat=8A5CF701` ·
+`knowledge=910447F9` · `mindmap=A3EA8D2C` · `whiteboard=693BC09F` · `approval=28B3764C` ·
+`assets=E7A3F5CC` · `unit-tasks=409035D8` · `org=FBB3C5CA` · `notifications=F43B8161`
+—— **16/16 互异**。
+<!-- R26_HASHES_END -->
+
+> e2e「shell README R26 哈希与实际文件逐字一致」逐张复算 SHA256 锁定本表；r26 新增第十六 tab「通知」。
+
 > e2e「shell README R25 哈希与实际文件逐字一致」逐张复算 SHA256 锁定本表；r24 曾把本块标签误留「r23」，
 > r25 按 r22 先例保留历史对照行，当前块与历史行分开，断言名与所指内容一致。
 
@@ -88,5 +100,5 @@
 - 落盘：本目录，文件名 `<tab>-tab-active.png`（与 App.tsx PageTab 一一对应；新增/改名 tab 时须同步脚本内 $tabs 清单）。
 - 认证页为独立路由、同步卡在工作台内、更多入口为底栏布局件，三者均不进 `$tabs`；「组织」是真 tab，r23 起进基线。
 - 同态说明：壳基线各张与各轮页面矩阵均不同字节；全库唯一残留同态组在 r4 目录内部
-  （`r4/01 = r4/16` = `9E5C0C23`、`r4/05 = r4/13` = `8397A028`），如实注记；**全库 257 PNG / 255 互异**，r25 零新增同态组。
+  （`r4/01 = r4/16` = `9E5C0C23`、`r4/05 = r4/13` = `8397A028`），如实注记；**全库 265 PNG / 263 互异**，r26 零新增同态组。
 - `mindmap-tab-active` 与 `docs/ui/r14/` 矩阵 02/03/04 分形：0 张导图空态 / Markdown 编辑态 / 树视图态 / 折叠态，四态互异。

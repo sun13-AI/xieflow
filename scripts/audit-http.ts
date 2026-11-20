@@ -156,7 +156,7 @@ async function audit() {
     eq(h.json && h.json.ok, true, "health.ok = true");
     // r4 起动态对表：health.schemaVersion 必须等于迁移队列最高版本（不再硬编码 2/3，
     // r3 v0.0.6 CI 红教训——静态硬编码在每轮迁移后必过期）
-    eq(h.json && h.json.schemaVersion, 18, "health.schemaVersion = 18（r25 迁移后）");
+    eq(h.json && h.json.schemaVersion, 19, "health.schemaVersion = 18（r25 迁移后）");
     const s = await req("GET", "/api/settings");
     eq(s.status, 200, "GET /api/settings -> 200");
     ok(Array.isArray(s.json && s.json.settings), "settings 返回数组");
@@ -253,7 +253,7 @@ async function audit() {
   {
     // health 探针反映 schema v8（r4 起迁移后动态推进）
     const h3 = await req("GET", "/api/health");
-    eq(h3.json && h3.json.schemaVersion, 18, "health.schemaVersion = 18（r25 迁移后复核）");
+    eq(h3.json && h3.json.schemaVersion, 19, "health.schemaVersion = 18（r25 迁移后复核）");
 
     const r = await expectStatus(
       "POST",
@@ -2629,7 +2629,7 @@ async function audit() {
     const st0 = await expectStatus("GET", "/api/sync/status", undefined, 200, "r19 GET status -> 200");
     eq(st0.json && st0.json.total, 0, "r19 初始无实体版本");
     eq(st0.json && st0.json.lastChangeId, 0, "r19 初始 lastChangeId=0");
-    eq(st0.json && st0.json.schemaVersion, 18, "r19 status 回带 schema v18（r25 推进）");
+    eq(st0.json && st0.json.schemaVersion, 19, "r19 status 回带 schema v18（r25 推进）");
     const ch0 = await expectStatus("GET", "/api/sync/changes?since=0&limit=50", undefined, 200, "r19 GET changes 空 -> 200");
     eq(ch0.json && ch0.json.count, 0, "r19 初始变更日志为空");
     eq(ch0.json && ch0.json.changes, [], "r19 初始 changes 数组为空");
@@ -2850,7 +2850,7 @@ async function audit() {
     // health：真 HTTP 200 + 真读库语义
     const h = await expectStatus("GET", DEPLOY_PATHS.health, undefined, 200, "r21 GET 契约健康路径 -> 200");
     eq(h.json && h.json.ok, true, "r21 health.ok=true");
-    eq(h.json && h.json.schemaVersion, 18, "r21 health.schemaVersion=18（部署版本一致）");
+    eq(h.json && h.json.schemaVersion, 19, "r21 health.schemaVersion=18（部署版本一致）");
     ok(isServerMode(h.json && h.json.mode), "r21 health.mode 为 local|remote 之一（契约模式合法）");
 
     // mode：模式探针公开可达，回显一致
@@ -2905,7 +2905,7 @@ async function audit() {
   console.log("\n== Org r23: departments / members / tree / search / 4xx ==");
   {
     const h23 = await expectStatus("GET", "/api/health", undefined, 200, "r23 health 真 HTTP 200");
-    eq(h23.json && h23.json.schemaVersion, 18, "r23 health.schemaVersion=18（迁移真生效）");
+    eq(h23.json && h23.json.schemaVersion, 19, "r23 health.schemaVersion=18（迁移真生效）");
     const tree0 = await expectStatus("GET", "/api/org/tree", undefined, 200, "r23 空组织树 -> 200");
     eq(tree0.json && tree0.json.tree, [], "r23 空组织树 tree=[]");
     eq(tree0.json && tree0.json.departments, [], "r23 空组织树 departments=[]");
@@ -2996,7 +2996,7 @@ async function audit() {
   console.log("\n== Org r24: member_id in approvals / assets / usage / 4xx ==");
   {
     const h24 = await expectStatus("GET", "/api/health", undefined, 200, "r24 health 真 HTTP 200");
-    eq(h24.json && h24.json.schemaVersion, 18, "r24 health.schemaVersion=18（迁移真生效）");
+    eq(h24.json && h24.json.schemaVersion, 19, "r24 health.schemaVersion=18（迁移真生效）");
 
     const dept = await expectStatus("POST", "/api/departments", { name: "r24审计研发中心" }, 201, "r24 建部门 -> 201");
     const alice = await expectStatus("POST", "/api/members", {
@@ -3134,7 +3134,7 @@ async function audit() {
   console.log("\n== Approval r25: actorMemberId / linked member / action usage ==");
   {
     const h25 = await expectStatus("GET", "/api/health", undefined, 200, "r25 health 真 HTTP 200");
-    eq(h25.json && h25.json.schemaVersion, 18, "r25 health.schemaVersion=18（v18 迁移真生效）");
+    eq(h25.json && h25.json.schemaVersion, 19, "r25 health.schemaVersion=18（v18 迁移真生效）");
 
     const uname25 = `r25.actor.${Date.now()}`;
     const user25 = await expectStatus("POST", "/api/auth/register", { username: uname25, password: "Passw0rd!" }, 201, "r25 注册登录用户 -> 201");
@@ -3218,6 +3218,116 @@ async function audit() {
     const tree25 = await expectStatus("GET", "/api/org/tree", undefined, 200, "r25 清理后组织树 -> 200");
     eq(tree25.json && tree25.json.members, [], "r25 清理后成员归零");
     eq(tree25.json && tree25.json.tree, [], "r25 清理后部门归零");
+  }
+  await auditR26();
+}
+
+/** r26 通知中心：真事件聚合 / refresh 幂等 / 4xx；由 audit() 末尾调用（不污染 r19 同步基线） */
+async function auditR26(): Promise<void> {
+  console.log("\n== Notification r26: real event aggregation / idempotent refresh / 4xx ==");
+  {
+    const h26 = await expectStatus("GET", "/api/health", undefined, 200, "r26 health 真 HTTP 200");
+    eq(h26.json && h26.json.schemaVersion, 19, "r26 health.schemaVersion=19（v19 迁移真生效）");
+    const today = new Date();
+    const pad26 = (n: number): string => String(n).padStart(2, "0");
+    const todayStr26 = `${today.getFullYear()}-${pad26(today.getMonth() + 1)}-${pad26(today.getDate())}`;
+    const stamp26 = Date.now().toString(36);
+
+    // 造四类真实事件：待办审批 / 低库存物资 / 今日日程 / 同步冲突（真 409）
+    const appr26 = await expectStatus("POST", "/api/approvals", {
+      title: `r26审批-${stamp26}`, type: "expense", applicantId: "r26甲", currentAssignee: "r26乙",
+    }, 201, "r26 造待办审批事件 -> 201");
+    eq(appr26.json && appr26.json.status, "draft", "r26 审批初始 draft（refresh 按 pending 判定需先提交）");
+    await expectStatus("POST", `/api/approvals/${appr26.json.id}/submit`, { actor: "r26甲" }, 200, "r26 提交审批 -> pending 事件");
+    const pending26 = await expectStatus("GET", `/api/approvals/${appr26.json.id}`, undefined, 200, "r26 回查审批 -> 200");
+    eq(pending26.json && pending26.json.status, "pending", "r26 审批状态真为 pending");
+
+    const asset26 = await expectStatus("POST", "/api/assets", {
+      name: `r26低库存-${stamp26}`, category: "office", quantity: 1, unit: "个", location: "仓", custodian: "保管员",
+    }, 201, "r26 造库存低事件 -> 201");
+    eq(asset26.json && asset26.json.quantity, 1, "r26 物资库存真为 1（≤阈值 5）");
+    const sched26 = await expectStatus("POST", "/api/schedules", {
+      title: `r26今日日程-${stamp26}`, date: todayStr26, start: "09:00", end: "10:00",
+    }, 201, "r26 造当天日程事件 -> 201");
+    eq(sched26.json && sched26.json.date, todayStr26, "r26 日程日期真为今天");
+    const entityId26 = `r26-sync-${stamp26}`;
+    await expectStatus("POST", "/api/sync/apply", {
+      entityType: "todo", entityId: entityId26, operation: "update", payload: { title: "A" }, expectedVersion: 0,
+    }, 200, "r26 同步基线写入 -> 200");
+    const conflict26 = await expectStatus("POST", "/api/sync/apply", {
+      entityType: "todo", entityId: entityId26, operation: "update", payload: { title: "B" }, expectedVersion: 0,
+    }, 409, "r26 造同步冲突事件 -> 409");
+    eq(conflict26.json && conflict26.json.code, "SYNC_CONFLICT", "r26 冲突事件返回真 SYNC_CONFLICT");
+
+    // refresh：四类事件各生成一条；重复 refresh 幂等不重复
+    const refreshed26 = await expectStatus("POST", "/api/notifications/refresh", {}, 200, "r26 refresh -> 200");
+    ok(refreshed26.json && refreshed26.json.created >= 4, "r26 refresh 至少生成四类事件各一条");
+    ok(refreshed26.json && refreshed26.json.scanned >= 3, "r26 refresh 扫描当前库状态（日程/审批/物资）");
+    const repeated26 = await expectStatus("POST", "/api/notifications/refresh", {}, 200, "r26 重复 refresh -> 200");
+    eq(repeated26.json && repeated26.json.created, 0, "r26 重复 refresh created=0（幂等）");
+    ok(repeated26.json && repeated26.json.skipped >= 4, "r26 重复 refresh 全部跳过不动旧记录");
+    eq(repeated26.json && repeated26.json.total, refreshed26.json && refreshed26.json.total, "r26 幂等前后通知总数不变");
+
+    const full26 = await expectStatus("GET", "/api/notifications?pageSize=100", undefined, 200, "r26 全量通知列表 -> 200");
+    const own26 = ((full26.json && full26.json.notifications) ?? []).filter((n: any) =>
+      (n.type === "approval_pending" && n.refId === appr26.json.id) ||
+      (n.type === "asset_low" && n.refId === asset26.json.id) ||
+      (n.type === "schedule_due" && n.refId === sched26.json.id) ||
+      (n.type === "sync_conflict" && String(n.title).includes(entityId26)),
+    );
+    eq(own26.length, 4, "r26 四类事件恰好四条通知（审批/物资/日程/同步）");
+    const types26 = own26.map((n: any) => n.type).sort();
+    eq(types26, ["approval_pending", "asset_low", "schedule_due", "sync_conflict"], "r26 四类通知 type 逐一对上");
+    ok(own26.every((n: any) => n.readAt === null), "r26 新生成通知全部未读");
+    eq(full26.json && full26.json.summary.unread >= 4, true, "r26 列表回带未读汇总");
+
+    const byType26 = await expectStatus("GET", "/api/notifications?type=approval_pending", undefined, 200, "r26 类型过滤 -> 200");
+    ok(byType26.json && byType26.json.notifications.every((n: any) => n.type === "approval_pending"), "r26 类型过滤只返回审批通知");
+    const unread26 = await expectStatus("GET", "/api/notifications?unreadOnly=1", undefined, 200, "r26 未读过滤 -> 200");
+    ok(unread26.json && unread26.json.notifications.every((n: any) => n.readAt === null), "r26 未读过滤只返回 read_at=null");
+    const page26 = await expectStatus("GET", "/api/notifications?page=1&pageSize=2", undefined, 200, "r26 分页第一页 -> 200");
+    eq(page26.json && page26.json.pageSize, 2, "r26 分页 pageSize 回显");
+    ok(page26.json && page26.json.totalPages >= 2, "r26 分页 totalPages 正确");
+    const single26 = await expectStatus("GET", `/api/notifications/${own26[0].id}`, undefined, 200, "r26 单条详情 -> 200");
+    eq(single26.json && single26.json.id, own26[0].id, "r26 单条详情 id 精确");
+
+    const summaryBefore26 = await expectStatus("GET", "/api/notifications/summary", undefined, 200, "r26 summary -> 200");
+    eq(summaryBefore26.json && summaryBefore26.json.types.length, 5, "r26 summary 回带五类类型清单");
+    const readOne26 = await expectStatus("POST", `/api/notifications/${own26[0].id}/read`, {}, 200, "r26 单条已读 -> 200");
+    eq(readOne26.json && readOne26.json.readAt !== null, true, "r26 单条已读 read_at 真落库");
+    const summaryAfter26 = await expectStatus("GET", "/api/notifications/summary", undefined, 200, "r26 已读后 summary -> 200");
+    eq(summaryAfter26.json && summaryAfter26.json.unread, summaryBefore26.json.unread - 1, "r26 已读后未读数真减一");
+    const readAll26 = await expectStatus("POST", "/api/notifications/read-all", {}, 200, "r26 全部已读 -> 200");
+    ok(readAll26.json && readAll26.json.updated >= 1, "r26 批量已读更新条数>0");
+    const readAllAgain26 = await expectStatus("POST", "/api/notifications/read-all", {}, 200, "r26 重复全部已读 -> 200");
+    eq(readAllAgain26.json && readAllAgain26.json.updated, 0, "r26 重复批量已读 updated=0");
+    const summaryZero26 = await expectStatus("GET", "/api/notifications/summary", undefined, 200, "r26 全已读 summary -> 200");
+    eq(summaryZero26.json && summaryZero26.json.unread, 0, "r26 全已读未读归零");
+
+    const patched26 = await expectStatus("PATCH", `/api/notifications/${own26[0].id}`, { title: "r26已改标题" }, 200, "r26 PATCH 标题 -> 200");
+    eq(patched26.json && patched26.json.title, "r26已改标题", "r26 PATCH 标题真落库");
+
+    // 4xx：非法 type / 越权 id / 无效 ref / 空标题
+    await expectStatus("GET", "/api/notifications?type=hack", undefined, 400, "r26 非法类型过滤 -> 400");
+    await expectStatus("GET", "/api/notifications/999999", undefined, 404, "r26 越权 id 详情 -> 404");
+    await expectStatus("POST", "/api/notifications/999999/read", {}, 404, "r26 越权 id 已读 -> 404");
+    await expectStatus("DELETE", "/api/notifications/999999", undefined, 404, "r26 越权 id 删除 -> 404");
+    await expectStatus("POST", "/api/notifications", { type: "hack", title: "x", refType: "system", refId: 0 }, 400, "r26 非法 type 新建 -> 400");
+    await expectStatus("POST", "/api/notifications", { type: "system", title: "x", refType: "bogus", refId: 0 }, 400, "r26 非法 ref_type 新建 -> 400");
+    await expectStatus("POST", "/api/notifications", { type: "approval_pending", title: "x", refType: "approvals", refId: 999999 }, 400, "r26 无效审批 ref_id 新建 -> 400");
+    await expectStatus("PATCH", `/api/notifications/${own26[0].id}`, { title: "" }, 400, "r26 空标题 PATCH -> 400");
+    const after4xx26 = await expectStatus("GET", `/api/notifications/${own26[0].id}`, undefined, 200, "r26 4xx 后原通知仍在 -> 200");
+    eq(after4xx26.json && after4xx26.json.title, "r26已改标题", "r26 4xx 零半态（原记录未被改写）");
+
+    // 清理：只删本轮探针（通知 / 审批 / 物资 / 日程）；同步实体留 scratch 库
+    for (const n of own26) {
+      await expectStatus("DELETE", `/api/notifications/${n.id}`, undefined, 200, `r26 清理通知 ${n.id} -> 200`);
+    }
+    await expectStatus("DELETE", `/api/approvals/${appr26.json.id}`, undefined, 200, "r26 清理审批 -> 200");
+    await expectStatus("DELETE", `/api/assets/${asset26.json.id}`, undefined, 200, "r26 清理物资 -> 200");
+    await expectStatus("DELETE", `/api/schedules/${sched26.json.id}`, undefined, 200, "r26 清理日程 -> 200");
+    const afterClean26 = await expectStatus("GET", "/api/notifications?pageSize=100", undefined, 200, "r26 清理后列表 -> 200");
+    eq((((afterClean26.json && afterClean26.json.notifications) ?? []) as any[]).filter((n: any) => own26.some((o: any) => o.id === n.id)).length, 0, "r26 清理后本轮通知归零");
   }
 }
 

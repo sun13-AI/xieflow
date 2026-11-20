@@ -363,6 +363,28 @@ import {
   type Member,
   type OrgTreeNode,
 } from "@xieflow/shared/org";
+// r26：通知中心（站内消息聚合）——规则唯一口径在 shared/notifications
+import {
+  NOTIFICATION_TYPES,
+  NOTIFICATION_TYPE_LABELS,
+  NOTIFICATION_TYPE_TABS,
+  NOTIFICATION_REF_TYPES,
+  NOTIFICATION_REF_TABS,
+  DEFAULT_LOW_STOCK_THRESHOLD,
+  isNotificationType,
+  assertValidNotificationType,
+  isNotificationRefType,
+  assertValidNotificationRef,
+  shouldNotify,
+  buildNotification,
+  emptyNotificationSummary,
+  notificationSummary,
+  queryNotifications,
+  notificationTargetTab,
+  collectNotificationCandidates,
+  type Notification,
+  type NotificationContext,
+} from "@xieflow/shared/notifications";
 import {
   createMockProvider,
   MOCK_PROVIDER_ID,
@@ -929,8 +951,8 @@ try {
     const v3Migrated = openDatabaseRaw({ path: v3Path });
     eq(
       v3Migrated.appliedMigrations,
-      [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18],
-      "v2 旧库重开补跑 v3+v4+v5+v6+v7+v8+v9+v10+v11+v12+v13+v14+v15+v16+v17+v18 迁移（真实 PRAGMA 升级路径）",
+      [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19],
+      "v2 旧库重开补跑 v3+v4+v5+v6+v7+v8+v9+v10+v11+v12+v13+v14+v15+v16+v17+v18+v19 迁移（真实 PRAGMA 升级路径）",
     );
     const tables = v3Migrated.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -1155,8 +1177,8 @@ try {
     const v4Open = openDatabaseRaw({ path: v4Path });
     eq(
       v4Open.appliedMigrations,
-      [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18],
-      "v3 旧库重开只补跑 v4+v5+v6+v7+v8+v9+v10+v11+v12+v13+v14+v15+v16+v17+v18 迁移（真实 PRAGMA 升级路径）",
+      [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19],
+      "v3 旧库重开只补跑 v4+v5+v6+v7+v8+v9+v10+v11+v12+v13+v14+v15+v16+v17+v18+v19 迁移（真实 PRAGMA 升级路径）",
     );
     const tables = v4Open.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -1814,7 +1836,7 @@ try {
     v4Open2.raw.exec("PRAGMA user_version = 4");
     v4Open2.raw.close();
     const v5Open = openDatabaseRaw({ path: v5Path });
-    eq(v5Open.appliedMigrations, [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18], "v4 旧库重开只补跑 v5+v6+v7+v8+v9+v10+v11+v12+v13+v14+v15+v16+v17+v18 迁移（真实 PRAGMA 升级路径）");
+    eq(v5Open.appliedMigrations, [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19], "v4 旧库重开只补跑 v5+v6+v7+v8+v9+v10+v11+v12+v13+v14+v15+v16+v17+v18+v19 迁移（真实 PRAGMA 升级路径）");
     const tableNames = v5Open.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
       .map((r) => String((r as unknown as { name: unknown }).name));
@@ -2533,7 +2555,7 @@ try {
     v5Open.raw.exec("PRAGMA user_version = 5");
     v5Open.raw.close();
     const v6Open = openDatabaseRaw({ path: v6Path });
-    eq(v6Open.appliedMigrations, [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18], "v5 旧库重开只补跑 v6+v7+v8+v9+v10+v11+v12+v13+v14+v15+v16+v17+v18 迁移（真实 PRAGMA 升级路径）");
+    eq(v6Open.appliedMigrations, [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19], "v5 旧库重开只补跑 v6+v7+v8+v9+v10+v11+v12+v13+v14+v15+v16+v17+v18+v19 迁移（真实 PRAGMA 升级路径）");
     const tableNames = v6Open.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
       .map((r) => String((r as unknown as { name: unknown }).name));
@@ -2813,7 +2835,7 @@ try {
     oldOpen.raw.exec("PRAGMA user_version = 6");
     oldOpen.raw.close();
     const v7Open = openDatabaseRaw({ path: v7Path });
-    eq(v7Open.appliedMigrations, [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18], "v6 旧库重开补跑 v7+v8+v9+v10+v11+v12+v13+v14+v15+v16+v17+v18 迁移（真实 PRAGMA 升级路径）");
+    eq(v7Open.appliedMigrations, [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19], "v6 旧库重开补跑 v7+v8+v9+v10+v11+v12+v13+v14+v15+v16+v17+v18+v19 迁移（真实 PRAGMA 升级路径）");
     eq(
       (v7Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
@@ -3201,7 +3223,7 @@ try {
     old10.raw.exec("PRAGMA user_version = 7");
     old10.raw.close();
     const v8 = openDatabaseRaw({ path: p10Path });
-    eq(v8.appliedMigrations, [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18], "v7 旧库重开只补跑 v8+v9+v10+v11+v12+v13+v14+v15+v16+v17+v18 迁移（真实 PRAGMA 升级路径）");
+    eq(v8.appliedMigrations, [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19], "v7 旧库重开只补跑 v8+v9+v10+v11+v12+v13+v14+v15+v16+v17+v18+v19 迁移（真实 PRAGMA 升级路径）");
     eq(
       (v8.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
@@ -3617,7 +3639,7 @@ try {
     old.raw.exec("PRAGMA user_version = 8");
     old.raw.close();
     const v9 = openDatabaseRaw({ path: p });
-    eq(v9.appliedMigrations, [9, 10, 11, 12, 13, 14, 15, 16, 17, 18], "v8 旧库重开只补跑 v9+v10+v11+v12+v13+v14+v15+v16+v17+v18 迁移（真实 PRAGMA 升级路径）");
+    eq(v9.appliedMigrations, [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19], "v8 旧库重开只补跑 v9+v10+v11+v12+v13+v14+v15+v16+v17+v18+v19 迁移（真实 PRAGMA 升级路径）");
     eq(
       (v9.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
@@ -4013,7 +4035,7 @@ try {
     eq(reopened14.getMindmap(1)!.contentMarkdown, "# 根\n- 子", "导图关库重开不丢（Markdown 源逐字节）");
     reopened14.close();
     const raw14 = openDatabaseRaw({ path: `scripts/.tmp-e2e/r14-raw-${Date.now()}.db` });
-    eq((raw14.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 18, "真实 PRAGMA user_version=18");
+    eq((raw14.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 19, "真实 PRAGMA user_version=19");
     eq(
       raw14.raw.all("PRAGMA table_info(mindmaps)").map((r) => String((r as unknown as { name: unknown }).name)),
       ["id", "title", "content_markdown", "created_at", "updated_at"],
@@ -4196,7 +4218,7 @@ try {
     eq(r15.listWhiteboardItems(1)[0]!.content, "关库不丢", "白板条目关库重开不丢（逐字）");
     r15.close();
     const raw15 = openDatabaseRaw({ path: `scripts/.tmp-e2e/r15-raw-${Date.now()}.db` });
-    eq((raw15.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 18, "真实 PRAGMA user_version=18");
+    eq((raw15.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 19, "真实 PRAGMA user_version=19");
     eq(
       raw15.raw.all("PRAGMA table_info(whiteboards)").map((r) => String((r as unknown as { name: unknown }).name)),
       ["id", "title", "created_at"],
@@ -4394,7 +4416,7 @@ try {
     r16.close();
 
     const raw16 = openDatabaseRaw({ path: `scripts/.tmp-e2e/r16-raw-${Date.now()}.db` });
-    eq((raw16.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 18, "真实 PRAGMA user_version=18");
+    eq((raw16.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 19, "真实 PRAGMA user_version=19");
     eq(
       raw16.raw.all("PRAGMA table_info(approvals)").map((r) => String((r as unknown as { name: unknown }).name)),
       ["id", "title", "type", "applicant_id", "status", "current_assignee", "created_at", "updated_at", "applicant_member_id"],
@@ -4500,7 +4522,7 @@ try {
 
     // 51d. schema v13 与数据层（真迁移、真落库、真事务、零半态）
     const raw17 = openDatabaseRaw({ path: ":memory:" });
-    eq((raw17.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 18, "新库 user_version=18");
+    eq((raw17.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 19, "新库 user_version=19");
     eq(
       raw17.raw.all("PRAGMA table_info(assets)").map((r) => String((r as unknown as { name: unknown }).name)),
       ["id", "name", "category", "quantity", "unit", "location", "custodian", "created_at", "custodian_member_id"],
@@ -4665,7 +4687,7 @@ try {
 
     // 52f. schema v14 与账号数据层（真迁移、真落库、不明文、级联清理）
     const raw18 = openDatabaseRaw({ path: ":memory:" });
-    eq((raw18.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 18, "新库 user_version=18");
+    eq((raw18.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 19, "新库 user_version=19");
     eq(
       raw18.raw.all("PRAGMA table_info(users)").map((r) => String((r as unknown as { name: unknown }).name)),
       ["id", "username", "password_hash", "role", "created_at"],
@@ -4885,7 +4907,7 @@ try {
 
     // schema v15 与数据层：change_log / entity_versions 真表真迁移
     const raw19 = openDatabaseRaw({ path: ":memory:" });
-    eq((raw19.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 18, "r19 新库 user_version=18");
+    eq((raw19.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 19, "r19 新库 user_version=19（r19 基线随 r26 推进）");
     const logCols = raw19.raw.all("PRAGMA table_info(change_log)").map((r) => String((r as unknown as { name: unknown }).name));
     eq(logCols, ["id", "entity_type", "entity_id", "operation", "payload", "user_id", "created_at", "version"], "r19 change_log 八列逐列存在");
     const verCols = raw19.raw.all("PRAGMA table_info(entity_versions)").map((r) => String((r as unknown as { name: unknown }).name));
@@ -4953,7 +4975,7 @@ try {
     ok(/<SyncCard\s*\/>/.test(appSrc), "r19 工作台设置区渲染多端同步卡");
     ok(!/(^|[^A-Za-z])fetch\s*\(/.test(syncSrc), "r19 同步卡无裸 fetch（统一 apiFetch）");
     ok(/\bapiFetch\b/.test(syncSrc), "r19 同步卡经 apiFetch 发请求（401 清态链路一致）");
-    eq((appSrc.match(/data-tab="/g) ?? []).length, 15, "r19 tab 口径：同步卡不占 tab，现存 15（r23 新增组织）");
+    eq((appSrc.match(/data-tab="/g) ?? []).length, 16, "r26 tab 口径：通知新增第十六 tab（r23 基线 15）");
     ok(!/r19 · 多端同步与冲突处理（M9 收官）/.test(appSrc), "r19 旧徽章已由 r20 替换（无残留）");
     ok(/sync-modal/.test(syncSrc) && /data-side="local"/.test(syncSrc) && /data-side="remote"/.test(syncSrc), "r19 冲突弹窗提供本地/远端两个选边按钮");
     ok(/sync-modal-warning/.test(syncSrc) && /不可撤销/.test(syncSrc), "r19 返工#1 选边后果提示前置（写入递增且不可撤销）");
@@ -5096,7 +5118,7 @@ try {
     ok(/overflow-x:\s*hidden/.test(cssSrc), "r20 禁止横向溢出");
     ok(/min-height:\s*44px/.test(cssSrc), "r20 触摸目标 >=44px");
     ok(/bottom-nav|net-status/.test(cssSrc), "r20 底栏/状态条样式在场");
-    eq((appSrc.match(/data-tab="/g) ?? []).length, 15, "r20 口径：顶栏/底栏只是布局变化不占 tab，现存 15（r23 新增组织）");
+    eq((appSrc.match(/data-tab="/g) ?? []).length, 16, "r26 口径：通知 tab 计入壳基线共 16（r23 基线 15）");
     ok(/app\.post\("\/api\/offline\/replay"/.test(serverSrc), "r20 api 提供真重放端点（队列 4xx 由 audit 锁定）");
   }
 
@@ -5172,7 +5194,7 @@ try {
     ok(/data-state="tabs-more"/.test(app22), "r22 更多按钮有稳定 data-state seam（截图/复验可寻址）");
     ok(/tabs-more-fade/.test(css22) && /linear-gradient/.test(css22), "r22 底栏右侧渐隐遮罩在场");
     ok(/html\.nav-open \.tabs-more\s*\{[^}]*display:\s*none/.test(css22), "r22 菜单展开时隐藏更多按钮");
-    ok(/r23 · 组织架构与通讯录/.test(app22), "r23 徽章推进到组织轮（r22 旧徽章已替换无残留）");
+    ok(/r26 · 通知中心/.test(app22), "r26 徽章推进到通知中心轮（r23 旧徽章已替换无残留）");
 
     // (B) DEPLOY.md 三处补强 / 根 README 脚本清单（真实文档契约）
     const deploy22 = readFileSync("docs/DEPLOY.md", "utf8");
@@ -5184,7 +5206,7 @@ try {
     // (C) shell README 与实际字节逐字一致（14 张哈希 + 全库计数）
     const shellReadme = readFileSync("docs/ui/shell/README.md", "utf8");
     ok(/r25 同批重拍/.test(shellReadme) && /r25 哈希自查/.test(shellReadme), "r25 shell README 整段推进到 r25 口径（r23/r24 历史对照保留）");
-    const hashBlock = shellReadme.match(/R25_HASHES_BEGIN([\s\S]*?)R25_HASHES_END/);
+    const hashBlock = shellReadme.match(/R26_HASHES_BEGIN([\s\S]*?)R26_HASHES_END/);
     const listed = Array.from((hashBlock?.[1] ?? "").matchAll(/([a-z-]+)=([0-9A-F]{8})/g)).map(
       (m) => `${m[1]}=${m[2]}`,
     ).sort();
@@ -5193,7 +5215,7 @@ try {
       const h = createHash("sha256").update(readFileSync(`docs/ui/shell/${f}`)).digest("hex").slice(0, 8).toUpperCase();
       return `${f.replace("-tab-active.png", "")}=${h}`;
     });
-    eq(listed, actual, "r25 shell README 15 张哈希与实际文件逐字一致");
+    eq(listed, actual, "r26 shell README 16 张哈希与实际文件逐字一致");
 
     const walkPng = (dir: string): string[] =>
       readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
@@ -5315,7 +5337,7 @@ try {
 
     // schema v16：两表真迁移 + raw 约束
     const raw23 = openDatabaseRaw({ path: ":memory:" });
-    eq((raw23.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 18, "r23 新库 user_version=18");
+    eq((raw23.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 19, "r23 新库 user_version=19（r19 基线随 r26 推进）");
     const deptCols = raw23.raw.all("PRAGMA table_info(departments)").map((r) => String((r as { name: unknown }).name));
     eq(deptCols, ["id", "name", "parent_id", "sort_order", "created_at"], "r23 departments 五列逐列存在");
     const memCols = raw23.raw.all("PRAGMA table_info(members)").map((r) => String((r as { name: unknown }).name));
@@ -5386,8 +5408,8 @@ try {
     const shellReadme = readFileSync("docs/ui/shell/README.md", "utf8");
 
     ok(app.includes('data-tab="org"'), "r23 App.tsx 存在组织 tab 按钮");
-    ok(app.includes("r23 · 组织架构与通讯录"), "r23 App.tsx 徽章推进到 r23");
-    ok(app.includes('| "org";'), "r23 App.tsx PageTab 联合类型含 org");
+    ok(app.includes("r26 · 通知中心"), "r26 App.tsx 徽章推进到通知中心");
+    ok(app.includes('| "org" | "notifications";'), "r26 App.tsx PageTab 联合类型含 org + notifications");
     ok(app.includes("<OrgPage />"), "r23 App.tsx 渲染 OrgPage 组件");
     ok(orgPage.includes("buildDepartmentTree") && orgPage.includes("@xieflow/shared/org"), "r23 组织页树装配走 shared/org 纯函数");
     ok(orgPage.includes("searchMembers") && orgPage.includes("@xieflow/shared/org"), "r23 组织页搜索走 shared/org 纯函数");
@@ -5397,7 +5419,7 @@ try {
     );
     ok(css.includes(".org-columns") && css.includes("html.force-narrow .org-columns"), "r23 样式含双栏布局与窄屏单列 seam");
     ok(shot.includes('"r23"') && shot.includes("org-tab-active"), "r23 shot.ps1 ValidateSet 与壳基线含组织 tab");
-    ok(ci.includes("(2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18)"), "r23 CI 正则随 v18 迁移推进（r25 口径）");
+    ok(ci.includes("(2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19)"), "r23 CI 正则随 schema v19 推进（r25 口径）");
     ok((r23Index.match(/^\| \d\d-(org-|narrow|error)[^|]*\.png \|/gm) ?? []).length === 7, "r23 截图索引含七张矩阵行");
     const walkPng23 = (dir: string): string[] =>
       readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
@@ -5407,22 +5429,22 @@ try {
     eq(r23Png.length, 7, "r23 目录恰好 7 张 PNG");
     eq(new Set(r23Png.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 7, "r23 七张 PNG SHA256 两两互异");
     const shellPng = walkPng23("docs/ui/shell");
-    eq(shellPng.length, 15, "壳基线恰好 15 张 PNG（新增组织 tab）");
-    eq(new Set(shellPng.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 15, "壳基线 15 张 SHA256 两两互异");
-    const r23HashBlock = shellReadme.match(/<!-- R25_HASHES_BEGIN -->([\s\S]*?)<!-- R25_HASHES_END -->/);
-    ok(r23HashBlock !== null, "r25 shell README 含 R25_HASHES 自查块");
+    eq(shellPng.length, 16, "壳基线恰好 16 张 PNG（新增通知 tab）");
+    eq(new Set(shellPng.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 16, "壳基线 16 张 SHA256 两两互异");
+    const r23HashBlock = shellReadme.match(/<!-- R26_HASHES_BEGIN -->([\s\S]*?)<!-- R26_HASHES_END -->/);
+    ok(r23HashBlock !== null, "r26 shell README 含 R26_HASHES 自查块");
     if (r23HashBlock) {
       const listed = [...r23HashBlock[1]!.matchAll(/`([a-z-]+)=([0-9A-F]{8})`/g)].map((m) => [m[1], m[2]]);
-      eq(listed.length, 15, "r25 shell README 列出 15 张哈希");
+      eq(listed.length, 16, "r26 shell README 列出 16 张哈希");
       const mismatches = listed.filter(([name, hash]) => {
         const file = shellPng.find((p) => p.replace(/\\/g, "/").endsWith(`/${name}-tab-active.png`));
         return !file || createHash("sha256").update(readFileSync(file)).digest("hex").slice(0, 8).toUpperCase() !== hash;
       });
-      eq(mismatches, [], "r25 shell README 15 张哈希与实际文件逐字一致");
+      eq(mismatches, [], "r26 shell README 16 张哈希与实际文件逐字一致");
     }
-    ok(rootReadme.includes("e2e（2096 断言）+ HTTP 审计（1723 断言）"), "r23 口径随 r24 速查行推进");
+    ok(rootReadme.includes("e2e（2221 断言）+ HTTP 审计（1791 断言）"), "r23 口径随 r24 速查行推进");
     ok(
-      rootReadme.includes("- e2e **2096** 项") && rootReadme.includes("- HTTP audit **1723** 项") &&
+      rootReadme.includes("- e2e **2221** 项") && rootReadme.includes("- HTTP audit **1791** 项") &&
         rootReadme.includes("### r24 矩阵") && rootReadme.includes("e2e 1952 → **2041（+89）**"),
       "根 README 双节规模推进到 r24（r23 历史行保留）",
     );
@@ -5492,7 +5514,7 @@ try {
 
     // (B) schema v17：只追加四张可空列，原 TEXT NOT NULL 列逐列不动
     const raw24 = openDatabaseRaw({ path: ":memory:" });
-    eq((raw24.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 18, "r24 基线库现新库 user_version=18（v18 推进）");
+    eq((raw24.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 19, "r24 基线库现新库 user_version=19（r26 推进）");
     const colsOf = (table: string) => raw24.raw.all(`PRAGMA table_info(${table})`) as {
       name: string; notnull: number; dflt_value: unknown;
     }[];
@@ -5640,7 +5662,7 @@ try {
     ok(assets.includes('data-state="assets-member-badge"'), "r24 物资卡片部门徽标 seam 在场");
     ok(css.includes(".mp-modal") && css.includes("html.force-narrow .mp-modal"), "r24 弹窗样式与窄屏单列 seam 在场");
     ok(shot.includes('"r24"') && ["01-approval-picker", "02-approval-picked", "03-timeline-badge", "04-assets-picker", "05-assets-badge", "06-narrow", "07-error"].every((s) => shot.includes(s)), "r24 shot.ps1 ValidateSet 与七张矩阵名齐备");
-    ok(ci.includes("(2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18)"), "r24 CI smoke 正则随 v18 推进");
+    ok(ci.includes("(2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19)"), "r24 CI smoke 正则随 v19 推进");
 
     const walkPng = (dir: string): string[] =>
       readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
@@ -5650,21 +5672,21 @@ try {
     eq(r24Png.length, 7, "r24 目录恰好 7 张 PNG");
     eq(new Set(r24Png.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 7, "r24 七张 PNG SHA256 两两互异");
     const shellPng = walkPng("docs/ui/shell");
-    eq(shellPng.length, 15, "壳基线仍为 15 张 PNG");
-    eq(new Set(shellPng.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 15, "壳基线 15 张 SHA256 两两互异");
-    const hashBlock = shellReadme.match(/<!-- R25_HASHES_BEGIN -->([\s\S]*?)<!-- R25_HASHES_END -->/);
+    eq(shellPng.length, 16, "r26 壳基线已扩为 16 张 PNG");
+    eq(new Set(shellPng.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 16, "壳基线 16 张 SHA256 两两互异");
+    const hashBlock = shellReadme.match(/<!-- R26_HASHES_BEGIN -->([\s\S]*?)<!-- R26_HASHES_END -->/);
     ok(hashBlock !== null, "shell README 哈希自查块在场");
     if (hashBlock) {
       const listed = [...hashBlock[1]!.matchAll(/`([a-z-]+)=([0-9A-F]{8})`/g)].map((m) => [m[1], m[2]]);
-      eq(listed.length, 15, "shell README 列出 15 张哈希");
+      eq(listed.length, 16, "shell README 列出 16 张哈希");
       const mismatches = listed.filter(([name, hash]) => {
         const file = shellPng.find((p) => p.replace(/\\/g, "/").endsWith(`/${name}-tab-active.png`));
         return !file || createHash("sha256").update(readFileSync(file)).digest("hex").slice(0, 8).toUpperCase() !== hash;
       });
-      eq(mismatches, [], "shell README 15 张哈希与实际文件逐字一致");
+      eq(mismatches, [], "shell README 16 张哈希与实际文件逐字一致");
     }
     ok((r24Index.match(/^\| \d\d-[^|]*\.png \|/gm) ?? []).length === 7, "r24 截图索引含七张矩阵行");
-    ok(rootReadme.includes("e2e（2096 断言）+ HTTP 审计（1723 断言）"), "r24 根 README 速查行数字同步");
+    ok(rootReadme.includes("e2e（2221 断言）+ HTTP 审计（1791 断言）"), "r24 根 README 速查行数字同步");
     ok(rootReadme.includes("### r24 矩阵") && rootReadme.includes("e2e 1952 → **2041（+89）**"), "r24 根 README 双节规模与矩阵索引同步");
   }
 
@@ -5708,7 +5730,7 @@ try {
 
     // (C) schema v18 raw：只加 approval_steps.actor_member_id 可空列，原列不动
     const raw25 = openDatabaseRaw({ path: ":memory:" });
-    eq((raw25.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 18, "r25 新库 user_version=18");
+    eq((raw25.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 19, "r25 新库 user_version=19（r19 基线随 r26 推进）");
     const cols25 = raw25.raw.all("PRAGMA table_info(approval_steps)") as {
       name: string; notnull: number; dflt_value: unknown;
     }[];
@@ -5793,7 +5815,7 @@ try {
     ok(approval25.includes('data-state="approval-actor-badge"'), "r25 审批动作步骤徽标 seam 在场");
     ok(api25.includes('"/api/org/members/me"') && api25.includes("actorMemberId: firstDefined"), "r25 api 提供登录成员解析且接受 actorMemberId");
     ok(schemaSource25.includes("actor_member_id") && schemaSource25.includes("version: 18"), "r25 schema v18 动作列迁移在场");
-    ok(ci25.includes("(2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18)"), "r25 CI smoke 正则升 v18");
+    ok(ci25.includes("(2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19)"), "r25 CI smoke 正则升 v19（含历史 v18）");
     ok(shot25.includes('"r25"') && ["01-approval-actor-badge", "02-picker-dept-filter", "03-badge-named", "04-manual-hint", "05-assets-detail-badge", "06-narrow", "07-error"].every((s) => shot25.includes(s)), "r25 shot.ps1 ValidateSet 与七张矩阵名齐备");
 
     const walkPng25 = (dir: string): string[] =>
@@ -5804,24 +5826,255 @@ try {
     eq(matrix25.length, 7, "r25 目录恰好 7 张 PNG");
     eq(new Set(matrix25.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 7, "r25 七张 PNG SHA256 两两互异");
     const shells25 = walkPng25("docs/ui/shell");
-    eq(shells25.length, 15, "r25 壳基线仍为 15 张 PNG");
-    eq(new Set(shells25.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 15, "r25 壳基线 15 张 SHA256 两两互异");
-    const hash25 = shell25.match(/<!-- R25_HASHES_BEGIN -->([\s\S]*?)<!-- R25_HASHES_END -->/);
-    ok(hash25 !== null, "shell README R25 当前哈希块在场");
+    eq(shells25.length, 16, "r26 壳基线已扩为 16 张 PNG");
+    eq(new Set(shells25.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 16, "壳基线 16 张 SHA256 两两互异");
+    const hash25 = shell25.match(/<!-- R26_HASHES_BEGIN -->([\s\S]*?)<!-- R26_HASHES_END -->/);
+    ok(hash25 !== null, "shell README R26 当前哈希块在场");
     if (hash25) {
       const listed25 = [...hash25[1]!.matchAll(/`([a-z-]+)=([0-9A-F]{8})`/g)].map((m) => [m[1], m[2]]);
-      eq(listed25.length, 15, "shell README R25 块列出 15 张哈希");
+      eq(listed25.length, 16, "shell README R26 块列出 16 张哈希");
       const mismatches25 = listed25.filter(([name, hash]) => {
         const file = shells25.find((p) => p.replace(/\\/g, "/").endsWith(`/${name}-tab-active.png`));
         return !file || createHash("sha256").update(readFileSync(file)).digest("hex").slice(0, 8).toUpperCase() !== hash;
       });
-      eq(mismatches25, [], "shell README R25 哈希与实际文件逐字一致");
+      eq(mismatches25, [], "shell README R26 哈希与实际文件逐字一致");
     }
     ok(shell25.includes("**r23 基线**") && shell25.includes("**r24 基线**"), "shell README 保留 r23/r24 历史对照行");
     ok(shell25.includes("90166EF8") || shell25.includes("物资壳"), "shell README 如实记录物资壳与 r23 同字节事实");
     ok((r25Index.match(/^\| \d\d-[^|]*\.png \|/gm) ?? []).length === 7, "r25 截图索引含七张矩阵行");
-    ok(root25.includes("e2e（2096 断言）+ HTTP 审计（1723 断言）"), "r25 根 README 速查行数字同步");
+    ok(root25.includes("e2e（2221 断言）+ HTTP 审计（1791 断言）"), "r25 根 README 速查行数字同步");
     ok(root25.includes("### r25 矩阵") && root25.includes("e2e 2041 → **2096（+55）**"), "r25 根 README 双节规模与矩阵索引同步");
+  }
+
+  // 61. r26：通知中心（站内消息聚合）——模板 / 阈值 / 幂等 / 已读 / 分页 / 跳转契约
+  section("r26 通知中心：shared 规则 / schema v19 / 数据层 / 渲染层 seam");
+  {
+    const now26 = new Date(2026, 10, 20, 9, 30, 0);
+    const today26 = localDateStr(now26);
+
+    // (A) 类型枚举与标签 / 映射口径
+    eq(NOTIFICATION_TYPES.length, 5, "r26 通知类型恰五种");
+    eq([...NOTIFICATION_TYPES], ["schedule_due", "approval_pending", "asset_low", "sync_conflict", "system"], "r26 通知类型顺序锁定");
+    eq(NOTIFICATION_TYPE_LABELS.approval_pending, "审批", "r26 审批类型中文标签");
+    eq(NOTIFICATION_TYPE_LABELS.sync_conflict, "同步", "r26 同步类型中文标签");
+    eq(NOTIFICATION_REF_TYPES.length, 5, "r26 引用类型恰五种");
+    eq(NOTIFICATION_REF_TABS.approvals, "approval", "r26 ref_type=approvals 跳审批 tab");
+    eq(NOTIFICATION_REF_TABS.schedules, "schedules", "r26 ref_type=schedules 跳日程 tab");
+    eq(NOTIFICATION_REF_TABS.assets, "assets", "r26 ref_type=assets 跳物资 tab");
+    eq(NOTIFICATION_TYPE_TABS.sync_conflict, "home", "r26 同步冲突默认回落工作台");
+    eq(isNotificationType("asset_low"), true, "r26 合法类型判定");
+    eq(isNotificationType("unknown"), false, "r26 未知类型判定为 false");
+    await throws(() => assertValidNotificationType("bogus"), "r26 非法通知类型守卫抛错");
+    eq(isNotificationRefType("system"), true, "r26 合法引用类型判定");
+    await throws(() => assertValidNotificationRef("bogus", 1), "r26 非法引用类型守卫抛错");
+    await throws(() => assertValidNotificationRef("approvals", 0), "r26 实体类 ref_id=0 被拒");
+    await throws(() => assertValidNotificationRef("approvals", -3), "r26 负 ref_id 被拒");
+    noThrow(() => assertValidNotificationRef("system", 0), "r26 system ref_id=0 合法");
+
+    // (B) 阈值判定（审批≥1 / 库存≤阈值 / 冲突>0 / 日程当天）
+    eq(shouldNotify("approval_pending", { count: 0 }), false, "r26 审批计数 0 不发");
+    eq(shouldNotify("approval_pending", { count: 1 }), true, "r26 审批计数 1 发");
+    eq(shouldNotify("approval_pending", { count: "2" }), true, "r26 审批计数字符串归一");
+    eq(shouldNotify("asset_low", { quantity: 5 }), true, "r26 库存等于阈值发");
+    eq(shouldNotify("asset_low", { quantity: 4 }), true, "r26 库存低于阈值发");
+    eq(shouldNotify("asset_low", { quantity: 6 }), false, "r26 库存高于阈值不发");
+    eq(shouldNotify("asset_low", { quantity: 2, threshold: 1 }), false, "r26 自定义阈值生效");
+    eq(DEFAULT_LOW_STOCK_THRESHOLD, 5, "r26 默认低库存阈值=5");
+    eq(shouldNotify("sync_conflict", { conflictCount: 0 }), false, "r26 冲突数 0 不发");
+    eq(shouldNotify("sync_conflict", { conflictCount: 1, fields: ["title"] }), true, "r26 冲突数 1 发");
+    eq(shouldNotify("schedule_due", { date: today26, now: now26 }), true, "r26 当天日程发");
+    eq(shouldNotify("schedule_due", { date: "2026-11-21", now: now26 }), false, "r26 非当天日程不发");
+    eq(shouldNotify("system", {}), true, "r26 系统消息恒发");
+    await throws(() => shouldNotify("bogus" as Notification["type"], {}), "r26 未知类型阈值判定抛错");
+
+    // (C) 模板生成（标题/正文/引用/未读/时间确定性）
+    const schedNote = buildNotification("schedule_due", { title: "需求评审", start: "10:00", refId: 31, now: now26 }, now26);
+    eq(schedNote.title, "日程到期：需求评审", "r26 日程通知标题模板");
+    ok(schedNote.body.includes("10:00") && schedNote.body.includes("需求评审"), "r26 日程通知正文含时间与标题");
+    eq(schedNote.refType, "schedules", "r26 日程通知 ref_type");
+    eq(schedNote.refId, 31, "r26 日程通知 ref_id");
+    eq(schedNote.readAt, null, "r26 生成通知默认未读");
+    eq(schedNote.createdAt, now26.toISOString(), "r26 生成通知时间由入参确定");
+    const apprNote = buildNotification("approval_pending", { title: "采购申请", refId: 7 }, now26);
+    eq(apprNote.title, "待处理审批：采购申请", "r26 审批通知标题模板");
+    eq(apprNote.refType, "approvals", "r26 审批通知 ref_type");
+    ok(apprNote.body.includes("采购申请"), "r26 审批通知正文含审批标题");
+    const assetNote = buildNotification("asset_low", { name: "投影仪", quantity: 2, unit: "台", threshold: 5, refId: 9 }, now26);
+    eq(assetNote.title, "物资库存不足：投影仪", "r26 物资通知标题模板");
+    ok(assetNote.body.includes("库存 2台") && assetNote.body.includes("阈值 5"), "r26 物资通知正文含数量与阈值");
+    eq(assetNote.refType, "assets", "r26 物资通知 ref_type");
+    const syncNote = buildNotification("sync_conflict", { entityType: "todo", entityId: "88", fields: ["title"], refId: 12 }, now26);
+    eq(syncNote.title, "同步冲突：todo 88", "r26 同步通知标题模板");
+    ok(syncNote.body.includes("[title]"), "r26 同步通知正文含冲突字段");
+    eq(syncNote.refType, "sync", "r26 同步通知 ref_type");
+    const sysNote = buildNotification("system", { title: "系统维护", message: "今晚 22 点升级", now: now26 }, now26);
+    eq(sysNote.title, "系统维护", "r26 系统通知标题原样");
+    eq(sysNote.body, "今晚 22 点升级", "r26 系统通知正文原样");
+    eq(sysNote.refType, "system", "r26 系统通知 ref_type");
+    await throws(() => buildNotification("schedule_due", { title: "" }), "r26 缺标题模板抛错");
+    await throws(() => buildNotification("system", { title: "" }), "r26 系统通知缺标题抛错");
+
+    // (D) 未读分组统计
+    const mk26 = (id: number, type: Notification["type"], readAt: string | null, createdAt: string): Notification => ({
+      id, type, title: `t${id}`, body: "b", refType: "system", refId: 0, readAt, createdAt,
+    });
+    const emptySum = emptyNotificationSummary();
+    eq(emptySum.total, 0, "r26 空通知汇总 total=0");
+    eq(Object.keys(emptySum.byType).length, 5, "r26 空汇总含五类零项");
+    const list26 = [
+      mk26(1, "approval_pending", null, "2026-11-20T01:00:00.000Z"),
+      mk26(2, "approval_pending", "2026-11-20T02:00:00.000Z", "2026-11-20T01:00:00.000Z"),
+      mk26(3, "asset_low", null, "2026-11-20T02:00:00.000Z"),
+      mk26(4, "system", "2026-11-20T03:00:00.000Z", "2026-11-20T03:00:00.000Z"),
+    ];
+    const sum26 = notificationSummary(list26);
+    eq(sum26.total, 4, "r26 汇总 total 含已读与未读");
+    eq(sum26.unread, 2, "r26 汇总未读数");
+    eq(sum26.read, 2, "r26 汇总已读数");
+    eq(sum26.unreadByType.approval_pending, 1, "r26 审批未读分组");
+    eq(sum26.unreadByType.asset_low, 1, "r26 物资未读分组");
+    eq(sum26.unreadByType.sync_conflict, 0, "r26 无同步通知分组为 0");
+    eq(sum26.byType.approval_pending.total, 2, "r26 审批类型总数");
+
+    // (E) 列表过滤 / 分页（规则只在 shared）
+    const allQ = queryNotifications(list26, {});
+    eq(allQ.total, 4, "r26 全量查询 total");
+    eq(allQ.notifications.map((n) => n.id), [4, 3, 2, 1], "r26 列表按创建时间倒序同刻 id 倒序");
+    eq(queryNotifications(list26, { unreadOnly: "1" }).notifications.map((n) => n.id), [3, 1], "r26 未读过滤只留 read_at=NULL");
+    eq(queryNotifications(list26, { type: "approval_pending" }).total, 2, "r26 类型过滤计数");
+    eq(queryNotifications(list26, { page: 2, pageSize: 3 }).notifications.map((n) => n.id), [1], "r26 第二页数据");
+    eq(queryNotifications(list26, { page: 1, pageSize: 2 }).totalPages, 2, "r26 总页数");
+    eq(queryNotifications(list26, { page: 99, pageSize: 2 }).notifications, [], "r26 越界页为空列表");
+    eq(queryNotifications(list26, { page: -3, pageSize: 999 }).pageSize, MAX_PAGE_SIZE, "r26 分页上限封顶");
+    eq(queryNotifications(list26, { page: -3 }).page, 1, "r26 页码下限收敛为 1");
+    await throws(() => queryNotifications(list26, { type: "hack" }), "r26 非法类型过滤抛错");
+    eq(notificationTargetTab({ refType: "approvals", type: "system" }), "approval", "r26 跳转映射 ref_type 优先");
+
+    // (F) 当前库状态 → 候选事件（refresh 唯一装配入口）
+    const candidates = collectNotificationCandidates({
+      schedules: [
+        { id: 31, title: "今天日程", date: today26, start: "10:00" },
+        { id: 32, title: "明天日程", date: "2026-11-21" },
+      ],
+      approvals: [
+        { id: 7, title: "待办审批", status: "pending" },
+        { id: 8, title: "已结审批", status: "approved" },
+      ],
+      assets: [
+        { id: 9, name: "投影仪", quantity: 2, unit: "台" },
+        { id: 10, name: "电脑", quantity: 20 },
+      ],
+      now: now26,
+    });
+    eq(candidates.length, 3, "r26 候选事件只含今日日程/待办审批/低库存三类");
+    eq(candidates.filter((c) => c.type === "schedule_due").length, 1, "r26 日程候选唯一");
+    eq(candidates.filter((c) => c.type === "approval_pending").length, 1, "r26 审批候选唯一");
+    eq(candidates.filter((c) => c.type === "asset_low").length, 1, "r26 物资候选唯一");
+    eq(collectNotificationCandidates({ now: now26 }).length, 0, "r26 零数据时无候选事件");
+    ok(candidates.every((c) => shouldNotify(c.type, c.ctx)), "r26 候选事件全部通过阈值判定");
+
+    // (G) schema v19 raw：notifications 表 / 检查约束 / 索引 / 可空列
+    const raw26 = openDatabaseRaw({ path: ":memory:" });
+    eq((raw26.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 19, "r26 新库 user_version=19");
+    const nCols = raw26.raw.all("PRAGMA table_info(notifications)") as { name: string; notnull: number; dflt_value: unknown }[];
+    eq(nCols.map((c) => c.name), ["id", "type", "title", "body", "ref_type", "ref_id", "read_at", "created_at"], "r26 notifications 八列逐字锁定");
+    eq(nCols.find((c) => c.name === "read_at")?.notnull, 0, "r26 read_at 可空（未读默认 NULL）");
+    eq(nCols.find((c) => c.name === "ref_id")?.notnull, 1, "r26 ref_id NOT NULL（0 代表无具体实体）");
+    const nIdx = raw26.raw.all("PRAGMA index_list(notifications)") as { name: string }[];
+    ok(["idx_notifications_type", "idx_notifications_read_at", "idx_notifications_created_at", "idx_notifications_ref"].every((i) => nIdx.some((x) => x.name === i)), "r26 notifications 四个索引在场");
+    raw26.raw.run("INSERT INTO notifications (type,title,body,ref_type,ref_id,created_at) VALUES ('system','raw标题','raw正文','system',0,'t')");
+    eq((raw26.raw.get("SELECT read_at FROM notifications WHERE id=1") as { read_at: string | null }).read_at, null, "r26 新通知默认未读落库");
+    await throws(() => raw26.raw.run("INSERT INTO notifications (type,title,ref_type,ref_id,created_at) VALUES ('hack','x','system',0,'t')"), "r26 非法 type 被 CHECK 拒绝");
+    await throws(() => raw26.raw.run("INSERT INTO notifications (type,title,ref_type,ref_id,created_at) VALUES ('system','x','system',-1,'t')"), "r26 负 ref_id 被 CHECK 拒绝");
+    eq((raw26.raw.get("SELECT COUNT(*) AS n FROM notifications") as { n: number }).n, 1, "r26 4xx 尝试零半态（只有合法一行）");
+    raw26.raw.close();
+
+    // (H) 数据层：创建 / 幂等 / 已读 / 批量已读 / 删除 / 重开不丢
+    const d26 = freshDb();
+    const created26 = d26.createNotification(buildNotification("system", { title: "r26-系统消息", message: "hello", now: now26 }, now26));
+    eq(created26.title, "r26-系统消息", "r26 数据层创建通知返回标题");
+    eq(created26.readAt, null, "r26 数据层新通知未读");
+    const draft26 = buildNotification("approval_pending", { title: "r26审批", refId: 7 }, now26);
+    const first26 = d26.upsertNotification(draft26);
+    const second26 = d26.upsertNotification(draft26);
+    eq(first26.created, true, "r26 首次 refresh 落库");
+    eq(second26.created, false, "r26 重复 refresh 幂等不重复");
+    eq(second26.notification.id, first26.notification.id, "r26 幂等返回同一条通知");
+    eq(d26.listNotifications().length, 2, "r26 两次 upsert 后库内恰两条");
+    const read26 = d26.markNotificationRead(created26.id, "2026-11-20T10:00:00.000Z");
+    eq(read26?.readAt, "2026-11-20T10:00:00.000Z", "r26 单条已读真落库");
+    eq(d26.markNotificationRead(created26.id)?.readAt, "2026-11-20T10:00:00.000Z", "r26 重复已读不改时间");
+    eq(d26.markNotificationRead(999999), null, "r26 越权 id 已读返回 null");
+    eq(d26.markAllNotificationsRead(), 1, "r26 批量已读只更新未读行");
+    eq(d26.markAllNotificationsRead(), 0, "r26 重复批量已读返回 0");
+    eq(notificationSummary(d26.listNotifications()).unread, 0, "r26 全量已读后未读归零");
+    const patched26 = d26.updateNotificationContent(created26.id, { title: "r26改标题" });
+    eq(patched26?.title, "r26改标题", "r26 PATCH 内容真落库");
+    await throws(() => d26.updateNotificationContent(created26.id, { title: "" }), "r26 空标题 PATCH 被拒");
+    const path26 = `scripts/.tmp-e2e/r26-notify-${Date.now()}.db`;
+    const open26a = openDatabaseRaw({ path: path26 });
+    open26a.db.createNotification(buildNotification("asset_low", { name: "重开物资", quantity: 1, refId: 3 }, now26));
+    open26a.raw.close();
+    const open26b = openDatabaseRaw({ path: path26 });
+    eq(open26b.db.listNotifications()[0]?.title, "物资库存不足：重开物资", "r26 真实文件库重开通知不丢");
+    eq(d26.deleteNotification(created26.id), true, "r26 删除通知 -> true");
+    eq(d26.deleteNotification(created26.id), false, "r26 重复删除 -> false");
+    open26b.raw.close();
+    unlinkSync(path26);
+
+    // (I) 渲染层 / API / 脚本 seam（web 零算法分支，只消费 shared 与路由）
+    const app26 = readFileSync("apps/web/src/App.tsx", "utf8");
+    const page26 = readFileSync("apps/web/src/NotificationsPage.tsx", "utf8");
+    const api26 = readFileSync("apps/api/src/server.ts", "utf8");
+    const schemaSource26 = readFileSync("packages/db/src/schema.ts", "utf8");
+    const shot26 = readFileSync("scripts/shot.ps1", "utf8");
+    const shell26 = readFileSync("docs/ui/shell/README.md", "utf8");
+    const r26Index = readFileSync("docs/ui/r26/README.md", "utf8");
+    const root26 = readFileSync("README.md", "utf8");
+    const ci26 = readFileSync(".github/workflows/ci.yml", "utf8");
+    ok(app26.includes('type PageTab = "home"') && app26.includes('| "notifications"'), "r26 十六 tab 类型含通知页");
+    ok(app26.includes('data-tab="notifications"') && app26.includes("通知"), "r26 顶栏通知 tab 在场");
+    ok(app26.includes('data-state="notif-badge"') && app26.includes("/api/notifications/summary"), "r26 顶栏全局未读徽标接真汇总");
+    ok(page26.includes("notificationTargetTab") && page26.includes("queryNotifications"), "r26 筛选/跳转消费 shared 映射零算法分支");
+    ok(page26.includes('"notif-unread"') && page26.includes('data-state="notif-item"'), "r26 未读加粗与列表 seam 在场");
+    ok(page26.includes("notif-empty") && page26.includes("notif-error") && page26.includes("notif-refreshed"), "r26 空态/错误态/refresh 后钉态在场");
+    ok(api26.includes('app.post("/api/notifications/refresh"') && api26.includes('app.post("/api/notifications/:id/read"'), "r26 refresh 与已读路由在场");
+    ok(api26.includes('app.post("/api/notifications/read-all"') && api26.includes('app.get("/api/notifications/summary"'), "r26 批量已读与汇总路由在场");
+    ok(api26.includes("collectNotificationCandidates") && api26.includes("shouldNotify") && api26.includes("buildNotification"), "r26 api 只装配 shared 规则零算法分支");
+    ok(schemaSource26.includes("version: 19") && schemaSource26.includes("CREATE TABLE IF NOT EXISTS notifications"), "r26 schema v19 迁移在场");
+    ok(ci26.includes("(2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19)"), "r26 CI smoke 正则升 v19");
+    ok(shot26.includes('"r26"') && ["01-notif-empty", "02-notif-unread", "03-notif-filtered", "04-notif-read", "05-notif-refreshed", "06-narrow", "07-error"].every((s) => shot26.includes(s)), "r26 shot.ps1 ValidateSet 与七张矩阵名齐备");
+    ok(shell26.includes("<!-- R26_HASHES_BEGIN -->") && shell26.includes("<!-- R26_HASHES_END -->"), "r26 shell README 哈希块在场");
+    ok((r26Index.match(/^\| \[?\d\d-[^|\]]*\.png/gm) ?? []).length === 7, "r26 截图索引含七张矩阵行");
+    ok(root26.includes("e2e（2221 断言）+ HTTP 审计（1791 断言）"), "r26 根 README 速查行数字逐字同步");
+
+    // (J) 截图矩阵与十六 tab 壳基线（SHA 两两互异 + README 哈希逐字一致）
+    const walkPng26 = (dir: string): string[] => {
+      const out: string[] = [];
+      for (const f of readdirSync(dir, { withFileTypes: true })) {
+        const p = `${dir}/${f.name}`;
+        if (f.isDirectory()) out.push(...walkPng26(p));
+        else if (f.name.endsWith(".png")) out.push(p);
+      }
+      return out;
+    };
+    const matrix26 = walkPng26("docs/ui/r26");
+    eq(matrix26.length, 7, "r26 目录恰好 7 张 PNG");
+    eq(new Set(matrix26.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 7, "r26 七张 PNG SHA256 两两互异");
+    const shells26 = walkPng26("docs/ui/shell");
+    eq(shells26.length, 16, "r26 壳基线 16 张 PNG");
+    eq(new Set(shells26.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 16, "r26 壳基线 16 张 SHA256 两两互异");
+    const hash26 = shell26.match(/<!-- R26_HASHES_BEGIN -->([\s\S]*?)<!-- R26_HASHES_END -->/);
+    ok(hash26 !== null, "shell README R26 当前哈希块在场");
+    if (hash26) {
+      const listed26 = [...hash26[1]!.matchAll(/`([a-z-]+)=([0-9A-F]{8})`/g)].map((m) => ({ name: m[1]!, hash: m[2]! }));
+      eq(listed26.length, 16, "shell README R26 块列出 16 张哈希");
+      const mismatches26 = listed26.filter(({ name, hash }) => {
+        const file = shells26.find((p) => p.replace(/\\/g, "/").endsWith(`/${name}-tab-active.png`));
+        return !file || createHash("sha256").update(readFileSync(file)).digest("hex").slice(0, 8).toUpperCase() !== hash;
+      });
+      eq(mismatches26, [], "shell README R26 哈希与实际文件逐字一致");
+    }
   }
 
   // 60. HTTP 冒烟 /api/health

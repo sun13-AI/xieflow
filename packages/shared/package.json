@@ -7,7 +7,8 @@
     ".": "./src/index.ts",
     "./auth": "./src/auth.ts",
     "./deploy": "./src/deploy.ts",
-    "./org": "./src/org.ts"
+    "./org": "./src/org.ts",
+    "./notifications": "./src/notifications.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit"

@@ -13,6 +13,7 @@
 // r19：+ 工作台设置区「多端同步」卡 + 冲突弹窗选边（不新增 tab，十四 tab 数量不变）。
 // r20：+ 顶栏在线圆点 / 离线队列徽标 / 立即同步 + PWA 离线缓存 + ≤600px 底部导航（无新 tab）。
 // r23：+ 组织 tab（部门树 + 人员目录），壳基线扩为十五 tab。
+// r26：+ 通知 tab（站内消息聚合 + 顶栏未读徽标），壳基线扩为十六 tab。
 import SyncCard from "./SyncCard";
 import OfflineStatus from "./OfflineStatus";
 // 截图状态真实存在：加载中 / 空数据 / 正常 / 错误 / 窄屏（?narrow=1 显式钉态）
@@ -37,6 +38,7 @@ import ApprovalPage from "./ApprovalPage";
 import AssetsPage from "./AssetsPage";
 import UnitTasksPage from "./UnitTasksPage";
 import OrgPage from "./OrgPage";
+import NotificationsPage from "./NotificationsPage";
 import { LoginPage, RegisterPage } from "./AuthPages";
 import {
   AUTH_CLEARED_EVENT,
@@ -57,7 +59,7 @@ type LoadState =
   | { phase: "error"; message: string }
   | { phase: "ready"; settings: AppSetting[]; schemaVersion: number; todaySchedules: Schedule[]; todos: Todo[] };
 
-type PageTab = "home" | "todos" | "schedules" | "projects" | "board" | "bases" | "docs" | "chat" | "knowledge" | "mindmap" | "whiteboard" | "approval" | "assets" | "unit-tasks" | "org";
+type PageTab = "home" | "todos" | "schedules" | "projects" | "board" | "bases" | "docs" | "chat" | "knowledge" | "mindmap" | "whiteboard" | "approval" | "assets" | "unit-tasks" | "org" | "notifications";
 
 /** 健康检查 + 今日日程（工作台卡片数据源；日程查询失败不阻塞工作台） */
 async function fetchHealth(): Promise<{
@@ -187,7 +189,9 @@ export default function App() {
                               ? "unit-tasks"
                               : page === "org"
                                 ? "org"
-                                : "home";
+                                : page === "notifications"
+                                  ? "notifications"
+                                  : "home";
   });
   const [state, setState] = useState<LoadState>(() => {
     // 截图脚本用 ?shot= 钉住特定状态（真实状态都存在，参数只为确定性捕获）
@@ -208,6 +212,27 @@ export default function App() {
       };
     return { phase: "loading" };
   });
+
+  // r26：顶栏全局未读徽标（真实数来自 /api/notifications/summary；截图钉态用固定数）
+  const shotName = query.get("shot") ?? "";
+  const pinnedUnread = shotName.startsWith("notif-") && shotName !== "notif-empty" && shotName !== "notif-error" ? 3 : 0;
+  const [notifUnread, setNotifUnread] = useState(0);
+  const shownUnread = pinnedUnread > 0 ? pinnedUnread : notifUnread;
+  useEffect(() => {
+    if (pinnedUnread > 0 || authView) return;
+    let alive = true;
+    apiFetch("/api/notifications/summary")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { unread?: unknown } | null) => {
+        if (alive && data && typeof data.unread === "number") setNotifUnread(data.unread);
+      })
+      .catch(() => {
+        /* 汇总失败不阻塞页面 */
+      });
+    return () => {
+      alive = false;
+    };
+  }, [token, tab, authView, pinnedUnread]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -274,7 +299,7 @@ export default function App() {
   const todoById = new Map(state.phase === "ready" ? state.todos.map((t) => [t.id, t]) : []);
 
   return (
-    <main className={tab === "bases" || tab === "docs" || tab === "chat" || tab === "knowledge" || tab === "mindmap" || tab === "whiteboard" || tab === "approval" || tab === "assets" || tab === "unit-tasks" || tab === "org" ? "shell shell-wide" : "shell"}>
+    <main className={tab === "bases" || tab === "docs" || tab === "chat" || tab === "knowledge" || tab === "mindmap" || tab === "whiteboard" || tab === "approval" || tab === "assets" || tab === "unit-tasks" || tab === "org" || tab === "notifications" ? "shell shell-wide" : "shell"}>
       <header className="topbar">
         <span className="logo">协流 XieFlow</span>
         <nav className="tabs" data-state="tabs">
@@ -398,12 +423,24 @@ export default function App() {
           >
             组织
           </button>
+          <button
+            type="button"
+            className={`tab ${tab === "notifications" ? "tab-active" : ""}`}
+            data-tab="notifications"
+            onClick={() => setTab("notifications")}
+          >
+            通知
+            {shownUnread > 0 && (
+              <span className="notif-badge" data-state="notif-badge" aria-label="未读通知">{shownUnread}</span>
+            )}
+          </button>
+          <span className="topbar-notif" data-state="notif-badge-global">未读 {shownUnread}</span>
         </nav>
         <div className="tabs-more-wrap" data-state="tabs-more" data-more-visible={moreVisible ? "1" : "0"}>
           <span className="tabs-more-fade" aria-hidden="true" />
           <button type="button" className="tabs-more" aria-label="更多导航" onClick={toggleNav}>更多 ›</button>
         </div>
-        <span className="badge">r23 · 组织架构与通讯录（M10 后）</span>
+        <span className="badge">r26 · 通知中心（站内消息聚合）</span>
         <OfflineStatus />
         <button type="button" className="nav-toggle" data-state="nav-toggle" aria-label="展开导航" onClick={toggleNav}>☰</button>
         <span className="auth-controls" data-state="auth-controls">
@@ -443,6 +480,8 @@ export default function App() {
         <UnitTasksPage />
       ) : tab === "org" ? (
         <OrgPage />
+      ) : tab === "notifications" ? (
+        <NotificationsPage onNavigate={(target) => setTab(target as PageTab)} />
       ) : (
         <>
           {state.phase === "loading" && (

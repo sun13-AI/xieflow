@@ -48,6 +48,7 @@ import type {
   EntityVersion,
 } from "@xieflow/shared";
 import type { Department, Member } from "@xieflow/shared/org";
+import type { Notification, NotificationRefType, NotificationType } from "@xieflow/shared/notifications";
 import type { AuthUser, AuthRole, Session } from "@xieflow/shared/auth";
 import { isFieldType, isBlockType, normalizeBlockContent, isKnowledgeSourceType } from "@xieflow/shared";
 import { REPEATS_ORDER } from "./repeat-order.js";
@@ -573,5 +574,19 @@ export function mapRowToMember(row: Row): Member {
     title: String(row.title),
     status: String(row.status) as Member["status"],
     userId: row.user_id === null || row.user_id === undefined ? null : Number(row.user_id),
+  };
+}
+
+/** v19 notifications 行 → 通知契约（read_at 可空，唯一入口） */
+export function mapRowToNotification(row: Row): Notification {
+  return {
+    id: Number(row.id),
+    type: String(row.type) as NotificationType,
+    title: String(row.title),
+    body: String(row.body),
+    refType: String(row.ref_type) as NotificationRefType,
+    refId: Number(row.ref_id),
+    readAt: row.read_at === null || row.read_at === undefined ? null : String(row.read_at),
+    createdAt: String(row.created_at),
   };
 }

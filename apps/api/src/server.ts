@@ -95,6 +95,17 @@ import {
   searchChunks,
 } from "@xieflow/agent";
 import { memberSummary, assertAssignableMember, normalizeMemberRef, resolveMemberForUser } from "@xieflow/shared/org";
+import { localDateStr } from "@xieflow/shared";
+import {
+  NOTIFICATION_TYPES,
+  assertValidNotificationType,
+  assertValidNotificationRef,
+  buildNotification,
+  shouldNotify,
+  notificationSummary,
+  queryNotifications,
+  collectNotificationCandidates,
+} from "@xieflow/shared/notifications";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = join(__dirname, "..", "..", "..", "data");
@@ -2797,9 +2808,30 @@ app.post("/api/auth/mode", async (req, reply) => {
 
 // ---- r19：多端同步（路由层只做参数装配与状态码映射，算法全在 shared/db） ----
 
+/**
+ * r26：同步冲突事件 → 站内通知（真实 409 时记一条，refresh 幂等不重复）。
+ * 通知写入失败不能掩盖原 409 契约（零影响原则）。
+ */
+function recordConflictNotification(err: SyncConflictError, ctx: { entityType?: unknown; entityId?: unknown }): void {
+  try {
+    const entityType = typeof ctx.entityType === "string" && ctx.entityType !== "" ? ctx.entityType : "entity";
+    const entityId = typeof ctx.entityId === "string" && ctx.entityId !== "" ? ctx.entityId : "unknown";
+    const conflictCount = Math.max(1, err.conflicts.length);
+    if (!shouldNotify("sync_conflict", { conflictCount })) return;
+    const refId = db?.getLatestChange(entityType, entityId)?.id ?? 0;
+    const draft = buildNotification("sync_conflict", {
+      conflictCount, entityType, entityId, fields: err.conflicts, refId,
+    });
+    db?.upsertNotification(draft);
+  } catch {
+    /* 通知是旁路能力，不改变同步 409 的契约 */
+  }
+}
+
 /** 409 冲突：冲突字段列表 / 当前版本 / 两端快照一次回给客户端弹窗选边 */
-function syncErrorReply(err: unknown, reply: FastifyReply): FastifyReply {
+function syncErrorReply(err: unknown, reply: FastifyReply, ctx: { entityType?: unknown; entityId?: unknown } = {}): FastifyReply {
   if (err instanceof SyncConflictError) {
+    recordConflictNotification(err, ctx);
     return reply.code(409).send({
       error: err.message,
       code: "SYNC_CONFLICT",
@@ -2900,7 +2932,8 @@ app.post("/api/sync/apply", async (req, reply) => {
     });
     return { applied: result.applied, version: result.version, idempotent: result.idempotent };
   } catch (err) {
-    return syncErrorReply(err, reply);
+    const body = (req.body ?? {}) as { entityType?: unknown; entityId?: unknown };
+    return syncErrorReply(err, reply, body);
   }
 });
 
@@ -3103,6 +3136,149 @@ app.delete("/api/members/:id", async (req, reply) => {
   try {
     const id = parseId((req.params as { id: string }).id);
     if (!requireDb().deleteMember(id)) return reply.code(404).send({ error: `人员不存在：${id}` });
+    return { deleted: true, id };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+// ---- r26：通知中心（站内消息聚合；规则全在 shared/notifications，路由只装配与 400/404 映射） ----
+
+interface NotificationBody {
+  type?: unknown;
+  title?: unknown;
+  body?: unknown;
+  refType?: unknown;
+  refId?: unknown;
+}
+
+function assertNotificationRefExists(
+  store: XieFlowDb,
+  refType: "schedules" | "approvals" | "assets" | "sync" | "system",
+  refId: number,
+): void {
+  if (refType === "schedules" && !store.getSchedule(refId)) {
+    throw new ValidationError(`通知引用日程不存在：${refId}`);
+  }
+  if (refType === "approvals" && !store.getApproval(refId)) {
+    throw new ValidationError(`通知引用审批不存在：${refId}`);
+  }
+  if (refType === "assets" && !store.getAsset(refId)) {
+    throw new ValidationError(`通知引用物资不存在：${refId}`);
+  }
+}
+
+app.get("/api/notifications", async (req, reply) => {
+  try {
+    const q = req.query as { type?: unknown; unreadOnly?: unknown; unread?: unknown; page?: unknown; pageSize?: unknown };
+    const list = requireDb().listNotifications();
+    const result = queryNotifications(list, {
+      type: q.type,
+      unreadOnly: q.unreadOnly ?? q.unread,
+      page: q.page,
+      pageSize: q.pageSize,
+    });
+    return { ...result, summary: notificationSummary(list) };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.get("/api/notifications/summary", async () => {
+  const summary = notificationSummary(requireDb().listNotifications());
+  return { ...summary, types: NOTIFICATION_TYPES };
+});
+
+/** 按当前库状态重算生成：同一事件重复 refresh 不新增（幂等由 db.upsertNotification 唯一口径锁定） */
+app.post("/api/notifications/refresh", async () => {
+  const store = requireDb();
+  const now = new Date();
+  const today = localDateStr(now);
+  const candidates = collectNotificationCandidates({
+    schedules: store.listSchedulesByDateRange(today, today),
+    approvals: store.listApprovals(),
+    assets: store.listAssets(),
+    now,
+  });
+  let created = 0;
+  let skipped = 0;
+  for (const candidate of candidates) {
+    if (!shouldNotify(candidate.type, candidate.ctx)) continue;
+    const draft = buildNotification(candidate.type, candidate.ctx, now);
+    const result = store.upsertNotification(draft);
+    if (result.created) created += 1;
+    else skipped += 1;
+  }
+  const list = store.listNotifications();
+  return { created, skipped, scanned: candidates.length, total: list.length, summary: notificationSummary(list) };
+});
+
+app.post("/api/notifications/read-all", async () => {
+  const updated = requireDb().markAllNotificationsRead();
+  return { updated, summary: notificationSummary(requireDb().listNotifications()) };
+});
+
+app.post("/api/notifications", async (req, reply) => {
+  try {
+    const body = (req.body ?? {}) as NotificationBody;
+    assertValidNotificationType(body.type);
+    assertValidNotificationRef(body.refType, body.refId ?? 0);
+    const refId = Number(body.refId ?? 0);
+    const store = requireDb();
+    assertNotificationRefExists(store, body.refType, refId);
+    const created = store.createNotification({
+      type: body.type,
+      title: typeof body.title === "string" ? body.title : "",
+      body: typeof body.body === "string" ? body.body : "",
+      refType: body.refType,
+      refId,
+      readAt: null,
+      createdAt: new Date().toISOString(),
+    });
+    return reply.code(201).send(created);
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.get("/api/notifications/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const found = requireDb().getNotification(id);
+    if (!found) return reply.code(404).send({ error: `通知不存在：${id}` });
+    return found;
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.patch("/api/notifications/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const body = (req.body ?? {}) as NotificationBody;
+    const updated = requireDb().updateNotificationContent(id, { title: body.title, body: body.body });
+    if (!updated) return reply.code(404).send({ error: `通知不存在：${id}` });
+    return updated;
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.post("/api/notifications/:id/read", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const updated = requireDb().markNotificationRead(id);
+    if (!updated) return reply.code(404).send({ error: `通知不存在：${id}` });
+    return { ...updated, summary: notificationSummary(requireDb().listNotifications()) };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.delete("/api/notifications/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    if (!requireDb().deleteNotification(id)) return reply.code(404).send({ error: `通知不存在：${id}` });
     return { deleted: true, id };
   } catch (err) {
     return toErrorReply(err, reply);

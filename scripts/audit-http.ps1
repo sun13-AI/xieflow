@@ -41,6 +41,22 @@ if ($onWindows) {
     -RedirectStandardOutput $ApiLog -RedirectStandardError "$ApiLog.err"
 }
 
+# r26: wait for a real HTTP 200 before auditing (fresh v19 migration can outpace the first request)
+$apiReady = $false
+$deadline = (Get-Date).AddSeconds(45)
+while ((Get-Date) -lt $deadline) {
+  try {
+    $probe = Invoke-WebRequest -Uri "http://127.0.0.1:$Port/api/health" -UseBasicParsing -TimeoutSec 2
+    if ($probe.StatusCode -eq 200) { $apiReady = $true; break }
+  } catch { }
+  Start-Sleep -Milliseconds 300
+}
+if (-not $apiReady) {
+  Write-Output "audit api not ready on :$Port; log:"
+  if (Test-Path $ApiLog) { Get-Content $ApiLog | Select-Object -Last 20 | Write-Output }
+  exit 1
+}
+
 try {
   Push-Location $Root
   $env:XIEFLOW_API_PORT = "$Port"

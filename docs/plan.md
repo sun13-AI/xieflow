@@ -2,6 +2,17 @@
 
 > 宪法见设计包 AGENTS.md；轮次规则见 RUNBOOK.md（均在 D:\work\好东西\xieflow-design\）。
 
+### 2026-11-20 · r26 研发（yanfa-r26 · M10 后功能补强：通知中心 / 站内消息聚合）
+- 交付：schema v18→v19（notifications 八列 + 四索引）；`packages/shared/notifications.ts` 五件套（buildNotification / shouldNotify / notificationSummary / queryNotifications / notificationTargetTab + collectNotificationCandidates），api/web 零算法分支
+- api：notifications CRUD + 未读过滤/分页 + `POST /:id/read` + `/read-all` + `/refresh`（幂等）+ `/summary`；同步 409 事件旁路落一条 `sync_conflict` 通知，不破坏 r19 零半态
+- web：新增第十六 tab「通知」（六类筛选 + 未读加粗/时间/图标列表 + 点条跳模块 + 顶栏未读徽标），十六 tab 壳基线同批重拍
+- 断言：e2e 2096→**2221（+125）** · audit 1723→**1791（+68）**，无一条删改；typecheck 5 包；`pnpm run test:all` exit 0；CI smoke 正则升 v19；README 速查行/双节/r26 矩阵索引/壳 R26 哈希块逐字同步
+- **变异红相 1 组**：db `upsertNotification` 判重改坏 → e2e 4 红 / audit 5 红；逐字节还原（SHA `5823EA8B…AA14`）双套件全绿
+- 「用户第一次用」全链路（headless CDP 真点，0 通知起步）：造审批 pending + 库存低 + 当天日程 + 真 409 冲突 → refresh 4 条 → 真点审批通知跳审批 tab 且徽标 4→3 → 返回通知页已读不 bold → reload summary unread=3/total=4 不丢 → 探针清理、端口收净
+- 截图：`docs/ui/r26/` 7 张 + 十六 tab 壳基线同批重拍；7/7、16/16 SHA256 互异，全库 265 PNG / 263 互异（同态组仅 r4 已披露 2 组），8 张逐张 `read_image` 目验
+- 危险区：未 push / 未打 tag / 未发版 / 未改 CI release 配置；只走 user_version 迁移、未手改库文件；只删本轮探针与 scratch 库，`data/xieflow.db` 只读；全程 headless、服务收净、PowerShell 新段全 ASCII、零 token、不接外部 IM/邮件
+- 报告：`docs/feedback/2026-11-20-r26-yanfa.md`（三态纪律 + 自曝节 + 变异红相 + 全链路证据）
+
 ### 2026-11-19 · r24 研发（yanfa-r24 · M10 后功能补强：成员接入审批/物资，向后兼容）
 - 交付：schema v16→v17（approvals.applicant_member_id / approval_steps.assignee_member_id / approval_cc.cc_member_id / assets.custodian_member_id 四列全可空、FK ON DELETE SET NULL；原 TEXT NOT NULL 列逐列不动）；`packages/shared/src/org.ts` 新增 resolveAssignee / assertAssignableMember / memberSummary / memberDisplayName / countMemberUsage，api/web 零算法分支
 - api：审批发起/提交/转交/抄送、物资建账/编辑/出入库均接受可选 member_id（不存在/停用/非法 id → 400），响应回带 {name,department} 摘要；GET /api/org/members/:id/usage 四类计数；老请求不传 member_id 的字段值与摘要 NULL 逐字不变
@@ -188,7 +199,7 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r23 | M10 后·组织架构与通讯录（部门树 + 人员目录） | ✅已发版（首轮双通过；三级树/环检测/大小写不敏感搜索） | v0.0.29 | e2e 1952 · audit 1582 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r24 | M10 后·组织成员接入审批/物资（向后兼容） | ✅已发版（首轮双通过；向后兼容 64/64 + 变异红相独立复现） | v0.0.30 | e2e 2041 · audit 1667 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r25 | M10 后·第三轮遗留清理（shell 哈希块/审批 actorMemberId/文档口径） | ✅已发版（首轮双通过；P3 actorMemberId 真修 35/35） | v0.0.31 | e2e 2096 · audit 1723 | 通过（waizhuan）+ UI 通过（阻断岗） |
-| r26 | M10 后·通知中心（站内消息聚合） | 🔨规划中 | — | — | — |
+| r26 | M10 后·通知中心（站内消息聚合） | 🔨研发完成·待复验 | — | e2e 2221 · audit 1791 | 待双 VERDICT |
 
 ## 🏁 项目总账（2026-11-19 · M10 收官）
 

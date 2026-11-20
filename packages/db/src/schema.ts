@@ -433,6 +433,26 @@ export const MIGRATIONS: Migration[] = [
       { table: "approval_steps", column: "actor_member_id", sql: `ALTER TABLE approval_steps ADD COLUMN actor_member_id INTEGER REFERENCES members(id) ON DELETE SET NULL` },
     ],
   },
+  {
+    version: 19,
+    name: "r26 · notifications 表（站内消息聚合：类型 / 未读 / 引用 / 索引）",
+    up: [
+      `CREATE TABLE IF NOT EXISTS notifications (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        type TEXT NOT NULL CHECK (type IN ('schedule_due','approval_pending','asset_low','sync_conflict','system')),
+        title TEXT NOT NULL CHECK (length(title) > 0),
+        body TEXT NOT NULL DEFAULT '',
+        ref_type TEXT NOT NULL CHECK (ref_type IN ('schedules','approvals','assets','sync','system')),
+        ref_id INTEGER NOT NULL DEFAULT 0 CHECK (ref_id >= 0),
+        read_at TEXT,
+        created_at TEXT NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_notifications_type ON notifications (type)`,
+      `CREATE INDEX IF NOT EXISTS idx_notifications_read_at ON notifications (read_at)`,
+      `CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications (created_at)`,
+      `CREATE INDEX IF NOT EXISTS idx_notifications_ref ON notifications (ref_type, ref_id)`,
+    ],
+  },
 ];
 
 /** 当前 schema 版本（与 shared 的 SCHEMA_VERSION 保持一致，e2e 会断言二者相等） */
