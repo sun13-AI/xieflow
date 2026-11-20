@@ -9,12 +9,13 @@ import {
   NOTIFICATION_TYPE_LABELS,
   notificationSummary,
   notificationTargetTab,
+  notificationDeepLinkParams,
   queryNotifications,
 } from "@xieflow/shared/notifications";
 import { SERVICE_DOWN_MESSAGE, fetchJsonOrThrow, apiFetch } from "./httpClient";
 
 interface NotificationsProps {
-  readonly onNavigate: (tab: string) => void;
+  readonly onNavigate: (tab: string, params?: Readonly<Record<string, string>>) => void;
 }
 
 interface NotificationsQuery {
@@ -26,7 +27,7 @@ type Phase = "loading" | "error" | "ready";
 type Filter = "all" | NotificationType;
 
 const PINNED = new Set([
-  "notif-empty", "notif-unread", "notif-filtered", "notif-read", "notif-refreshed", "notif-error",
+  "notif-empty", "notif-unread", "notif-filtered", "notif-read", "notif-read-badge", "notif-refreshed", "notif-error",
 ]);
 
 const SHOT_TIME = "2026-11-20T09:30:00.000Z";
@@ -75,7 +76,7 @@ export default function NotificationsPage({ onNavigate }: NotificationsProps): R
   const [error, setError] = useState(query.shot === "notif-error" ? `${SERVICE_DOWN_MESSAGE}（r26 通知链路错误态）` : "");
   const [items, setItems] = useState<Notification[]>(() => {
     if (query.shot === "notif-empty") return [];
-    if (query.shot === "notif-read") return SHOT_NOTIFICATIONS.map((n, i) => (i === 0 ? { ...n, readAt: SHOT_TIME } : n));
+    if (query.shot === "notif-read" || query.shot === "notif-read-badge") return SHOT_NOTIFICATIONS.map((n, i) => (i === 0 ? { ...n, readAt: SHOT_TIME } : n));
     return query.shot === "" || query.shot === "notif-loading" || query.shot === "notif-error" ? [] : SHOT_NOTIFICATIONS;
   });
   const [filter, setFilter] = useState<Filter>(() =>
@@ -115,7 +116,7 @@ export default function NotificationsPage({ onNavigate }: NotificationsProps): R
         await postJson(`/api/notifications/${n.id}/read`);
       }
       setItems((prev) => prev.map((item) => (item.id === n.id ? { ...item, readAt: new Date().toISOString() } : item)));
-      onNavigate(notificationTargetTab(n));
+      onNavigate(notificationTargetTab(n), notificationDeepLinkParams(n));
     } catch (err) {
       setActionError(err instanceof Error ? err.message : String(err));
     }
@@ -163,6 +164,7 @@ export default function NotificationsPage({ onNavigate }: NotificationsProps): R
       <div className="notif-layout">
         <aside className="notif-filters" data-state="notif-filters">
           <h2>类型筛选</h2>
+          <p className="nt-legend" data-state="notif-filter-legend">计数口径：全部＝总数，各类型＝未读</p>
           <button
             type="button"
             className={`nt-filter ${filter === "all" ? "nt-filter-active" : ""}`}

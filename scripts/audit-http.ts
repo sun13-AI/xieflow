@@ -3319,6 +3319,30 @@ async function auditR26(): Promise<void> {
     const after4xx26 = await expectStatus("GET", `/api/notifications/${own26[0].id}`, undefined, 200, "r26 4xx 后原通知仍在 -> 200");
     eq(after4xx26.json && after4xx26.json.title, "r26已改标题", "r26 4xx 零半态（原记录未被改写）");
 
+    // r26 返工#1：deep-link 定位契约 + 多审批非首行可见性（放在原四类基数断言之后，不改其计数）
+    const apprB26 = await expectStatus("POST", "/api/approvals", {
+      title: `r26审批B-${stamp26}`, type: "expense", applicantId: "r26甲", currentAssignee: "r26丙",
+    }, 201, "返工#1 造第二张不同审批人的待办审批 -> 201");
+    await expectStatus("POST", `/api/approvals/${apprB26.json.id}/submit`, { actor: "r26甲" }, 200, "返工#1 第二张审批提交 -> pending");
+    const detailA26 = await expectStatus("GET", `/api/approvals/${appr26.json.id}`, undefined, 200, "返工#1 按 refId 直读目标审批 -> 200");
+    eq(detailA26.json && detailA26.json.currentAssignee, "r26乙", "返工#1 目标审批 A 审批人=乙");
+    const detailB26 = await expectStatus("GET", `/api/approvals/${apprB26.json.id}`, undefined, 200, "返工#1 按 refId 直读非首行审批 -> 200");
+    eq(detailB26.json && detailB26.json.currentAssignee, "r26丙", "返工#1 目标审批 B 审批人=丙（与 A 不同）");
+    const viewA26 = await expectStatus("GET", `/api/approvals/view?view=todo&actor=${encodeURIComponent("r26乙")}`, undefined, 200, "返工#1 切到目标审批人视角 -> 200");
+    ok(viewA26.json && viewA26.json.approvals.some((a: any) => a.id === appr26.json.id), "返工#1 审批 A 在深链身份视角列表中可见");
+    ok(viewA26.json && !viewA26.json.approvals.some((a: any) => a.id === apprB26.json.id), "返工#1 审批 B 不属于 A 的深链身份视角");
+    const viewB26 = await expectStatus("GET", `/api/approvals/view?view=todo&actor=${encodeURIComponent("r26丙")}`, undefined, 200, "返工#1 切到非首行审批人视角 -> 200");
+    ok(viewB26.json && viewB26.json.approvals.some((a: any) => a.id === apprB26.json.id), "返工#1 审批 B 在自己身份视角列表中可见（非首行也定位）");
+    ok(viewB26.json && !viewB26.json.approvals.some((a: any) => a.id === appr26.json.id), "返工#1 审批 A 不属于 B 的深链身份视角");
+    const notifLink26 = await expectStatus("POST", "/api/notifications", {
+      type: "approval_pending", title: "返工#1 deep-link 探针", refType: "approvals", refId: apprB26.json.id,
+    }, 201, "返工#1 造指向非首行审批的通知 -> 201");
+    const singleLink26 = await expectStatus("GET", `/api/notifications/${notifLink26.json.id}`, undefined, 200, "返工#1 通知详情回带 deep-link -> 200");
+    eq(singleLink26.json && singleLink26.json.deepLink && singleLink26.json.deepLink.approvalId, String(apprB26.json.id), "返工#1 通知详情 deepLink.approvalId 精确等于通知 refId");
+    eq(singleLink26.json && singleLink26.json.tab, "approval", "返工#1 通知详情 tab=approval 与 refType 映射一致");
+    await expectStatus("DELETE", `/api/notifications/${notifLink26.json.id}`, undefined, 200, "返工#1 清理 deep-link 通知 -> 200");
+    await expectStatus("DELETE", `/api/approvals/${apprB26.json.id}`, undefined, 200, "返工#1 清理第二张审批 -> 200");
+
     // 清理：只删本轮探针（通知 / 审批 / 物资 / 日程）；同步实体留 scratch 库
     for (const n of own26) {
       await expectStatus("DELETE", `/api/notifications/${n.id}`, undefined, 200, `r26 清理通知 ${n.id} -> 200`);

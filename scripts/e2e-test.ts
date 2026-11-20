@@ -381,6 +381,7 @@ import {
   notificationSummary,
   queryNotifications,
   notificationTargetTab,
+  notificationDeepLinkParams,
   collectNotificationCandidates,
   type Notification,
   type NotificationContext,
@@ -5442,9 +5443,9 @@ try {
       });
       eq(mismatches, [], "r26 shell README 16 张哈希与实际文件逐字一致");
     }
-    ok(rootReadme.includes("e2e（2221 断言）+ HTTP 审计（1791 断言）"), "r23 口径随 r24 速查行推进");
+    ok(rootReadme.includes("e2e（2237 断言）+ HTTP 审计（1809 断言）"), "r23 口径随 r24 速查行推进");
     ok(
-      rootReadme.includes("- e2e **2221** 项") && rootReadme.includes("- HTTP audit **1791** 项") &&
+      rootReadme.includes("- e2e **2237** 项") && rootReadme.includes("- HTTP audit **1809** 项") &&
         rootReadme.includes("### r24 矩阵") && rootReadme.includes("e2e 1952 → **2041（+89）**"),
       "根 README 双节规模推进到 r24（r23 历史行保留）",
     );
@@ -5686,7 +5687,7 @@ try {
       eq(mismatches, [], "shell README 16 张哈希与实际文件逐字一致");
     }
     ok((r24Index.match(/^\| \d\d-[^|]*\.png \|/gm) ?? []).length === 7, "r24 截图索引含七张矩阵行");
-    ok(rootReadme.includes("e2e（2221 断言）+ HTTP 审计（1791 断言）"), "r24 根 README 速查行数字同步");
+    ok(rootReadme.includes("e2e（2237 断言）+ HTTP 审计（1809 断言）"), "r24 根 README 速查行数字同步");
     ok(rootReadme.includes("### r24 矩阵") && rootReadme.includes("e2e 1952 → **2041（+89）**"), "r24 根 README 双节规模与矩阵索引同步");
   }
 
@@ -5842,7 +5843,7 @@ try {
     ok(shell25.includes("**r23 基线**") && shell25.includes("**r24 基线**"), "shell README 保留 r23/r24 历史对照行");
     ok(shell25.includes("90166EF8") || shell25.includes("物资壳"), "shell README 如实记录物资壳与 r23 同字节事实");
     ok((r25Index.match(/^\| \d\d-[^|]*\.png \|/gm) ?? []).length === 7, "r25 截图索引含七张矩阵行");
-    ok(root25.includes("e2e（2221 断言）+ HTTP 审计（1791 断言）"), "r25 根 README 速查行数字同步");
+    ok(root25.includes("e2e（2237 断言）+ HTTP 审计（1809 断言）"), "r25 根 README 速查行数字同步");
     ok(root25.includes("### r25 矩阵") && root25.includes("e2e 2041 → **2096（+55）**"), "r25 根 README 双节规模与矩阵索引同步");
   }
 
@@ -5950,6 +5951,31 @@ try {
     await throws(() => queryNotifications(list26, { type: "hack" }), "r26 非法类型过滤抛错");
     eq(notificationTargetTab({ refType: "approvals", type: "system" }), "approval", "r26 跳转映射 ref_type 优先");
 
+    // (E2) r26 返工#1：点通知定位引用实体——deep-link 参数唯一口径在 shared，web 零算法分支
+    const apprDeep26 = notificationDeepLinkParams({ refType: "approvals", refId: 91, type: "approval_pending" });
+    eq(apprDeep26.approvalId, "91", "返工#1 审批通知 deep-link 携带通知 refId=91");
+    eq(apprDeep26.view, "todo", "返工#1 审批 deep-link 钉 todo 视角（按 id 定位，不依赖首行自动选中）");
+    eq(notificationDeepLinkParams({ refType: "assets", refId: 81, type: "asset_low" }).assetId, "81", "返工#1 物资通知 deep-link 携带 refId=81");
+    eq(notificationDeepLinkParams({ refType: "schedules", refId: 31, type: "schedule_due" }).scheduleId, "31", "返工#1 日程通知 deep-link 携带 refId=31");
+    eq(Object.keys(notificationDeepLinkParams({ refType: "sync", refId: 12, type: "sync_conflict" })).length, 0, "返工#1 同步冲突无实体 id 时不造伪定位参数");
+    eq(Object.keys(notificationDeepLinkParams({ refType: "approvals", refId: 0, type: "approval_pending" })).length, 0, "返工#1 refId=0 不造伪审批定位参数");
+    const page26Fix = readFileSync("apps/web/src/NotificationsPage.tsx", "utf8");
+    const app26Fix = readFileSync("apps/web/src/App.tsx", "utf8");
+    const apprPage26Fix = readFileSync("apps/web/src/ApprovalPage.tsx", "utf8");
+    const assetsPage26Fix = readFileSync("apps/web/src/AssetsPage.tsx", "utf8");
+    const schedPage26Fix = readFileSync("apps/web/src/SchedulesPage.tsx", "utf8");
+    const api26Fix = readFileSync("apps/api/src/server.ts", "utf8");
+    ok(page26Fix.includes("onNavigate(notificationTargetTab(n), notificationDeepLinkParams(n))"), "返工#1 通知页透传 tab + refId 定位参数");
+    ok(app26Fix.includes("history.replaceState") && app26Fix.includes('url.searchParams.set("page", target)'), "返工#1 App 写 deep-link 到地址栏（reload 不丢）");
+    ok(app26Fix.includes("Object.entries(params)"), "返工#1 App 把定位参数并入 deep-link");
+    ok(apprPage26Fix.includes("query.approvalId") && apprPage26Fix.includes("deepLinkLocated"), "返工#1 审批页按 deep-link id 一次性定位目标单");
+    ok(apprPage26Fix.includes("selected.currentAssignee"), "返工#1 审批页按目标单审批人自动切换身份，保证目标行可见");
+    ok(assetsPage26Fix.includes('get("assetId")'), "返工#1 物资页消费 assetId 深链选中");
+    ok(schedPage26Fix.includes('get("scheduleId")'), "返工#1 日程页消费 scheduleId 深链定位");
+    ok(api26Fix.includes("notificationDeepLinkParams(found)"), "返工#1 通知详情 HTTP 回带 deep-link 定位参数（api 零算法分支）");
+    ok(page26Fix.includes("notif-filter-legend") && page26Fix.includes("全部＝总数"), "返工#1 左栏补计数口径图例（全部=总数，类型=未读）");
+    ok(app26Fix.includes('shotName === "notif-read-badge"') && app26Fix.includes("? 2"), "返工#1 补徽标递减钉态（3→2）与列表未读数一致");
+
     // (F) 当前库状态 → 候选事件（refresh 唯一装配入口）
     const candidates = collectNotificationCandidates({
       schedules: [
@@ -6043,10 +6069,10 @@ try {
     ok(api26.includes("collectNotificationCandidates") && api26.includes("shouldNotify") && api26.includes("buildNotification"), "r26 api 只装配 shared 规则零算法分支");
     ok(schemaSource26.includes("version: 19") && schemaSource26.includes("CREATE TABLE IF NOT EXISTS notifications"), "r26 schema v19 迁移在场");
     ok(ci26.includes("(2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19)"), "r26 CI smoke 正则升 v19");
-    ok(shot26.includes('"r26"') && ["01-notif-empty", "02-notif-unread", "03-notif-filtered", "04-notif-read", "05-notif-refreshed", "06-narrow", "07-error"].every((s) => shot26.includes(s)), "r26 shot.ps1 ValidateSet 与七张矩阵名齐备");
+    ok(shot26.includes('"r26"') && ["01-notif-empty", "02-notif-unread", "03-notif-filtered", "04-notif-read", "05-notif-refreshed", "06-narrow", "07-error", "08-notif-badge-decrement"].every((s) => shot26.includes(s)), "r26 shot.ps1 ValidateSet 与八张矩阵名齐备");
     ok(shell26.includes("<!-- R26_HASHES_BEGIN -->") && shell26.includes("<!-- R26_HASHES_END -->"), "r26 shell README 哈希块在场");
-    ok((r26Index.match(/^\| \[?\d\d-[^|\]]*\.png/gm) ?? []).length === 7, "r26 截图索引含七张矩阵行");
-    ok(root26.includes("e2e（2221 断言）+ HTTP 审计（1791 断言）"), "r26 根 README 速查行数字逐字同步");
+    ok((r26Index.match(/^\| \[?\d\d-[^|\]]*\.png/gm) ?? []).length === 8, "r26 截图索引含八张矩阵行");
+    ok(root26.includes("e2e（2237 断言）+ HTTP 审计（1809 断言）"), "返工#1 根 README 速查行数字逐字同步");
 
     // (J) 截图矩阵与十六 tab 壳基线（SHA 两两互异 + README 哈希逐字一致）
     const walkPng26 = (dir: string): string[] => {
@@ -6059,8 +6085,8 @@ try {
       return out;
     };
     const matrix26 = walkPng26("docs/ui/r26");
-    eq(matrix26.length, 7, "r26 目录恰好 7 张 PNG");
-    eq(new Set(matrix26.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 7, "r26 七张 PNG SHA256 两两互异");
+    eq(matrix26.length, 8, "r26 目录恰好 8 张 PNG");
+    eq(new Set(matrix26.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 8, "r26 八张 PNG SHA256 两两互异");
     const shells26 = walkPng26("docs/ui/shell");
     eq(shells26.length, 16, "r26 壳基线 16 张 PNG");
     eq(new Set(shells26.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 16, "r26 壳基线 16 张 SHA256 两两互异");

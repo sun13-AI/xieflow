@@ -1,4 +1,4 @@
-﻿# docs/ui/r24 · 成员接入审批与物资（7 张 + 十五 tab 壳基线同批重拍）
+# docs/ui/r24 · 成员接入审批与物资（7 张 + 十五 tab 壳基线同批重拍）
 
 - 范围：审批发起人/审批人/转交目标与物资保管员/出入库操作人增加「从通讯录选人」弹窗；选中后只**增量**写 member_id 并显示部门徽标，原自由文本输入框完全保留。schema v16→v17 只加四张可空列。
 - 边界：老路径（不传 member_id）逐字不变；下面是确定性 `?shot=` 钉态画面证据，真实 CRUD / 4xx / usage 由 e2e + audit-http 真 HTTP 断言锁定，真实用户路径由 headless CDP 全链路背书。
@@ -12,7 +12,7 @@
 | 02-approval-picked.png | 1280×900：选中后审批人输入框自动填通讯录姓名，徽标「李娜（市场部）#12」在场，× 可清除 | `?shot=approval-picked`；e2e「r24 选中后回填 seam」 |
 | 03-timeline-badge.png | 1280×900：审批详情步骤时间线两步各自带部门徽标（研发中心 / 市场部），发起人徽标同屏 | `?shot=approval-timeline-badge`；e2e/audit「步骤 member 摘要」 |
 | 04-assets-picker.png | 1280×900 `?page=assets&shot=assets-picker`：物资建账表单保管员选人弹窗，原「保管人」自由文本输入框仍在场 | `?shot=assets-picker`；e2e「r24 物资选人 seam」 |
-| 05-assets-badge.png | 1280×900：物资卡片与详情渲染「行政部」部门徽标，钉注说明 usage 由 HTTP 提供 | `?shot=assets-custodian-badge`；e2e「r24 物资徽标 seam」；audit「物资摘要回带部门名」 |
+| 05-assets-badge.png | 1280×900：物资**卡片**渲染「行政部」部门徽标（本图无详情画面；详情态证据见 r25/05，原「卡片与详情」措辞已收敛） | `?shot=assets-custodian-badge`；e2e「r24 物资徽标 seam」；audit「物资摘要回带部门名」 |
 | 06-narrow.png | 488×1000 `?narrow=1&shot=approval-picker`：选人弹窗在窄屏单列可见，底栏「更多 ›」在场 | `force-narrow` seam；e2e「r24 窄屏 seam」 |
 | 07-error.png | 1280×900 `?shot=approval-error`：连接失败错误态 + 重试按钮，与选人态互不混淆 | `?shot=approval-error`；e2e「r24 错误态 seam」 |
 | shell/（15 张） | 十五 tab 激活态同批重拍；审批/物资等受影响页出现「从通讯录选人」入口 | `Invoke-ShellBaseline`；哈希与形态见 `docs/ui/shell/README.md` |

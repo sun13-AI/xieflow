@@ -104,6 +104,8 @@ import {
   shouldNotify,
   notificationSummary,
   queryNotifications,
+  notificationTargetTab,
+  notificationDeepLinkParams,
   collectNotificationCandidates,
 } from "@xieflow/shared/notifications";
 
@@ -3246,7 +3248,11 @@ app.get("/api/notifications/:id", async (req, reply) => {
     const id = parseId((req.params as { id: string }).id);
     const found = requireDb().getNotification(id);
     if (!found) return reply.code(404).send({ error: `通知不存在：${id}` });
-    return found;
+    return {
+      ...found,
+      tab: notificationTargetTab(found),
+      deepLink: notificationDeepLinkParams(found),
+    };
   } catch (err) {
     return toErrorReply(err, reply);
   }

@@ -3,7 +3,7 @@
 // 状态机 / 可用动作 / 三视角过滤口径全在 shared，本页零流转分支。
 // 截图钉态：?page=approval&shot=approval-empty|approval-loading|approval-error|approval-form|approval-todo|approval-detail|approval-approved|approval-picker|approval-picked|approval-timeline-badge|approval-actor-badge|approval-manual-hint|approval-r25-error
 // ?approvalId= 深链选中真实审批；?view=todo|initiated|cc 与 ?actor= 钉三视角；?narrow=1 显式钉窄屏。
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Approval, ApprovalAction, ApprovalStep, ApprovalView } from "@xieflow/shared";
 import type { MemberSummary } from "@xieflow/shared/org";
 import { memberDisplayName } from "@xieflow/shared/org";
@@ -139,6 +139,8 @@ export default function ApprovalPage() {
   const [delegateTarget, setDelegateTarget] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  /** r26 返工#1：deep-link 目标只自动定位一次，避免身份/列表刷新回环 */
+  const deepLinkLocated = useRef(false);
 
   const refresh = useCallback(async (who: string, which: ApprovalView) => {
     try {
@@ -282,6 +284,21 @@ export default function ApprovalPage() {
     setActor(next);
     await refresh(next, view);
   };
+
+  /** r26 返工#1：通知 deep-link 的目标单按 id 直读详情后，切到其审批人视角让目标行可见并按 id 选中 */
+  useEffect(() => {
+    const targetId = Number(query.approvalId) || 0;
+    if (targetId <= 0 || deepLinkLocated.current || state.phase !== "ready" || selected?.id !== targetId) return;
+    deepLinkLocated.current = true;
+    const assignee = selected.currentAssignee;
+    if (assignee && assignee !== actor) {
+      void switchActor(assignee);
+    } else if (!state.approvals.some((a) => a.id === targetId)) {
+      void refresh(actor, view);
+    }
+    // 仅首次命中 deep-link 目标时定位；后续用户主动切身份/切视角不再覆盖
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query.approvalId, selected, state, actor, view, refresh]);
 
   const removeApproval = async (id: number) => {
     setBusy(true);

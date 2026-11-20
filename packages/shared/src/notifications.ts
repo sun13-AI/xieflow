@@ -306,6 +306,25 @@ export function notificationTargetTab(n: Pick<Notification, "refType" | "type">)
   return isNotificationRefType(n.refType) ? NOTIFICATION_REF_TABS[n.refType] : NOTIFICATION_TYPE_TABS[n.type];
 }
 
+/**
+ * r26 返工#1：deep-link 定位参数唯一口径。
+ * ref_id 是实体 id 时才写定位参数，sync/system 的 0 不造伪 id；
+ * 审批带 view=todo 锁定「按 id 定位」而非依赖列表首行自动选中。
+ * web 与 api 只消费本函数，零算法分支。
+ */
+export function notificationDeepLinkParams(
+  n: Pick<Notification, "refType" | "refId" | "type">,
+): Readonly<Record<string, string>> {
+  if (n.refId <= 0) return {};
+  const id = String(n.refId);
+  switch (n.refType) {
+    case "approvals": return { approvalId: id, view: "todo" };
+    case "assets": return { assetId: id };
+    case "schedules": return { scheduleId: id };
+    default: return {};
+  }
+}
+
 /** 当前库状态 → 候选事件（refresh 唯一入口；同步冲突由 409 事件实时落库，不在此重算） */
 export interface NotificationCandidate {
   readonly type: NotificationType;

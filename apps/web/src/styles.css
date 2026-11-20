@@ -509,8 +509,12 @@ body {
   width: 100%;
 }
 
-.cal-chip:hover {
+.cal-chip:hover, .cal-chip-linked {
   outline: 1px solid var(--accent);
+}
+.cal-chip-linked {
+  outline-width: 2px;
+  background: #eef4ff;
 }
 
 .cal-chip-time {
@@ -3784,6 +3788,7 @@ html.force-narrow .as-head, html.force-narrow .ap-head { flex-wrap: wrap; }
 .notif-layout { display: grid; grid-template-columns: 190px 1fr; gap: 14px; align-items: start; }
 .notif-filters { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; display: flex; flex-direction: column; gap: 5px; }
 .notif-filters h2 { font-size: 13px; margin: 0 0 6px; }
+.nt-legend { margin: 0 0 6px; font-size: 11px; line-height: 1.5; color: var(--ink-2); }
 .nt-filter { display: flex; align-items: center; gap: 6px; text-align: left; border: 1px solid transparent; background: #f7f9fc; border-radius: 8px; padding: 7px 9px; font-size: 12px; cursor: pointer; }
 .nt-filter span:last-child { margin-left: auto; color: var(--ink-2); }
 .nt-filter-active { border-color: var(--accent); background: #eef4ff; color: var(--accent); font-weight: 700; }

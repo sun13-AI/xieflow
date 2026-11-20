@@ -1,4 +1,4 @@
-# docs/ui/shell · 十五 tab 壳激活态基线（r4 返工 #1 B 固化；r17 起十四 tab，r23 扩十五并同批重拍）
+# docs/ui/shell · 十六 tab 壳激活态基线（r4 返工 #1 B 固化；r17 起十四 tab，r23 扩十五，r26 扩十六并同批重拍）
 
 > r2 U1-1（工作台）→ r3 U1-2（待办）→ r4 U1-1（工作台+待办+日程三页全漏）——
 > 「壳变更 → 继承页 tab 激活证据断档」三轮连漏后，ui-reviewer 建议固化为 shot.ps1
@@ -25,7 +25,9 @@
 > **r25 同批重拍（渲染层改动：审批动作姓名+部门徽标 / 选人部门筛选 / 回填语义提示）→ 十五张同批重拍**：徽章沿用 r23，
 > schema 推进 v18；与 r23 同名字节 8 张相同、7 张不同，与 r24 同名 11 张相同、4 张不同（board/docs/projects/todos
 > 因钉态数据时序差异改变），逐名哈希在下方历史行如实对照，不宣称「逐位全异」。
-> 窄屏 390/488px 形态见 `docs/ui/r22/`、`docs/ui/r23/06-narrow.png`、`docs/ui/r24/06-narrow.png` 与 `docs/ui/r25/06-narrow.png`。
+> **r26 新增第十六 tab「通知」**：`?page=notifications` 聚合站内消息 + 顶栏未读徽标，补 `notifications-tab-active.png`；
+> 徽章推进 r26「通知中心（站内消息聚合）」+ schema v19 → **十六张同批重拍**，与 r25 十五张同名文件逐位全异。
+> 窄屏 390/488px 形态见 `docs/ui/r22/`、`docs/ui/r23/06-narrow.png`、`docs/ui/r24/06-narrow.png`、`docs/ui/r25/06-narrow.png` 与 `docs/ui/r26/06-narrow.png`。
 
 | 文件 | 形态 | 对应断言 |
 |---|---|---|
@@ -44,8 +46,9 @@
 | assets-tab-active.png | 物资激活（?page=assets；真实 0 笔物资态 + 左栏空列表引导 + 右栏未选引导 + r23 徽章；与 r23 同字节，折叠态无选人入口） | audit「r17 清理后物资归零」；e2e「新库物资列表为空」 |
 | unit-tasks-tab-active.png | 单位任务激活（?page=unit-tasks；真实 0 条任务态 + 「＋ 新建任务」入口 + 空树引导 + r23 徽章） | audit「r17 清理后任务归零」；e2e「空任务列表装配为空树」 |
 | org-tab-active.png | **组织激活（r23 新增）**（?page=org；真实 0 部门 0 人员空态 + 部门树面板 + 人员卡片面板 + 新建部门/人员入口 + r23 徽章） | audit「r23 GET /api/org/tree -> 200 且 tree=[] / members=[]」；e2e「r23 部门树 / 搜索 / schema v16」 |
+| notifications-tab-active.png | **通知激活（r26 新增）**（?page=notifications；零通知空态 + 六类筛选 + 计数口径图例 + 十六药丸壳 + r26 徽章） | e2e「r26 通知 tab / deep-link seam」；audit「GET /api/notifications 空列表」 |
 
-## r25 哈希自查（十五张互异，与当前文件逐字一致；历史行保留 r24 / r23）
+## r25 哈希自查（十五张互异，历史块；当前文件见下方 R26 块）
 
 <!-- R25_HASHES_BEGIN -->
 `workbench=6670358F` · `todos=E6E038EF` · `schedules=241D4609` · `projects=CEA441BA` ·
@@ -57,10 +60,10 @@
 ## r26 哈希自查（十六张互异，与当前文件逐字一致；R25 块作为历史保留）
 
 <!-- R26_HASHES_BEGIN -->
-`workbench=9709D035` · `todos=6CFF1969` · `schedules=2331CF4B` · `projects=A974F7A3` ·
-`board=42268E80` · `bases=2FBDC73C` · `docs=3CB72906` · `chat=8A5CF701` ·
+`workbench=9709D035` · `todos=6CFF1969` · `schedules=16204696` · `projects=A509274E` ·
+`board=864C3E7F` · `bases=06928B1D` · `docs=C0707139` · `chat=1BFF37D0` ·
 `knowledge=910447F9` · `mindmap=A3EA8D2C` · `whiteboard=693BC09F` · `approval=28B3764C` ·
-`assets=E7A3F5CC` · `unit-tasks=409035D8` · `org=FBB3C5CA` · `notifications=F43B8161`
+`assets=E7A3F5CC` · `unit-tasks=8FDA145D` · `org=FBB3C5CA` · `notifications=1983938C`
 —— **16/16 互异**。
 <!-- R26_HASHES_END -->
 
@@ -95,10 +98,10 @@
 
 ## 机制说明
 
-- 拍摄入口：`scripts/shot.ps1` 的 `Invoke-ShellBaseline`（r4 返工 #1 加入；r8 由 6 扩 7，r10 扩 8，r12 扩 9，r14 扩 10，r15 扩 11，r16 扩 12，r17 扩 14；r18~r22 数量不变仍 14；**r23 扩 15**）。
-- 触发条件：`-Round r4` 及以后的 `shots` / `all` 动作（r1~r3 历史轮不回拍）；r21 因未改渲染层沿用 r20 字节，r22 补拍闭合口径，r23 因新增 tab 全量重拍，r25 因渲染层改动全量重拍。
+- 拍摄入口：`scripts/shot.ps1` 的 `Invoke-ShellBaseline`（r4 返工 #1 加入；r8 由 6 扩 7，r10 扩 8，r12 扩 9，r14 扩 10，r15 扩 11，r16 扩 12，r17 扩 14；r18~r22 数量不变仍 14；**r23 扩 15，r26 扩 16**）。
+- 触发条件：`-Round r4` 及以后的 `shots` / `all` 动作（r1~r3 历史轮不回拍）；r21 因未改渲染层沿用 r20 字节，r22 补拍闭合口径，r23 因新增 tab 全量重拍，r25 因渲染层改动全量重拍，r26 与 r26 返工 #1 均因通知/日程/审批渲染层改动全量重拍。
 - 落盘：本目录，文件名 `<tab>-tab-active.png`（与 App.tsx PageTab 一一对应；新增/改名 tab 时须同步脚本内 $tabs 清单）。
 - 认证页为独立路由、同步卡在工作台内、更多入口为底栏布局件，三者均不进 `$tabs`；「组织」是真 tab，r23 起进基线。
 - 同态说明：壳基线各张与各轮页面矩阵均不同字节；全库唯一残留同态组在 r4 目录内部
-  （`r4/01 = r4/16` = `9E5C0C23`、`r4/05 = r4/13` = `8397A028`），如实注记；**全库 265 PNG / 263 互异**，r26 零新增同态组。
+  （`r4/01 = r4/16` = `9E5C0C23`、`r4/05 = r4/13` = `8397A028`），如实注记；**全库 266 PNG / 264 互异**，r26 返工 #1 零新增同态组。
 - `mindmap-tab-active` 与 `docs/ui/r14/` 矩阵 02/03/04 分形：0 张导图空态 / Markdown 编辑态 / 树视图态 / 折叠态，四态互异。

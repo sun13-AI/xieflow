@@ -914,8 +914,9 @@ function Invoke-Shots {
   }
 
   if ($Round -eq "r26") {
-    # r26: notification center matrix. All seven states use deterministic ?shot= pins;
+    # r26: notification center matrix. All eight states use deterministic ?shot= pins;
     # real aggregation / idempotency / navigation are locked by audit-http + CDP assertions.
+    # 08 is rework#1: badge decrements 3 -> 2 in the same shot as the read-state change.
     $r26Base = "http://127.0.0.1:$WebPort/?page=notifications"
     $shots = @(
       @{ name = "01-notif-empty";      url = "$r26Base&shot=notif-empty";    width = 1280; height = 900 },
@@ -924,7 +925,8 @@ function Invoke-Shots {
       @{ name = "04-notif-read";       url = "$r26Base&shot=notif-read";     width = 1280; height = 900 },
       @{ name = "05-notif-refreshed";  url = "$r26Base&shot=notif-refreshed"; width = 1280; height = 900 },
       @{ name = "06-narrow";           url = "$r26Base&shot=notif-unread&narrow=1"; width = 488; height = 1000 },
-      @{ name = "07-error";            url = "$r26Base&shot=notif-error";   width = 1280; height = 900 }
+      @{ name = "07-error";            url = "$r26Base&shot=notif-error";   width = 1280; height = 900 },
+      @{ name = "08-notif-badge-decrement"; url = "$r26Base&shot=notif-read-badge"; width = 1280; height = 900 }
     )
   } elseif ($Round -eq "r25") {
     # r25: approval action actor badge / picker department filter / named badge /

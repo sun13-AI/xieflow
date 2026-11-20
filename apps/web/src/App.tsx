@@ -193,6 +193,15 @@ export default function App() {
                                   ? "notifications"
                                   : "home";
   });
+  // r26 返工#1：通知跳转把目标 tab 与 refId 定位参数写进地址栏，reload 后仍定位同一实体
+  function navigateFromNotification(target: string, params: Readonly<Record<string, string>> = {}): void {
+    const url = new URL(window.location.href);
+    url.searchParams.set("page", target);
+    for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
+    window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+    setTab(target as PageTab);
+  }
+
   const [state, setState] = useState<LoadState>(() => {
     // 截图脚本用 ?shot= 钉住特定状态（真实状态都存在，参数只为确定性捕获）
     const shot = new URLSearchParams(window.location.search).get("shot");
@@ -215,7 +224,9 @@ export default function App() {
 
   // r26：顶栏全局未读徽标（真实数来自 /api/notifications/summary；截图钉态用固定数）
   const shotName = query.get("shot") ?? "";
-  const pinnedUnread = shotName.startsWith("notif-") && shotName !== "notif-empty" && shotName !== "notif-error" ? 3 : 0;
+  const pinnedUnread = shotName === "notif-read-badge"
+    ? 2
+    : shotName.startsWith("notif-") && shotName !== "notif-empty" && shotName !== "notif-error" ? 3 : 0;
   const [notifUnread, setNotifUnread] = useState(0);
   const shownUnread = pinnedUnread > 0 ? pinnedUnread : notifUnread;
   useEffect(() => {
@@ -481,7 +492,7 @@ export default function App() {
       ) : tab === "org" ? (
         <OrgPage />
       ) : tab === "notifications" ? (
-        <NotificationsPage onNavigate={(target) => setTab(target as PageTab)} />
+        <NotificationsPage onNavigate={(target, params) => navigateFromNotification(target, params)} />
       ) : (
         <>
           {state.phase === "loading" && (

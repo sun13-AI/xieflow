@@ -117,6 +117,8 @@ const EMPTY_DRAFT: Draft = { title: "", date: "", start: "09:00", end: "10:00", 
 export default function SchedulesPage() {
   const [state, setState] = useState<SchedulesLoadState>({ phase: "loading" });
   const shot = useMemo(() => new URLSearchParams(window.location.search).get("shot"), []);
+  // r26 返工#1：通知 deep-link 的 scheduleId 在月视图里高亮定位目标日程
+  const [linkedScheduleId] = useState(() => Number(new URLSearchParams(window.location.search).get("scheduleId")) || 0);
   const today = useMemo(() => localDateStr(new Date()), []);
   // 月游标：钉态固定种子所在月（本月），真实模式从本月起浏览
   const [cursor, setCursor] = useState(() => {
@@ -302,7 +304,9 @@ export default function SchedulesPage() {
             今天
           </button>
         </div>
-        <span className="hint">点任意日期新建日程；点日程块可改期（关联待办会同步）。</span>
+        <span className="hint">{linkedScheduleId > 0
+          ? `已定位通知引用的日程 #${linkedScheduleId}（高亮块即目标）`
+          : "点任意日期新建日程；点日程块可改期（关联待办会同步）。"}</span>
       </div>
 
       {schedules.length === 0 && (
@@ -336,8 +340,9 @@ export default function SchedulesPage() {
                       <button
                         key={`${s.id}-${s.date}`}
                         type="button"
-                        className="cal-chip"
+                        className={`cal-chip${s.id === linkedScheduleId ? " cal-chip-linked" : ""}`}
                         data-schedule-id={s.id}
+                        data-state={s.id === linkedScheduleId ? "schedule-linked" : undefined}
                         onClick={(e) => {
                           e.stopPropagation();
                           openEdit(s);
