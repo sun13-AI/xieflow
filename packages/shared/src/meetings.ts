@@ -294,6 +294,21 @@ export function normalizeMeetingDraft(
   };
 }
 
+/**
+ * r28 返工#1：选中会议室唯一口径（web 的 roomId state / 下拉框 / POST 共用）。
+ * 传入期望 id（深链 ?roomId=、当前选中、刚建成的室）与真实会议室清单：
+ * 期望室存在且启用 → 原样返回；否则回落到第一间启用室；无启用室 → 0（只提示、不 POST）。
+ * 修掉「库里没有 id=1 时 select 显示第一间、表单却提交 roomId:1」的首次预约死路。
+ */
+export function resolveSelectedRoomId(
+  rooms: readonly { readonly id: number; readonly active: boolean }[],
+  requestedRoomId: number | string,
+): number {
+  const wanted = typeof requestedRoomId === "number" ? requestedRoomId : Number(requestedRoomId);
+  if (Number.isInteger(wanted) && rooms.some((r) => r.id === wanted && isMeetingRoomActive(r))) return wanted;
+  return rooms.find(isMeetingRoomActive)?.id ?? 0;
+}
+
 /** 时段网格数据源：按日期列出启用会议室及当日预约（web 只渲染，不自行过滤） */
 export function meetingAvailability(
   date: string,

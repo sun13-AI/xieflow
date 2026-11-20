@@ -3492,6 +3492,28 @@ async function auditR28(): Promise<void> {
     }, 201, "r28 建停用会议室 -> 201");
     eq(roomA28.json && roomA28.json.active, true, "r28 会议室甲默认启用回显");
     eq(roomOff28.json && roomOff28.json.active, false, "r28 停用会议室 active=false 真回显");
+    // r28 返工#1：UI 建室后直接用响应里的新室 id 预约（不点左栏的路径，HTTP 层核对）
+    const roomNewR1 = await expectStatus("POST", "/api/rooms", {
+      name: `r28返工新室-${stamp28}`, location: "5F", capacity: 7, active: true,
+    }, 201, "r28 返工#1 建室同路径 -> 201");
+    eq(roomNewR1.json && typeof roomNewR1.json.id, "number", "r28 返工#1 建室响应回带新室 id（自动选中依据）");
+    const roomsWithNewR1 = await expectStatus("GET", "/api/rooms", undefined, 200, "r28 返工#1 建室后列表 -> 200");
+    ok(roomsWithNewR1.json.rooms.some((r: any) => r.id === roomNewR1.json.id && r.active === true), "r28 返工#1 列表中新室启用且 id 与响应逐字一致");
+    const firstBookR1 = await expectStatus("POST", "/api/meetings", {
+      roomId: roomNewR1.json.id, title: `r28返工首约-${stamp28}`, date: day28,
+      start: "17:00", end: "18:00", organizer: "r28返工",
+    }, 201, "r28 返工#1 建室后不点左栏直接预约 -> 201（新室 id）");
+    eq(firstBookR1.json && firstBookR1.json.roomId, roomNewR1.json.id, "r28 返工#1 预约提交 roomId 即新室 id");
+    const goneRoomR1 = await expectStatus("POST", "/api/rooms", {
+      name: `r28返工删室-${stamp28}`, capacity: 1, active: true,
+    }, 201, "r28 返工#1 建待删室 -> 201");
+    await expectStatus("DELETE", `/api/rooms/${goneRoomR1.json.id}`, undefined, 200, "r28 返工#1 删室 -> 200");
+    const staleBookR1 = await expectStatus("POST", "/api/meetings", {
+      roomId: goneRoomR1.json.id, title: "x", date: day28, start: "17:00", end: "18:00",
+    }, 400, "r28 返工#1 用已删旧 roomId 预约 -> 400（原缺陷路径）");
+    eq(staleBookR1.json && staleBookR1.json.error, `会议室不存在：${goneRoomR1.json.id}`, "r28 返工#1 400 文案精确指认旧 roomId");
+    await expectStatus("DELETE", `/api/meetings/${firstBookR1.json.id}`, undefined, 200, "r28 返工#1 清理首约 -> 200");
+    await expectStatus("DELETE", `/api/rooms/${roomNewR1.json.id}`, undefined, 200, "r28 返工#1 清理新室 -> 200");
     const rooms28 = await expectStatus("GET", "/api/rooms", undefined, 200, "r28 会议室列表 -> 200");
     ok(rooms28.json.rooms.some((r: any) => r.id === roomA28.json.id), "r28 会议室列表含本轮探针甲");
     const roomOne28 = await expectStatus("GET", `/api/rooms/${roomA28.json.id}`, undefined, 200, "r28 单会议室查询 -> 200");

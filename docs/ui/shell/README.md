@@ -52,7 +52,7 @@
 | org-tab-active.png | **组织激活（r23 新增）**（?page=org；真实 0 部门 0 人员空态 + 部门树面板 + 人员卡片面板 + 新建部门/人员入口 + r23 徽章） | audit「r23 GET /api/org/tree -> 200 且 tree=[] / members=[]」；e2e「r23 部门树 / 搜索 / schema v16」 |
 | notifications-tab-active.png | **通知激活（r26 新增）**（?page=notifications；零通知空态 + 六类筛选 + 计数口径图例 + 十六药丸壳 + r26 徽章） | e2e「r26 通知 tab / deep-link seam」；audit「GET /api/notifications 空列表」 |
 | reports-tab-active.png | **报表激活（r27 新增）**（?page=reports；六张 KPI 卡 + 时间范围 + 明细空态 + 十七药丸壳 + r27 徽章） | e2e「r27 十七 tab 类型含报表页 / 报表页消费 shared 口径」；audit「GET /api/reports/overview 空库六指标全 0」 |
-| meetings-tab-active.png | **会议激活（r28 新增）**（?page=meetings；三间会议室含一间停用 + 空时段网格 + 预约表单 + 通讯录参会人 + 十八药丸壳 + r28 徽章） | e2e「r28 十八 tab 与顶栏按钮在场 / 会议页消费 shared 唯一口径」；audit「r28 清理后本轮会议归零」 |
+| meetings-tab-active.png | **会议激活（r28 新增）**（?page=meetings；零会议室 / 零成员空态：「还没有会议室——先在下方新建一间。」/「该日期暂无可用会议室。」/「通讯录暂无成员。」+ 十八药丸壳 + r28 徽章；各轮 shell 零数据最小集惯例，不是三室态） | e2e「r28 十八 tab 与顶栏按钮在场 / 会议页消费 shared 唯一口径」；audit「r28 清理后本轮会议归零」 |
 
 ## r25 哈希自查（十五张互异，历史块；当前文件见下方 R26 块）
 
@@ -86,9 +86,9 @@
 ## r28 哈希自查（十八张互异，与当前文件逐字一致；R27 及以下为历史块）
 
 <!-- R28_HASHES_BEGIN -->
-`workbench=86946959` · `todos=A7E81B45` · `schedules=441DCA3D` · `projects=5B531A34` ·
-`board=B7E7B04A` · `bases=0DD14D3B` · `docs=BC146AC6` · `chat=FECCCED0` ·
-`knowledge=BA087F86` · `mindmap=494026EB` · `whiteboard=D3F64BC2` · `approval=C860A802` ·
+`workbench=86946959` · `todos=A7E81B45` · `schedules=EF9A9ECB` · `projects=0FB97731` ·
+`board=65431B25` · `bases=74C1CF5B` · `docs=BC146AC6` · `chat=FECCCED0` ·
+`knowledge=6B79A170` · `mindmap=F51D9431` · `whiteboard=D3F64BC2` · `approval=934928D2` ·
 `assets=C983F943` · `unit-tasks=DA1CA902` · `org=155FA658` · `notifications=EECAB413` ·
 `reports=18010A69` · `meetings=0832E1B9` —— **18/18 互异**。
 <!-- R28_HASHES_END -->

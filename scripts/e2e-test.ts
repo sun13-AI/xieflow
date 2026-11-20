@@ -428,6 +428,7 @@ import {
   normalizeMeetingDraft,
   meetingAvailability,
   isMeetingRoomActive,
+  resolveSelectedRoomId,
   type MeetingWindow,
 } from "@xieflow/shared/meetings";
 import {
@@ -5487,9 +5488,9 @@ try {
       });
       eq(mismatches, [], "r26 shell README 18 张哈希与实际文件逐字一致");
     }
-    ok(rootReadme.includes("e2e（2448 断言）+ HTTP 审计（1992 断言）"), "r23 口径随 r24 速查行推进");
+    ok(rootReadme.includes("e2e（2460 断言）+ HTTP 审计（2004 断言）"), "r23 口径随 r24 速查行推进");
     ok(
-      rootReadme.includes("- e2e **2448** 项") && rootReadme.includes("- HTTP audit **1992** 项") &&
+      rootReadme.includes("- e2e **2460** 项") && rootReadme.includes("- HTTP audit **2004** 项") &&
         rootReadme.includes("### r24 矩阵") && rootReadme.includes("e2e 1952 → **2041（+89）**"),
       "根 README 双节规模推进到 r24（r23 历史行保留）",
     );
@@ -5731,7 +5732,7 @@ try {
       eq(mismatches, [], "shell README 18 张哈希与实际文件逐字一致");
     }
     ok((r24Index.match(/^\| \d\d-[^|]*\.png \|/gm) ?? []).length === 7, "r24 截图索引含七张矩阵行");
-    ok(rootReadme.includes("e2e（2448 断言）+ HTTP 审计（1992 断言）"), "r24 根 README 速查行数字同步");
+    ok(rootReadme.includes("e2e（2460 断言）+ HTTP 审计（2004 断言）"), "r24 根 README 速查行数字同步");
     ok(rootReadme.includes("### r24 矩阵") && rootReadme.includes("e2e 1952 → **2041（+89）**"), "r24 根 README 双节规模与矩阵索引同步");
   }
 
@@ -5887,7 +5888,7 @@ try {
     ok(shell25.includes("**r23 基线**") && shell25.includes("**r24 基线**"), "shell README 保留 r23/r24 历史对照行");
     ok(shell25.includes("90166EF8") || shell25.includes("物资壳"), "shell README 如实记录物资壳与 r23 同字节事实");
     ok((r25Index.match(/^\| \d\d-[^|]*\.png \|/gm) ?? []).length === 7, "r25 截图索引含七张矩阵行");
-    ok(root25.includes("e2e（2448 断言）+ HTTP 审计（1992 断言）"), "r25 根 README 速查行数字同步");
+    ok(root25.includes("e2e（2460 断言）+ HTTP 审计（2004 断言）"), "r25 根 README 速查行数字同步");
     ok(root25.includes("### r25 矩阵") && root25.includes("e2e 2041 → **2096（+55）**"), "r25 根 README 双节规模与矩阵索引同步");
   }
 
@@ -6116,7 +6117,7 @@ try {
     ok(shot26.includes('"r26"') && ["01-notif-empty", "02-notif-unread", "03-notif-filtered", "04-notif-read", "05-notif-refreshed", "06-narrow", "07-error", "08-notif-badge-decrement"].every((s) => shot26.includes(s)), "r26 shot.ps1 ValidateSet 与八张矩阵名齐备");
     ok(shell26.includes("<!-- R26_HASHES_BEGIN -->") && shell26.includes("<!-- R26_HASHES_END -->"), "r26 shell README 历史哈希块在场（当前块见 R28）");
     ok((r26Index.match(/^\| \[?\d\d-[^|\]]*\.png/gm) ?? []).length === 9, "r26 截图索引含九张矩阵行（返工#2 补 09）");
-    ok(root26.includes("e2e（2448 断言）+ HTTP 审计（1992 断言）"), "返工#1 根 README 速查行数字逐字同步");
+    ok(root26.includes("e2e（2460 断言）+ HTTP 审计（2004 断言）"), "返工#1 根 README 速查行数字逐字同步");
 
     // (J) 截图矩阵与十六 tab 壳基线（SHA 两两互异 + README 哈希逐字一致）
     const walkPng26 = (dir: string): string[] => {
@@ -6599,6 +6600,25 @@ try {
       });
       eq(mismatches28, [], "shell README R28 哈希与实际文件逐字一致");
     }
+  }
+
+  // 64. r28 返工#1：建室后自动选中 / 下拉框与提交 roomId 严格一致 / 无 roomId 深链回显
+  section("r28 返工#1：会议室选中口径与首次预约一致性");
+  {
+    const r1Rooms = [{ id: 4, active: true }, { id: 5, active: false }];
+    eq(resolveSelectedRoomId(r1Rooms, 4), 4, "r28 返工#1 建室后自动选中新室 id=4（不是旧默认 id=1）");
+    eq(resolveSelectedRoomId(r1Rooms, "4"), 4, "r28 返工#1 深链 ?roomId=4 字符串回显严格一致");
+    eq(resolveSelectedRoomId(r1Rooms, "1"), 4, "r28 返工#1 旧默认 id=1 不存在时回落到启用室 4");
+    eq(resolveSelectedRoomId(r1Rooms, 5), 4, "r28 返工#1 选中停用室时回落到启用室 4");
+    eq(resolveSelectedRoomId([r1Rooms[1]!], "1"), 0, "r28 返工#1 无启用室时选中 0（提交守卫）");
+    eq(resolveSelectedRoomId([], ""), 0, "r28 返工#1 空室时选中 0");
+    const pageR1 = readFileSync("apps/web/src/MeetingsPage.tsx", "utf8");
+    ok(/const created\s*=\s*await fetchJsonOrThrow\(res\)/.test(pageR1), "r28 返工#1 建室响应取回新室 id（UI 自动选中依据）");
+    ok(/chooseRoom\(createdId\)/.test(pageR1), "r28 返工#1 建室成功后自动选中新室（roomId + form + URL 同源）");
+    ok(/resolveSelectedRoomId\(roomData\.rooms, nextRoom\)/.test(pageR1), "r28 返工#1 load 回读后纠偏选中室（深链回显）");
+    ok(/<select[^>]*value=\{form\.roomId\}/.test(pageR1), "r28 返工#1 下拉框显示值严格取 form.roomId");
+    ok(/roomId: selectedRoomId/.test(pageR1), "r28 返工#1 预约提交 roomId 取统一选中口径");
+    ok(/selectedRoomId === 0/.test(pageR1), "r28 返工#1 无启用室时不提交预约");
   }
 
   // 60. HTTP 冒烟 /api/health

@@ -13,6 +13,14 @@
 - 危险区：未 push / 未打 tag / 未发版 / 未改 CI release 配置；只走 user_version 迁移、未手改库文件；只用 scratch 库与真 HTTP 探针并清理；全程 headless、服务收净、PowerShell 新段全 ASCII、零 token
 - 报告：`docs/feedback/2026-11-20-r28-yanfa.md`（三态纪律 + 自曝节 + 变异红相 + 全链路证据）
 
+### 2026-11-20 · r28 返工#1（yanfa-r28fix · waizhuan P2-1 发版阻断 + P5 笔误 + UI U2×2）
+- A：建室成功后自动选中新室（读 POST /api/rooms 响应 id，`chooseRoom(createdId)` 同步 roomId/form/URL）；`load()` 用 shared `resolveSelectedRoomId` 把深链/旧默认 id 纠偏到真实启用室（无启用室返回 0，不 POST）；下拉框 `value={form.roomId}` 与提交口径严格同源；无 `roomId` 深链 reload 自动回显
+- 断言：e2e 2448 → **2460（+12，离线口径；在线 +1 = 2461）** · audit 1992 → **2004（+12）**，无一条删改；**变异红相 2 组**：shared 选中口径改回 `return 1` → e2e 4 红；删掉建室自动选中 → e2e 1 红；逐字节还原（SHA 同值、探针零残留）后全绿
+- B/C：README:489 `2444`→`2461` 与 CI 正则 `19`→`20`；shell README:55 meetings 形态改真实空库态；r28/05 与根 README/05 补「id↔会议标题/时段」映射说明
+- 截图：渲染层改动 → `docs/ui/r28/` 7 张 + 十八 tab 壳基线同批重拍，7/7、18/18 SHA256 互异、矩阵↔壳重叠 0、全库 283 PNG / 281 互异；索引 / shell README R28 哈希块 / 根 README 同一提交；逐张 `read_image` 目验（02/04/05/meetings/board）
+- 危险区：未 push / 未打 tag / 未发版；headless 全程、服务收净、只动 scratch 库与探针、未动用户数据、零 token
+- 报告：`docs/feedback/2026-11-20-r28-yanfa.md` 末尾「返工 #1」节
+
 ### 2026-11-20 · r27 研发（yanfa-r27 · M10 后功能补强：报表中心 / 跨模块数据看板）
 - 交付：`packages/shared/reports.ts` 六指标纯函数（computeTodoCompletion / computeScheduleLoad / computeBoardThroughput / computeApprovalSla / computeAssetTurnover / computeDocOutput + assembleReport / parseReportRange / reportWindow / selectReportMetric），api/web 零算法分支；无新依赖、无 schema 迁移（只读既有表）
 - api：`GET /api/reports/overview?from=&to=` 六指标一次返回 + `GET /api/reports/:metric?from=&to=[&id=]` 单项下钻（未知名 metric 400 / 越权 id 404 / 非法范围 400）
@@ -223,7 +231,7 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r25 | M10 后·第三轮遗留清理（shell 哈希块/审批 actorMemberId/文档口径） | ✅已发版（首轮双通过；P3 actorMemberId 真修 35/35） | v0.0.31 | e2e 2096 · audit 1723 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r26 | M10 后·通知中心（站内消息聚合） | ✅已发版（初验 waizhuan 打回 P2 通知不定位→返工#1 deep-link refId→UI 打回零图证→返工#2 补 09 图→双终审通过） | v0.0.32 | e2e 2237 · audit 1809 | 通过（waizhuan）+ UI 终审通过（U1/U2/U3 全零） |
 | r27 | M10 后·报表中心（跨模块数据看板） | ✅已发版（首轮双通过；六指标手算全对 + 修 README 笔误） | v0.0.33 | e2e 2335 · audit 1904 | 通过（waizhuan）+ UI 通过（阻断岗） |
-| r28 | M10 后·会议管理与会议室（预约/冲突检测） | ✅研发完成待复验（yanfa-r28 · 18 tab，不碰视频/外部日历） | —（发版由 lead） | e2e 2448 · audit 1992 | 待 waizhuan / ui 复验 |
+| r28 | M10 后·会议管理与会议室（预约/冲突检测） | ✅研发完成（返工#1 已修 P2-1/P5/U2×2，待复审） | —（发版由 lead） | e2e 2460 · audit 2004 | 待 waizhuan / ui 复审 |
 
 ## 🏁 项目总账（2026-11-19 · M10 收官）
 

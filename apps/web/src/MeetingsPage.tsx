@@ -8,6 +8,7 @@ import {
   formatClockMinutes,
   meetingAvailability,
   parseClockMinutes,
+  resolveSelectedRoomId,
   MEETING_MAX_HOURS,
   type Room,
   type Meeting,
@@ -104,6 +105,11 @@ export default function MeetingsPage(): ReactElement {
       setRooms(roomData.rooms);
       setMeetings(meetingData.meetings);
       setMembers(memberData.members);
+      // r28 返工#1：深链/旧默认 id 与真实会议室对齐；roomId、form.roomId、URL 三者同源。
+      const next = resolveSelectedRoomId(roomData.rooms, nextRoom);
+      setRoomId(next);
+      setForm((f) => ({ ...f, roomId: String(next) }));
+      syncUrl(nextDate, String(next));
       setPhase("ready");
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -140,10 +146,13 @@ export default function MeetingsPage(): ReactElement {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ name: newRoomName.trim(), location: "", capacity: 8, active: true }),
       });
-      await fetchJsonOrThrow(res);
+      const created = await fetchJsonOrThrow(res) as { id?: unknown } | null;
+      const createdId = typeof created?.id === "number" && Number.isInteger(created.id) && created.id > 0 ? created.id : 0;
       setNewRoomName("");
       setMessage("会议室已创建");
-      await load(date, roomId);
+      // r28 返工#1：建室成功后自动选中新室，不等用户点左栏（roomId + form + URL 一次对齐）。
+      if (createdId > 0) chooseRoom(createdId);
+      await load(date, createdId > 0 ? createdId : roomId);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
@@ -153,11 +162,20 @@ export default function MeetingsPage(): ReactElement {
     setConflict([]);
     setMessage("");
     setError("");
+    // r28 返工#1：提交口径与选中室/下拉框严格一致；无启用室只提示，不发 POST。
+    const selectedRoomId = resolveSelectedRoomId(rooms, form.roomId);
+    if (selectedRoomId === 0) {
+      setMessage("请先在左侧新建并启用一间会议室，再预约");
+      return;
+    }
+    if (selectedRoomId !== Number(form.roomId)) {
+      setForm((f) => ({ ...f, roomId: String(selectedRoomId) }));
+    }
     try {
       const res = await apiFetch("/api/meetings", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ ...form, roomId: Number(form.roomId), attendees: form.attendees }),
+        body: JSON.stringify({ ...form, roomId: selectedRoomId, attendees: form.attendees }),
       });
       if (res.status === 409) {
         const data = (await res.json()) as { conflictIds?: number[]; error?: string };
