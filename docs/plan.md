@@ -239,7 +239,7 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r33 | M10 后·全局搜索（跨模块统一检索） | ✅已发版（首轮双通过；跨八源只读检索 + 变异红相 + deep-link 直达） | v0.0.39 | e2e 2849 · audit 2262 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r34 | M10 后·任务依赖与阻塞关系（待办前置） | ✅已发版（首轮双通过；依赖守卫 40/40 + 既有状态机零回归） | v0.0.40 | e2e 2961 · audit 2324 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r35 | M10 后·日历 ICS 导出与订阅（标准 iCalendar） | ✅已发版（初验 UI 打回 U1 图证链→返工#1 同一 ICS 往返→双终审通过） | v0.0.41 | e2e 3069 · audit 2396 | 通过（waizhuan）+ UI 终审通过（U1=0） |
-| r36 | M10 后·第十四轮（待定切片） | 🔨规划中 | — | — | — |
+| r36 | M10 后·日报与周报自动生成 | 🔨规划中 | — | — | — |
 
 ## 🏁 项目总账（2026-11-19 · M10 收官）
 
@@ -809,6 +809,22 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
   4. 双 VERDICT（waizhuan + ui 阻断岗）通过
 - 前置：r34 已发版（v0.0.40）✅
 - 明确边界：订阅 key 是本地随机串（存 settings），不是密钥/token（宪法危险区：不写密钥文件）；不接外部日历服务；零 token
+
+### r36 · 日报与周报自动生成（M10 后功能补强）
+- 目标：IKanBot/多宝鱼标配——从真实业务数据自动汇总日报/周报（完成项/进行中/阻塞/日程/产出），可编辑后存为文档，零 token
+- 交付清单：
+  1. 报告规则集中 packages/shared/workReports.ts：collectReportData(db 查询结果, period)（按时间窗过滤已完成/新建/阻塞项）、buildReportMarkdown(data, type: daily|weekly)（标题/完成/进行中/阻塞/日程/明日计划段落）、buildReportHtml（打印版）、reportSummary(data)（计数摘要）——api/web 零算法分支
+  2. api：GET /api/reports/daily?date=、GET /api/reports/weekly?week=（返回 Markdown + 结构化数据）、POST /api/reports/save（把报告存为 documents + blocks，可编辑）
+  3. web：新增「报告」tab——日报/周报切换 + 日期/周选择 + Markdown 预览（可编辑 textarea）+ 「存为文档」按钮 + 打印导出
+  4. 断言：e2e ≥+35（时间窗过滤/段落装配/空数据/保存为文档/编辑）、audit ≥+25（4xx：非法日期/越权 id/空内容）
+  5. 截图 ≥7：报告空态/日报有数据/周报有数据/编辑态/存为文档后/窄屏/错误态
+- 验收标准：
+  1. 全量绿：e2e ≥3104、audit ≥2421，README 双节同步（精简版三处）
+  2. **真实性**：waizhuan 造已知数据（今日完成 2、进行中 3、阻塞 1）→日报 Markdown 逐段手算核对；周报聚合 7 天数据正确；存为文档后可在文档页打开编辑
+  3. **新增「报告」tab 补该 tab 激活态图**（十九 tab 壳基线）
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r35 已发版（v0.0.41）✅
+- 明确边界：不接外部 LLM 生成文案（模板化汇总，零 token）；报告数据只读既有业务表
 
 ## 历史轮次（r1~r2 已收档，见下方记账区）
 
