@@ -234,7 +234,7 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r28 | M10 后·会议管理与会议室（预约/冲突检测） | ✅已发版（初验 waizhuan 打回 P2 建室后预约旧 roomId→返工#1 自动选中/深链回显→双复审通过） | v0.0.34 | e2e 2460 · audit 2004 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r29 | M10 后·文档版本历史与回收站 | ✅已发版（首轮双通过；恢复生成 v4 不覆盖 + 软删回收站 + 永久删除真二次确认） | v0.0.35 | e2e 2542 · audit 2060 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r30 | M10 后·多维表格公式字段（纯本地表达式，零 eval） | ✅已发版（首轮双通过；公式真实性 78/78 + 零 eval + raw computed 恒 null） | v0.0.36 | e2e 2664 · audit 2122 | 通过（waizhuan）+ UI 通过（阻断岗） |
-| r31 | M10 后·第九轮轻量清理（字段类型文案回归 + 浮点展示） | 🔨规划中 | — | — | — |
+| r31 | M10 后·第九轮轻量清理（字段类型文案回归 + 浮点展示） | 🔨研发中（待 waizhuan 复验） | — | e2e 2685 · audit 2138 | — |
 
 ## 🏁 项目总账（2026-11-19 · M10 收官）
 
@@ -745,6 +745,14 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 ---
 
 ## 记账区（每轮追加）
+
+### 2026-11-20 · r31 研发（yanfa-r31 · M10 后第九轮轻量清理：字段类型文案回归 + 公式浮点展示）
+- 交付：清 r30 两岗记账的低成本真问题，不新增功能、无 schema 迁移（复用 v22）、零依赖、零 token——① `BasesPage.tsx` 零表空态「7 种字段类型齐备」→「8 种字段类型齐备（含公式）」并同步 `docs/ui/shell/README.md` bases 行；② `packages/shared/formula.ts` 新增唯一展示格式化纯函数 `formatFormulaDisplay`（null/undefined→「—」，整数/非有限数原样，非整数按 12 位有效数字收敛尾数，文本/布尔逐字保留），web 公式单元格 `CellView` 与实时预览面板统一调用；**API 求值语义零改动**，`84.80000000000001` 仍为 HTTP 原始值，仅展示为 `84.8`
+- 断言：e2e 2664 → **2685（+21：纯函数 10 · 求值/展示分离 2 · 文案/接线/截图 seam 9）** · audit 2122 → **2138（+16：链式公式真 HTTP 装配 · GET/预览原始浮点逐字保持 · 展示收敛 · 公式列不落库 · 探针归零）**，无一条删改（既有只做六处徽章 r30→r31、七处实际文件哈希引用块 R30→R31、五处速查行 2664/2122→2685/2138 期望值更新）；typecheck 5 包；`pnpm run test:all` exit 0；CI smoke 正则保持 v22；README 速查行/双节/r31 矩阵四行/壳 R31 哈希块逐字同步
+- **变异红相 1 组**：`formatFormulaDisplay` 去掉 `toPrecision(12)` 展示收敛 → e2e 4 红（三条浮点尾数 + 求值/展示分离）/ audit 2 红（GET 与预览真 HTTP 展示断言）；逐字节还原 SHA `99807E6D…C99A4`（改前改后同值、`MUTATION-PROBE r31` 零残留）双套件全绿
+- 截图：`docs/ui/r31/` 3 张（空态八类文案 / 试算预览 84.8 / 纯网格含税列 84.8）+ 十八 tab 壳基线同批重拍；3/3、18/18 SHA256 互异，矩阵↔壳重叠 0，r30→r31 十八壳逐名全异，全库 300 PNG / 298 互异（同态组仅 r4 已披露 2 组），逐张 `read_image` 目验；首拍两态发现弹窗遮挡网格列 → 补第三张纯网格态后全批重拍，废片未入库
+- 危险区：未 push / 未打 tag / 未发版 / 未改 CI release 配置；无 schema 迁移、未手改库文件；截图走 scratch 库（`data/xieflow.db` 只读），audit 走 `.tmp-audit` 临时库并清理；全程 headless、服务收净、PowerShell 新段全 ASCII、零 token
+- 报告：`docs/feedback/2026-11-21-r31-yanfa.md`（三态纪律 + 自曝节 + 变异红相）
 
 ### 2026-11-20 · r30 研发（yanfa-r30 · M10 后功能补强：多维表格公式字段，纯本地表达式求值）
 - 交付：schema v21→v22（无新表；重建 fields 表把 type CHECK 白名单 7→8 种，逐列原样拷贝既有字段；options JSON 双形态——旧/非公式字段仍为数组，公式字段为 `{expression}` 对象）；`packages/shared/formula.ts` 纯 TS tokenizer + parser + evaluator（字段引用 `{名}` / 字面量 / + - \* / / 比较 / IF / ROUND；parseFormula / evaluateFormula / compileFormula 结构化错误 / detectFormulaCycles / recomputeFormulas 拓扑序 + 传递污染），**零 eval / 零 Function 构造器 / 零依赖**，api/web 零算法分支

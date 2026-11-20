@@ -19,6 +19,7 @@ import {
   type TableRecord,
   type TableView,
 } from "@xieflow/shared";
+import { formatFormulaDisplay } from "@xieflow/shared/formula";
 import { SERVICE_DOWN_MESSAGE, fetchJsonOrThrow, apiFetch } from "./httpClient";
 
 interface BasesQuery {
@@ -272,17 +273,29 @@ function pinFormulaFields(now: Date, shot: string): TableField[] {
       { ...mk(5, "乙", "formula"), expression: "{甲} + 1" },
     ];
   }
+  if (shot === "bases-formula-float" || shot === "bases-formula-float-grid") {
+    // r31 展示层钉态：链式公式 80 * 1.06 的原始浮点 84.80000000000001
+    // 由 shared formatFormulaDisplay 收敛为界面上的 84.8（求值语义不变）。
+    return [
+      ...base,
+      { ...mk(4, "小计", "formula"), expression: "{单价} * {数量}" },
+      { ...mk(5, "含税", "formula"), expression: "{小计} * 1.06" },
+    ];
+  }
   return [...base, { ...mk(4, "小计", "formula"), expression: "{单价} * {数量}" }];
 }
 
 function pinFormulaRecords(fields: TableField[], shot: string): BasesRecord[] {
   const iso = "2026-11-20T08:00:00.000Z";
   const key = (name: string): string => String(fields.find((f) => f.name === name)!.id);
-  const rows = [
-    { name: "量房", price: 12.5, qty: 4 },
-    { name: "贴砖", price: 3, qty: 7 },
-    { name: "设计", price: 9, qty: 2 },
-  ];
+  const rows =
+    shot === "bases-formula-float" || shot === "bases-formula-float-grid"
+      ? [{ name: "含税试算", price: 80, qty: 1 }]
+      : [
+          { name: "量房", price: 12.5, qty: 4 },
+          { name: "贴砖", price: 3, qty: 7 },
+          { name: "设计", price: 9, qty: 2 },
+        ];
   return rows.map((r, i) => {
     const data: Record<string, unknown> = {
       [key("名称")]: r.name,
@@ -294,7 +307,9 @@ function pinFormulaRecords(fields: TableField[], shot: string): BasesRecord[] {
     const div = fields.find((f) => f.name === "商");
     const a = fields.find((f) => f.name === "甲");
     const b = fields.find((f) => f.name === "乙");
+    const tax = fields.find((f) => f.name === "含税");
     if (sub) computed[String(sub.id)] = { value: r.price * r.qty, error: null };
+    if (tax) computed[String(tax.id)] = { value: 84.80000000000001, error: null };
     if (div) computed[String(div.id)] = { value: null, error: "除零错误：除数不能为 0" };
     if (a) computed[String(a.id)] = { value: null, error: "循环引用：甲 → 乙 → 甲" };
     if (b) computed[String(b.id)] = { value: null, error: "循环引用：甲 → 乙 → 甲" };
@@ -475,14 +490,17 @@ export default function BasesPage() {
       "bases-formula-error",
       "bases-formula-cycle",
       "bases-formula-narrow",
+      "bases-formula-float",
+      "bases-formula-float-grid",
     ];
     if (shot !== null && formulaShots.includes(shot)) {
       const now = new Date();
       const fields = pinFormulaFields(now, shot);
+      const records = pinFormulaRecords(fields, shot);
       const table: BaseTable = {
         id: 1,
         name: "装修预算表",
-        description: "r30 公式字段截图钉态",
+        description: shot === "bases-formula-float" || shot === "bases-formula-float-grid" ? "r31 浮点展示格式化钉态" : "r30 公式字段截图钉态",
         createdAt: now.toISOString(),
         updatedAt: now.toISOString(),
       };
@@ -491,6 +509,7 @@ export default function BasesPage() {
         "bases-formula-edit",
         "bases-formula-preview",
         "bases-formula-cycle",
+        "bases-formula-float",
       ].includes(shot);
       setState({
         phase: "ready",
@@ -499,8 +518,8 @@ export default function BasesPage() {
         fields,
         views: [],
         activeView: null,
-        records: pinFormulaRecords(fields, shot),
-        total: 3,
+        records,
+        total: records.length,
         page: 1,
         pageSize: 20,
         totalPages: 1,
@@ -511,7 +530,9 @@ export default function BasesPage() {
         expression:
           shot === "bases-formula-edit" || shot === "bases-formula-preview"
             ? "{单价} * {数量}"
-            : "",
+            : shot === "bases-formula-float" || shot === "bases-formula-float-grid"
+              ? "{小计} * 1.06"
+              : "",
         error: shot === "bases-formula-cycle" ? "循环引用：甲 → 乙 → 甲" : null,
         preview:
           shot === "bases-formula-preview"
@@ -524,7 +545,13 @@ export default function BasesPage() {
                   { recordId: 13, value: 18, error: null },
                 ],
               }
-            : null,
+            : shot === "bases-formula-float"
+              ? {
+                  valid: true,
+                  references: ["小计"],
+                  preview: [{ recordId: 11, value: 84.80000000000001, error: null }],
+                }
+              : null,
       });
       return;
     }
@@ -918,7 +945,7 @@ export default function BasesPage() {
       <div className="bases-page" data-state="bases-empty">
         <section className="card">
           <p className="empty" data-state="bases-empty-hint">
-            还没有任何表格——点「＋ 新建表」创建第一个（会自动带上「名称 / 状态 / 负责人 / 金额 / 截止日期 / 标签 / 完成 / 链接」八个默认字段，7 种字段类型齐备）。
+            还没有任何表格——点「＋ 新建表」创建第一个（会自动带上「名称 / 状态 / 负责人 / 金额 / 截止日期 / 标签 / 完成 / 链接」八个默认字段，8 种字段类型齐备（含公式））。
           </p>
           <div className="modal-actions bases-empty-actions">
             <button
@@ -1376,7 +1403,7 @@ function CellView({
     }
     return (
       <span className="bases-formula-value" data-state="bases-formula-cell-value">
-        {value === null || value === undefined ? "—" : String(value)}
+        {formatFormulaDisplay(value)}
       </span>
     );
   }
@@ -2142,7 +2169,7 @@ function FieldsPanel({
                   {p.error ? (
                     <span className="bases-formula-error">⚠ {p.error}</span>
                   ) : (
-                    <span className="bases-formula-value">{String(p.value)}</span>
+                    <span className="bases-formula-value">{formatFormulaDisplay(p.value)}</span>
                   )}
                 </li>
               ))}

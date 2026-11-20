@@ -660,3 +660,19 @@ export function recomputeFormulas(
   }
   return { cells, cycles };
 }
+
+/**
+ * r31 展示层格式化（waizhuan P5 浮点尾数）：把 JS 浮点表示噪声收敛为可读文本，
+ * 例如 84.80000000000001 -> "84.8"。**只作用于展示，绝不回写求值结果**：
+ * evaluator / HTTP 回带仍为原始 number（audit 手算断言保持，零求值语义变更）。
+ * 规则：null/undefined -> "—"；非有限数与整数原样；非整数按 12 位有效数字收敛；
+ * 文本 / 布尔（IF 分支 / 比较结果）逐字 String()，不误伤合法精度与类型语义。
+ */
+export function formatFormulaDisplay(value: unknown): string {
+  if (value === null || value === undefined) return "—";
+  if (typeof value === "number") {
+    if (!Number.isFinite(value) || Number.isInteger(value)) return String(value);
+    return String(Number(value.toPrecision(12)));
+  }
+  return String(value);
+}

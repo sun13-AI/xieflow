@@ -28,6 +28,7 @@
 #   powershell -File scripts\shot.ps1 shots -Round r27 # capture r27 report center matrix + 17-tab shell baseline
 #   powershell -File scripts\shot.ps1 shots -Round r28 # capture r28 meeting management matrix + 18-tab shell baseline
 #   powershell -File scripts\shot.ps1 shots -Round r29 # capture r29 version history / recycle bin matrix + 18-tab shell baseline
+#   powershell -File scripts\shot.ps1 shots -Round r31 # capture r31 bases empty-text + formula float-display matrix + 18-tab shell baseline
 #   powershell -File scripts\shot.ps1 shots -Round r24 # capture r24 member-picker matrix + 15-tab shell baseline
 #   powershell -File scripts\shot.ps1 shots -Round r11 -Shot 08-docs-diff-inline # rework#1: re-capture ONLY the diff-inline evidence (no other matrix/shell re-shot)
 #   powershell -File scripts\shot.ps1 shots -Round r26 -Shot 09-notif-deeplink-target # r26 rework#2: seed 3 pending approvals, CDP-click the SECOND notification, capture ONLY 09 (no other matrix/shell re-shot)
@@ -54,7 +55,7 @@ param(
   [Parameter(Position = 0)]
   [ValidateSet("up", "shots", "down", "status", "all")]
   [string]$Action = "status",
-  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r26", "r27", "r28", "r29", "r30")]
+  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r26", "r27", "r28", "r29", "r30", "r31")]
   [string]$Round = "r1",
   [Parameter()]
   [string]$Shot = ""
@@ -956,7 +957,11 @@ function Invoke-Shots {
     }
   }
 
-  if ($Round -eq "r30") {
+  if ($Round -eq "r31") {
+    # r31: both states are deterministic ?shot= pins on bases (empty-text + float display);
+    # no HTTP seeding needed (raw float truth is locked by e2e + HTTP audit).
+    Write-Output "r31: empty-text + float-display matrix uses deterministic pins (no seed)"
+  } elseif ($Round -eq "r30") {
     # r30: all matrix states are deterministic ?shot= pins over the real bases page;
     # no HTTP seeding needed (computed values are locked by e2e + audit).
     Write-Output "r30: formula matrix uses deterministic pins (no seed)"
@@ -995,7 +1000,16 @@ function Invoke-Shots {
     }
   }
 
-  if ($Round -eq "r30") {
+  if ($Round -eq "r31") {
+    # r31: lightweight cleanup matrix. 01 pins the zero-table empty state text;
+    # 02 pins the chained-preview float (raw 84.80000000000001 shown as 84.8).
+    $r31Base = "http://127.0.0.1:$WebPort/?page=bases"
+    $shots = @(
+      @{ name = "01-bases-empty-text";      url = "$r31Base&shot=bases-empty";          width = 1280; height = 900 },
+      @{ name = "02-formula-float-display"; url = "$r31Base&shot=bases-formula-float";  width = 1280; height = 900 },
+      @{ name = "03-formula-float-grid";    url = "$r31Base&shot=bases-formula-float-grid"; width = 1280; height = 900 }
+    )
+  } elseif ($Round -eq "r30") {
     # r30: formula field matrix. Every state is a deterministic ?shot= pin
     # (real data shape + real computed values); truth is locked by e2e + HTTP audit.
     $r30Base = "http://127.0.0.1:$WebPort/?page=bases"

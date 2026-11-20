@@ -35,6 +35,7 @@ import {
   missingDeployMarkers,
 } from "@xieflow/shared/deploy";
 import { isServerMode } from "@xieflow/shared/auth";
+import { formatFormulaDisplay } from "@xieflow/shared/formula";
 import { createMockProvider, MOCK_PROVIDER_ID } from "@xieflow/agent";
 
 const PORT = Number(process.env.XIEFLOW_API_PORT ?? 8788);
@@ -3845,6 +3846,39 @@ async function auditR28(): Promise<void> {
     await expectStatus("DELETE", `/api/tables/${tid30}`, undefined, 200, "r30 清理探针表 -> 200");
     const tablesAfter30 = await expectStatus("GET", "/api/tables", undefined, 200, "r30 清理后表列表 -> 200");
     eq(tablesAfter30.json.tables.filter((t: any) => String(t.name).includes(stamp30)).length, 0, "r30 本轮探针表归零");
+  }
+
+  // ---- r31：浮点展示层格式化不得改动 HTTP 求值语义（raw 浮点照旧，展示层收敛） ----
+  {
+    const stamp31 = `r31-float-${Date.now()}`;
+    const tbl31 = await expectStatus("POST", "/api/tables", { name: stamp31 }, 201, "r31 建浮点探针表 -> 201");
+    const tid31 = tbl31.json.id;
+    const price31 = await expectStatus("POST", `/api/tables/${tid31}/fields`, { name: "单价", type: "number" }, 201, "r31 加单价 number -> 201");
+    const qty31 = await expectStatus("POST", `/api/tables/${tid31}/fields`, { name: "数量", type: "number" }, 201, "r31 加数量 number -> 201");
+    const sub31 = await expectStatus("POST", `/api/tables/${tid31}/fields`, { name: "小计", type: "formula", expression: "{单价} * {数量}" }, 201, "r31 加小计公式 -> 201");
+    const tax31 = await expectStatus("POST", `/api/tables/${tid31}/fields`, { name: "含税", type: "formula", expression: "{小计} * 1.06" }, 201, "r31 加链式含税公式 -> 201");
+    const rec31 = await expectStatus(
+      "POST", `/api/tables/${tid31}/records`,
+      { data: { [String(price31.json.id)]: 80, [String(qty31.json.id)]: 1 } },
+      201, "r31 录 80 x 1 -> 201",
+    );
+    const listed31 = await expectStatus("GET", `/api/tables/${tid31}/records`, undefined, 200, "r31 查浮点探针记录 -> 200");
+    const row31 = listed31.json.records.find((r: any) => r.id === rec31.json.id);
+    const rawGet31 = row31.computed[String(tax31.json.id)].value;
+    eq(rawGet31, 84.80000000000001, "r31 GET 原始浮点逐字保持（求值语义未改，audit 手算断言不降级）");
+    eq(formatFormulaDisplay(rawGet31), "84.8", "r31 展示格式化作用于真 HTTP 回带值 -> 84.8");
+    eq(row31.data[String(tax31.json.id)], null, "r31 链式公式列仍不落库（raw 恒 null）");
+    const preview31 = await expectStatus(
+      "POST", `/api/tables/${tid31}/formulas/preview`,
+      { expression: "{小计} * 1.06" },
+      200, "r31 链式实时预览 -> 200",
+    );
+    const rawPreview31 = preview31.json.preview.find((p: any) => p.recordId === rec31.json.id).value;
+    eq(rawPreview31, 84.80000000000001, "r31 预览端点同样回带原始浮点（展示层不污染 API）");
+    eq(formatFormulaDisplay(rawPreview31), "84.8", "r31 预览展示层收敛到 84.8（waizhuan P5 修复）");
+    await expectStatus("DELETE", `/api/tables/${tid31}`, undefined, 200, "r31 清理浮点探针表 -> 200");
+    const tablesAfter31 = await expectStatus("GET", "/api/tables", undefined, 200, "r31 清理后表列表 -> 200");
+    eq(tablesAfter31.json.tables.filter((t: any) => String(t.name).includes(stamp31)).length, 0, "r31 本轮探针表归零");
   }
 }
 
