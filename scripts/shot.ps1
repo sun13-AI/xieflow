@@ -55,7 +55,7 @@ param(
   [Parameter(Position = 0)]
   [ValidateSet("up", "shots", "down", "status", "all")]
   [string]$Action = "status",
-  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r26", "r27", "r28", "r29", "r30", "r31")]
+  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r26", "r27", "r28", "r29", "r30", "r31", "r32")]
   [string]$Round = "r1",
   [Parameter()]
   [string]$Shot = ""
@@ -957,7 +957,29 @@ function Invoke-Shots {
     }
   }
 
-  if ($Round -eq "r31") {
+  # r32: one REAL document with all ten block types (incl. an XSS probe) for the
+  # export menu / print / HTML / Word matrix. All Chinese is \uXXXX escaped (ASCII file).
+  $r32DocId = 0
+  if ($Round -eq "r32") {
+    try {
+      $r32Stamp = "r32-shot-" + (Get-Date -Format "yyyyMMddHHmmss")
+      $r32Doc = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/documents" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes(
+        '{"title":"' + $r32Stamp + ' \u6253\u5370\u5bfc\u51fa\u6f14\u793a"}'))
+      $r32DocId = $r32Doc.id
+      $r32Md = '{"markdown":"# r32 \u6253\u5370\u5bfc\u51fa\u6f14\u793a\n\n\u8fd9\u662f\u4e00\u6bb5\u6b63\u6587 <script>alert(1)</script>\n\n## \u4e8c\u7ea7\u6807\u9898\n\n### \u4e09\u7ea7\u6807\u9898\n\n- \u65e0\u5e8f\u8981\u70b9\n\n1. \u6709\u5e8f\u8981\u70b9\u4e00\n\n1. \u6709\u5e8f\u8981\u70b9\u4e8c\n\n- [x] \u5df2\u5b8c\u6210\u5f85\u529e\n\n> \u5f15\u7528\u4e00\u53e5\u8bdd\n\n```ts\nconst a = 1 < 2;\n```\n\n---"}'
+      Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/documents/$r32DocId/import.md" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes($r32Md)) | Out-Null
+      # real landing files beside the matrix (PNG count stays at 6)
+      Invoke-WebRequest -Uri "http://127.0.0.1:$ApiPort/api/documents/$r32DocId/export.html" `
+        -OutFile (Join-Path $UiDir "document-export.html") -UseBasicParsing
+      Invoke-WebRequest -Uri "http://127.0.0.1:$ApiPort/api/documents/$r32DocId/export.doc" `
+        -OutFile (Join-Path $UiDir "document-export.doc") -UseBasicParsing
+      Write-Output "r32 seed: doc=$r32DocId html+doc landing files saved"
+    } catch {
+      Write-Output "warn: r32 seed failed ($($_.Exception.Message)) - export matrix may be empty"
+    }
+  } elseif ($Round -eq "r31") {
     # r31: both states are deterministic ?shot= pins on bases (empty-text + float display);
     # no HTTP seeding needed (raw float truth is locked by e2e + HTTP audit).
     Write-Output "r31: empty-text + float-display matrix uses deterministic pins (no seed)"
@@ -1000,7 +1022,19 @@ function Invoke-Shots {
     }
   }
 
-  if ($Round -eq "r31") {
+  if ($Round -eq "r32") {
+    # r32: export menu + print spy + HTML/Word landing evidence + narrow + real 4xx error.
+    # Every state uses a deterministic ?shot= pin over one real 10-type-block document.
+    $r32Base = "http://127.0.0.1:$WebPort/?page=docs&docId=$r32DocId"
+    $shots = @(
+      @{ name = "01-export-menu";   url = "$r32Base&shot=docs-export-menu";         width = 1280; height = 900 },
+      @{ name = "02-print-preview"; url = "$r32Base&shot=docs-print-spy";           width = 1280; height = 900 },
+      @{ name = "03-html-landing";  url = "$r32Base&shot=docs-export-html";         width = 1280; height = 900 },
+      @{ name = "04-word-landing";  url = "$r32Base&shot=docs-export-word";         width = 1280; height = 900 },
+      @{ name = "05-narrow";        url = "$r32Base&shot=docs-export-menu-narrow&narrow=1"; width = 488; height = 1100 },
+      @{ name = "06-error";         url = "$r32Base&shot=docs-export-error";        width = 1280; height = 900 }
+    )
+  } elseif ($Round -eq "r31") {
     # r31: lightweight cleanup matrix. 01 pins the zero-table empty state text;
     # 02 pins the chained-preview float (raw 84.80000000000001 shown as 84.8).
     $r31Base = "http://127.0.0.1:$WebPort/?page=bases"
@@ -1969,6 +2003,16 @@ function Invoke-Shots {
       Write-Output "cleaned seeded r10 conversations and created todo"
     } catch {
       Write-Output "warn: r10 cleanup failed ($($_.Exception.Message))"
+    }
+  } elseif ($Round -eq "r32") {
+    # r32: remove the one export probe document (soft delete, probe only).
+    try {
+      if ($r32DocId) {
+        Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/documents/$r32DocId" -Method Delete | Out-Null
+        Write-Output "cleaned seeded r32 export document ($r32DocId)"
+      }
+    } catch {
+      Write-Output "warn: r32 cleanup failed ($($_.Exception.Message))"
     }
   } elseif ($Round -eq "r29") {
     # r29: soft-delete then permanently delete ONLY this round's probe documents.

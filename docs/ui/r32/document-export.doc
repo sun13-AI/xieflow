@@ -1,0 +1,32 @@
+﻿<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>90</w:Zoom><w:DoNotOptimizeForBrowser/></w:WordDocument></xml><![endif]-->
+<title>r32-shot-20261120181807 打印导出演示</title>
+<style>
+@page WordSection1 { size: 21cm 29.7cm; margin: 2cm 1.8cm; mso-header-margin: 1cm; mso-footer-margin: 1cm; mso-page-numbers: 1; }
+div.WordSection1 { page: WordSection1; }
+body { font-family: "Microsoft YaHei", SimSun, serif; font-size: 11pt; line-height: 1.6; }
+h1 { font-size: 20pt; } h2 { font-size: 16pt; } h3 { font-size: 13pt; }
+pre { background: #f5f7fb; padding: 8pt; white-space: pre-wrap; }
+blockquote { border-left: 3pt solid #98a6c4; padding-left: 10pt; }
+.export-footer { text-align: center; color: #667085; font-size: 9pt; }
+</style>
+</head>
+<body data-utf8-base64="cjMyLXNob3QtMjAyNjExMjAxODE4MDcg5omT5Y2w5a+85Ye65ryU56S6">
+<div class="WordSection1">
+<h1>r32-shot-20261120181807 打印导出演示</h1>
+<p class="export-meta">协流 XieFlow · 共 11 块 · 导出于 2026-11-20T10:18:07.169Z</p>
+<h1 data-block-type="heading1">r32 打印导出演示</h1>
+<p data-block-type="paragraph">这是一段正文 &lt;script&gt;alert(1)&lt;/script&gt;</p>
+<h2 data-block-type="heading2">二级标题</h2>
+<h3 data-block-type="heading3">三级标题</h3>
+<ul data-block-type="bullet"><li>无序要点</li></ul>
+<ol data-block-type="numbered"><li value="1">有序要点一</li></ol>
+<ol data-block-type="numbered"><li value="2">有序要点二</li></ol>
+<p data-block-type="todo" class="export-todo" data-checked="true"><span class="export-check">☑</span>已完成待办</p>
+<blockquote data-block-type="quote">引用一句话</blockquote>
+<pre data-block-type="code" class="export-code ts"><code>const a = 1 &lt; 2;</code></pre>
+<hr data-block-type="divider">
+<p class="export-footer">第 <span style='mso-field-code:" PAGE "'></span> 页 / 共 <span style='mso-field-code:" NUMPAGES "'></span> 页</p>
+</div></body></html>

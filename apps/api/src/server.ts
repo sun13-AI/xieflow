@@ -39,6 +39,13 @@ import {
   shouldCommitMarkdownImport,
   blocksToMarkdown,
   buildDocumentMdFileName,
+  // r32：导出引擎唯一实现在 shared/docExport，api 只装配 HTTP 响应、零算法分支
+  blocksToPrintHtml,
+  blocksToWordHtml,
+  buildPrintPreview,
+  buildExportFileName,
+  EmptyDocumentExportError,
+  InvalidExportBlockError,
   assertValidRevisionInstruction,
   planRevisionApply,
   assertValidChatMessage,
@@ -1938,6 +1945,81 @@ app.get("/api/documents/:id/export.md", async (req, reply) => {
       .send(md);
   } catch (err) {
     return toErrorReply(err, reply);
+  }
+});
+
+// ---- r32：打印导出（HTML / Word / 预览）——所有块渲染与转义都走 shared/docExport ----
+/** 空文档 -> 422（不是 404：文档存在但无内容）；非法块 -> 422（零半态，不产出导出文件） */
+function exportErrorReply(err: unknown, reply: FastifyReply): FastifyReply {
+  if (err instanceof EmptyDocumentExportError || err instanceof InvalidExportBlockError) {
+    return reply.code(422).send({ error: err.message });
+  }
+  return toErrorReply(err, reply);
+}
+
+/** 三路由共用的只读装配：文档存在 + 至少一块；返回 null 时响应已写出 */
+function assembleExportDocument(id: number, reply: FastifyReply): { title: string; blocks: unknown[] } | null {
+  const store = requireDb();
+  const doc = store.getDocument(id);
+  if (!doc) {
+    reply.code(404).send({ error: `文档不存在：${id}` });
+    return null;
+  }
+  const blocks = store.listBlocks(id);
+  if (blocks.length === 0) {
+    reply.code(422).send({ error: "导出失败：文档没有可导出的块（空文档）" });
+    return null;
+  }
+  return { title: doc.title, blocks };
+}
+
+/** RFC 5987 下载文件名（中文名不丢；ASCII 兜底只给不支持扩展名的老浏览器） */
+function exportDisposition(fileName: string, mode: "inline" | "attachment"): string {
+  const ascii = fileName.replace(/[^\x20-\x7e]/g, "_");
+  return `${mode}; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(fileName)}`;
+}
+
+/** GET 打印版 HTML：浏览器直接打印 / 另存 PDF（inline 下发，零外链） */
+app.get("/api/documents/:id/export.html", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const assembled = assembleExportDocument(id, reply);
+    if (!assembled) return reply;
+    const html = blocksToPrintHtml(assembled.blocks, assembled.title);
+    return reply
+      .header("content-type", "text/html; charset=utf-8")
+      .header("content-disposition", exportDisposition(buildExportFileName(assembled.title, "html"), "inline"))
+      .send(html);
+  } catch (err) {
+    return exportErrorReply(err, reply);
+  }
+});
+
+/** GET Word 兼容 .doc：UTF-8 BOM + Word HTML-in-doc，Word/WPS 可直接打开 */
+app.get("/api/documents/:id/export.doc", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const assembled = assembleExportDocument(id, reply);
+    if (!assembled) return reply;
+    const html = blocksToWordHtml(assembled.blocks, assembled.title);
+    return reply
+      .header("content-type", "application/msword; charset=utf-8")
+      .header("content-disposition", exportDisposition(buildExportFileName(assembled.title, "doc"), "attachment"))
+      .send(html);
+  } catch (err) {
+    return exportErrorReply(err, reply);
+  }
+});
+
+/** GET 打印预览 JSON：web 预览面板消费同一份 shared 装配结果 */
+app.get("/api/documents/:id/print-preview", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const assembled = assembleExportDocument(id, reply);
+    if (!assembled) return reply;
+    return buildPrintPreview(assembled.blocks, assembled.title);
+  } catch (err) {
+    return exportErrorReply(err, reply);
   }
 });
 

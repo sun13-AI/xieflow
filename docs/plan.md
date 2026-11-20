@@ -235,7 +235,7 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r29 | M10 后·文档版本历史与回收站 | ✅已发版（首轮双通过；恢复生成 v4 不覆盖 + 软删回收站 + 永久删除真二次确认） | v0.0.35 | e2e 2542 · audit 2060 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r30 | M10 后·多维表格公式字段（纯本地表达式，零 eval） | ✅已发版（首轮双通过；公式真实性 78/78 + 零 eval + raw computed 恒 null） | v0.0.36 | e2e 2664 · audit 2122 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r31 | M10 后·第九轮轻量清理（字段类型文案回归 + 浮点展示） | ✅已发版（首轮双通过；8 类字段文案 + 84.8 展示格式化，求值语义零改） | v0.0.37 | e2e 2685 · audit 2138 | 通过（waizhuan）+ UI 通过（阻断岗） |
-| r32 | M10 后·第十轮（待定切片） | 🔨规划中 | — | — | — |
+| r32 | M10 后·文档打印导出增强（HTML 打印版 + Word 兼容） | 🔨研发完成，待 waizhuan/ui 复验（lead 发版） | — | e2e 2766 · audit 2185 | — |
 
 ## 🏁 项目总账（2026-11-19 · M10 收官）
 
@@ -762,6 +762,16 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 ---
 
 ## 记账区（每轮追加）
+
+### 2026-11-20 · r32 研发（yanfa-r32 · M10 后第十轮功能补强：文档打印导出增强）
+- 交付：`packages/shared/src/docExport.ts` 唯一导出引擎（`sanitizeExportHtml` 五字符转义+换行 `<br>` / `blocksToPrintHtml` 语义化 HTML+内嵌 `@media print`/`@page`/`counter(page)` 页码页眉 / `blocksToWordHtml` UTF-8 BOM + Word 命名空间 + `WordSection1` + `mso-field-code` + base64(UTF-8) 自证 / `assertExportableBlocks` 空文档与非法块守卫 / `buildExportFileName` / `buildPrintPreview`），根 `index.ts` 重导出，api/web 零算法分支；**零新依赖、六个 package.json 不动、零外链、零 token、无 schema 迁移**
+- api：`GET /api/documents/:id/export.html`（inline text/html，可打印/另存 PDF）、`GET /api/documents/:id/export.doc`（attachment application/msword，UTF-8 BOM）、`GET /api/documents/:id/print-preview`（JSON + 完整 HTML）；4xx：越权 id 404 / 非法 id 400 / 空文档 422 / 非法块写入 400
+- web：文档页导出菜单加「打印 / 另存为 PDF」「下载 Word(.doc)」「打开 HTML 打印版」；打印走隐藏 iframe `src=/export.html` + `window.print()`，headless（钉态或 `navigator.webdriver`）只写 `__xieflowPrintSpy` 不弹系统对话框（r8 教训）；Word 按原字节下载并留 BOM 佐证；**18 tab 数量不变**，文档页渲染变化 → 十八 tab 壳基线同批重拍
+- 断言：e2e 2685 → **2766（+81）** · audit 2138 → **2185（+47）**，无一条删改（既有只做徽章 r31→r32、当前哈希块 R31→R32、速查行 2685/2138→2766/2185 期望值/标签更新）；typecheck 5 包；`pnpm run test:all` exit 0；CI smoke 正则保持 `(2|…|22)`；README 速查行/双节/r32 矩阵索引/壳 R32 哈希块逐字同步
+- 「用户第一次用」全链路（headless CDP 真点，`scripts/r32-firstuse-cdp.mjs`，0 文档起步）：建文档 → 导入十种块 → 导出菜单 → 打印 spy 1 次且不弹窗 → Word BOM 佐证 → reload 11 块全在 → HTTP 回查 HTML/Word 200 → 探针软删、服务收净
+- 截图：`docs/ui/r32/` 6 张（导出菜单/打印预览/HTML 落盘/Word 落盘/窄屏/真 4xx 错误）+ 两份真导出文件（`document-export.html` / `document-export.doc`）+ 十八 tab 壳同批重拍；6/6、18/18 SHA256 互异，矩阵↔壳重叠 0，全库 306 PNG / 304 互异（r4 已披露 2 组同态除外），逐张 `read_image` 目验
+- 危险区：未 push / 未打 tag / 未发版 / 未改 CI 发布配置；无 schema 迁移、未手改库文件；截图与 CDP 只走 `scripts/.tmp-r32shot/shot.db`，audit 走 `scripts/.tmp-audit` 并清理；全程 headless、服务收净、PowerShell 新段全 ASCII、零 token
+- 报告：`docs/feedback/2026-11-21-r32-yanfa.md`（三态纪律 + 自曝 + 变异红相 + 零依赖证据）
 
 ### 2026-11-20 · r31 研发（yanfa-r31 · M10 后第九轮轻量清理：字段类型文案回归 + 公式浮点展示）
 - 交付：清 r30 两岗记账的低成本真问题，不新增功能、无 schema 迁移（复用 v22）、零依赖、零 token——① `BasesPage.tsx` 零表空态「7 种字段类型齐备」→「8 种字段类型齐备（含公式）」并同步 `docs/ui/shell/README.md` bases 行；② `packages/shared/formula.ts` 新增唯一展示格式化纯函数 `formatFormulaDisplay`（null/undefined→「—」，整数/非有限数原样，非整数按 12 位有效数字收敛尾数，文本/布尔逐字保留），web 公式单元格 `CellView` 与实时预览面板统一调用；**API 求值语义零改动**，`84.80000000000001` 仍为 HTTP 原始值，仅展示为 `84.8`

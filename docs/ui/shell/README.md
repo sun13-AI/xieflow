@@ -1,4 +1,4 @@
-# docs/ui/shell · 十八 tab 壳激活态基线（r4 返工 #1 B 固化；r17 起十四 tab，r23 扩十五，r26 扩十六，r27 扩十七，r28 扩十八；r29/r30 同批重拍；r31 同批重拍）
+# docs/ui/shell · 十八 tab 壳激活态基线（r4 返工 #1 B 固化；r17 起十四 tab，r23 扩十五，r26 扩十六，r27 扩十七，r28 扩十八；r29/r30/r31/r32 同批重拍）
 
 > r2 U1-1（工作台）→ r3 U1-2（待办）→ r4 U1-1（工作台+待办+日程三页全漏）——
 > 「壳变更 → 继承页 tab 激活证据断档」三轮连漏后，ui-reviewer 建议固化为 shot.ps1
@@ -36,7 +36,10 @@
 > **r31 tab 数量仍不变（十八）**：轻量清理只改表格页空态文案（「8 种字段类型齐备（含公式）」）
 > 与公式值展示格式化，不新增 tab；徽章推进 r31「轻量清理（字段类型文案 + 浮点展示）」→
 > **十八张同批重拍**，bases 张同步八类文案，与 r30 十八张同名文件全异。
-> 窄屏 390/488px 形态见 `docs/ui/r22/`、`docs/ui/r23/06-narrow.png`、`docs/ui/r24/06-narrow.png`、`docs/ui/r25/06-narrow.png`、`docs/ui/r26/06-narrow.png`、`docs/ui/r27/06-narrow.png`、`docs/ui/r28/06-narrow.png`、`docs/ui/r29/07-narrow.png` 与 `docs/ui/r30/06-narrow.png`。
+> **r32 tab 数量仍不变（十八）**：文档页新增导出菜单（打印 / Word / HTML 打印版）、隐藏 iframe 打印 spy、
+> HTML / Word 落盘佐证面板，顶栏徽章推进 r32「文档打印导出增强（HTML 打印 + Word 兼容）」→
+> **十八张同批重拍**，docs 张同步新导出入口，与 r31 十八张同名文件全异。
+> 窄屏 390/488px 形态见 `docs/ui/r22/`、`docs/ui/r23/06-narrow.png`、`docs/ui/r24/06-narrow.png`、`docs/ui/r25/06-narrow.png`、`docs/ui/r26/06-narrow.png`、`docs/ui/r27/06-narrow.png`、`docs/ui/r28/06-narrow.png`、`docs/ui/r29/07-narrow.png`、`docs/ui/r30/06-narrow.png` 与 `docs/ui/r32/05-narrow.png`。
 
 | 文件 | 形态 | 对应断言 |
 |---|---|---|
@@ -46,7 +49,7 @@
 | projects-tab-active.png | 项目激活（?page=projects；空态 + 新建入口 + r23 徽章） | audit「GET /api/projects -> 200」空列表形态 |
 | board-tab-active.png | 看板激活（?page=board；无项目空态引导 + r23 徽章） | audit「GET /api/projects -> 200」空列表形态的看板侧消费 |
 | bases-tab-active.png | 表格激活（?page=bases；零表首次使用空态 + 空态文案「8 种字段类型齐备（含公式）」+「＋ 新建表」+ 十八药丸壳 + r31 徽章） | audit「r31 GET /api/tables -> 200」空列表形态；e2e「r31 空态文案八类 / 旧七类零残留」 |
-| docs-tab-active.png | 文档激活（?page=docs；零文档首次使用空态 + 工具栏「回收站 / 导入 Markdown / 导出 .md / ＋ 新建文档 / 打印预览」+ 十八药丸壳 + r29 徽章） | audit「r29 GET 文档列表 / 回收站 -> 200」空列表形态；e2e「建文档默认首块自动在场 + 零版本」 |
+| docs-tab-active.png | 文档激活（?page=docs；零文档首次使用空态 + 工具栏「回收站 / 导入 Markdown / 导出 .md / 导出 ▾ / ＋ 新建文档 / 打印预览」+ 十八药丸壳 + r32 徽章） | audit「r29 GET 文档列表 / 回收站 -> 200」空列表形态；e2e「建文档默认首块自动在场 + 零版本」「r32 导出菜单 seam」 |
 | chat-tab-active.png | AI 工作台激活（?page=chat；真实 0 会话态三栏引导 + 12 工具目录 + r23 徽章） | audit「r11 GET /api/tools -> 200」；e2e「默认注册表恰 12 个工具」 |
 | knowledge-tab-active.png | 知识库激活（?page=knowledge；真实 0 篇文档态 + 入库引导 + 十五药丸 + r23 徽章） | audit「r12 GET 知识库文档列表 -> 200」空列表形态 |
 | mindmap-tab-active.png | 导图激活（?page=mindmap；真实 0 张导图态 + Markdown 源/树视图双栏空态 + r23 徽章） | audit「r14 清理后导图归零」；e2e「新库导图列表为空」 |
@@ -138,7 +141,23 @@
 <!-- R31_HASHES_END -->
 
 > e2e「shell README R31 哈希与实际文件逐字一致」逐张复算 SHA256 锁定本表；r31 表格页改渲染层（空态八类文案 / 浮点展示格式化）、18 tab 数量不变但全批重拍。
-> 与 r30 十八张同名文件逐名全异（changed=18 / same=0）；矩阵↔壳重叠 0；全库 **300 PNG / 298 互异**（r31 新增 3 张矩阵，十八壳为替换同路径不增总数），同态组仅 r4 已披露 2 组，r31 零新增。
+> 与 r30 十八张同名文件逐名全异（changed=18 / same=0）；矩阵↔壳重叠 0；r31 当时全库 **300 PNG / 298 互异**
+>（r31 新增 3 张矩阵，十八壳为替换同路径不增总数），r31 当时全库 **300 PNG / 298 互异**，同态组仅 r4 已披露 2 组，r31 零新增。
+> e2e「shell README R31 当前哈希块在场」已被 R32 全批重拍取代（本块保留作历史对照）。
+
+## r32 哈希自查（十八张互异，与当前文件逐字一致；R32 当前哈希块，R31 及以下为历史块）
+
+<!-- R32_HASHES_BEGIN -->
+`workbench=3A8E4DA3` · `todos=B6A8B3B9` · `schedules=0D63D8AA` · `projects=D6D33F5D` ·
+`board=BB0625A4` · `bases=5D56BAF3` · `docs=DF4B4DDB` · `chat=C6334A73` ·
+`knowledge=C61CFB9D` · `mindmap=0AE00F2D` · `whiteboard=328C657D` · `approval=8BE9390A` ·
+`assets=C55FA6AA` · `unit-tasks=21F533BA` · `org=BF8E8AF3` · `notifications=586B69B8` ·
+`reports=9CF1C6D4` · `meetings=927A1A4C` —— **18/18 互异**。
+<!-- R32_HASHES_END -->
+
+> e2e「shell README R32 哈希与实际文件逐字一致」逐张复算 SHA256 锁定本表；r32 文档页加导出菜单 / 打印 iframe /
+> HTML·Word 落盘佐证面板且徽章推进，18 tab 数量不变但全批重拍，与 r31 十八张同名文件全异。
+> 矩阵↔壳重叠 0；全库 **306 PNG / 304 互异**（r32 新增 6 张矩阵，十八壳替换同路径不增总数），同态组仅 r4 已披露 2 组，r32 零新增。
 
 > e2e「shell README R27 哈希与实际文件逐字一致」逐张复算 SHA256 锁定本表；r27 新增第十七 tab「报表」。
 
@@ -174,9 +193,9 @@
 ## 机制说明
 
 - 拍摄入口：`scripts/shot.ps1` 的 `Invoke-ShellBaseline`（r4 返工 #1 加入；r8 由 6 扩 7，r10 扩 8，r12 扩 9，r14 扩 10，r15 扩 11，r16 扩 12，r17 扩 14；r18~r22 数量不变仍 14；**r23 扩 15，r26 扩 16，r27 扩 17，r28 扩 18**）。
-- 触发条件：`-Round r4` 及以后的 `shots` / `all` 动作（r1~r3 历史轮不回拍）；r21 因未改渲染层沿用 r20 字节，r22 补拍闭合口径，r23 因新增 tab 全量重拍，r25 因渲染层改动全量重拍，r26 与 r26 返工 #1 均因通知/日程/审批渲染层改动全量重拍，r27 因新增报表 tab 与徽章推进全量重拍，r28 因新增会议 tab 全量重拍，r29 因文档页版本历史侧栏 / 回收站入口 + 徽章推进全量重拍，r30 因表格页公式列 / 表达式面板 + 徽章推进全量重拍，r31 因表格页空态文案 / 浮点展示格式化 + 徽章推进全量重拍（tab 数仍 18）。
+- 触发条件：`-Round r4` 及以后的 `shots` / `all` 动作（r1~r3 历史轮不回拍）；r21 因未改渲染层沿用 r20 字节，r22 补拍闭合口径，r23 因新增 tab 全量重拍，r25 因渲染层改动全量重拍，r26 与 r26 返工 #1 均因通知/日程/审批渲染层改动全量重拍，r27 因新增报表 tab 与徽章推进全量重拍，r28 因新增会议 tab 全量重拍，r29 因文档页版本历史侧栏 / 回收站入口 + 徽章推进全量重拍，r30 因表格页公式列 / 表达式面板 + 徽章推进全量重拍，r31 因表格页空态文案 / 浮点展示格式化 + 徽章推进全量重拍，r32 因文档页导出菜单 / 打印 iframe / HTML·Word 佐证面板 + 徽章推进全量重拍（tab 数仍 18）。
 - 落盘：本目录，文件名 `<tab>-tab-active.png`（与 App.tsx PageTab 一一对应；新增/改名 tab 时须同步脚本内 $tabs 清单）。
 - 认证页为独立路由、同步卡在工作台内、更多入口为底栏布局件，三者均不进 `$tabs`；「组织」是真 tab，r23 起进基线。
 - 同态说明：壳基线各张与各轮页面矩阵均不同字节；全库唯一残留同态组在 r4 目录内部
-  （`r4/01 = r4/16` = `9E5C0C23`、`r4/05 = r4/13` = `8397A028`），如实注记；**全库 300 PNG / 298 互异**（r31 新增 3 张矩阵，十八壳为替换同路径不增总数），r29/r30/r31 均零新增同态组。
+  （`r4/01 = r4/16` = `9E5C0C23`、`r4/05 = r4/13` = `8397A028`），如实注记；**全库 306 PNG / 304 互异**（r32 新增 6 张矩阵，十八壳为替换同路径不增总数），r29/r30/r31/r32 均零新增同态组。
 - `mindmap-tab-active` 与 `docs/ui/r14/` 矩阵 02/03/04 分形：0 张导图空态 / Markdown 编辑态 / 树视图态 / 折叠态，四态互异。

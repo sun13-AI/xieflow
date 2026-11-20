@@ -4356,3 +4356,23 @@ export function shouldShowTabsMore(navOpen: boolean): boolean {
   return !navOpen;
 }
 
+// ---- r32：文档打印导出引擎（实现集中 docExport.ts，根导出供 api / web / 断言共用） ----
+export {
+  EXPORT_HTML_HEADER_MARKER,
+  EXPORT_WORD_SECTION_MARKER,
+  EXPORT_PREVIEW_CONTENT_TYPE,
+  EmptyDocumentExportError,
+  InvalidExportBlockError,
+  sanitizeExportHtml,
+  assertExportableBlocks,
+  blocksToPrintHtml,
+  blocksToWordHtml,
+  buildExportFileName,
+  buildPrintPreview,
+} from "./docExport.js";
+export type {
+  ExportSourceBlock,
+  ExportMeta,
+  PrintPreviewPayload,
+} from "./docExport.js";
+

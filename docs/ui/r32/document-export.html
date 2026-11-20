@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>r32-shot-20261120181807 打印导出演示</title>
+<style>
+@page { size: A4; margin: 18mm 16mm; @bottom-center { content: "第 " counter(page) " / " counter(pages) " 页"; } }
+body { font-family: "Microsoft YaHei", "Noto Sans CJK SC", sans-serif; color: #1b1f2a; line-height: 1.65; }
+.export-doc { max-width: 720px; margin: 0 auto; }
+.export-doc-title { font-size: 26px; margin: 0 0 6px; }
+.export-meta { color: #667085; font-size: 12px; margin: 0 0 18px; }
+.export-block { margin: 8px 0; }
+h1, h2, h3 { page-break-after: avoid; }
+pre, blockquote { page-break-inside: avoid; }
+pre { background: #f5f7fb; padding: 10px 12px; border-radius: 6px; white-space: pre-wrap; }
+blockquote { border-left: 3px solid #98a6c4; padding-left: 12px; color: #475467; }
+.export-footer { color: #98a2b3; font-size: 11px; text-align: center; margin-top: 24px; }
+.export-footer::after { content: "第 " counter(page) " 页 / 共 " counter(pages) " 页"; }
+@media print {
+  body { background: #fff; }
+  .export-screen-bar { display: none; }
+  h1, h2, h3 { break-after: avoid-page; }
+}
+</style>
+</head>
+<body>
+<header class="export-header">协流 XieFlow · 文档打印版</header>
+<main class="export-doc">
+<h1 class="export-doc-title">r32-shot-20261120181807 打印导出演示</h1>
+<p class="export-meta">纸张 A4 · 共 11 块 · 生成于 2026-11-20T10:18:07.151Z</p>
+<h1 data-block-type="heading1">r32 打印导出演示</h1>
+<p data-block-type="paragraph">这是一段正文 &lt;script&gt;alert(1)&lt;/script&gt;</p>
+<h2 data-block-type="heading2">二级标题</h2>
+<h3 data-block-type="heading3">三级标题</h3>
+<ul data-block-type="bullet"><li>无序要点</li></ul>
+<ol data-block-type="numbered"><li value="1">有序要点一</li></ol>
+<ol data-block-type="numbered"><li value="2">有序要点二</li></ol>
+<p data-block-type="todo" class="export-todo" data-checked="true"><span class="export-check">☑</span>已完成待办</p>
+<blockquote data-block-type="quote">引用一句话</blockquote>
+<pre data-block-type="code" class="export-code ts"><code>const a = 1 &lt; 2;</code></pre>
+<hr data-block-type="divider">
+</main>
+<footer class="export-footer">协流 XieFlow 文档打印版 · 页码见页面下端</footer>
+</body></html>

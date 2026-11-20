@@ -12,6 +12,7 @@ import {
   canConvertBlockType,
   computeNumberedOrdinals,
   buildDocumentMdFileName,
+  buildExportFileName,
   computeInlineDiff,
   type DiffSegment,
   type BlockType,
@@ -22,6 +23,33 @@ import {
 import { SERVICE_DOWN_MESSAGE, fetchJsonOrThrow, apiFetch } from "./httpClient";
 // r29：版本恢复守卫/软删判定只消费 shared 唯一口径，本页零算法分支
 import { canRestoreVersion, isDocumentSoftDeleted, type DocVersion } from "@xieflow/shared/docHistory";
+
+/** r32：打印 spy seam——headless 下只记调用不弹系统对话框，真实浏览器仍走 iframe.print() */
+interface DocsPrintSpy {
+  calls: number;
+  frames: string[];
+  lastUrl: string;
+}
+declare global {
+  interface Window { __xieflowPrintSpy?: DocsPrintSpy }
+}
+function ensurePrintSpy(): DocsPrintSpy {
+  if (!window.__xieflowPrintSpy) {
+    window.__xieflowPrintSpy = { calls: 0, frames: [], lastUrl: "" };
+  }
+  return window.__xieflowPrintSpy;
+}
+function invokeBrowserPrint(win: Window | null, url: string, headless: boolean): number {
+  const spy = ensurePrintSpy();
+  spy.calls += 1;
+  spy.frames.push(url);
+  spy.lastUrl = url;
+  if (!headless && win) {
+    win.focus();
+    win.print();
+  }
+  return spy.calls;
+}
 
 interface DocsQuery {
   docId: string;
@@ -153,7 +181,7 @@ function blockText(block: DocumentBlock): string {
 }
 
 /** 块级渲染（打印纸面与编辑器共用同一套类型 → 标签映射） */
-function BlockView({ block, print = false }: { block: DocumentBlock; print?: boolean }) {
+function BlockView({ block, print = false, ordinal = 1 }: { block: DocumentBlock; print?: boolean; ordinal?: number }) {
   const text = blockText(block);
   const cls = print ? "docs-print-block" : "docs-block-body";
   switch (block.type) {
@@ -161,7 +189,7 @@ function BlockView({ block, print = false }: { block: DocumentBlock; print?: boo
     case "heading2": return <h2 className={cls}>{text || " "}</h2>;
     case "heading3": return <h3 className={cls}>{text || " "}</h3>;
     case "bullet": return <div className={`${cls} docs-li`}><span className="docs-marker">•</span><span>{text}</span></div>;
-    case "numbered": return <div className={`${cls} docs-li`}><span className="docs-marker">1.</span><span>{text}</span></div>;
+    case "numbered": return <div className={`${cls} docs-li`}><span className="docs-marker">{ordinal}.</span><span>{text}</span></div>;
     case "todo": return (
       <div className={`${cls} docs-li`}>
         <span className={`docs-check ${block.content.checked ? "docs-check-on" : ""}`}>
@@ -195,6 +223,12 @@ export default function DocsPage() {
   const [importPreview, setImportPreview] = useState<ImportPreviewData | null>(null);
   const [importBusy, setImportBusy] = useState(false);
   const [exportSnapshot, setExportSnapshot] = useState<{ fileName: string; bytes: number; text: string } | null>(null);
+  // r32：导出菜单 / 打印 iframe / Word·HTML 落盘佐证 / headless 打印 spy 计数
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [printFrameUrl, setPrintFrameUrl] = useState<string | null>(null);
+  const [printSpyCalls, setPrintSpyCalls] = useState(0);
+  const [wordSnapshot, setWordSnapshot] = useState<{ fileName: string; bytes: number; bom: string; head: string } | null>(null);
+  const [htmlSnapshot, setHtmlSnapshot] = useState<{ fileName: string; blockCount: number; generatedAt: string; head: string } | null>(null);
   const [reviseId, setReviseId] = useState<number | null>(null);
   const [reviseInstruction, setReviseInstruction] = useState("");
   const [reviseData, setReviseData] = useState<ReviseSuggestionData | null>(null);
@@ -209,6 +243,8 @@ export default function DocsPage() {
   const [trashOpen, setTrashOpen] = useState(false);
   const [trashDocs, setTrashDocs] = useState<DocMeta[]>([]);
   const [permanentTarget, setPermanentTarget] = useState<number | null>(null);
+  /** 截图钉态 / 自动化浏览器下禁止系统打印对话框（r8 教训），只走 spy 记录 */
+  const headlessSeam = query.shot !== "" || Boolean((navigator as unknown as { webdriver?: boolean }).webdriver);
 
   /** 版本列表唯一入口：只消费 API 装配好的 shared 规则结果 */
   const loadVersions = useCallback(async (docId: number): Promise<DocVersion[]> => {
@@ -265,6 +301,15 @@ export default function DocsPage() {
       if (!data) return;
       // 打印预览钉态（headless 不弹系统打印对话框；真实按钮走 window.print()）
       if (shot === "docs-print") setPrintPreview(true);
+      // r32 导出钉态：菜单 / HTML 打印版元信息 / Word 落盘字节 / 打印 spy / 真 4xx 错误
+      if (shot === "docs-export-menu" || shot === "docs-export-menu-narrow") setExportMenuOpen(true);
+      if (shot === "docs-export-html" && data.doc) await captureHtmlSnapshot(data.doc);
+      if (shot === "docs-export-word" && data.doc) await downloadWord(data.doc);
+      if (shot === "docs-print-spy") {
+        setPrintPreview(true);
+        setPrintSpyCalls(invokeBrowserPrint(null, `/api/documents/${data.doc?.id ?? 0}/export.html`, true));
+      }
+      if (shot === "docs-export-error") await captureExportError();
       // 类型切换下拉钉态：选中第 4 个块（bullet），展示可转 / 不可转项
       if (shot === "docs-type-switch" && !pinnedTypeRef.current && data.blocks.length > 3) {
         pinnedTypeRef.current = true;
@@ -534,10 +579,88 @@ export default function DocsPage() {
     }
   };
 
-  /** 打印预览按钮：展开纸面预览并调用系统打印（headless 截图态不弹系统对话框） */
+  /** 打印预览按钮：展开纸面预览 + 隐藏 iframe 加载服务端打印版 HTML；headless 只走 spy */
   const openPrintPreview = (): void => {
+    if (!doc) return;
     setPrintPreview(true);
-    if (query.shot !== "docs-print") window.print();
+    setExportMenuOpen(false);
+    clearNoticeState();
+    if (headlessSeam) {
+      setPrintSpyCalls(invokeBrowserPrint(null, `/api/documents/${doc.id}/export.html`, true));
+      return;
+    }
+    setPrintFrameUrl(`/api/documents/${doc.id}/export.html`);
+  };
+
+  /** 隐藏 iframe 加载完成：真实浏览器打印 iframe 文档；钉态只累加 spy 计数 */
+  const onPrintFrameLoad = (frame: HTMLIFrameElement, url: string): void => {
+    setPrintSpyCalls(invokeBrowserPrint(frame.contentWindow, url, headlessSeam));
+  };
+
+  const clearNoticeState = (): void => {
+    setNotice(null);
+    setErrorText(null);
+  };
+
+  /** r32：拉真实 print-preview 端点，取元信息 + HTML 片段做落盘佐证 */
+  const captureHtmlSnapshot = async (target: DocMeta): Promise<void> => {
+    const res = await apiFetch(`/api/documents/${target.id}/print-preview`);
+    if (!res.ok) throw new Error(`打印预览失败（HTTP ${res.status}）`);
+    const data = (await fetchJsonOrThrow(res)) as {
+      title: string; blockCount: number; generatedAt: string; html: string;
+    };
+    setHtmlSnapshot({
+      fileName: buildExportFileName(target.title, "html"),
+      blockCount: data.blockCount,
+      generatedAt: data.generatedAt,
+      head: data.html.slice(0, 420),
+    });
+  };
+
+  /** r32：拉真实 export.doc 字节，按原始字节下载并留下面包字节/开头文本佐证 */
+  const downloadWord = async (target?: DocMeta | null): Promise<void> => {
+    const chosen = target ?? doc;
+    if (!chosen) return;
+    setBusy(true);
+    setErrorText(null);
+    try {
+      const res = await apiFetch(`/api/documents/${chosen.id}/export.doc`);
+      if (!res.ok) throw new Error(`导出 Word 失败（HTTP ${res.status}）`);
+      const bytes = new Uint8Array(await res.arrayBuffer());
+      const fileName = buildExportFileName(chosen.title, "doc");
+      if (!headlessSeam) {
+        const blobUrl = URL.createObjectURL(new Blob([bytes], { type: "application/msword;charset=utf-8" }));
+        const link = document.createElement("a");
+        link.href = blobUrl;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+      }
+      setWordSnapshot({
+        fileName,
+        bytes: bytes.length,
+        bom: Array.from(bytes.slice(0, 3)).map((b) => b.toString(16).toUpperCase().padStart(2, "0")).join(" "),
+        head: new TextDecoder().decode(bytes.slice(0, 260)).replace(/^\uFEFF/, ""),
+      });
+      setNotice(`已下载 Word(.doc)（${bytes.length} 字节，UTF-8 BOM：EF BB BF）。`);
+    } catch (err: unknown) {
+      setErrorText(err instanceof Error ? err.message : SERVICE_DOWN_MESSAGE);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** r32：截图钉态用真 4xx 探针（越权文档 id），错误条展示真实状态码与响应体 */
+  const captureExportError = async (): Promise<void> => {
+    try {
+      const res = await apiFetch("/api/documents/99999999/export.html");
+      const text = await res.text();
+      setErrorText(`真实 4xx 探针：HTTP ${res.status} · ${text.slice(0, 140)}`);
+    } catch (err: unknown) {
+      setErrorText(err instanceof Error ? err.message : SERVICE_DOWN_MESSAGE);
+    }
   };
 
   // ---- r9：导入预览 / 导入确认 ----
@@ -786,6 +909,55 @@ export default function DocsPage() {
               <button
                 type="button"
                 className="btn btn-secondary"
+                data-state="docs-export-menu-button"
+                aria-expanded={exportMenuOpen}
+                onClick={() => { setExportMenuOpen((v) => !v); setPrintFrameUrl(null); }}
+              >
+                导出 ▾
+              </button>
+              {exportMenuOpen && (
+                <div className="docs-export-menu" data-state="docs-export-menu" role="menu">
+                  <button
+                    type="button"
+                    className="docs-export-menu-item"
+                    data-state="docs-export-print"
+                    role="menuitem"
+                    disabled={!doc}
+                    onClick={openPrintPreview}
+                  >
+                    打印 / 另存为 PDF
+                  </button>
+                  <button
+                    type="button"
+                    className="docs-export-menu-item"
+                    data-state="docs-export-word"
+                    role="menuitem"
+                    disabled={!doc || busy}
+                    onClick={() => void downloadWord()}
+                  >
+                    下载 Word(.doc)
+                  </button>
+                  <button
+                    type="button"
+                    className="docs-export-menu-item"
+                    data-state="docs-export-html"
+                    role="menuitem"
+                    disabled={!doc}
+                    onClick={() => {
+                      if (!doc) return;
+                      void captureHtmlSnapshot(doc).catch((err: unknown) => {
+                        setErrorText(err instanceof Error ? err.message : SERVICE_DOWN_MESSAGE);
+                      });
+                      setPrintFrameUrl(`/api/documents/${doc.id}/export.html`);
+                    }}
+                  >
+                    打开 HTML 打印版
+                  </button>
+                </div>
+              )}
+              <button
+                type="button"
+                className="btn btn-secondary"
                 data-state="docs-new-button"
                 onClick={() => setCreateOpen(true)}
               >
@@ -824,6 +996,24 @@ export default function DocsPage() {
             <p className="docs-notice" role="status" data-state="docs-revise-discarded">
               已放弃 AI 建议：第 2 块原文保持「{blockText(blocks[1]!)}」（服务端零写入）
             </p>
+          )}
+
+          {htmlSnapshot && (
+            <div className="docs-export-snapshot" data-state="docs-html-export-evidence">
+              <h3>HTML 打印版落盘佐证 · {htmlSnapshot.fileName}</h3>
+              <p className="hint">GET /api/documents/:id/print-preview → {htmlSnapshot.blockCount} 块 · 生成于 {htmlSnapshot.generatedAt}</p>
+              <pre>{htmlSnapshot.head}</pre>
+              <p className="seam-note">同一 HTML 由 /export.html 以 text/html 下发，可直接打印 / 另存 PDF（零外链）</p>
+            </div>
+          )}
+
+          {wordSnapshot && (
+            <div className="docs-export-snapshot" data-state="docs-word-export-evidence">
+              <h3>Word 落盘佐证 · {wordSnapshot.fileName}</h3>
+              <p className="hint">GET /api/documents/:id/export.doc → {wordSnapshot.bytes} 字节 · BOM {wordSnapshot.bom} · application/msword</p>
+              <pre>{wordSnapshot.head}</pre>
+              <p className="seam-note">截图钉态不触发浏览器下载；真实按钮按原字节落盘，Word/WPS 可直接打开</p>
+            </div>
           )}
 
           <div className={`docs-layout${versionsOpen && doc ? " with-versions" : ""}`}>
@@ -1386,22 +1576,37 @@ export default function DocsPage() {
                 <strong>打印预览</strong>
                 <span className="hint">打印样式表隐藏工具栏 / 列表 / 块操作，只输出文档正文</span>
                 <div className="docs-print-bar-actions">
-                  <button type="button" className="btn btn-secondary btn-small" onClick={() => window.print()}>
-                    打印 / 另存为 PDF（window.print）
+                  <button type="button" className="btn btn-secondary btn-small" data-state="docs-print-confirm" onClick={openPrintPreview}>
+                    打印 / 另存为 PDF（隐藏 iframe）
                   </button>
-                  <button type="button" className="btn btn-ghost btn-small" onClick={() => setPrintPreview(false)}>
+                  <button type="button" className="btn btn-ghost btn-small" onClick={() => { setPrintPreview(false); setPrintFrameUrl(null); }}>
                     关闭预览
                   </button>
                 </div>
               </div>
+              {printSpyCalls > 0 && (
+                <p className="docs-print-spy-result" data-state="docs-print-spy-result" role="status">
+                  打印 spy：{printSpyCalls} 次调用 · headless 下只记录不弹系统对话框
+                </p>
+              )}
               <div className="docs-print-sheet">
                 <h1 className="docs-print-title">{doc.title}</h1>
                 <p className="docs-print-meta">协流 XieFlow · 共 {printBlocks.length} 块 · 按 position 拼装</p>
-                {printBlocks.map((b) => (
-                  <BlockView key={b.id} block={b} print />
+                {printBlocks.map((b, bIdx) => (
+                  <BlockView key={b.id} block={b} print ordinal={numberedOrdinals[bIdx] ?? 1} />
                 ))}
               </div>
             </div>
+          )}
+
+          {printFrameUrl && (
+            <iframe
+              className="docs-print-frame"
+              data-state="docs-print-frame"
+              title="文档打印版"
+              src={printFrameUrl}
+              onLoad={(e) => onPrintFrameLoad(e.currentTarget, printFrameUrl)}
+            />
           )}
         </>
       )}

@@ -475,7 +475,7 @@ export default function App() {
           <span className="tabs-more-fade" aria-hidden="true" />
           <button type="button" className="tabs-more" aria-label="更多导航" onClick={toggleNav}>更多 ›</button>
         </div>
-        <span className="badge">r31 · 轻量清理（字段类型文案 + 浮点展示）</span>
+        <span className="badge">r32 · 文档打印导出增强（HTML 打印 + Word 兼容）</span>
         <OfflineStatus />
         <button type="button" className="nav-toggle" data-state="nav-toggle" aria-label="展开导航" onClick={toggleNav}>☰</button>
         <span className="auth-controls" data-state="auth-controls">

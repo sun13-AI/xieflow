@@ -2188,6 +2188,70 @@ pre.docs-print-block.docs-code {
   line-height: 1.5;
 }
 
+/* ---- r32：导出菜单 / 打印 iframe / Word·HTML 落盘佐证 ---- */
+.docs-toolbar-actions {
+  position: relative;
+}
+
+.docs-export-menu {
+  position: absolute;
+  top: 38px;
+  right: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 190px;
+  padding: 6px;
+  border: 1px solid #d5dceb;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 10px 28px rgba(31, 45, 80, 0.18);
+}
+
+.docs-export-menu-item {
+  border: 0;
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: transparent;
+  color: #1d2939;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.docs-export-menu-item:hover:not(:disabled) {
+  background: #eef3ff;
+  color: #1d4ed8;
+}
+
+.docs-export-menu-item:disabled {
+  color: #98a2b3;
+  cursor: not-allowed;
+}
+
+.docs-print-frame {
+  position: fixed;
+  left: -10000px;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  border: 0;
+}
+
+.docs-print-spy-result {
+  margin: 0;
+  padding: 6px 14px;
+  background: #eef3ff;
+  color: #27489b;
+  font-size: 12px;
+}
+
+.force-narrow .docs-export-menu {
+  right: auto;
+  left: 0;
+}
+
 .force-narrow .docs-toolbar-actions {
   flex-wrap: wrap;
 }

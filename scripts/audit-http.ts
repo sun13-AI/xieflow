@@ -3880,6 +3880,81 @@ async function auditR28(): Promise<void> {
     const tablesAfter31 = await expectStatus("GET", "/api/tables", undefined, 200, "r31 清理后表列表 -> 200");
     eq(tablesAfter31.json.tables.filter((t: any) => String(t.name).includes(stamp31)).length, 0, "r31 本轮探针表归零");
   }
+
+  // ---- r32：文档打印导出增强（真 HTTP：10 种块 HTML / Word / 预览 / 4xx / 清理） ----
+  {
+      const stamp32 = `r32-export-${Date.now()}`;
+      const created32 = await expectStatus("POST", "/api/documents", { title: `${stamp32} 导出验收` }, 201, "r32 建导出探针文档 -> 201");
+      const docId32 = created32.json.id;
+      const md32 = [
+        "# 一级标题", "## 二级标题", "正文段落 <script>alert(1)</script> & 成本", "- 无序要点",
+        "1. 有序一", "1. 有序二", "- [x] 已办项", "> 引用一句话", "```ts", "const a = 1 < 2;", "```", "---",
+      ].join("\n\n");
+      const imported32 = await expectStatus(
+        "POST", `/api/documents/${docId32}/import.md`, { markdown: md32 }, 200, "r32 导入十种块 -> 200",
+      );
+      eq(imported32.json.imported, 10, "r32 探针文档恰含十种块");
+
+      // HTML 打印版：真实文本响应（非 JSON）
+      const html32 = await reqText(`/api/documents/${docId32}/export.html`);
+      eq(html32.status, 200, "r32 GET export.html -> 200");
+      ok((html32.headers.get("content-type") ?? "").includes("text/html"), "r32 export.html content-type=text/html");
+      ok(html32.text.startsWith("<!DOCTYPE html>"), "r32 export.html 以 DOCTYPE 开头");
+      ok(html32.text.includes("@media print"), "r32 export.html 内嵌 @media print");
+      ok(html32.text.includes("@page") && html32.text.includes("counter(page)"), "r32 export.html 纸张规则与页码在场");
+      ok(html32.text.includes(stamp32), "r32 export.html 标题逐字在场");
+      const types32 = Array.from(html32.text.matchAll(/data-block-type="([a-z0-9]+)"/g), (m) => m[1]);
+      eq(types32, ["heading1", "heading2", "paragraph", "bullet", "numbered", "numbered", "todo", "quote", "code", "divider"], "r32 export.html 十种块顺序正确");
+      ok(html32.text.includes("<script>alert(1)</script>") === false, "r32 export.html XSS 脚本未原样下发");
+      ok(html32.text.includes("&lt;script&gt;"), "r32 export.html XSS 被转义为实体");
+      ok(html32.text.includes("&amp; 成本"), "r32 export.html & 字符被转义为实体");
+      ok(!html32.text.includes(" & "), "r32 export.html 无裸 & 外泄");
+      ok(html32.text.includes("const a = 1 &lt; 2;"), "r32 export.html 代码块尖括号转义");
+
+      // Word .doc：真实字节响应（BOM + Word 兼容头）
+      const doc32 = await reqBytes(`/api/documents/${docId32}/export.doc`);
+      eq(doc32.status, 200, "r32 GET export.doc -> 200");
+      ok((doc32.headers.get("content-type") ?? "").includes("application/msword"), "r32 export.doc content-type=application/msword");
+      ok((doc32.headers.get("content-disposition") ?? "").includes(".doc"), "r32 export.doc 下载文件名带 .doc");
+      eq(Array.from(doc32.bytes.slice(0, 3)), [0xEF, 0xBB, 0xBF], "r32 export.doc 头三字节为 UTF-8 BOM");
+      const word32 = new TextDecoder("utf-8").decode(doc32.bytes).replace(/^\uFEFF/, "");
+      ok(word32.includes('xmlns:w="urn:schemas-microsoft-com:office:word"'), "r32 export.doc Word 命名空间在场");
+      ok(word32.includes("<w:WordDocument>") && word32.includes("WordSection1"), "r32 export.doc Word 条件注释与分页节在场");
+      ok(word32.includes("mso-field-code"), "r32 export.doc 页码域码在场");
+      ok(word32.includes("一级标题") && word32.includes("引用一句话"), "r32 export.doc 十种块正文不丢");
+      ok(word32.includes("&lt;script&gt;"), "r32 export.doc XSS 同样被转义");
+      ok(word32.includes("&amp; 成本"), "r32 export.doc & 字符被转义为实体");
+
+      // 打印预览：JSON + 真 HTML 片段
+      const preview32 = await expectStatus("GET", `/api/documents/${docId32}/print-preview`, undefined, 200, "r32 GET print-preview -> 200");
+      eq(preview32.json.blockCount, 10, "r32 预览 blockCount=10");
+      ok(String(preview32.json.title).includes(stamp32), "r32 预览标题回带");
+      ok(String(preview32.json.html).startsWith("<!DOCTYPE html>"), "r32 预览携带完整可打印 HTML");
+      ok(typeof preview32.json.generatedAt === "string", "r32 预览生成时间字段在场");
+
+      // 4xx：越权 id / 非法 id / 空文档 / 非法块
+      await expectStatus("GET", "/api/documents/99999999/export.html", undefined, 404, "r32 越权 id 导出 HTML -> 404");
+      await expectStatus("GET", "/api/documents/bad-id/export.doc", undefined, 400, "r32 非法 id 导出 Word -> 400");
+      await expectStatus("GET", "/api/documents/99999999/print-preview", undefined, 404, "r32 越权 id 预览 -> 404");
+      await expectStatus("GET", "/api/documents/bad-id/print-preview", undefined, 400, "r32 非法 id 预览 -> 400");
+      const badBlock32 = await expectStatus(
+        "POST", `/api/documents/${docId32}/blocks`, { type: "evil", content: { text: "x" } }, 400, "r32 非法块类型写入 -> 400",
+      );
+      ok(String(badBlock32.json.error).includes("非法块类型"), "r32 非法块类型错误文案明确");
+      const empty32 = await expectStatus("POST", "/api/documents", { title: `${stamp32}-empty` }, 201, "r32 建空文档探针 -> 201");
+      const firstBlock32 = (await expectStatus("GET", `/api/documents/${empty32.json.id}/blocks`, undefined, 200, "r32 空探针默认首块在场 -> 200")).json.blocks[0].id;
+      await expectStatus("DELETE", `/api/blocks/${firstBlock32}`, undefined, 200, "r32 删除默认首块 -> 200");
+      const emptyHtml32 = await expectStatus("GET", `/api/documents/${empty32.json.id}/export.html`, undefined, 422, "r32 空文档导出 HTML -> 422");
+      ok(String(emptyHtml32.json.error).includes("空文档"), "r32 空文档错误文案明确");
+      await expectStatus("GET", `/api/documents/${empty32.json.id}/export.doc`, undefined, 422, "r32 空文档导出 Word -> 422");
+      await expectStatus("GET", `/api/documents/${empty32.json.id}/print-preview`, undefined, 422, "r32 空文档预览 -> 422");
+
+      // 清理：两个探针文档软删，列表中归零
+      await expectStatus("DELETE", `/api/documents/${docId32}`, undefined, 200, "r32 清理主探针文档 -> 200");
+      await expectStatus("DELETE", `/api/documents/${empty32.json.id}`, undefined, 200, "r32 清理空探针文档 -> 200");
+      const docsAfter32 = await expectStatus("GET", "/api/documents", undefined, 200, "r32 清理后文档列表 -> 200");
+      eq(docsAfter32.json.documents.filter((d: any) => String(d.title).includes(stamp32)).length, 0, "r32 本轮探针文档归零");
+    }
 }
 
 try {
