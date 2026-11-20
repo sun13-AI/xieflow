@@ -26,6 +26,7 @@
 #   powershell -File scripts\shot.ps1 shots -Round r25 # capture r25 actor-badge / dept-filter / manual-hint matrix + 15-tab shell baseline
 #   powershell -File scripts\shot.ps1 shots -Round r26 # capture r26 notification center matrix + 16-tab shell baseline
 #   powershell -File scripts\shot.ps1 shots -Round r27 # capture r27 report center matrix + 17-tab shell baseline
+#   powershell -File scripts\shot.ps1 shots -Round r28 # capture r28 meeting management matrix + 18-tab shell baseline
 #   powershell -File scripts\shot.ps1 shots -Round r24 # capture r24 member-picker matrix + 15-tab shell baseline
 #   powershell -File scripts\shot.ps1 shots -Round r11 -Shot 08-docs-diff-inline # rework#1: re-capture ONLY the diff-inline evidence (no other matrix/shell re-shot)
 #   powershell -File scripts\shot.ps1 shots -Round r26 -Shot 09-notif-deeplink-target # r26 rework#2: seed 3 pending approvals, CDP-click the SECOND notification, capture ONLY 09 (no other matrix/shell re-shot)
@@ -52,7 +53,7 @@ param(
   [Parameter(Position = 0)]
   [ValidateSet("up", "shots", "down", "status", "all")]
   [string]$Action = "status",
-  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r26", "r27")]
+  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r26", "r27", "r28")]
   [string]$Round = "r1",
   [Parameter()]
   [string]$Shot = ""
@@ -152,6 +153,7 @@ function Find-Browser {
 # r23: the FIFTEENTH tab (org) was added -> fifteen active states in one batch.
 # r26: the SIXTEENTH tab (notifications) was added -> sixteen active states in one batch.
 # r27: the SEVENTEENTH tab (reports) was added -> seventeen active states in one batch.
+# r28: the EIGHTEENTH tab (meetings) was added -> eighteen active states in one batch.
 function Invoke-ShellBaseline {
   param([string]$BrowserPath)
   $shellDir = Join-Path $Root "docs\ui\shell"
@@ -174,7 +176,8 @@ function Invoke-ShellBaseline {
     @{ page = "unit-tasks"; file = "unit-tasks-tab-active" },
     @{ page = "org";       file = "org-tab-active" },
     @{ page = "notifications"; file = "notifications-tab-active" },
-    @{ page = "reports";       file = "reports-tab-active" }
+    @{ page = "reports";       file = "reports-tab-active" },
+    @{ page = "meetings";      file = "meetings-tab-active" }
   )
   foreach ($t in $tabs) {
     $url = "http://127.0.0.1:$WebPort/"
@@ -952,7 +955,20 @@ function Invoke-Shots {
     }
   }
 
-  if ($Round -eq "r27") {
+  if ($Round -eq "r28") {
+    # r28: meeting management matrix. All states use deterministic ?shot= pins;
+    # conflict/booking rules are locked by e2e + real HTTP audit.
+    $r28Base = "http://127.0.0.1:$WebPort/?page=meetings"
+    $shots = @(
+      @{ name = "01-meetings-empty";    url = "$r28Base&shot=meetings-empty";    width = 1280; height = 900 },
+      @{ name = "02-meetings-list";     url = "$r28Base&shot=meetings-list";     width = 1280; height = 900 },
+      @{ name = "03-meetings-grid";     url = "$r28Base&shot=meetings-grid";     width = 1280; height = 900 },
+      @{ name = "04-meetings-form";     url = "$r28Base&shot=meetings-form";     width = 1280; height = 900 },
+      @{ name = "05-meetings-conflict"; url = "$r28Base&shot=meetings-conflict"; width = 1280; height = 900 },
+      @{ name = "06-narrow";            url = "$r28Base&shot=meetings-grid&narrow=1"; width = 488; height = 1000 },
+      @{ name = "07-error";             url = "$r28Base&shot=meetings-error";    width = 1280; height = 900 }
+    )
+  } elseif ($Round -eq "r27") {
     # r27: report center matrix. All states use deterministic ?shot= pins; the
     # shared/reports algorithms and the real HTTP assembly are locked by e2e + audit.
     $r27Base = "http://127.0.0.1:$WebPort/?page=reports"

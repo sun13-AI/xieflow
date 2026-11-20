@@ -156,7 +156,7 @@ async function audit() {
     eq(h.json && h.json.ok, true, "health.ok = true");
     // r4 起动态对表：health.schemaVersion 必须等于迁移队列最高版本（不再硬编码 2/3，
     // r3 v0.0.6 CI 红教训——静态硬编码在每轮迁移后必过期）
-    eq(h.json && h.json.schemaVersion, 19, "health.schemaVersion = 18（r25 迁移后）");
+    eq(h.json && h.json.schemaVersion, 20, "health.schemaVersion = 18（r25 迁移后）");
     const s = await req("GET", "/api/settings");
     eq(s.status, 200, "GET /api/settings -> 200");
     ok(Array.isArray(s.json && s.json.settings), "settings 返回数组");
@@ -253,7 +253,7 @@ async function audit() {
   {
     // health 探针反映 schema v8（r4 起迁移后动态推进）
     const h3 = await req("GET", "/api/health");
-    eq(h3.json && h3.json.schemaVersion, 19, "health.schemaVersion = 18（r25 迁移后复核）");
+    eq(h3.json && h3.json.schemaVersion, 20, "health.schemaVersion = 18（r25 迁移后复核）");
 
     const r = await expectStatus(
       "POST",
@@ -2629,7 +2629,7 @@ async function audit() {
     const st0 = await expectStatus("GET", "/api/sync/status", undefined, 200, "r19 GET status -> 200");
     eq(st0.json && st0.json.total, 0, "r19 初始无实体版本");
     eq(st0.json && st0.json.lastChangeId, 0, "r19 初始 lastChangeId=0");
-    eq(st0.json && st0.json.schemaVersion, 19, "r19 status 回带 schema v18（r25 推进）");
+    eq(st0.json && st0.json.schemaVersion, 20, "r19 status 回带 schema v18（r25 推进）");
     const ch0 = await expectStatus("GET", "/api/sync/changes?since=0&limit=50", undefined, 200, "r19 GET changes 空 -> 200");
     eq(ch0.json && ch0.json.count, 0, "r19 初始变更日志为空");
     eq(ch0.json && ch0.json.changes, [], "r19 初始 changes 数组为空");
@@ -2850,7 +2850,7 @@ async function audit() {
     // health：真 HTTP 200 + 真读库语义
     const h = await expectStatus("GET", DEPLOY_PATHS.health, undefined, 200, "r21 GET 契约健康路径 -> 200");
     eq(h.json && h.json.ok, true, "r21 health.ok=true");
-    eq(h.json && h.json.schemaVersion, 19, "r21 health.schemaVersion=18（部署版本一致）");
+    eq(h.json && h.json.schemaVersion, 20, "r21 health.schemaVersion=18（部署版本一致）");
     ok(isServerMode(h.json && h.json.mode), "r21 health.mode 为 local|remote 之一（契约模式合法）");
 
     // mode：模式探针公开可达，回显一致
@@ -2905,7 +2905,7 @@ async function audit() {
   console.log("\n== Org r23: departments / members / tree / search / 4xx ==");
   {
     const h23 = await expectStatus("GET", "/api/health", undefined, 200, "r23 health 真 HTTP 200");
-    eq(h23.json && h23.json.schemaVersion, 19, "r23 health.schemaVersion=18（迁移真生效）");
+    eq(h23.json && h23.json.schemaVersion, 20, "r23 health.schemaVersion=18（迁移真生效）");
     const tree0 = await expectStatus("GET", "/api/org/tree", undefined, 200, "r23 空组织树 -> 200");
     eq(tree0.json && tree0.json.tree, [], "r23 空组织树 tree=[]");
     eq(tree0.json && tree0.json.departments, [], "r23 空组织树 departments=[]");
@@ -2996,7 +2996,7 @@ async function audit() {
   console.log("\n== Org r24: member_id in approvals / assets / usage / 4xx ==");
   {
     const h24 = await expectStatus("GET", "/api/health", undefined, 200, "r24 health 真 HTTP 200");
-    eq(h24.json && h24.json.schemaVersion, 19, "r24 health.schemaVersion=18（迁移真生效）");
+    eq(h24.json && h24.json.schemaVersion, 20, "r24 health.schemaVersion=18（迁移真生效）");
 
     const dept = await expectStatus("POST", "/api/departments", { name: "r24审计研发中心" }, 201, "r24 建部门 -> 201");
     const alice = await expectStatus("POST", "/api/members", {
@@ -3134,7 +3134,7 @@ async function audit() {
   console.log("\n== Approval r25: actorMemberId / linked member / action usage ==");
   {
     const h25 = await expectStatus("GET", "/api/health", undefined, 200, "r25 health 真 HTTP 200");
-    eq(h25.json && h25.json.schemaVersion, 19, "r25 health.schemaVersion=18（v18 迁移真生效）");
+    eq(h25.json && h25.json.schemaVersion, 20, "r25 health.schemaVersion=18（v18 迁移真生效）");
 
     const uname25 = `r25.actor.${Date.now()}`;
     const user25 = await expectStatus("POST", "/api/auth/register", { username: uname25, password: "Passw0rd!" }, 201, "r25 注册登录用户 -> 201");
@@ -3221,6 +3221,7 @@ async function audit() {
   }
   await auditR26();
   await auditR27();
+  await auditR28();
 }
 
 /** r26 通知中心：真事件聚合 / refresh 幂等 / 4xx；由 audit() 末尾调用（不污染 r19 同步基线） */
@@ -3228,7 +3229,7 @@ async function auditR26(): Promise<void> {
   console.log("\n== Notification r26: real event aggregation / idempotent refresh / 4xx ==");
   {
     const h26 = await expectStatus("GET", "/api/health", undefined, 200, "r26 health 真 HTTP 200");
-    eq(h26.json && h26.json.schemaVersion, 19, "r26 health.schemaVersion=19（v19 迁移真生效）");
+    eq(h26.json && h26.json.schemaVersion, 20, "r26 health.schemaVersion=19（v19 迁移真生效）");
     const today = new Date();
     const pad26 = (n: number): string => String(n).padStart(2, "0");
     const todayStr26 = `${today.getFullYear()}-${pad26(today.getMonth() + 1)}-${pad26(today.getDate())}`;
@@ -3361,7 +3362,7 @@ async function auditR27(): Promise<void> {
   console.log("\n== Report r27: real HTTP assembly / hand-check / drilldown / 4xx ==");
   {
     const h27 = await expectStatus("GET", "/api/health", undefined, 200, "r27 health 真 HTTP 200");
-    eq(h27.json && h27.json.schemaVersion, 19, "r27 health.schemaVersion=19（报表轮无新迁移）");
+    eq(h27.json && h27.json.schemaVersion, 20, "r27 health.schemaVersion=19（报表轮无新迁移）");
     const today27 = new Date().toISOString().slice(0, 10);
     const q27 = `from=${today27}&to=${today27}`;
     const stamp27 = Date.now().toString(36);
@@ -3467,6 +3468,169 @@ async function auditR27(): Promise<void> {
     await expectStatus("DELETE", `/api/todos/${todoB27.json.id}`, undefined, 200, "r27 清理未完成待办 -> 200");
     const clean27 = await expectStatus("GET", `/api/reports/overview?${q27}`, undefined, 200, "r27 清理后 overview -> 200");
     eq(metrics27.map((k) => clean27.json.metrics[k].value), metrics27.map((k) => base27.json.metrics[k].value), "r27 清理后六指标逐项恢复基线");
+  }
+}
+
+/** r28 会议管理：真 HTTP 预约 / 409 冲突 id / 边界相接 / 跨室 / 4xx / 参会人；由 audit() 末尾调用 */
+async function auditR28(): Promise<void> {
+  console.log("\n== Meeting r28: real HTTP booking / 409 conflicts / attendees / 4xx ==");
+  {
+    const h28 = await expectStatus("GET", "/api/health", undefined, 200, "r28 health 真 HTTP 200");
+    eq(h28.json && h28.json.schemaVersion, 20, "r28 health.schemaVersion=20（v20 迁移真生效）");
+    const stamp28 = Date.now().toString(36);
+    const day28 = "2027-02-18";
+
+    // 建会议室：两间启用 + 一间停用（越权 room_id 分支载体）
+    const roomA28 = await expectStatus("POST", "/api/rooms", {
+      name: `r28甲-${stamp28}`, location: "3F", capacity: 12, active: true,
+    }, 201, "r28 建会议室甲 -> 201");
+    const roomB28 = await expectStatus("POST", "/api/rooms", {
+      name: `r28乙-${stamp28}`, location: "4F", capacity: 6, active: true,
+    }, 201, "r28 建会议室乙 -> 201");
+    const roomOff28 = await expectStatus("POST", "/api/rooms", {
+      name: `r28停用-${stamp28}`, location: "", capacity: 2, active: false,
+    }, 201, "r28 建停用会议室 -> 201");
+    eq(roomA28.json && roomA28.json.active, true, "r28 会议室甲默认启用回显");
+    eq(roomOff28.json && roomOff28.json.active, false, "r28 停用会议室 active=false 真回显");
+    const rooms28 = await expectStatus("GET", "/api/rooms", undefined, 200, "r28 会议室列表 -> 200");
+    ok(rooms28.json.rooms.some((r: any) => r.id === roomA28.json.id), "r28 会议室列表含本轮探针甲");
+    const roomOne28 = await expectStatus("GET", `/api/rooms/${roomA28.json.id}`, undefined, 200, "r28 单会议室查询 -> 200");
+    eq(roomOne28.json && roomOne28.json.name, roomA28.json.name, "r28 单会议室名称逐字一致");
+    const patchedRoom28 = await expectStatus("PATCH", `/api/rooms/${roomA28.json.id}`, { location: "3F-改" }, 200, "r28 会议室 PATCH -> 200");
+    eq(patchedRoom28.json && patchedRoom28.json.location, "3F-改", "r28 会议室位置真更新");
+    await expectStatus("GET", "/api/rooms/99999999", undefined, 404, "r28 越权会议室 id -> 404");
+    await expectStatus("POST", "/api/rooms", { name: "   " }, 400, "r28 空会议室名 -> 400");
+    await expectStatus("POST", "/api/rooms", { name: "x", capacity: -1 }, 400, "r28 负容量 -> 400");
+
+    // 通讯录成员（参会人校验载体）
+    const dept28 = await expectStatus("POST", "/api/departments", { name: `r28部门-${stamp28}` }, 201, "r28 建部门 -> 201");
+    const memA28 = await expectStatus("POST", "/api/members", {
+      name: `r28参会甲-${stamp28}`, email: `${stamp28}a@example.com`, departmentId: dept28.json.id, status: "active",
+    }, 201, "r28 建启用成员 -> 201");
+    const memB28 = await expectStatus("POST", "/api/members", {
+      name: `r28参会乙-${stamp28}`, email: `${stamp28}b@example.com`, departmentId: dept28.json.id, status: "active",
+    }, 201, "r28 建启用成员乙 -> 201");
+    const memOff28 = await expectStatus("POST", "/api/members", {
+      name: `r28停用成员-${stamp28}`, email: `${stamp28}o@example.com`, status: "inactive",
+    }, 201, "r28 建停用成员 -> 201");
+
+    // 真预约：甲室 09:00-10:00
+    const first28 = await expectStatus("POST", "/api/meetings", {
+      roomId: roomA28.json.id, title: `r28首场-${stamp28}`, date: day28,
+      start: "09:00", end: "10:00", organizer: "r28甲", attendees: [memA28.json.id, memA28.json.id],
+    }, 201, "r28 首场预约 -> 201");
+    eq(first28.json && first28.json.title, `r28首场-${stamp28}`, "r28 首场标题真落库");
+    eq(first28.json && first28.json.attendees, [memA28.json.id], "r28 参会人去重真回显");
+    eq(first28.json && first28.json.date, day28, "r28 预约日期真回显");
+    const next28 = await expectStatus("POST", "/api/meetings", {
+      roomId: roomA28.json.id, title: `r28接档-${stamp28}`, date: day28, start: "10:00", end: "11:00",
+    }, 201, "r28 边界相接预约 -> 201（不冲突）");
+    ok(next28.json && next28.json.id > first28.json.id, "r28 接档会议拿到新 id");
+    const crossRoom28 = await expectStatus("POST", "/api/meetings", {
+      roomId: roomB28.json.id, title: `r28跨室-${stamp28}`, date: day28, start: "09:00", end: "10:00",
+    }, 201, "r28 跨会议室同段 -> 201");
+    eq(crossRoom28.json && crossRoom28.json.roomId, roomB28.json.id, "r28 跨室会议 room_id 正确");
+    const crossDay28 = await expectStatus("POST", "/api/meetings", {
+      roomId: roomA28.json.id, title: `r28跨日-${stamp28}`, date: "2027-02-19", start: "09:00", end: "10:00",
+    }, 201, "r28 跨日期同段 -> 201");
+
+    // 真 409：同室重叠，回带冲突会议 id
+    const clash28 = await expectStatus("POST", "/api/meetings", {
+      roomId: roomA28.json.id, title: `r28撞车-${stamp28}`, date: day28, start: "09:30", end: "10:30",
+    }, 409, "r28 同室重叠 -> 409（真冲突）");
+    eq(clash28.json && clash28.json.code, "MEETING_CONFLICT", "r28 409 code=MEETING_CONFLICT");
+    eq(clash28.json && clash28.json.conflictIds, [first28.json.id, next28.json.id], "r28 409 回带两个冲突会议 id 升序");
+    const wide28 = await expectStatus("POST", "/api/meetings", {
+      roomId: roomA28.json.id, title: `r28大区间-${stamp28}`, date: day28, start: "08:00", end: "12:00",
+    }, 409, "r28 大区间覆盖多场 -> 409");
+    eq(wide28.json && wide28.json.conflictIds.length, 2, "r28 大区间冲突 id 两个");
+    const listAfterClash28 = await expectStatus("GET", `/api/meetings?date=${day28}&roomId=${roomA28.json.id}`, undefined, 200, "r28 409 后会议列表 -> 200");
+    eq(listAfterClash28.json && listAfterClash28.json.count, 2, "r28 409 零半态：甲室仍两场");
+
+    // 409 之外的 4xx：倒挂 / 超长 / 停用室 / 不存在室 / 空标题 / 非法日期 / 停用与不存在参会人
+    await expectStatus("POST", "/api/meetings", {
+      roomId: roomA28.json.id, title: "x", date: day28, start: "10:00", end: "09:00",
+    }, 400, "r28 时段倒挂 -> 400");
+    await expectStatus("POST", "/api/meetings", {
+      roomId: roomA28.json.id, title: "x", date: day28, start: "08:00", end: "16:01",
+    }, 400, "r28 超过 8 小时 -> 400");
+    await expectStatus("POST", "/api/meetings", {
+      roomId: roomOff28.json.id, title: "x", date: day28, start: "12:00", end: "13:00",
+    }, 400, "r28 停用会议室预约 -> 400");
+    await expectStatus("POST", "/api/meetings", {
+      roomId: 99999999, title: "x", date: day28, start: "12:00", end: "13:00",
+    }, 400, "r28 越权 room_id -> 400");
+    await expectStatus("POST", "/api/meetings", {
+      roomId: roomA28.json.id, title: "  ", date: day28, start: "12:00", end: "13:00",
+    }, 400, "r28 空会议标题 -> 400");
+    await expectStatus("POST", "/api/meetings", {
+      roomId: roomA28.json.id, title: "x", date: "2027-02-30", start: "12:00", end: "13:00",
+    }, 400, "r28 非法日期 -> 400");
+    await expectStatus("POST", "/api/meetings", {
+      roomId: roomA28.json.id, title: "x", date: day28, start: "12:00", end: "13:00", attendees: [99999999],
+    }, 400, "r28 不存在参会人 -> 400");
+    await expectStatus("POST", "/api/meetings", {
+      roomId: roomA28.json.id, title: "x", date: day28, start: "12:00", end: "13:00", attendees: [memOff28.json.id],
+    }, 400, "r28 停用参会人 -> 400");
+    const after4xx28 = await expectStatus("GET", `/api/meetings?date=${day28}&roomId=${roomA28.json.id}`, undefined, 200, "r28 4xx 后列表仍 200");
+    eq(after4xx28.json && after4xx28.json.count, 2, "r28 4xx 不改变会议台账（零半态）");
+
+    // 查询与可用性
+    const byDay28 = await expectStatus("GET", `/api/meetings?date=${day28}`, undefined, 200, "r28 按日期查询 -> 200");
+    eq(byDay28.json && byDay28.json.count, 3, "r28 当日三场（甲2乙1）");
+    eq(byDay28.json && byDay28.json.availability.length, 2, "r28 availability 只列两间启用会议室");
+    const avail28 = await expectStatus("GET", `/api/rooms/${roomA28.json.id}/availability?date=${day28}`, undefined, 200, "r28 单室可用性 -> 200");
+    eq(avail28.json && avail28.json.bookings.length, 2, "r28 单室可用性回两条预约");
+    eq(avail28.json && avail28.json.bookings[0].start, "09:00", "r28 可用性按开始时间升序");
+    await expectStatus("GET", `/api/rooms/${roomA28.json.id}/availability?date=bad`, undefined, 400, "r28 可用性非法日期 -> 400");
+    await expectStatus("GET", "/api/rooms/99999999/availability?date=2027-02-18", undefined, 404, "r28 可用性越权室 -> 404");
+    await expectStatus("GET", "/api/meetings/99999999", undefined, 404, "r28 越权会议 id -> 404");
+    await expectStatus("GET", "/api/meetings?date=bad", undefined, 400, "r28 会议列表非法日期 -> 400");
+
+    // 改期：自我排除 + 撞别的场次被拒
+    const patchOk28 = await expectStatus("PATCH", `/api/meetings/${crossDay28.json.id}`, {
+      date: day28, start: "11:00", end: "12:00",
+    }, 200, "r28 改期到空闲段 -> 200");
+    eq(patchOk28.json && patchOk28.json.start, "11:00", "r28 改期开始时间真落库");
+    const patchSelf28 = await expectStatus("PATCH", `/api/meetings/${first28.json.id}`, {
+      title: `r28改名-${stamp28}`,
+    }, 200, "r28 只改标题（不撞自己）-> 200");
+    eq(patchSelf28.json && patchSelf28.json.title, `r28改名-${stamp28}`, "r28 自我排除改期成功");
+    const patchClash28 = await expectStatus("PATCH", `/api/meetings/${crossDay28.json.id}`, {
+      start: "09:30", end: "10:30",
+    }, 409, "r28 改期撞其他场次 -> 409");
+    eq(patchClash28.json && patchClash28.json.conflictIds.length, 2, "r28 改期 409 回带冲突 id");
+
+    // 参会人管理：整组替换 / 增补 / 移除 / 4xx 零半态
+    const put28 = await expectStatus("PUT", `/api/meetings/${first28.json.id}/attendees`, {
+      attendees: [memA28.json.id, memB28.json.id, memA28.json.id],
+    }, 200, "r28 参会人整组替换 -> 200");
+    eq(put28.json && put28.json.attendees, [memA28.json.id, memB28.json.id], "r28 替换后参会人去重回显");
+    const getAtt28 = await expectStatus("GET", `/api/meetings/${first28.json.id}/attendees`, undefined, 200, "r28 参会人查询 -> 200");
+    eq(getAtt28.json && getAtt28.json.count, 2, "r28 参会人真落库两条");
+    await expectStatus("PUT", `/api/meetings/${first28.json.id}/attendees`, { attendees: [memOff28.json.id] }, 400, "r28 替换含停用成员 -> 400");
+    eq((await expectStatus("GET", `/api/meetings/${first28.json.id}/attendees`, undefined, 200, "r28 4xx 后参会人查询 -> 200")).json.count, 2, "r28 400 后参会人零半态");
+    const removed28 = await expectStatus("DELETE", `/api/meetings/${first28.json.id}/attendees/${memB28.json.id}`, undefined, 200, "r28 移除参会人 -> 200");
+    eq(removed28.json && removed28.json.count, 1, "r28 移除后剩一人");
+    await expectStatus("DELETE", `/api/meetings/${first28.json.id}/attendees/${memB28.json.id}`, undefined, 404, "r28 重复移除 -> 404");
+    await expectStatus("GET", "/api/meetings/99999999/attendees", undefined, 404, "r28 越权会议参会人查询 -> 404");
+
+    // 清理：只删本轮探针
+    await expectStatus("DELETE", `/api/meetings/${first28.json.id}`, undefined, 200, "r28 清理首场 -> 200");
+    await expectStatus("DELETE", `/api/meetings/${next28.json.id}`, undefined, 200, "r28 清理接档 -> 200");
+    await expectStatus("DELETE", `/api/meetings/${crossRoom28.json.id}`, undefined, 200, "r28 清理跨室 -> 200");
+    await expectStatus("DELETE", `/api/meetings/${crossDay28.json.id}`, undefined, 200, "r28 清理跨日 -> 200");
+    await expectStatus("DELETE", `/api/members/${memA28.json.id}`, undefined, 200, "r28 清理成员甲 -> 200");
+    await expectStatus("DELETE", `/api/members/${memB28.json.id}`, undefined, 200, "r28 清理成员乙 -> 200");
+    await expectStatus("DELETE", `/api/members/${memOff28.json.id}`, undefined, 200, "r28 清理停用成员 -> 200");
+    await expectStatus("DELETE", `/api/departments/${dept28.json.id}`, undefined, 200, "r28 清理部门 -> 200");
+    await expectStatus("DELETE", `/api/rooms/${roomA28.json.id}`, undefined, 200, "r28 清理会议室甲 -> 200");
+    await expectStatus("DELETE", `/api/rooms/${roomB28.json.id}`, undefined, 200, "r28 清理会议室乙 -> 200");
+    await expectStatus("DELETE", `/api/rooms/${roomOff28.json.id}`, undefined, 200, "r28 清理停用会议室 -> 200");
+    const clean28 = await expectStatus("GET", `/api/meetings?date=${day28}`, undefined, 200, "r28 清理后会议列表 -> 200");
+    eq(clean28.json && clean28.json.count, 0, "r28 清理后本轮会议归零");
+    const cleanRooms28 = await expectStatus("GET", "/api/rooms", undefined, 200, "r28 清理后会议室列表 -> 200");
+    eq(cleanRooms28.json.rooms.filter((r: any) => String(r.name).includes(stamp28)).length, 0, "r28 清理后本轮会议室归零");
   }
 }
 

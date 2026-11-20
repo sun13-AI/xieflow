@@ -49,6 +49,7 @@ import type {
 } from "@xieflow/shared";
 import type { Department, Member } from "@xieflow/shared/org";
 import type { Notification, NotificationRefType, NotificationType } from "@xieflow/shared/notifications";
+import type { Meeting, MeetingAttendee, Room } from "@xieflow/shared/meetings";
 import type { AuthUser, AuthRole, Session } from "@xieflow/shared/auth";
 import { isFieldType, isBlockType, normalizeBlockContent, isKnowledgeSourceType } from "@xieflow/shared";
 import { REPEATS_ORDER } from "./repeat-order.js";
@@ -587,6 +588,44 @@ export function mapRowToNotification(row: Row): Notification {
     refType: String(row.ref_type) as NotificationRefType,
     refId: Number(row.ref_id),
     readAt: row.read_at === null || row.read_at === undefined ? null : String(row.read_at),
+    createdAt: String(row.created_at),
+  };
+}
+
+/** v20 rooms 行 → 会议室契约（active 0/1 → boolean，唯一入口） */
+export function mapRowToRoom(row: Row): Room {
+  return {
+    id: Number(row.id),
+    name: String(row.name),
+    location: String(row.location),
+    capacity: Number(row.capacity),
+    active: Number(row.active) === 1,
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+  };
+}
+
+/** v20 meetings 行 → 会议契约 */
+export function mapRowToMeeting(row: Row): Meeting {
+  return {
+    id: Number(row.id),
+    roomId: Number(row.room_id),
+    title: String(row.title),
+    date: String(row.date),
+    start: String(row.start_time),
+    end: String(row.end_time),
+    organizer: String(row.organizer),
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+  };
+}
+
+/** v20 meeting_attendees 行 → 参会人契约 */
+export function mapRowToMeetingAttendee(row: Row): MeetingAttendee {
+  return {
+    id: Number(row.id),
+    meetingId: Number(row.meeting_id),
+    memberId: Number(row.member_id),
     createdAt: String(row.created_at),
   };
 }

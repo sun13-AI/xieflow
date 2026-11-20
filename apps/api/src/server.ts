@@ -116,6 +116,12 @@ import {
   filterReportDetail,
   type ReportSource,
 } from "@xieflow/shared/reports";
+// r28：会议管理——冲突检测/时段守卫/参会人归一唯一口径在 shared/meetings
+import {
+  MeetingConflictError,
+  assertValidMeetingDate,
+  meetingAvailability,
+} from "@xieflow/shared/meetings";
 
 /** r27：只读装配当前库全部来源数据（六指标同一快照）；不写任何业务数据 */
 function collectReportSource(store: XieFlowDb): ReportSource {
@@ -3358,6 +3364,199 @@ app.get("/api/reports/:metric", async (req, reply) => {
     const detail = filterReportDetail(result, id);
     if (detail.length === 0) return reply.code(404).send({ error: `报表实体不存在：${id}` });
     return { ...result, detail, entityId: id, range: overview.range };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+/** r28 冲突映射：MeetingConflictError -> 409 + 冲突会议 id（web 红条提示消费） */
+function meetingErrorReply(err: unknown, reply: FastifyReply): FastifyReply {
+  if (err instanceof MeetingConflictError) {
+    return reply.code(409).send({
+      error: err.message,
+      code: "MEETING_CONFLICT",
+      conflictIds: [...err.conflictIds],
+      conflicts: [...err.conflictIds],
+    });
+  }
+  return toErrorReply(err, reply);
+}
+
+function meetingWithAttendees(store: XieFlowDb, id: number): Record<string, unknown> | null {
+  const meeting = store.getMeeting(id);
+  if (!meeting) return null;
+  const rows = store.listMeetingAttendees(id);
+  return { ...meeting, attendees: rows.map((a) => a.memberId), attendeeRows: rows };
+}
+
+// ---- r28：会议室 CRUD（规则全在 shared/meetings，本层只装配与 400/404 映射） ----
+
+app.get("/api/rooms", async () => {
+  const rooms = requireDb().listRooms();
+  return { rooms, count: rooms.length };
+});
+
+app.post("/api/rooms", async (req, reply) => {
+  try {
+    return reply.code(201).send(requireDb().createRoom(req.body ?? {}));
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.get("/api/rooms/:id/availability", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const store = requireDb();
+    if (!store.getRoom(id)) return reply.code(404).send({ error: `会议室不存在：${id}` });
+    const rawDate = (req.query as { date?: unknown }).date;
+    assertValidMeetingDate(rawDate);
+    const date = rawDate as string;
+    const room = store.getRoom(id)!;
+    const booked = meetingAvailability(date, [room], store.listMeetings()).find((r) => r.roomId === id);
+    return { roomId: id, roomName: room.name, date, bookings: booked?.bookings ?? [] };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.get("/api/rooms/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const room = requireDb().getRoom(id);
+    if (!room) return reply.code(404).send({ error: `会议室不存在：${id}` });
+    return room;
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.patch("/api/rooms/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const updated = requireDb().updateRoom(id, req.body ?? {});
+    if (!updated) return reply.code(404).send({ error: `会议室不存在：${id}` });
+    return updated;
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.delete("/api/rooms/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    if (!requireDb().deleteRoom(id)) return reply.code(404).send({ error: `会议室不存在：${id}` });
+    return { deleted: true, id };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+// ---- r28：会议 CRUD + 预约（409 真冲突）+ 按日期/会议室查询 + 参会人管理 ----
+
+app.get("/api/meetings", async (req, reply) => {
+  try {
+    const q = req.query as { date?: unknown; roomId?: unknown };
+    const store = requireDb();
+    const meetings = store.listMeetings({ date: q.date, roomId: q.roomId });
+    let availability: unknown[] = [];
+    if (typeof q.date === "string" && q.date !== "") {
+      assertValidMeetingDate(q.date);
+      availability = meetingAvailability(q.date, store.listRooms(), store.listMeetings());
+    }
+    return { meetings, count: meetings.length, availability };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.post("/api/meetings", async (req, reply) => {
+  try {
+    const created = requireDb().createMeeting(req.body ?? {});
+    return reply.code(201).send(meetingWithAttendees(requireDb(), created.id));
+  } catch (err) {
+    return meetingErrorReply(err, reply);
+  }
+});
+
+app.get("/api/meetings/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const found = meetingWithAttendees(requireDb(), id);
+    if (!found) return reply.code(404).send({ error: `会议不存在：${id}` });
+    return found;
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.patch("/api/meetings/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const updated = requireDb().updateMeeting(id, req.body ?? {});
+    if (!updated) return reply.code(404).send({ error: `会议不存在：${id}` });
+    return meetingWithAttendees(requireDb(), id);
+  } catch (err) {
+    return meetingErrorReply(err, reply);
+  }
+});
+
+app.delete("/api/meetings/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    if (!requireDb().deleteMeeting(id)) return reply.code(404).send({ error: `会议不存在：${id}` });
+    return { deleted: true, id };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.get("/api/meetings/:id/attendees", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const store = requireDb();
+    if (!store.getMeeting(id)) return reply.code(404).send({ error: `会议不存在：${id}` });
+    const rows = store.listMeetingAttendees(id);
+    return { meetingId: id, attendees: rows.map((a) => a.memberId), rows, count: rows.length };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.put("/api/meetings/:id/attendees", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const ids = requireDb().setMeetingAttendees(id, (req.body as { attendees?: unknown })?.attendees ?? req.body ?? []);
+    return { meetingId: id, attendees: ids, count: ids.length };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.post("/api/meetings/:id/attendees", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const memberId = parseId(String((req.body as { memberId?: unknown })?.memberId ?? ""));
+    const created = requireDb().addMeetingAttendee(id, memberId);
+    if (!created) return reply.code(409).send({ error: `参会人已在会议中：${memberId}`, code: "MEETING_ATTENDEE_EXISTS" });
+    const rows = requireDb().listMeetingAttendees(id);
+    return reply.code(201).send({ meetingId: id, attendees: rows.map((a) => a.memberId), count: rows.length });
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.delete("/api/meetings/:id/attendees/:memberId", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string; memberId: string }).id);
+    const memberId = parseId((req.params as { id: string; memberId: string }).memberId);
+    const store = requireDb();
+    if (!store.getMeeting(id)) return reply.code(404).send({ error: `会议不存在：${id}` });
+    if (!store.removeMeetingAttendee(id, memberId)) {
+      return reply.code(404).send({ error: `参会人不在会议中：${memberId}` });
+    }
+    const rows = store.listMeetingAttendees(id);
+    return { meetingId: id, attendees: rows.map((a) => a.memberId), count: rows.length };
   } catch (err) {
     return toErrorReply(err, reply);
   }

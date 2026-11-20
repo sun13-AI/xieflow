@@ -3850,3 +3850,42 @@ html.force-narrow .reports-table th:nth-child(3), html.force-narrow .reports-tab
   .reports-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .reports-window { margin-left: 0; }
 }
+
+/* r28 会议管理：左会议室 / 中时段网格 / 右预约表单 */
+.meetings-page h1 { font-size: 20px; margin: 0 0 5px; }
+.meetings-intro { margin: 0 0 10px; font-size: 12px; color: var(--ink-2); }
+.meetings-shot-note { margin: 0 0 10px; padding: 7px 10px; border-radius: 8px; background: #eaf2ff; color: #284b8b; font-size: 12px; }
+.meetings-ok { margin: 0 0 10px; padding: 7px 10px; border-radius: 8px; background: #eafaf0; color: #177245; font-size: 12px; }
+.meetings-conflict { margin: 0 0 10px; padding: 8px 11px; border: 1px solid #e8a4a0; border-left: 4px solid #c0392b; border-radius: 8px; background: #fdecea; color: #9b1c1c; font-size: 12px; font-weight: 600; }
+.meetings-action-error { margin: 0 0 10px; padding: 7px 10px; border-radius: 8px; background: #fdecea; color: #c0392b; font-size: 12px; }
+.meetings-columns { display: grid; grid-template-columns: 220px minmax(0, 1fr) 280px; gap: 12px; align-items: start; }
+.meeting-rooms, .meeting-grid, .meeting-form { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; }
+.meeting-rooms h2, .meeting-grid h2, .meeting-form h2 { font-size: 14px; margin: 0 0 9px; }
+.meeting-rooms ul { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 6px; }
+.meeting-room { width: 100%; display: flex; flex-direction: column; gap: 3px; text-align: left; padding: 8px 9px; border: 1px solid var(--line); border-radius: 8px; background: #fff; cursor: pointer; }
+.meeting-room strong { font-size: 12px; }
+.meeting-room small { font-size: 10px; color: var(--ink-2); }
+.meeting-room-active { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: #fafcff; }
+.meeting-room-off { opacity: 0.62; }
+.meeting-new-room { border-top: 1px dashed var(--line); padding-top: 9px; display: grid; gap: 6px; }
+.meeting-new-room label { display: grid; gap: 4px; font-size: 11px; color: var(--ink-2); }
+.meeting-new-room input, .meeting-form input, .meeting-form select { width: 100%; box-sizing: border-box; border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font-size: 12px; }
+.meeting-date { display: block; font-size: 11px; color: var(--ink-2); margin-bottom: 9px; }
+.meeting-date input { border: 1px solid var(--line); border-radius: 6px; padding: 5px 7px; margin-left: 5px; font-size: 12px; }
+.meeting-grid-body { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.meeting-grid-row { display: grid; grid-template-columns: 56px minmax(0, 1fr); min-height: 34px; border-bottom: 1px solid #f0f2f6; }
+.meeting-grid-row:last-child { border-bottom: 0; }
+.meeting-grid-hour { padding: 8px 6px; font-size: 11px; color: var(--ink-2); background: #f7f9fc; }
+.meeting-grid-slot { padding: 4px 6px; display: flex; flex-wrap: wrap; gap: 4px; }
+.meeting-grid-bar { display: inline-block; padding: 4px 8px; border-radius: 5px; background: #eaf2ff; border-left: 3px solid var(--accent); color: #284b8b; font-size: 11px; }
+.meeting-form label { display: grid; gap: 4px; margin-bottom: 8px; font-size: 11px; color: var(--ink-2); }
+.meeting-attendees { border: 1px solid var(--line); border-radius: 8px; margin: 4px 0 10px; padding: 7px 9px; }
+.meeting-attendees legend { font-size: 11px; color: var(--ink-2); padding: 0 4px; }
+.meeting-attendee { display: flex !important; align-items: center; gap: 5px; margin-bottom: 4px !important; font-size: 11px; }
+.meeting-attendee input { width: auto; }
+.meeting-form .btn-primary { width: 100%; }
+html.force-narrow .meetings-columns { grid-template-columns: 1fr; }
+html.force-narrow .meeting-grid-body { max-height: 300px; overflow-y: auto; }
+@media (max-width: 900px) {
+  .meetings-columns { grid-template-columns: 1fr; }
+}

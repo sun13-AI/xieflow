@@ -9,7 +9,8 @@
     "./deploy": "./src/deploy.ts",
     "./org": "./src/org.ts",
     "./notifications": "./src/notifications.ts",
-    "./reports": "./src/reports.ts"
+    "./reports": "./src/reports.ts",
+    "./meetings": "./src/meetings.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit"

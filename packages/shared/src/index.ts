@@ -321,7 +321,7 @@ export function assembleRangeSchedules(
 }
 
 /** 数据库 schema 版本号，每轮迁移必须 +1（宪法：禁止手改库文件） */
-export const SCHEMA_VERSION: number = 19;
+export const SCHEMA_VERSION: number = 20;
 
 
 /** 迁移脚本类型：user_version 从 from 升到 to */

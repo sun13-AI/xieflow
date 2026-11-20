@@ -45,6 +45,9 @@ import {
   mapRowToDepartment,
   mapRowToMember,
   mapRowToNotification,
+  mapRowToRoom,
+  mapRowToMeeting,
+  mapRowToMeetingAttendee,
 } from "./mappers.js";
 import type {
   AppSetting,
@@ -188,6 +191,14 @@ import {
   type EntityVersion,
   type ChangeOperation,
 } from "@xieflow/shared";
+import {
+  normalizeRoomDraft,
+  normalizeMeetingDraft,
+  normalizeAttendees,
+  type Room,
+  type Meeting,
+  type MeetingAttendee,
+} from "@xieflow/shared/meetings";
 import {
   normalizeDepartment,
   findDuplicateDepartmentName,
@@ -2968,5 +2979,173 @@ export class XieFlowDb {
 
   deleteNotification(id: number): boolean {
     return this.db.run("DELETE FROM notifications WHERE id = ?", [id]).changes > 0;
+  }
+
+  // ---- r28：会议管理（schema v20；三函数规则全在 shared/meetings，本层只守卫与落库） ----
+
+  private attendeeCandidates(): { id: number; status: string }[] {
+    return this.listMembers().map((m) => ({ id: m.id, status: m.status }));
+  }
+
+  listRooms(activeOnly = false): Room[] {
+    const where = activeOnly ? " WHERE active = 1" : "";
+    return this.db.all(`SELECT id, name, location, capacity, active, created_at, updated_at FROM rooms${where} ORDER BY id`).map(mapRowToRoom);
+  }
+
+  getRoom(id: number): Room | null {
+    const row = this.db.get(
+      "SELECT id, name, location, capacity, active, created_at, updated_at FROM rooms WHERE id = ?",
+      [id],
+    );
+    return row ? mapRowToRoom(row) : null;
+  }
+
+  createRoom(input: unknown): Room {
+    const room = normalizeRoomDraft(input as Record<string, unknown>);
+    const now = new Date().toISOString();
+    const res = this.db.run(
+      `INSERT INTO rooms (name, location, capacity, active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
+      [room.name, room.location, room.capacity, room.active ? 1 : 0, now, now],
+    );
+    const created = this.getRoom(Number(res.lastInsertRowid));
+    if (!created) throw new Error("会议室写入后读回失败");
+    return created;
+  }
+
+  updateRoom(id: number, patch: unknown): Room | null {
+    const existing = this.getRoom(id);
+    if (!existing) return null;
+    const body = (patch ?? {}) as Record<string, unknown>;
+    const room = normalizeRoomDraft({
+      name: body.name !== undefined ? body.name : existing.name,
+      location: body.location !== undefined ? body.location : existing.location,
+      capacity: body.capacity !== undefined ? body.capacity : existing.capacity,
+      active: body.active !== undefined ? body.active : existing.active,
+    });
+    this.db.run(
+      "UPDATE rooms SET name = ?, location = ?, capacity = ?, active = ?, updated_at = ? WHERE id = ?",
+      [room.name, room.location, room.capacity, room.active ? 1 : 0, new Date().toISOString(), id],
+    );
+    return this.getRoom(id);
+  }
+
+  deleteRoom(id: number): boolean {
+    return this.db.run("DELETE FROM rooms WHERE id = ?", [id]).changes > 0;
+  }
+
+  listMeetings(query: { readonly date?: unknown; readonly roomId?: unknown } = {}): Meeting[] {
+    const where: string[] = [];
+    const params: (string | number)[] = [];
+    if (query.date !== undefined && query.date !== null && query.date !== "") {
+      where.push("date = ?");
+      params.push(String(query.date));
+    }
+    if (query.roomId !== undefined && query.roomId !== null && query.roomId !== "") {
+      where.push("room_id = ?");
+      params.push(Number(query.roomId));
+    }
+    const sql = `SELECT id, room_id, title, date, start_time, end_time, organizer, created_at, updated_at FROM meetings${where.length > 0 ? ` WHERE ${where.join(" AND ")}` : ""} ORDER BY date, start_time, id`;
+    return this.db.all(sql, params).map(mapRowToMeeting);
+  }
+
+  getMeeting(id: number): Meeting | null {
+    const row = this.db.get(
+      "SELECT id, room_id, title, date, start_time, end_time, organizer, created_at, updated_at FROM meetings WHERE id = ?",
+      [id],
+    );
+    return row ? mapRowToMeeting(row) : null;
+  }
+
+  private meetingDraft(input: unknown, excludeId?: number) {
+    const body = (input ?? {}) as Record<string, unknown>;
+    const existing = this.listMeetings().filter((m) => m.id !== excludeId);
+    return normalizeMeetingDraft(body, this.listRooms(), this.attendeeCandidates(), existing);
+  }
+
+  createMeeting(input: unknown): Meeting {
+    const draft = this.meetingDraft(input);
+    const now = new Date().toISOString();
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      const res = this.db.run(
+        `INSERT INTO meetings (room_id, title, date, start_time, end_time, organizer, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [draft.roomId, draft.title, draft.date, draft.start, draft.end, draft.organizer, now, now],
+      );
+      const id = Number(res.lastInsertRowid);
+      for (const memberId of draft.attendees) {
+        this.db.run("INSERT INTO meeting_attendees (meeting_id, member_id, created_at) VALUES (?, ?, ?)", [id, memberId, now]);
+      }
+      this.db.exec("COMMIT");
+      const created = this.getMeeting(id);
+      if (!created) throw new Error("会议写入后读回失败");
+      return created;
+    } catch (err) {
+      this.db.exec("ROLLBACK");
+      throw err;
+    }
+  }
+
+  updateMeeting(id: number, patch: unknown): Meeting | null {
+    const existing = this.getMeeting(id);
+    if (!existing) return null;
+    const body = (patch ?? {}) as Record<string, unknown>;
+    const draft = this.meetingDraft({
+      roomId: body.roomId !== undefined ? body.roomId : existing.roomId,
+      title: body.title !== undefined ? body.title : existing.title,
+      date: body.date !== undefined ? body.date : existing.date,
+      start: body.start !== undefined ? body.start : existing.start,
+      end: body.end !== undefined ? body.end : existing.end,
+      organizer: body.organizer !== undefined ? body.organizer : existing.organizer,
+    }, id);
+    this.db.run(
+      `UPDATE meetings SET room_id = ?, title = ?, date = ?, start_time = ?, end_time = ?, organizer = ?, updated_at = ? WHERE id = ?`,
+      [draft.roomId, draft.title, draft.date, draft.start, draft.end, draft.organizer, new Date().toISOString(), id],
+    );
+    if (body.attendees !== undefined) this.setMeetingAttendees(id, body.attendees);
+    return this.getMeeting(id);
+  }
+
+  deleteMeeting(id: number): boolean {
+    return this.db.run("DELETE FROM meetings WHERE id = ?", [id]).changes > 0;
+  }
+
+  listMeetingAttendees(meetingId: number): MeetingAttendee[] {
+    return this.db
+      .all("SELECT id, meeting_id, member_id, created_at FROM meeting_attendees WHERE meeting_id = ? ORDER BY id", [meetingId])
+      .map(mapRowToMeetingAttendee);
+  }
+
+  /** 参会人整组替换：先过 shared 去重/停用校验，再单事务替换（零半态） */
+  setMeetingAttendees(meetingId: number, input: unknown): number[] {
+    if (!this.getMeeting(meetingId)) throw new ValidationError(`会议不存在：${meetingId}`);
+    const ids = normalizeAttendees(input, this.attendeeCandidates());
+    const now = new Date().toISOString();
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      this.db.run("DELETE FROM meeting_attendees WHERE meeting_id = ?", [meetingId]);
+      for (const memberId of ids) {
+        this.db.run("INSERT INTO meeting_attendees (meeting_id, member_id, created_at) VALUES (?, ?, ?)", [meetingId, memberId, now]);
+      }
+      this.db.exec("COMMIT");
+      return ids;
+    } catch (err) {
+      this.db.exec("ROLLBACK");
+      throw err;
+    }
+  }
+
+  addMeetingAttendee(meetingId: number, memberId: number): boolean {
+    if (!this.getMeeting(meetingId)) throw new ValidationError(`会议不存在：${meetingId}`);
+    const ids = normalizeAttendees([memberId], this.attendeeCandidates());
+    const normalized = ids[0];
+    if (normalized === undefined) return false;
+    if (this.listMeetingAttendees(meetingId).some((a) => a.memberId === normalized)) return false;
+    this.db.run("INSERT INTO meeting_attendees (meeting_id, member_id, created_at) VALUES (?, ?, ?)", [meetingId, normalized, new Date().toISOString()]);
+    return true;
+  }
+
+  removeMeetingAttendee(meetingId: number, memberId: number): boolean {
+    return this.db.run("DELETE FROM meeting_attendees WHERE meeting_id = ? AND member_id = ?", [meetingId, memberId]).changes > 0;
   }
 }

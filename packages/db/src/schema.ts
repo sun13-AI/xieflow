@@ -453,6 +453,43 @@ export const MIGRATIONS: Migration[] = [
       `CREATE INDEX IF NOT EXISTS idx_notifications_ref ON notifications (ref_type, ref_id)`,
     ],
   },
+  {
+    version: 20,
+    name: "r28 · rooms / meetings / meeting_attendees 表（会议管理与会议室预约：本地台账，不接视频/外部日历）",
+    up: [
+      `CREATE TABLE IF NOT EXISTS rooms (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL CHECK (length(name) > 0),
+        location TEXT NOT NULL DEFAULT '',
+        capacity INTEGER NOT NULL DEFAULT 0 CHECK (capacity >= 0),
+        active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0,1)),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_rooms_active ON rooms (active)`,
+      `CREATE TABLE IF NOT EXISTS meetings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        room_id INTEGER NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+        title TEXT NOT NULL CHECK (length(title) > 0),
+        date TEXT NOT NULL,
+        start_time TEXT NOT NULL,
+        end_time TEXT NOT NULL,
+        organizer TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_meetings_room_date ON meetings (room_id, date)`,
+      `CREATE INDEX IF NOT EXISTS idx_meetings_date ON meetings (date)`,
+      `CREATE TABLE IF NOT EXISTS meeting_attendees (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        meeting_id INTEGER NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+        member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+        created_at TEXT NOT NULL,
+        UNIQUE (meeting_id, member_id)
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_meeting_attendees_meeting ON meeting_attendees (meeting_id)`,
+    ],
+  },
 ];
 
 /** 当前 schema 版本（与 shared 的 SCHEMA_VERSION 保持一致，e2e 会断言二者相等） */

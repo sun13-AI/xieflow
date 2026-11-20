@@ -29,6 +29,8 @@
 > 徽章推进 r26「通知中心（站内消息聚合）」+ schema v19 → **十六张同批重拍**，与 r25 十五张同名文件逐位全异。
 > **r27 新增第十七 tab「报表」**：`?page=reports` 跨模块 KPI 看板（六卡 + 环比 + 迷你条 + 明细下钻），补 `reports-tab-active.png`；
 > 徽章推进 r27「报表中心（跨模块数据看板）」→ **十七张同批重拍**，与 r26 十六张逐位全异。
+> **r28 新增第十八 tab「会议」**：`?page=meetings` 会议室预约 / 冲突检测（左会议室 + 中时段网格 + 右预约表单），补 `meetings-tab-active.png`；
+> 徽章推进 r28「会议管理（预约/冲突检测）」+ schema v20 → **十八张同批重拍**，与 r27 十七张同名文件全异。
 > 窄屏 390/488px 形态见 `docs/ui/r22/`、`docs/ui/r23/06-narrow.png`、`docs/ui/r24/06-narrow.png`、`docs/ui/r25/06-narrow.png`、`docs/ui/r26/06-narrow.png` 与 `docs/ui/r27/06-narrow.png`。
 
 | 文件 | 形态 | 对应断言 |
@@ -50,6 +52,7 @@
 | org-tab-active.png | **组织激活（r23 新增）**（?page=org；真实 0 部门 0 人员空态 + 部门树面板 + 人员卡片面板 + 新建部门/人员入口 + r23 徽章） | audit「r23 GET /api/org/tree -> 200 且 tree=[] / members=[]」；e2e「r23 部门树 / 搜索 / schema v16」 |
 | notifications-tab-active.png | **通知激活（r26 新增）**（?page=notifications；零通知空态 + 六类筛选 + 计数口径图例 + 十六药丸壳 + r26 徽章） | e2e「r26 通知 tab / deep-link seam」；audit「GET /api/notifications 空列表」 |
 | reports-tab-active.png | **报表激活（r27 新增）**（?page=reports；六张 KPI 卡 + 时间范围 + 明细空态 + 十七药丸壳 + r27 徽章） | e2e「r27 十七 tab 类型含报表页 / 报表页消费 shared 口径」；audit「GET /api/reports/overview 空库六指标全 0」 |
+| meetings-tab-active.png | **会议激活（r28 新增）**（?page=meetings；三间会议室含一间停用 + 空时段网格 + 预约表单 + 通讯录参会人 + 十八药丸壳 + r28 徽章） | e2e「r28 十八 tab 与顶栏按钮在场 / 会议页消费 shared 唯一口径」；audit「r28 清理后本轮会议归零」 |
 
 ## r25 哈希自查（十五张互异，历史块；当前文件见下方 R26 块）
 
@@ -70,7 +73,7 @@
 —— **16/16 互异**。
 <!-- R26_HASHES_END -->
 
-## r27 哈希自查（十七张互异，与当前文件逐字一致；R26 块作为历史保留）
+## r27 哈希自查（十七张互异，历史块；当前文件见下方 R28 块）
 
 <!-- R27_HASHES_BEGIN -->
 `workbench=0881BB79` · `todos=0EB05F7B` · `schedules=72A450E6` · `projects=304317A6` ·
@@ -79,6 +82,19 @@
 `assets=D010C64F` · `unit-tasks=0B3869B9` · `org=1C14209A` · `notifications=B15EF500` ·
 `reports=BFC9BDD2` —— **17/17 互异**。
 <!-- R27_HASHES_END -->
+
+## r28 哈希自查（十八张互异，与当前文件逐字一致；R27 及以下为历史块）
+
+<!-- R28_HASHES_BEGIN -->
+`workbench=86946959` · `todos=A7E81B45` · `schedules=441DCA3D` · `projects=5B531A34` ·
+`board=B7E7B04A` · `bases=0DD14D3B` · `docs=BC146AC6` · `chat=FECCCED0` ·
+`knowledge=BA087F86` · `mindmap=494026EB` · `whiteboard=D3F64BC2` · `approval=C860A802` ·
+`assets=C983F943` · `unit-tasks=DA1CA902` · `org=155FA658` · `notifications=EECAB413` ·
+`reports=18010A69` · `meetings=0832E1B9` —— **18/18 互异**。
+<!-- R28_HASHES_END -->
+
+> e2e「shell README R28 哈希与实际文件逐字一致」逐张复算 SHA256 锁定本表；r28 新增第十八 tab「会议」。
+> 全库 283 PNG / 281 互异（同态组仅 r4 已披露 2 组），矩阵与十八壳同批重拍。
 
 > e2e「shell README R27 哈希与实际文件逐字一致」逐张复算 SHA256 锁定本表；r27 新增第十七 tab「报表」。
 

@@ -2,6 +2,17 @@
 
 > 宪法见设计包 AGENTS.md；轮次规则见 RUNBOOK.md（均在 D:\work\好东西\xieflow-design\）。
 
+### 2026-11-20 · r28 研发（yanfa-r28 · M10 后功能补强：会议管理与会议室 / 预约冲突检测）
+- 交付：schema v19→v20（rooms / meetings / meeting_attendees 三表 + 索引/外键/UNIQUE）；`packages/shared/meetings.ts` 三函数（detectTimeConflict 同室重叠且边界相接不冲突 / validateMeetingWindow 结束晚于开始且最长 8h / normalizeAttendees 去重+停用校验）+ 预约编排与可用性装配，api/web 零算法分支；无新依赖、零 token、不接视频会议或外部日历
+- api：会议室 CRUD + `GET /api/rooms/:id/availability?date=`；会议 CRUD / 预约（真冲突 409 + 冲突会议 id）/ 按日期与会议室查询 / 改期自我排除；参会人 GET/PUT/POST/DELETE 与 4xx 零半态
+- web：新增第十八 tab「会议」——左会议室列表（含停用态）/ 中时段网格（边界相接两场并排）/ 右预约表单（通讯录参会人，停用禁选）+ 冲突红条；十八 tab 壳基线同批重拍，`?date=&roomId=` reload 不丢
+- 断言：e2e 2335→**2448（+113）** · audit 1904→**1992（+88）**，无一条删改；typecheck 5 包；`pnpm run test:all` exit 0；CI smoke 正则升 v20；README 速查行/双节/r28 矩阵索引/壳 R28 哈希块逐字同步
+- **变异红相 1 组**：`meetingWindowsOverlap` 严格重叠 `as < be && bs < ae` → `as <= be && bs <= ae`（边界相接误判冲突）→ e2e 4 红 + 数据层抛错中断 / audit 10 红；逐字节还原（SHA `2BA5D403…E01379A562`）双套件全绿
+- 「用户第一次用」全链路（headless CDP 真点，0 数据起步）：建会议室 → 09–10 预约 → 09:30–10:30 被 409 拒绝且红条回带 #1 → 改 10–11 边界相接成功 → 通讯录选参会人预约 11–12 → reload 三场全在 → DELETE 探针归零、端口收净
+- 截图：`docs/ui/r28/` 7 张 + 十八 tab 壳基线同批重拍；7/7、18/18 SHA256 互异，矩阵↔壳重叠 0，全库 283 PNG / 281 互异（同态组仅 r4 已披露 2 组），逐张 `read_image` 目验；首轮白屏废片已全批重拍未入库
+- 危险区：未 push / 未打 tag / 未发版 / 未改 CI release 配置；只走 user_version 迁移、未手改库文件；只用 scratch 库与真 HTTP 探针并清理；全程 headless、服务收净、PowerShell 新段全 ASCII、零 token
+- 报告：`docs/feedback/2026-11-20-r28-yanfa.md`（三态纪律 + 自曝节 + 变异红相 + 全链路证据）
+
 ### 2026-11-20 · r27 研发（yanfa-r27 · M10 后功能补强：报表中心 / 跨模块数据看板）
 - 交付：`packages/shared/reports.ts` 六指标纯函数（computeTodoCompletion / computeScheduleLoad / computeBoardThroughput / computeApprovalSla / computeAssetTurnover / computeDocOutput + assembleReport / parseReportRange / reportWindow / selectReportMetric），api/web 零算法分支；无新依赖、无 schema 迁移（只读既有表）
 - api：`GET /api/reports/overview?from=&to=` 六指标一次返回 + `GET /api/reports/:metric?from=&to=[&id=]` 单项下钻（未知名 metric 400 / 越权 id 404 / 非法范围 400）
@@ -212,7 +223,7 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r25 | M10 后·第三轮遗留清理（shell 哈希块/审批 actorMemberId/文档口径） | ✅已发版（首轮双通过；P3 actorMemberId 真修 35/35） | v0.0.31 | e2e 2096 · audit 1723 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r26 | M10 后·通知中心（站内消息聚合） | ✅已发版（初验 waizhuan 打回 P2 通知不定位→返工#1 deep-link refId→UI 打回零图证→返工#2 补 09 图→双终审通过） | v0.0.32 | e2e 2237 · audit 1809 | 通过（waizhuan）+ UI 终审通过（U1/U2/U3 全零） |
 | r27 | M10 后·报表中心（跨模块数据看板） | ✅已发版（首轮双通过；六指标手算全对 + 修 README 笔误） | v0.0.33 | e2e 2335 · audit 1904 | 通过（waizhuan）+ UI 通过（阻断岗） |
-| r28 | M10 后·会议管理与会议室（预约/冲突检测） | 🔨规划中 | — | — | — |
+| r28 | M10 后·会议管理与会议室（预约/冲突检测） | ✅研发完成待复验（yanfa-r28 · 18 tab，不碰视频/外部日历） | —（发版由 lead） | e2e 2448 · audit 1992 | 待 waizhuan / ui 复验 |
 
 ## 🏁 项目总账（2026-11-19 · M10 收官）
 
