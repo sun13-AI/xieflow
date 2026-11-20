@@ -35,3 +35,4 @@
 | r29 | 2026-11-21 | 版本/回收站复验 | 独立 59/59 探针 + headless 21/21 真点；恢复生成 v4 不覆盖 + 永久删除二次确认真生效 | VERDICT 通过，用户库哈希未变 |
 | r30 | 2026-11-21 | 公式复验 | 真 HTTP 78/78 + raw 9/9：12.5×4=50→80、computed 恒 null、循环 400、零 eval | VERDICT 通过 |
 | r31 | 2026-11-21 | 轻量复验 | 真 HTTP 链式 84.80000000000001 exact + UI 84.8 + 公式列 null；旧文案渲染层 0 命中 | VERDICT 通过，用户库 SHA 未变 |
+| r32 | 2026-11-21 | 打印导复验 | HTML headless 真开 21/21 + Word COM Visible=false 真开 275 字中文不丢 + XSS 转义 | VERDICT 通过，零依赖硬验 |
