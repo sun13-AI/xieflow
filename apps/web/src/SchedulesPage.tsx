@@ -190,7 +190,7 @@ export default function SchedulesPage() {
     () => shot === "ics-import-success" ? 2 : null,
   );
   const [icsError, setIcsError] = useState<string | null>(
-    () => shot === "ics-error" ? "ICS 解析失败：缺少 VCALENDAR 头尾（对应 audit「坏 ICS -> 400」）" : null,
+    () => shot === "ics-error" ? "ICS 解析失败：缺少 VCALENDAR 头尾，请粘贴完整 .ics 文件" : null,
   );
   const [icsBusy, setIcsBusy] = useState(false);
 

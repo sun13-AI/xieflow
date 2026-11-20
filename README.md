@@ -31,12 +31,12 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 | 截图 | 形态 | 对应断言 |
 |---|---|---|
 | [01-ics-export-menu.png](docs/ui/r35/01-ics-export-menu.png) | 导出菜单：本月日程 / 待办截止 | audit「GET export.ics -> 200 / text/calendar」 |
-| [02-ics-saved.png](docs/ui/r35/02-ics-saved.png) | 落盘回执：文件名 + 事件数 + 字节 | audit「下载文件名带范围 / VEVENT 回读」 |
-| [03-ics-feed-card.png](docs/ui/r35/03-ics-feed-card.png) | 订阅卡：本地随机 key + 复制 URL | audit「key 存 settings / 错 key 404」 |
-| [04-ics-import-preview.png](docs/ui/r35/04-ics-import-preview.png) | 导入预览表：标题/日期/时间/重复 | audit「预览逐项还原 / 零写入」 |
-| [05-ics-import-success.png](docs/ui/r35/05-ics-import-success.png) | 确认写入成功绿条 | audit「写入 +1 / reload 不丢（CDP）」 |
+| [02-ics-saved.png](docs/ui/r35/02-ics-saved.png) | 真落盘回执：`xieflow-schedules-2026-11-01-2026-11-30.ics` + 2 条事件 / 941 字节（**= 04 导入源**） | audit「下载文件名带范围 / VEVENT 回读」；CDP 落盘文件字节一致 |
+| [03-ics-feed-card.png](docs/ui/r35/03-ics-feed-card.png) | 订阅卡：本地随机 key + 复制 URL（仅写剪贴板、无可见 toast） | audit「key 存 settings / 错 key 404」 |
+| [04-ics-import-preview.png](docs/ui/r35/04-ics-import-preview.png) | 02 同一落盘文件导入：textarea 真实 ICS 片段 + 2 条预览与 02 逐字段对应 | audit「预览逐项还原 / 零写入」；CDP 往返逐字核验 |
+| [05-ics-import-success.png](docs/ui/r35/05-ics-import-success.png) | 成功绿条 2 条 + 同屏网格非空（10/11 日 chip 在场） | audit「写入 +1 / reload 不丢（CDP）」 |
 | [06-ics-narrow.png](docs/ui/r35/06-ics-narrow.png) | 488px 窄屏导入面板 | 截图 seam + SHA 自查 |
-| [07-ics-error.png](docs/ui/r35/07-ics-error.png) | 坏 ICS 错误红条 | audit「坏 ICS -> 400」 |
+| [07-ics-error.png](docs/ui/r35/07-ics-error.png) | 坏 ICS 错误红条（纯用户文案，无 audit 标签） | audit「坏 ICS -> 400」 |
 | [shell/](docs/ui/shell/README.md) | 十八 tab 壳基线（r35 同批重拍） | e2e「shell README R35 哈希逐字一致」 |
 
 **历史逐轮截图索引（r1~r32 全量、逐张对照断言）见 [README 归档](docs/README-ARCHIVE.md) 与 [docs/ui/](docs/ui/) 各轮 README**；矩阵 SHA256 互异、同态组仅 r4 已披露 2 组。
