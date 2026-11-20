@@ -37,3 +37,4 @@
 | r30 | 2026-11-21 | 公式字段 | schema v22 + shared/formula 手写 tokenizer/parser/evaluator 零 eval + 网格公式列 | e2e 2664/audit 2122，乘法改加法变异红相 |
 | r31 | 2026-11-21 | 轻量清理 | 8 类字段文案 + shared/formatFormulaDisplay 唯一展示格式化（84.8），求值语义零改 | e2e 2685/audit 2138，变异红相 toPrecision |
 | r32 | 2026-11-21 | 打印导出 | schema 无迁移 + shared/docExport 语义 HTML/Word BOM/五字符转义 + 隐藏 iframe 打印 spy | e2e 2766/audit 2185，零新依赖 |
+| r33 | 2026-11-21 | 全局搜索 | schema 无迁移 + shared/globalSearch 唯一检索 + 顶栏 Ctrl+K + 八源只读 + deep-link | e2e 2849/audit 2262，排序变异红相 |
