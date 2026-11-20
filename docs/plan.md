@@ -232,7 +232,7 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r26 | M10 后·通知中心（站内消息聚合） | ✅已发版（初验 waizhuan 打回 P2 通知不定位→返工#1 deep-link refId→UI 打回零图证→返工#2 补 09 图→双终审通过） | v0.0.32 | e2e 2237 · audit 1809 | 通过（waizhuan）+ UI 终审通过（U1/U2/U3 全零） |
 | r27 | M10 后·报表中心（跨模块数据看板） | ✅已发版（首轮双通过；六指标手算全对 + 修 README 笔误） | v0.0.33 | e2e 2335 · audit 1904 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r28 | M10 后·会议管理与会议室（预约/冲突检测） | ✅已发版（初验 waizhuan 打回 P2 建室后预约旧 roomId→返工#1 自动选中/深链回显→双复审通过） | v0.0.34 | e2e 2460 · audit 2004 | 通过（waizhuan）+ UI 通过（阻断岗） |
-| r29 | M10 后·第七轮（待定切片） | 🔨规划中 | — | — | — |
+| r29 | M10 后·文档版本历史与回收站 | 🔨规划中 | — | — | — |
 
 ## 🏁 项目总账（2026-11-19 · M10 收官）
 
@@ -689,6 +689,23 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
   4. 双 VERDICT（waizhuan + ui 阻断岗）通过
 - 前置：r27 已发版（v0.0.33）✅
 - 明确边界：只做本地预约台账，**不接视频会议/外部日历**（宪法明确不做），零 token
+
+### r29 · 文档版本历史与回收站（M10 后功能补强）
+- 目标：给 r8/r9 的单人块编辑器补版本历史与误删恢复——文档快照版本 + 软删除回收站 + 一键恢复，**不接实时协同**（那需 CRDT，超当前范围）
+- 交付清单：
+  1. schema v20→v21：document_versions 表（id/document_id/version/title/content_markdown/created_at/note）、documents 加 deleted_at 可空列（软删除，回收站）
+  2. 版本规则集中 packages/shared/docHistory.ts：nextDocVersion(current)、buildVersionNote(oldContent, newContent)（变更摘要：增/删行数）、canRestoreVersion(version, current)（防恢复到已软删文档）——api/web 零算法分支
+  3. api：GET /api/documents/:id/versions、POST /:id/versions（手动存快照）、POST /:id/versions/:v/restore（恢复到指定版本，生成新版本而非覆盖）、DELETE /api/documents/:id（软删）、GET /api/documents/trash（回收站列表）、POST /trash/:id/restore（还原文档）
+  4. web：文档编辑页加「版本历史」侧栏（版本列表 + 变更摘要 + 预览 + 恢复按钮）+ 文档列表加「回收站」入口（软删列表 + 还原/永久删除）
+  5. 断言：e2e ≥+35（版本递增/摘要/恢复生成新版本/软删除/回收站）、audit ≥+25（含 4xx：版本不存在/恢复已删文档/越权 id/永久删除确认）
+  6. 截图 ≥7：版本历史空态/多版本列表/变更摘要/预览对比/恢复后/回收站/窄屏
+- 验收标准：
+  1. 全量绿：e2e ≥2495、audit ≥2029，README 双节同步
+  2. **恢复真实性**：waizhuan 造 v1→改→v2→改→v3，恢复到 v1 后生成 v4（不覆盖历史），全文逐字等于 v1；软删→回收站→还原→文档仍在
+  3. **新增能力不改既有 tab**（在文档页内加侧栏/入口，18 tab 数量不变，但壳基线因文档页变化同批重拍）
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r28 已发版（v0.0.34）✅
+- 明确边界：不接实时协同编辑（CRDT 超范围）；永久删除需二次确认且只删本轮探针数据，不动用户数据
 
 ## 历史轮次（r1~r2 已收档，见下方记账区）
 
