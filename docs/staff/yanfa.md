@@ -38,3 +38,4 @@
 | r31 | 2026-11-21 | 轻量清理 | 8 类字段文案 + shared/formatFormulaDisplay 唯一展示格式化（84.8），求值语义零改 | e2e 2685/audit 2138，变异红相 toPrecision |
 | r32 | 2026-11-21 | 打印导出 | schema 无迁移 + shared/docExport 语义 HTML/Word BOM/五字符转义 + 隐藏 iframe 打印 spy | e2e 2766/audit 2185，零新依赖 |
 | r33 | 2026-11-21 | 全局搜索 | schema 无迁移 + shared/globalSearch 唯一检索 + 顶栏 Ctrl+K + 八源只读 + deep-link | e2e 2849/audit 2262，排序变异红相 |
+| r34 | 2026-11-21 | 任务依赖 | schema v23 + shared/todoDeps 三函数 + 409 守卫 + 前置面板/阻塞徽标；README 精简回归 6 条改指向归档 | e2e 2961/audit 2324，守卫变异红相 |
