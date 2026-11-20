@@ -200,7 +200,7 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r24 | M10 后·组织成员接入审批/物资（向后兼容） | ✅已发版（首轮双通过；向后兼容 64/64 + 变异红相独立复现） | v0.0.30 | e2e 2041 · audit 1667 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r25 | M10 后·第三轮遗留清理（shell 哈希块/审批 actorMemberId/文档口径） | ✅已发版（首轮双通过；P3 actorMemberId 真修 35/35） | v0.0.31 | e2e 2096 · audit 1723 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r26 | M10 后·通知中心（站内消息聚合） | ✅已发版（初验 waizhuan 打回 P2 通知不定位→返工#1 deep-link refId→UI 打回零图证→返工#2 补 09 图→双终审通过） | v0.0.32 | e2e 2237 · audit 1809 | 通过（waizhuan）+ UI 终审通过（U1/U2/U3 全零） |
-| r27 | M10 后·第五轮（待定切片） | 🔨规划中 | — | — | — |
+| r27 | M10 后·报表中心（跨模块数据看板） | 🔨规划中 | — | — | — |
 
 ## 🏁 项目总账（2026-11-19 · M10 收官）
 
@@ -624,6 +624,22 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
   4. 双 VERDICT（waizhuan + ui 阻断岗）通过
 - 前置：r25 已发版（v0.0.31）✅
 - 明确边界：站内通知不接外部 IM/邮件（那是宪法「明确不做」的第三方 IM 集成），零 token
+
+### r27 · 报表中心（跨模块数据看板，M10 后功能补强）
+- 目标：把散在各模块的数据汇成统一报表——待办完成率/日程分布/看板吞吐/审批时效/库存周转/文档产出，一屏总览 + 时间范围筛选
+- 交付清单：
+  1. 报表规则集中 packages/shared/reports.ts：computeTodoCompletion(todos, range)、computeScheduleLoad(schedules, range)、computeApprovalSla(approvals, steps)、computeAssetTurnover(transactions)、computeDocOutput(documents, range)、assembleReport(all, range)（纯函数，无新依赖）——api/web 零算法分支
+  2. api：GET /api/reports/overview?from=&to=（六类指标一次返回）、GET /api/reports/:metric?from=&to=（单项明细，供下钻）
+  3. web：新增「报表」tab——第一行 6 张 KPI 卡（数值+环比+迷你条）+ 下方各指标明细表（点 KPI 卡切换）+ 时间范围选择（近 7/30/90 天 + 自定义）
+  4. 断言：e2e ≥+35（六指标算法/时间范围/空数据/环比）、audit ≥+25（含 4xx：非法范围/未知名 metric/越权 id）
+  5. 截图 ≥7：报表总览有数据/空态/时间范围切换/KPI 下钻明细/六卡齐/窄屏/错误态
+- 验收标准：
+  1. 全量绿：e2e ≥2272、audit ≥1834，README 双节同步
+  2. 六指标手算核对（waizhuan 会造已知数据验完成率/吞吐/SLA），空数据不崩返回 0
+  3. **新增「报表」tab 补该 tab 激活态图**（十七 tab 壳基线）
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r26 已发版（v0.0.32）✅
+- 明确边界：本轮只读不改任何业务数据；不引外部图表库（用 CSS/纯 SVG 迷你条），零新依赖、零 token
 
 ## 历史轮次（r1~r2 已收档，见下方记账区）
 
