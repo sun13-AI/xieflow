@@ -156,7 +156,7 @@ async function audit() {
     eq(h.json && h.json.ok, true, "health.ok = true");
     // r4 起动态对表：health.schemaVersion 必须等于迁移队列最高版本（不再硬编码 2/3，
     // r3 v0.0.6 CI 红教训——静态硬编码在每轮迁移后必过期）
-    eq(h.json && h.json.schemaVersion, 20, "health.schemaVersion = 18（r25 迁移后）");
+    eq(h.json && h.json.schemaVersion, 21, "health.schemaVersion = 18（r25 迁移后）");
     const s = await req("GET", "/api/settings");
     eq(s.status, 200, "GET /api/settings -> 200");
     ok(Array.isArray(s.json && s.json.settings), "settings 返回数组");
@@ -253,7 +253,7 @@ async function audit() {
   {
     // health 探针反映 schema v8（r4 起迁移后动态推进）
     const h3 = await req("GET", "/api/health");
-    eq(h3.json && h3.json.schemaVersion, 20, "health.schemaVersion = 18（r25 迁移后复核）");
+    eq(h3.json && h3.json.schemaVersion, 21, "health.schemaVersion = 18（r25 迁移后复核）");
 
     const r = await expectStatus(
       "POST",
@@ -2629,7 +2629,7 @@ async function audit() {
     const st0 = await expectStatus("GET", "/api/sync/status", undefined, 200, "r19 GET status -> 200");
     eq(st0.json && st0.json.total, 0, "r19 初始无实体版本");
     eq(st0.json && st0.json.lastChangeId, 0, "r19 初始 lastChangeId=0");
-    eq(st0.json && st0.json.schemaVersion, 20, "r19 status 回带 schema v18（r25 推进）");
+    eq(st0.json && st0.json.schemaVersion, 21, "r19 status 回带 schema v18（r25 推进）");
     const ch0 = await expectStatus("GET", "/api/sync/changes?since=0&limit=50", undefined, 200, "r19 GET changes 空 -> 200");
     eq(ch0.json && ch0.json.count, 0, "r19 初始变更日志为空");
     eq(ch0.json && ch0.json.changes, [], "r19 初始 changes 数组为空");
@@ -2850,7 +2850,7 @@ async function audit() {
     // health：真 HTTP 200 + 真读库语义
     const h = await expectStatus("GET", DEPLOY_PATHS.health, undefined, 200, "r21 GET 契约健康路径 -> 200");
     eq(h.json && h.json.ok, true, "r21 health.ok=true");
-    eq(h.json && h.json.schemaVersion, 20, "r21 health.schemaVersion=18（部署版本一致）");
+    eq(h.json && h.json.schemaVersion, 21, "r21 health.schemaVersion=18（部署版本一致）");
     ok(isServerMode(h.json && h.json.mode), "r21 health.mode 为 local|remote 之一（契约模式合法）");
 
     // mode：模式探针公开可达，回显一致
@@ -2905,7 +2905,7 @@ async function audit() {
   console.log("\n== Org r23: departments / members / tree / search / 4xx ==");
   {
     const h23 = await expectStatus("GET", "/api/health", undefined, 200, "r23 health 真 HTTP 200");
-    eq(h23.json && h23.json.schemaVersion, 20, "r23 health.schemaVersion=18（迁移真生效）");
+    eq(h23.json && h23.json.schemaVersion, 21, "r23 health.schemaVersion=18（迁移真生效）");
     const tree0 = await expectStatus("GET", "/api/org/tree", undefined, 200, "r23 空组织树 -> 200");
     eq(tree0.json && tree0.json.tree, [], "r23 空组织树 tree=[]");
     eq(tree0.json && tree0.json.departments, [], "r23 空组织树 departments=[]");
@@ -2996,7 +2996,7 @@ async function audit() {
   console.log("\n== Org r24: member_id in approvals / assets / usage / 4xx ==");
   {
     const h24 = await expectStatus("GET", "/api/health", undefined, 200, "r24 health 真 HTTP 200");
-    eq(h24.json && h24.json.schemaVersion, 20, "r24 health.schemaVersion=18（迁移真生效）");
+    eq(h24.json && h24.json.schemaVersion, 21, "r24 health.schemaVersion=18（迁移真生效）");
 
     const dept = await expectStatus("POST", "/api/departments", { name: "r24审计研发中心" }, 201, "r24 建部门 -> 201");
     const alice = await expectStatus("POST", "/api/members", {
@@ -3134,7 +3134,7 @@ async function audit() {
   console.log("\n== Approval r25: actorMemberId / linked member / action usage ==");
   {
     const h25 = await expectStatus("GET", "/api/health", undefined, 200, "r25 health 真 HTTP 200");
-    eq(h25.json && h25.json.schemaVersion, 20, "r25 health.schemaVersion=18（v18 迁移真生效）");
+    eq(h25.json && h25.json.schemaVersion, 21, "r25 health.schemaVersion=18（v18 迁移真生效）");
 
     const uname25 = `r25.actor.${Date.now()}`;
     const user25 = await expectStatus("POST", "/api/auth/register", { username: uname25, password: "Passw0rd!" }, 201, "r25 注册登录用户 -> 201");
@@ -3229,7 +3229,7 @@ async function auditR26(): Promise<void> {
   console.log("\n== Notification r26: real event aggregation / idempotent refresh / 4xx ==");
   {
     const h26 = await expectStatus("GET", "/api/health", undefined, 200, "r26 health 真 HTTP 200");
-    eq(h26.json && h26.json.schemaVersion, 20, "r26 health.schemaVersion=19（v19 迁移真生效）");
+    eq(h26.json && h26.json.schemaVersion, 21, "r26 health.schemaVersion=19（v19 迁移真生效）");
     const today = new Date();
     const pad26 = (n: number): string => String(n).padStart(2, "0");
     const todayStr26 = `${today.getFullYear()}-${pad26(today.getMonth() + 1)}-${pad26(today.getDate())}`;
@@ -3362,7 +3362,7 @@ async function auditR27(): Promise<void> {
   console.log("\n== Report r27: real HTTP assembly / hand-check / drilldown / 4xx ==");
   {
     const h27 = await expectStatus("GET", "/api/health", undefined, 200, "r27 health 真 HTTP 200");
-    eq(h27.json && h27.json.schemaVersion, 20, "r27 health.schemaVersion=19（报表轮无新迁移）");
+    eq(h27.json && h27.json.schemaVersion, 21, "r27 health.schemaVersion=19（报表轮无新迁移）");
     const today27 = new Date().toISOString().slice(0, 10);
     const q27 = `from=${today27}&to=${today27}`;
     const stamp27 = Date.now().toString(36);
@@ -3476,7 +3476,7 @@ async function auditR28(): Promise<void> {
   console.log("\n== Meeting r28: real HTTP booking / 409 conflicts / attendees / 4xx ==");
   {
     const h28 = await expectStatus("GET", "/api/health", undefined, 200, "r28 health 真 HTTP 200");
-    eq(h28.json && h28.json.schemaVersion, 20, "r28 health.schemaVersion=20（v20 迁移真生效）");
+    eq(h28.json && h28.json.schemaVersion, 21, "r28 health.schemaVersion=20（v20 迁移真生效）");
     const stamp28 = Date.now().toString(36);
     const day28 = "2027-02-18";
 
@@ -3653,6 +3653,83 @@ async function auditR28(): Promise<void> {
     eq(clean28.json && clean28.json.count, 0, "r28 清理后本轮会议归零");
     const cleanRooms28 = await expectStatus("GET", "/api/rooms", undefined, 200, "r28 清理后会议室列表 -> 200");
     eq(cleanRooms28.json.rooms.filter((r: any) => String(r.name).includes(stamp28)).length, 0, "r28 清理后本轮会议室归零");
+  }
+
+  // ---- r29：文档版本历史 / 恢复新版本 / 软删除回收站 / 永久删除二次确认（真 HTTP） ----
+  {
+    const stamp29 = `r29-${Date.now()}`;
+    const h29 = await expectStatus("GET", "/api/health", undefined, 200, "r29 health -> 200");
+    eq(h29.json && h29.json.schemaVersion, 21, "r29 health.schemaVersion=21（v21 迁移真生效）");
+
+    const docA29 = await expectStatus("POST", "/api/documents", { title: `${stamp29}-A` }, 201, "r29 建探针文档 A -> 201");
+    const docB29 = await expectStatus("POST", "/api/documents", { title: `${stamp29}-B` }, 201, "r29 建探针文档 B -> 201");
+    const idA29 = docA29.json.id;
+    const idB29 = docB29.json.id;
+    const empty29 = await expectStatus("GET", `/api/documents/${idA29}/versions`, undefined, 200, "r29 新文档版本列表 -> 200");
+    eq(empty29.json && empty29.json.versions, [], "r29 新文档零版本");
+
+    const mdV129 = "# r29 版本一\n\n第一段原文\n\n第二段原文";
+    const mdV229 = "# r29 版本二\n\n第一段改写\n\n第二段原文\n\n新增第三段";
+    const mdV329 = "# r29 版本三\n\n第一段再改\n\n第二段原文";
+    await expectStatus("POST", `/api/documents/${idA29}/import.md`, { markdown: mdV129 }, 200, "r29 导入 v1 内容 -> 200");
+    const textV129 = await expectStatus("GET", `/api/documents/${idA29}/text`, undefined, 200, "r29 读 v1 全文 -> 200");
+    const v1_29 = await expectStatus("POST", `/api/documents/${idA29}/versions`, {}, 201, "r29 存 v1 快照 -> 201");
+    eq(v1_29.json && v1_29.json.version, 1, "r29 首版 v1");
+    eq(v1_29.json && v1_29.json.contentMarkdown, mdV129, "r29 v1 快照逐字等于内容");
+    ok(String(v1_29.json.note).includes("新增"), "r29 v1 摘要由 shared 生成");
+
+    await expectStatus("POST", `/api/documents/${idA29}/import.md`, { markdown: mdV229 }, 200, "r29 导入 v2 内容 -> 200");
+    const v2_29 = await expectStatus("POST", `/api/documents/${idA29}/versions`, {}, 201, "r29 存 v2 快照 -> 201");
+    eq(v2_29.json && v2_29.json.version, 2, "r29 第二版 v2");
+    await expectStatus("POST", `/api/documents/${idA29}/import.md`, { markdown: mdV329 }, 200, "r29 导入 v3 内容 -> 200");
+    const v3_29 = await expectStatus("POST", `/api/documents/${idA29}/versions`, { note: "手填备注" }, 201, "r29 存 v3 快照 -> 201");
+    eq(v3_29.json && v3_29.json.version, 3, "r29 第三版 v3");
+    eq(v3_29.json && v3_29.json.note, "手填备注", "r29 自定义 note 原样落库");
+    const listed29 = await expectStatus("GET", `/api/documents/${idA29}/versions`, undefined, 200, "r29 版本列表 -> 200");
+    eq(listed29.json && listed29.json.versions.length, 3, "r29 真 HTTP 三版全在");
+    eq(listed29.json && listed29.json.versions[0].version, 3, "r29 版本列表新版在前");
+
+    const restored29 = await expectStatus("POST", `/api/documents/${idA29}/versions/1/restore`, {}, 200, "r29 恢复 v1 -> 200");
+    eq(restored29.json && restored29.json.restoredFrom, 1, "r29 恢复来源 v1");
+    eq(restored29.json && restored29.json.version.version, 4, "r29 恢复生成 v4 不覆盖历史");
+    eq(restored29.json && restored29.json.version.contentMarkdown, mdV129, "r29 新版本内容逐字等于 v1");
+    const textAfter29 = await expectStatus("GET", `/api/documents/${idA29}/text`, undefined, 200, "r29 读恢复后全文 -> 200");
+    eq(textAfter29.json && textAfter29.json.text, textV129.json && textV129.json.text, "r29 恢复后全文逐字等于 v1（真 HTTP）");
+    const afterList29 = await expectStatus("GET", `/api/documents/${idA29}/versions`, undefined, 200, "r29 恢复后版本列表 -> 200");
+    eq(afterList29.json && afterList29.json.versions.length, 4, "r29 恢复后四版全在（历史未覆盖）");
+    eq(afterList29.json && afterList29.json.versions.find((v: any) => v.version === 1).contentMarkdown, mdV129, "r29 原 v1 快照未变");
+
+    // 4xx：版本不存在 / 越权 id / 非法 id / 已软删文档恢复
+    await expectStatus("GET", "/api/documents/99999999/versions", undefined, 404, "r29 越权文档版本列表 -> 404");
+    await expectStatus("POST", "/api/documents/99999999/versions", {}, 404, "r29 越权文档存快照 -> 404");
+    await expectStatus("POST", `/api/documents/${idA29}/versions/999/restore`, {}, 404, "r29 版本不存在 -> 404");
+    await expectStatus("POST", `/api/documents/${idB29}/versions/1/restore`, {}, 404, "r29 跨文档版本 id -> 404");
+    await expectStatus("POST", `/api/documents/${idA29}/versions/abc/restore`, {}, 400, "r29 非法版本号 -> 400");
+
+    // 软删除 / 回收站 / 还原 / 二次确认永久删除（全部只用本轮探针）
+    await expectStatus("DELETE", `/api/documents/${idB29}`, undefined, 200, "r29 软删文档 B -> 200");
+    await expectStatus("GET", `/api/documents/${idB29}`, undefined, 404, "r29 软删后常规读 -> 404");
+    const listAfterSoft29 = await expectStatus("GET", "/api/documents", undefined, 200, "r29 软删后文档列表 -> 200");
+    eq(listAfterSoft29.json.documents.filter((d: any) => d.id === idB29).length, 0, "r29 软删后列表排除 B");
+    const trash29 = await expectStatus("GET", "/api/documents/trash", undefined, 200, "r29 回收站列表 -> 200");
+    const trashedB29 = trash29.json.documents.find((d: any) => d.id === idB29);
+    ok(trashedB29 && trashedB29.deletedAt != null, "r29 回收站项带 deletedAt");
+    await expectStatus("POST", `/api/documents/${idB29}/versions/1/restore`, {}, 400, "r29 恢复已软删文档 -> 400");
+    await expectStatus("POST", `/api/documents/trash/${idB29}/restore`, {}, 200, "r29 从回收站还原 -> 200");
+    await expectStatus("GET", `/api/documents/${idB29}`, undefined, 200, "r29 还原后文档仍在 -> 200");
+    await expectStatus("DELETE", `/api/documents/${idB29}`, undefined, 200, "r29 再次软删 B -> 200");
+    await expectStatus("DELETE", `/api/documents/trash/${idB29}`, {}, 400, "r29 永久删除缺二次确认 -> 400");
+    await expectStatus("DELETE", `/api/documents/trash/${idA29}`, { confirm: "PERMANENTLY_DELETE" }, 404, "r29 未软删文档不可永久删除 -> 404");
+    await expectStatus("DELETE", `/api/documents/trash/${idB29}`, { confirm: "PERMANENTLY_DELETE" }, 200, "r29 带确认永久删除 -> 200");
+    await expectStatus("GET", `/api/documents/${idB29}`, undefined, 404, "r29 永久删除后读 -> 404");
+    const trashClean29 = await expectStatus("GET", "/api/documents/trash", undefined, 200, "r29 清理后回收站 -> 200");
+    eq(trashClean29.json.documents.filter((d: any) => d.id === idB29).length, 0, "r29 永久删除后回收站归零");
+
+    // 清理探针 A（软删 + 带确认永久删除，只删本轮数据）
+    await expectStatus("DELETE", `/api/documents/${idA29}`, undefined, 200, "r29 清理探针 A 软删 -> 200");
+    await expectStatus("DELETE", `/api/documents/trash/${idA29}`, { confirm: "PERMANENTLY_DELETE" }, 200, "r29 清理探针 A 永久删除 -> 200");
+    const finalTrash29 = await expectStatus("GET", "/api/documents/trash", undefined, 200, "r29 最终回收站 -> 200");
+    eq(finalTrash29.json.documents.filter((d: any) => String(d.title).includes(stamp29)).length, 0, "r29 本轮探针归零");
   }
 }
 

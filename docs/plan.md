@@ -232,7 +232,7 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r26 | M10 后·通知中心（站内消息聚合） | ✅已发版（初验 waizhuan 打回 P2 通知不定位→返工#1 deep-link refId→UI 打回零图证→返工#2 补 09 图→双终审通过） | v0.0.32 | e2e 2237 · audit 1809 | 通过（waizhuan）+ UI 终审通过（U1/U2/U3 全零） |
 | r27 | M10 后·报表中心（跨模块数据看板） | ✅已发版（首轮双通过；六指标手算全对 + 修 README 笔误） | v0.0.33 | e2e 2335 · audit 1904 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r28 | M10 后·会议管理与会议室（预约/冲突检测） | ✅已发版（初验 waizhuan 打回 P2 建室后预约旧 roomId→返工#1 自动选中/深链回显→双复审通过） | v0.0.34 | e2e 2460 · audit 2004 | 通过（waizhuan）+ UI 通过（阻断岗） |
-| r29 | M10 后·文档版本历史与回收站 | 🔨规划中 | — | — | — |
+| r29 | M10 后·文档版本历史与回收站 | ✅研发完成（待双 VERDICT / 发版由 lead） | — | e2e 2542 · audit 2060 | — |
 
 ## 🏁 项目总账（2026-11-19 · M10 收官）
 
@@ -712,6 +712,17 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 ---
 
 ## 记账区（每轮追加）
+
+### 2026-11-20 · r29 研发（yanfa-r29 · M10 后功能补强：文档版本历史与回收站）
+- 交付：schema v20→v21（document_versions 七列 + UNIQUE(document_id,version) + 外键级联 + 索引；documents.deleted_at 可空列）；`packages/shared/docHistory.ts` 三函数（nextDocVersion / buildVersionNote LCS 增删行摘要 / canRestoreVersion 防恢复已软删）+ 恢复守卫，api/web 零算法分支；无新依赖、零 token、不接实时协同（CRDT 超范围）
+- api：版本列表 / 手动快照 / 恢复生成新版本（不覆盖）/ 文档软删 / 回收站列表 / 回收站还原 / 永久删除（confirm=PERMANENTLY_DELETE 二次确认，只作用于回收站探针）；4xx：版本不存在 404 / 越权文档 404 / 跨文档版本 404 / 非法版本 400 / 恢复已软删文档 400 / 缺确认 400
+- web：文档页内加「版本历史」侧栏（列表 + 变更摘要 + 预览 + 恢复）+ 工具栏「回收站」入口（还原 / 永久删除二次确认）；**18 tab 数量不变**，文档页变更 → 十八 tab 壳基线同批重拍
+- 断言：e2e 2460 → **2542（+82）** · audit 2004 → **2060（+56）**，无一条删改（既有只做期望值/标签推进）；typecheck 5 包；`pnpm run test:all` exit 0；CI smoke 正则升 v21；README 速查行/双节/r29 矩阵索引/壳 R29 哈希块逐字同步
+- **变异红相 1 组**：shared `nextDocVersion` 的 `return n + 1` → `return n`（恢复将覆盖）→ e2e 4 红 + 数据层 CHECK 中断 / audit 11 红；逐字节还原（SHA `0782FBBC…92645D`）双套件全绿
+- 「用户第一次用」全链路：真 HTTP v1→v2→v3 → 恢复 v1 生成 v4（全文逐字等于 v1，v1~v3 未覆盖）→ 软删 → 回收站 → 还原 → reload 不丢 → 再软删 → 二次确认永久删除探针归零；全程 headless、服务收净
+- 截图：`docs/ui/r29/` 7 张 + 十八 tab 壳基线同批重拍；7/7、18/18 SHA256 互异，矩阵↔壳重叠 0，全库 290 PNG / 288 互异（同态组仅 r4 已披露 2 组），逐张 `read_image` 目验；首轮 03/04 同哈希废片全批重拍未入库
+- 危险区：未 push / 未打 tag / 未发版 / 未改 CI release 配置；只走 user_version 迁移、未手改库文件；只用 scratch 库与真 HTTP 探针并清理（永久删除只删本轮探针）；仓库 `data/xieflow.db` 只读；PowerShell 新段全 ASCII、零 token
+- 报告：`docs/feedback/2026-11-21-r29-yanfa.md`（三态纪律 + 自曝节 + 变异红相 + 全链路证据）
 
 ### 2026-11-15 · r1 立项
 - 仓库落地：monorepo 四包 / 迁移框架 v1→v2 / 状态机集中 / 健康探针 / 截图矩阵 5 张 / CI 定义

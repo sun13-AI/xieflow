@@ -27,6 +27,7 @@
 #   powershell -File scripts\shot.ps1 shots -Round r26 # capture r26 notification center matrix + 16-tab shell baseline
 #   powershell -File scripts\shot.ps1 shots -Round r27 # capture r27 report center matrix + 17-tab shell baseline
 #   powershell -File scripts\shot.ps1 shots -Round r28 # capture r28 meeting management matrix + 18-tab shell baseline
+#   powershell -File scripts\shot.ps1 shots -Round r29 # capture r29 version history / recycle bin matrix + 18-tab shell baseline
 #   powershell -File scripts\shot.ps1 shots -Round r24 # capture r24 member-picker matrix + 15-tab shell baseline
 #   powershell -File scripts\shot.ps1 shots -Round r11 -Shot 08-docs-diff-inline # rework#1: re-capture ONLY the diff-inline evidence (no other matrix/shell re-shot)
 #   powershell -File scripts\shot.ps1 shots -Round r26 -Shot 09-notif-deeplink-target # r26 rework#2: seed 3 pending approvals, CDP-click the SECOND notification, capture ONLY 09 (no other matrix/shell re-shot)
@@ -53,7 +54,7 @@ param(
   [Parameter(Position = 0)]
   [ValidateSet("up", "shots", "down", "status", "all")]
   [string]$Action = "status",
-  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r26", "r27", "r28")]
+  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r26", "r27", "r28", "r29")]
   [string]$Round = "r1",
   [Parameter()]
   [string]$Shot = ""
@@ -955,7 +956,55 @@ function Invoke-Shots {
     }
   }
 
-  if ($Round -eq "r28") {
+  if ($Round -eq "r29") {
+    # r29: version history + recycle bin matrix. Seed real documents/versions over HTTP;
+    # every probe is permanently deleted in the cleanup block below (user data untouched).
+    $r29Stamp = "r29-shot-" + (Get-Date -Format "yyyyMMddHHmmss")
+    $r29BaseApi = "http://127.0.0.1:$ApiPort/api/documents"
+    $r29MainId = 0
+    $r29EmptyId = 0
+    $r29TrashId = 0
+    $emptyJson = [System.Text.Encoding]::UTF8.GetBytes('{}')
+    try {
+      $mainBody = [System.Text.Encoding]::UTF8.GetBytes('{"title":"' + $r29Stamp + '-version-history"}')
+      $mainDoc = Invoke-RestMethod -Uri $r29BaseApi -Method Post -ContentType "application/json; charset=utf-8" -Body $mainBody
+      $r29MainId = $mainDoc.id
+      $emptyBody = [System.Text.Encoding]::UTF8.GetBytes('{"title":"' + $r29Stamp + '-no-versions"}')
+      $r29EmptyId = (Invoke-RestMethod -Uri $r29BaseApi -Method Post -ContentType "application/json; charset=utf-8" -Body $emptyBody).id
+      $trashBody = [System.Text.Encoding]::UTF8.GetBytes('{"title":"' + $r29Stamp + '-trashed"}')
+      $r29TrashId = (Invoke-RestMethod -Uri $r29BaseApi -Method Post -ContentType "application/json; charset=utf-8" -Body $trashBody).id
+
+      $md1 = [System.Text.Encoding]::UTF8.GetBytes('{"markdown":"# r29 version one\n\nfirst paragraph\n\nsecond paragraph"}')
+      $md2 = [System.Text.Encoding]::UTF8.GetBytes('{"markdown":"# r29 version two\n\nfirst paragraph changed\n\nsecond paragraph\n\nthird paragraph"}')
+      $md3 = [System.Text.Encoding]::UTF8.GetBytes('{"markdown":"# r29 version three\n\nfirst paragraph changed again\n\nsecond paragraph"}')
+      foreach ($md in @($md1, $md2, $md3)) {
+        Invoke-RestMethod -Uri "$r29BaseApi/$r29MainId/import.md" -Method Post -ContentType "application/json; charset=utf-8" -Body $md | Out-Null
+        Invoke-RestMethod -Uri "$r29BaseApi/$r29MainId/versions" -Method Post -ContentType "application/json; charset=utf-8" -Body $emptyJson | Out-Null
+      }
+      # real restore: generates v4, keeps v1-v3 (also locked by e2e + HTTP audit)
+      Invoke-RestMethod -Uri "$r29BaseApi/$r29MainId/versions/1/restore" -Method Post -ContentType "application/json; charset=utf-8" -Body $emptyJson | Out-Null
+      # put the third probe into the recycle bin via the real soft-delete route
+      Invoke-RestMethod -Uri "$r29BaseApi/$r29TrashId" -Method Delete | Out-Null
+      Write-Output "r29 seed: main=$r29MainId empty=$r29EmptyId trash=$r29TrashId"
+    } catch {
+      Write-Output "warn: r29 seed failed ($($_.Exception.Message)) - matrix may show empty states"
+    }
+  }
+
+  if ($Round -eq "r29") {
+    # r29: version history side panel + recycle bin. 7 states; restore/new-version
+    # truth is already locked by e2e + audit, so pins focus on observable UI states.
+    $r29Base = "http://127.0.0.1:$WebPort/?page=docs"
+    $shots = @(
+      @{ name = "01-versions-empty";  url = "$r29Base&docId=$r29EmptyId&shot=docs-versions-empty"; width = 1280; height = 900 },
+      @{ name = "02-versions-list";   url = "$r29Base&docId=$r29MainId&shot=docs-versions-list";  width = 1280; height = 900 },
+      @{ name = "03-version-summary"; url = "$r29Base&docId=$r29MainId&shot=docs-version-summary"; width = 1280; height = 900 },
+      @{ name = "04-version-preview"; url = "$r29Base&docId=$r29MainId&shot=docs-version-preview"; width = 1280; height = 900 },
+      @{ name = "05-after-restore";   url = "$r29Base&docId=$r29MainId&shot=docs-after-restore";  width = 1280; height = 900 },
+      @{ name = "06-trash";           url = "$r29Base&shot=docs-trash";                           width = 1280; height = 900 },
+      @{ name = "07-narrow";          url = "$r29Base&docId=$r29MainId&shot=docs-versions-list&narrow=1"; width = 488; height = 1600 }
+    )
+  } elseif ($Round -eq "r28") {
     # r28: meeting management matrix. All states use deterministic ?shot= pins;
     # conflict/booking rules are locked by e2e + real HTTP audit.
     $r28Base = "http://127.0.0.1:$WebPort/?page=meetings"
@@ -1889,6 +1938,25 @@ function Invoke-Shots {
       Write-Output "cleaned seeded r10 conversations and created todo"
     } catch {
       Write-Output "warn: r10 cleanup failed ($($_.Exception.Message))"
+    }
+  } elseif ($Round -eq "r29") {
+    # r29: soft-delete then permanently delete ONLY this round's probe documents.
+    try {
+      $confirmBody = [System.Text.Encoding]::UTF8.GetBytes('{"confirm":"PERMANENTLY_DELETE"}')
+      foreach ($did29 in @($r29MainId, $r29EmptyId, $r29TrashId)) {
+        if ($did29) {
+          try {
+            Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/documents/$did29" -Method Delete | Out-Null
+          } catch {
+            # already soft-deleted (trash probe) -> 404 is expected, continue to permanent delete
+          }
+          Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/documents/trash/$did29" -Method Delete `
+            -ContentType "application/json; charset=utf-8" -Body $confirmBody | Out-Null
+        }
+      }
+      Write-Output "cleaned seeded r29 documents (probe only)"
+    } catch {
+      Write-Output "warn: r29 cleanup failed ($($_.Exception.Message))"
     }
   } elseif ($Round -eq "r9") {
     # r9: delete the three seeded documents so repeat runs stay deterministic and

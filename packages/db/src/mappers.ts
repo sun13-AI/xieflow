@@ -50,6 +50,7 @@ import type {
 import type { Department, Member } from "@xieflow/shared/org";
 import type { Notification, NotificationRefType, NotificationType } from "@xieflow/shared/notifications";
 import type { Meeting, MeetingAttendee, Room } from "@xieflow/shared/meetings";
+import type { DocVersion } from "@xieflow/shared/docHistory";
 import type { AuthUser, AuthRole, Session } from "@xieflow/shared/auth";
 import { isFieldType, isBlockType, normalizeBlockContent, isKnowledgeSourceType } from "@xieflow/shared";
 import { REPEATS_ORDER } from "./repeat-order.js";
@@ -233,13 +234,29 @@ export function mapRowToTableView(row: Row): TableView {
   };
 }
 
-/** 文档（r8） */
+/** 文档（r8；r29 回收站项额外带 deletedAt，普通文档形状不变） */
 export function mapRowToDocument(row: Row): Document {
   return {
     id: Number(row.id),
     title: String(row.title),
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
+    ...(row.deleted_at === null || row.deleted_at === undefined
+      ? {}
+      : { deletedAt: String(row.deleted_at) }),
+  };
+}
+
+/** r29：document_versions 快照行（snake_case → camelCase 唯一入口） */
+export function mapRowToDocumentVersion(row: Row): DocVersion {
+  return {
+    id: Number(row.id),
+    documentId: Number(row.document_id),
+    version: Number(row.version),
+    title: String(row.title),
+    contentMarkdown: String(row.content_markdown ?? ""),
+    createdAt: String(row.created_at),
+    note: String(row.note ?? ""),
   };
 }
 

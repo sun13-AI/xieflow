@@ -1493,6 +1493,85 @@ app.get("/api/documents", async () => {
   return { documents: requireDb().listDocuments() };
 });
 
+// ---- r29：回收站（静态路由需在 /api/documents/:id 之前注册，避免被 id 参数吞掉） ----
+app.get("/api/documents/trash", async () => {
+  return { documents: requireDb().listTrashedDocuments() };
+});
+
+app.post("/api/documents/trash/:id/restore", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    if (!requireDb().restoreTrashedDocument(id)) {
+      return reply.code(404).send({ error: `回收站文档不存在：${id}` });
+    }
+    return { document: requireDb().getDocument(id) };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+/** 永久删除（二次确认）：只作用于回收站中的探针文档，误传 confirm 一律 400 */
+app.delete("/api/documents/trash/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const body = (req.body ?? {}) as { confirm?: unknown };
+    if (body.confirm !== "PERMANENTLY_DELETE") {
+      return reply.code(400).send({ error: "永久删除需二次确认：请提交 confirm=PERMANENTLY_DELETE" });
+    }
+    if (!requireDb().permanentlyDeleteDocument(id)) {
+      return reply.code(404).send({ error: `回收站文档不存在：${id}` });
+    }
+    return { deleted: true, permanent: true };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+// ---- r29：版本历史（列表 / 手动快照 / 恢复到新版本） ----
+app.get("/api/documents/:id/versions", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    if (!requireDocument(id, reply)) return reply;
+    return { versions: requireDb().listDocumentVersions(id) };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.post("/api/documents/:id/versions", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    if (!requireDocument(id, reply)) return reply;
+    const body = (req.body ?? {}) as { note?: unknown; contentMarkdown?: unknown };
+    const version = requireDb().createDocumentVersion(id, {
+      note: body.note,
+      contentMarkdown: body.contentMarkdown,
+    });
+    return reply.code(201).send(version);
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.post("/api/documents/:id/versions/:v/restore", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const v = parseId((req.params as { v: string }).v);
+    const store = requireDb();
+    const anyDoc = store.getDocumentAny(id);
+    if (!anyDoc) return reply.code(404).send({ error: `文档不存在：${id}` });
+    if (anyDoc.deletedAt != null) {
+      return reply.code(400).send({ error: `文档已删除，请先从回收站还原：${id}` });
+    }
+    if (store.getDocumentVersion(id, v) === null) {
+      return reply.code(404).send({ error: `版本不存在：v${v}` });
+    }
+    return store.restoreDocumentVersion(id, v);
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
 app.get("/api/documents/:id", async (req, reply) => {
   try {
     const id = parseId((req.params as { id: string }).id);
@@ -1517,12 +1596,14 @@ app.patch("/api/documents/:id", async (req, reply) => {
   }
 });
 
+/** r29：DELETE 文档 = 软删除（进回收站，块与版本历史保留）；永久删除走 /trash/:id + confirm */
 app.delete("/api/documents/:id", async (req, reply) => {
   try {
     const id = parseId((req.params as { id: string }).id);
-    const deleted = requireDb().deleteDocument(id);
-    if (!deleted) return reply.code(404).send({ error: `文档不存在：${id}` });
-    return { deleted: true };
+    if (!requireDb().softDeleteDocument(id)) {
+      return reply.code(404).send({ error: `文档不存在：${id}` });
+    }
+    return { deleted: true, soft: true };
   } catch (err) {
     return toErrorReply(err, reply);
   }

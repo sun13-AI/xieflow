@@ -475,7 +475,7 @@ export default function App() {
           <span className="tabs-more-fade" aria-hidden="true" />
           <button type="button" className="tabs-more" aria-label="更多导航" onClick={toggleNav}>更多 ›</button>
         </div>
-        <span className="badge">r28 · 会议管理（预约/冲突检测）</span>
+        <span className="badge">r29 · 文档版本历史与回收站</span>
         <OfflineStatus />
         <button type="button" className="nav-toggle" data-state="nav-toggle" aria-label="展开导航" onClick={toggleNav}>☰</button>
         <span className="auth-controls" data-state="auth-controls">

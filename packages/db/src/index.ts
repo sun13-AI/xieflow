@@ -48,6 +48,7 @@ import {
   mapRowToRoom,
   mapRowToMeeting,
   mapRowToMeetingAttendee,
+  mapRowToDocumentVersion,
 } from "./mappers.js";
 import type {
   AppSetting,
@@ -140,6 +141,8 @@ import {
   mergeBlockContent,
   planBlockReorder,
   assembleDocumentText,
+  blocksToMarkdown,
+  markdownToBlocks,
   DEFAULT_DOCUMENT_FIRST_BLOCK,
   MARKDOWN_IMPORT_MAX_BLOCKS,
   assertValidConversationTitle,
@@ -199,6 +202,13 @@ import {
   type Meeting,
   type MeetingAttendee,
 } from "@xieflow/shared/meetings";
+import {
+  nextDocVersion,
+  buildVersionNote,
+  assertCanRestoreVersion,
+  normalizeVersionNote,
+  type DocVersion,
+} from "@xieflow/shared/docHistory";
 import {
   normalizeDepartment,
   findDuplicateDepartmentName,
@@ -1318,14 +1328,22 @@ export class XieFlowDb {
     });
   }
 
-  getDocument(id: number): Document | null {
+  /** r29：含回收站的原始读取（回收站还原 / 永久删除 / 版本守卫内部使用） */
+  getDocumentAny(id: number): Document | null {
     const row = this.db.get("SELECT * FROM documents WHERE id = ?", [id]);
     return row ? mapRowToDocument(row) : null;
   }
 
+  /** 常规读取：软删文档视为不存在（回收站独占） */
+  getDocument(id: number): Document | null {
+    const row = this.db.get("SELECT * FROM documents WHERE id = ? AND deleted_at IS NULL", [id]);
+    return row ? mapRowToDocument(row) : null;
+  }
+
+  /** 常规列表：排除软删文档（回收站用 listTrashedDocuments） */
   listDocuments(): Document[] {
     return this.db
-      .all("SELECT * FROM documents ORDER BY updated_at DESC, id DESC")
+      .all("SELECT * FROM documents WHERE deleted_at IS NULL ORDER BY updated_at DESC, id DESC")
       .map(mapRowToDocument);
   }
 
@@ -1593,6 +1611,139 @@ export class XieFlowDb {
       text: assembleDocumentText(blocks),
       blocks,
     };
+  }
+
+  // ---- r29：文档版本历史 / 软删除回收站（规则集中 shared/docHistory，本层只装配与落库） ----
+
+  /** 取某文档最大版本号（无版本返回 0）；版本递增只走 shared nextDocVersion */
+  private maxDocVersion(documentId: number): number {
+    const row = this.db.get("SELECT MAX(version) AS v FROM document_versions WHERE document_id = ?", [documentId]) as
+      | { v: number | null }
+      | undefined;
+    return row?.v ?? 0;
+  }
+
+  /** 存快照：默认从当前块 Markdown 装配，note 缺省由 shared buildVersionNote 比较上一版自动算出 */
+  createDocumentVersion(
+    documentId: number,
+    input: { readonly note?: unknown; readonly contentMarkdown?: unknown } = {},
+  ): DocVersion {
+    const doc = this.getDocumentAny(documentId);
+    if (!doc) throw new ValidationError(`文档不存在：${documentId}`);
+    if (doc.deletedAt != null) throw new ValidationError(`文档已删除，不能存版本：${documentId}`);
+    const previous = this.db.get(
+      "SELECT content_markdown FROM document_versions WHERE document_id = ? ORDER BY version DESC LIMIT 1",
+      [documentId],
+    ) as { content_markdown: string } | undefined;
+    const contentMarkdown = typeof input.contentMarkdown === "string"
+      ? input.contentMarkdown
+      : blocksToMarkdown(this.listBlocks(documentId));
+    const version = nextDocVersion(this.maxDocVersion(documentId));
+    const note = input.note === undefined
+      ? buildVersionNote(previous?.content_markdown ?? "", contentMarkdown).text
+      : normalizeVersionNote(input.note, "手动保存快照");
+    this.db.run(
+      "INSERT INTO document_versions (document_id, version, title, content_markdown, created_at, note) VALUES (?, ?, ?, ?, ?, ?)",
+      [documentId, version, doc.title, contentMarkdown, new Date().toISOString(), note],
+    );
+    return this.getDocumentVersion(documentId, version)!;
+  }
+
+  listDocumentVersions(documentId: number): DocVersion[] {
+    return this.db
+      .all("SELECT * FROM document_versions WHERE document_id = ? ORDER BY version DESC, id DESC", [documentId])
+      .map(mapRowToDocumentVersion);
+  }
+
+  getDocumentVersion(documentId: number, version: number): DocVersion | null {
+    const row = this.db.get(
+      "SELECT * FROM document_versions WHERE document_id = ? AND version = ?",
+      [documentId, version],
+    );
+    return row ? mapRowToDocumentVersion(row) : null;
+  }
+
+  /**
+   * 恢复指定版本：**生成新版本**（v_next），不覆盖历史；整篇块替换 + 标题回退 +
+   * 新版本落库包在一个事务里（零半态）。守卫来自 shared assertCanRestoreVersion。
+   */
+  restoreDocumentVersion(
+    documentId: number,
+    version: number,
+  ): { document: Document; version: DocVersion; restoredFrom: number } {
+    const doc = this.getDocumentAny(documentId);
+    if (!doc) throw new ValidationError(`文档不存在：${documentId}`);
+    const target = this.getDocumentVersion(documentId, version);
+    if (!target) throw new ValidationError(`版本不存在：v${version}`);
+    // 版本行自身无 deleted_at；用目标版本号的形状承载文档的软删态，交给 shared 唯一守卫判定
+    const state = { version: target.version, deletedAt: doc.deletedAt };
+    assertCanRestoreVersion({ version: target.version }, state);
+    const rows = markdownToBlocks(target.contentMarkdown);
+    if (rows.length === 0) rows.push({ type: DEFAULT_DOCUMENT_FIRST_BLOCK.type, content: DEFAULT_DOCUMENT_FIRST_BLOCK.content });
+    if (rows.length > MARKDOWN_IMPORT_MAX_BLOCKS) {
+      throw new ValidationError(`恢复内容块数超过上限 ${MARKDOWN_IMPORT_MAX_BLOCKS}`);
+    }
+    const normalized = rows.map((row) => {
+      assertValidBlockType(row.type);
+      return { type: row.type, content: normalizeBlockContent(row.type, row.content) };
+    });
+    return this.withTransaction(() => {
+      const now = new Date().toISOString();
+      this.db.run("DELETE FROM blocks WHERE document_id = ?", [documentId]);
+      for (let i = 0; i < normalized.length; i += 1) {
+        const item = normalized[i]!;
+        this.db.run(
+          "INSERT INTO blocks (document_id, type, position, content, parent_id, created_at, updated_at) VALUES (?, ?, ?, ?, NULL, ?, ?)",
+          [documentId, item.type, i, JSON.stringify(item.content), now, now],
+        );
+      }
+      this.db.run("UPDATE documents SET title = ?, updated_at = ? WHERE id = ?", [target.title, now, documentId]);
+      const newVersion = nextDocVersion(this.maxDocVersion(documentId));
+      const note = normalizeVersionNote(
+        `恢复自 v${version}（历史版本已保留）`,
+        "恢复生成新版本",
+      );
+      this.db.run(
+        "INSERT INTO document_versions (document_id, version, title, content_markdown, created_at, note) VALUES (?, ?, ?, ?, ?, ?)",
+        [documentId, newVersion, target.title, target.contentMarkdown, now, note],
+      );
+      return {
+        document: this.getDocumentAny(documentId)!,
+        version: this.getDocumentVersion(documentId, newVersion)!,
+        restoredFrom: version,
+      };
+    });
+  }
+
+  /** 软删除：只置 deleted_at，块与版本历史原样保留（回收站可还原） */
+  softDeleteDocument(id: number): boolean {
+    const res = this.db.run(
+      "UPDATE documents SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL",
+      [new Date().toISOString(), new Date().toISOString(), id],
+    );
+    return res.changes > 0;
+  }
+
+  /** 回收站列表：只列软删文档（含删除时间） */
+  listTrashedDocuments(): Document[] {
+    return this.db
+      .all("SELECT * FROM documents WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC, id DESC")
+      .map(mapRowToDocument);
+  }
+
+  /** 从回收站还原：清 deleted_at，文档与全部版本历史回原状 */
+  restoreTrashedDocument(id: number): boolean {
+    const res = this.db.run(
+      "UPDATE documents SET deleted_at = NULL, updated_at = ? WHERE id = ? AND deleted_at IS NOT NULL",
+      [new Date().toISOString(), id],
+    );
+    return res.changes > 0;
+  }
+
+  /** 永久删除：仅作用于软删文档（api 二次确认后调用），块/版本经外键级联清除 */
+  permanentlyDeleteDocument(id: number): boolean {
+    const res = this.db.run("DELETE FROM documents WHERE id = ? AND deleted_at IS NOT NULL", [id]);
+    return res.changes > 0;
   }
 
   // ---- r10：AI 工作台对话数据层（conversations / messages / artifacts） ----

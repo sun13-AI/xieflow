@@ -321,7 +321,7 @@ export function assembleRangeSchedules(
 }
 
 /** 数据库 schema 版本号，每轮迁移必须 +1（宪法：禁止手改库文件） */
-export const SCHEMA_VERSION: number = 20;
+export const SCHEMA_VERSION: number = 21;
 
 
 /** 迁移脚本类型：user_version 从 from 升到 to */
@@ -1830,12 +1830,13 @@ export function convertBlockContent(from: unknown, to: unknown, content: unknown
   return normalizeBlockContent(to, content);
 }
 
-/** 文档领域对象（documents 表） */
+/** 文档领域对象（documents 表；deletedAt 仅回收站项携带，普通文档保持原形状） */
 export interface Document {
   id: number;
   title: string;
   createdAt: string;
   updatedAt: string;
+  deletedAt?: string | null;
 }
 
 /** 文档块领域对象（blocks 表；parent_id 可空） */

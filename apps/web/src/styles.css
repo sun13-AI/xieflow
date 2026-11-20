@@ -1494,6 +1494,108 @@ body {
   font-size: 14px;
 }
 
+/* r29：版本历史侧栏 + 回收站面板（文档页内，18 tab 不变） */
+.docs-layout.with-versions {
+  grid-template-columns: 210px minmax(0, 1fr) 290px;
+}
+
+.docs-versions {
+  min-height: 120px;
+  padding: 14px;
+}
+
+.docs-versions-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.docs-versions-head h3,
+.docs-versions-head h2 {
+  margin: 0 0 10px;
+  font-size: 14px;
+}
+
+.docs-version-list,
+.docs-trash-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.docs-version-item,
+.docs-trash-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid #d9e2f0;
+  border-radius: 8px;
+  background: #fafcff;
+}
+
+.docs-version-note {
+  color: #245b9e;
+  font-size: 12px;
+}
+
+.docs-version-meta {
+  color: #718096;
+  font-size: 11px;
+}
+
+.docs-version-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.docs-version-preview {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed #d9e2f0;
+}
+
+.docs-version-preview h4 {
+  margin: 0 0 6px;
+  font-size: 13px;
+}
+
+.docs-version-preview pre {
+  max-height: 180px;
+  overflow: auto;
+  padding: 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #f8fafc;
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
+.docs-trash-card {
+  max-width: 640px;
+}
+
+.docs-trash-confirm {
+  margin-top: 8px;
+  padding: 8px;
+  border: 1px solid #f3c2c2;
+  border-radius: 8px;
+  background: #fff6f6;
+  color: #a23b3b;
+  font-size: 12px;
+}
+
+.docs-restore-note {
+  border-color: #b7d1f1;
+  background: #f2f7ff;
+  color: #245b9e;
+}
+
 .docs-doc-list {
   list-style: none;
   margin: 0;

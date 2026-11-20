@@ -490,6 +490,26 @@ export const MIGRATIONS: Migration[] = [
       `CREATE INDEX IF NOT EXISTS idx_meeting_attendees_meeting ON meeting_attendees (meeting_id)`,
     ],
   },
+  {
+    version: 21,
+    name: "r29 · document_versions 表 + documents.deleted_at 列（版本历史与回收站，不接实时协同）",
+    up: [
+      `CREATE TABLE IF NOT EXISTS document_versions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        document_id INTEGER NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+        version INTEGER NOT NULL CHECK (version > 0),
+        title TEXT NOT NULL,
+        content_markdown TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL,
+        note TEXT NOT NULL DEFAULT '',
+        UNIQUE (document_id, version)
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_document_versions_document ON document_versions (document_id)`,
+    ],
+    ensureColumns: [
+      { table: "documents", column: "deleted_at", sql: `ALTER TABLE documents ADD COLUMN deleted_at TEXT` },
+    ],
+  },
 ];
 
 /** 当前 schema 版本（与 shared 的 SCHEMA_VERSION 保持一致，e2e 会断言二者相等） */

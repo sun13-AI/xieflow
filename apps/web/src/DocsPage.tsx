@@ -20,6 +20,8 @@ import {
   type MarkdownImportRowError,
 } from "@xieflow/shared";
 import { SERVICE_DOWN_MESSAGE, fetchJsonOrThrow, apiFetch } from "./httpClient";
+// r29：版本恢复守卫/软删判定只消费 shared 唯一口径，本页零算法分支
+import { canRestoreVersion, isDocumentSoftDeleted, type DocVersion } from "@xieflow/shared/docHistory";
 
 interface DocsQuery {
   docId: string;
@@ -50,6 +52,10 @@ interface ReviseSuggestionData {
   applied: boolean;
   block: DocumentBlock;
 }
+
+/** r29：版本历史侧栏 / 回收站面板的数据形状（全部来自真实 API） */
+interface VersionsData { versions: DocVersion[] }
+interface TrashData { documents: DocMeta[] }
 
 /** r9 U2 修复：行内增删改高亮——原文标 removed（删除线红）、建议标 added（新增绿），相同段保持原样 */
 function InlineDiff({ original, suggested, side }: { original: string; suggested: string; side: "original" | "suggested" }) {
@@ -194,6 +200,30 @@ export default function DocsPage() {
   const [reviseData, setReviseData] = useState<ReviseSuggestionData | null>(null);
   const [reviseNote, setReviseNote] = useState<string | null>(null);
   const pinnedTypeRef = useRef(false);
+  // r29：版本历史侧栏 + 回收站入口
+  const [versions, setVersions] = useState<DocVersion[]>([]);
+  const [versionsOpen, setVersionsOpen] = useState(false);
+  const [previewVersion, setPreviewVersion] = useState<DocVersion | null>(null);
+  const [restoreNotice, setRestoreNotice] = useState<string | null>(null);
+  const [summaryPin, setSummaryPin] = useState<string | null>(null);
+  const [trashOpen, setTrashOpen] = useState(false);
+  const [trashDocs, setTrashDocs] = useState<DocMeta[]>([]);
+  const [permanentTarget, setPermanentTarget] = useState<number | null>(null);
+
+  /** 版本列表唯一入口：只消费 API 装配好的 shared 规则结果 */
+  const loadVersions = useCallback(async (docId: number): Promise<DocVersion[]> => {
+    const res = await apiFetch(`/api/documents/${docId}/versions`);
+    const data = (await fetchJsonOrThrow(res)) as VersionsData;
+    setVersions(data.versions);
+    return data.versions;
+  }, []);
+
+  const loadTrash = useCallback(async (): Promise<DocMeta[]> => {
+    const res = await apiFetch("/api/documents/trash");
+    const data = (await fetchJsonOrThrow(res)) as TrashData;
+    setTrashDocs(data.documents);
+    return data.documents;
+  }, []);
 
   const load = useCallback(async (): Promise<DocsData | null> => {
     try {
@@ -201,12 +231,17 @@ export default function DocsPage() {
       setState({ phase: "ready", ...data });
       setDrafts(Object.fromEntries(data.blocks.map((b) => [b.id, blockText(b)])));
       setTitleDraft(data.doc?.title ?? "");
+      if (data.doc) {
+        try { await loadVersions(data.doc.id); } catch { setVersions([]); }
+      } else {
+        setVersions([]);
+      }
       return data;
     } catch (err: unknown) {
       setState({ phase: "error", message: err instanceof Error ? err.message : String(err) });
       return null;
     }
-  }, [query]);
+  }, [query, loadVersions]);
 
   useEffect(() => {
     const shot = query.shot;
@@ -253,6 +288,25 @@ export default function DocsPage() {
       }
       if (shot === "docs-revise-discarded") {
         setReviseNote("已放弃 AI 建议：原文未改动（服务端零写入）。");
+      }
+      // r29 截图钉态：版本历史空态 / 多版本列表 / 变更摘要 / 预览对比 / 恢复后 / 回收站
+      if (shot.startsWith("docs-versions") || shot === "docs-version-summary" ||
+          shot === "docs-version-preview" || shot === "docs-after-restore") {
+        setVersionsOpen(true);
+        const vs = data.doc ? await loadVersions(data.doc.id) : [];
+        if (shot === "docs-version-summary") {
+          setSummaryPin((vs[1] ?? vs[0])?.note ?? "无变更摘要");
+        }
+        if (shot === "docs-version-preview") {
+          setPreviewVersion(vs[0] ?? null);
+        }
+        if (shot === "docs-after-restore") {
+          setRestoreNotice("已恢复到 v1：生成 v4 新版本，v1~v3 历史完整保留。");
+        }
+      }
+      if (shot === "docs-trash") {
+        setTrashOpen(true);
+        await loadTrash();
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -602,6 +656,81 @@ export default function DocsPage() {
     setReviseNote("已放弃建议：原文未改动（服务端零写入）。");
   };
 
+  // ---- r29：版本历史 / 回收站交互（只调 API，规则全在 shared） ----
+  const saveSnapshot = async (): Promise<void> => {
+    if (!doc) return;
+    setBusy(true);
+    setErrorText(null);
+    try {
+      const res = await sendJson("POST", `/api/documents/${doc.id}/versions`, {});
+      if (res.status !== 201) throw new Error(String(res.data?.error ?? "存快照失败"));
+      const vs = await loadVersions(doc.id);
+      setNotice(`已存快照 v${vs[0]?.version ?? "?"}（变更摘要由 shared 计算）。`);
+    } catch (err: unknown) {
+      setErrorText(err instanceof Error ? err.message : SERVICE_DOWN_MESSAGE);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const restoreVersion = async (v: number): Promise<void> => {
+    if (!doc) return;
+    setBusy(true);
+    setErrorText(null);
+    try {
+      const res = await sendJson("POST", `/api/documents/${doc.id}/versions/${v}/restore`, {});
+      if (res.status !== 200) throw new Error(String(res.data?.error ?? "恢复失败"));
+      const vs = await loadVersions(doc.id);
+      setPreviewVersion(null);
+      setRestoreNotice(`已恢复到 v${v}：生成 v${vs[0]?.version ?? "?"} 新版本，历史未覆盖。`);
+      await refresh();
+    } catch (err: unknown) {
+      setErrorText(err instanceof Error ? err.message : SERVICE_DOWN_MESSAGE);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const openTrash = async (): Promise<void> => {
+    setTrashOpen(true);
+    setPermanentTarget(null);
+    try { await loadTrash(); } catch (err: unknown) {
+      setErrorText(err instanceof Error ? err.message : SERVICE_DOWN_MESSAGE);
+    }
+  };
+
+  const restoreTrashed = async (id: number): Promise<void> => {
+    setBusy(true);
+    setErrorText(null);
+    try {
+      const res = await sendJson("POST", `/api/documents/trash/${id}/restore`, {});
+      if (res.status !== 200) throw new Error(String(res.data?.error ?? "还原失败"));
+      await loadTrash();
+      await load();
+      setNotice("已从回收站还原，文档与版本历史全部回原状。");
+    } catch (err: unknown) {
+      setErrorText(err instanceof Error ? err.message : SERVICE_DOWN_MESSAGE);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const permanentlyDelete = async (id: number): Promise<void> => {
+    setBusy(true);
+    setErrorText(null);
+    try {
+      const res = await sendJson("DELETE", `/api/documents/trash/${id}`, { confirm: "PERMANENTLY_DELETE" });
+      if (res.status !== 200) throw new Error(String(res.data?.error ?? "永久删除失败"));
+      setPermanentTarget(null);
+      await loadTrash();
+      setNotice("已永久删除（仅本轮探针数据；不影响其它文档）。");
+    } catch (err: unknown) {
+      setErrorText(err instanceof Error ? err.message : SERVICE_DOWN_MESSAGE);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const numberedOrdinals = useMemo(() => computeNumberedOrdinals(blocks), [blocks]);
 
   const printBlocks = useMemo(() => blocks, [blocks]);
@@ -628,6 +757,14 @@ export default function DocsPage() {
               <span className="hint">块级文档 · Markdown 导入导出 · 块级 AI 修订 · 打印预览</span>
             </div>
             <div className="docs-toolbar-actions">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                data-state="docs-trash-button"
+                onClick={() => void openTrash()}
+              >
+                回收站
+              </button>
               <button
                 type="button"
                 className="btn btn-secondary"
@@ -675,6 +812,9 @@ export default function DocsPage() {
           {reviseNote && (
             <p className="docs-notice docs-revise-note" role="status" data-state="docs-revise-note">{reviseNote}</p>
           )}
+          {restoreNotice && (
+            <p className="docs-notice docs-restore-note" role="status" data-state="docs-restore-note">{restoreNotice}</p>
+          )}
           {query.shot === "docs-revise-adopted" && blocks.length > 1 && (
             <p className="docs-notice" role="status" data-state="docs-revise-adopted">
               已采纳 AI 建议并落库：第 2 块当前文本「{blockText(blocks[1]!)}」
@@ -686,7 +826,7 @@ export default function DocsPage() {
             </p>
           )}
 
-          <div className="docs-layout">
+          <div className={`docs-layout${versionsOpen && doc ? " with-versions" : ""}`}>
             <aside className="docs-sidebar card" data-state="docs-list">
               <h3>全部文档（{documents.length}）</h3>
               {documents.length === 0 ? (
@@ -741,6 +881,23 @@ export default function DocsPage() {
                       aria-label="文档标题"
                     />
                     <div className="docs-editor-actions">
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-small"
+                        data-state="docs-save-snapshot"
+                        disabled={busy}
+                        onClick={() => void saveSnapshot()}
+                      >
+                        存快照
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-small"
+                        data-state="docs-versions-button"
+                        onClick={() => { setVersionsOpen((v) => !v); setPreviewVersion(null); }}
+                      >
+                        版本历史
+                      </button>
                       <button
                         type="button"
                         className="btn btn-secondary btn-small"
@@ -909,6 +1066,76 @@ export default function DocsPage() {
                 </>
               )}
             </section>
+            {versionsOpen && doc && (
+              <aside className="docs-versions card" data-state="docs-versions-panel">
+                <div className="docs-versions-head">
+                  <h3>版本历史（{versions.length}）</h3>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-small"
+                    data-state="docs-versions-close"
+                    onClick={() => { setVersionsOpen(false); setPreviewVersion(null); }}
+                  >
+                    ×
+                  </button>
+                </div>
+                {versions.length === 0 ? (
+                  <div className="docs-empty" data-state="docs-versions-empty">
+                    <p>还没有历史版本——点编辑器里的「存快照」保存第一个版本。</p>
+                    {query.shot === "docs-versions-empty" && (
+                      <p className="seam-note">截图钉态 · 版本历史空态（真实零版本同形态）</p>
+                    )}
+                  </div>
+                ) : (
+                  <ul className="docs-version-list" data-state="docs-version-list">
+                    {versions.map((v) => {
+                      const restorable = canRestoreVersion(v, v);
+                      return (
+                        <li key={v.id}>
+                          <div className="docs-version-item" data-state="docs-version-item" data-version={v.version}>
+                            <strong>v{v.version}</strong>
+                            <span className="docs-version-note" data-state="docs-version-note">{v.note}</span>
+                            <span className="docs-version-meta">{v.createdAt.slice(5, 16).replace("T", " ")}</span>
+                            <div className="docs-version-actions">
+                              <button
+                                type="button"
+                                className="btn btn-ghost btn-small"
+                                data-state="docs-version-preview"
+                                onClick={() => setPreviewVersion(v)}
+                              >
+                                预览
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-ghost btn-small"
+                                data-state="docs-version-restore"
+                                disabled={!restorable || busy}
+                                onClick={() => void restoreVersion(v.version)}
+                              >
+                                恢复
+                              </button>
+                            </div>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+                {summaryPin && (
+                  <p className="docs-notice" role="status" data-state="docs-version-summary-note">
+                    变更摘要 · {summaryPin}
+                  </p>
+                )}
+                {previewVersion && (
+                  <div className="docs-version-preview" data-state="docs-version-preview">
+                    <h4>v{previewVersion.version} 快照预览</h4>
+                    <p className="hint">与当前全文对比：恢复将生成新版本，历史版本不会被覆盖。</p>
+                    <pre data-state="docs-version-preview-text">{previewVersion.contentMarkdown || "（空文档）"}</pre>
+                    <p className="docs-version-note">{previewVersion.note}</p>
+                  </div>
+                )}
+              </aside>
+            )}
           </div>
 
           {importOpen && doc && (
@@ -1082,6 +1309,74 @@ export default function DocsPage() {
               <p className="hint">GET /api/documents/:id/export.md → {exportSnapshot.bytes} 字节（text/markdown; charset=utf-8）</p>
               <pre>{exportSnapshot.text.slice(0, 900)}</pre>
               <p className="seam-note">截图钉态 · 文本取自真实导出端点；真实按钮按原字节触发浏览器下载</p>
+            </div>
+          )}
+
+          {trashOpen && (
+            <div className="modal-backdrop" data-state="docs-trash-panel">
+              <div className="modal-card docs-trash-card" role="dialog" aria-label="回收站">
+                <div className="docs-versions-head">
+                  <h2>回收站（{trashDocs.length}）</h2>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-small"
+                    data-state="docs-trash-close"
+                    onClick={() => { setTrashOpen(false); setPermanentTarget(null); }}
+                  >
+                    ×
+                  </button>
+                </div>
+                <p className="hint">软删除的文档与版本历史原样保留；「还原」回原状，「永久删除」需二次确认且只作用于本轮数据。</p>
+                {trashDocs.length === 0 ? (
+                  <div className="docs-empty" data-state="docs-trash-empty">回收站为空——还没有软删除的文档。</div>
+                ) : (
+                  <ul className="docs-trash-list" data-state="docs-trash-list">
+                    {trashDocs.map((d) => {
+                      const soft = isDocumentSoftDeleted(d);
+                      return (
+                        <li key={d.id} data-state="docs-trash-item">
+                          <span className="docs-doc-name">{d.title}</span>
+                          <span className="docs-doc-meta">软删于 {String(d.deletedAt ?? "").slice(0, 16).replace("T", " ")}</span>
+                          <div className="docs-version-actions">
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-small"
+                              data-state="docs-trash-restore"
+                              disabled={!soft || busy}
+                              onClick={() => void restoreTrashed(d.id)}
+                            >
+                              还原
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-small"
+                              data-state="docs-trash-permanent"
+                              disabled={busy}
+                              onClick={() => setPermanentTarget(permanentTarget === d.id ? null : d.id)}
+                            >
+                              永久删除
+                            </button>
+                          </div>
+                          {permanentTarget === d.id && (
+                            <div className="docs-trash-confirm" data-state="docs-trash-confirm">
+                              <p>确认永久删除「{d.title}」？此操作不可撤销，块与版本历史一并清除。</p>
+                              <button
+                                type="button"
+                                className="btn btn-secondary btn-small"
+                                data-state="docs-trash-confirm-yes"
+                                disabled={busy}
+                                onClick={() => void permanentlyDelete(d.id)}
+                              >
+                                确认永久删除
+                              </button>
+                            </div>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
             </div>
           )}
 
