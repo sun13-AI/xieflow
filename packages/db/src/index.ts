@@ -194,6 +194,13 @@ import {
   type EntityVersion,
   type ChangeOperation,
 } from "@xieflow/shared";
+// r38：卡片元数据唯一口径在 shared/cardMeta（本层只落库 + 装配，零算法分支）
+import {
+  normalizeCardLabels,
+  assertValidCardDueDate,
+  collectOverdueCards,
+  filterCardsByLabel as filterCardsByLabelRule,
+} from "@xieflow/shared/cardMeta";
 import {
   normalizeRoomDraft,
   normalizeMeetingDraft,
@@ -757,6 +764,35 @@ export class XieFlowDb {
     return res.changes > 0;
   }
 
+  /** r38：读某卡标签（按 label 字典序稳定回带）；老卡无行 -> [] */
+  listCardLabels(cardId: number): string[] {
+    return (this.db
+      .all("SELECT label FROM card_labels WHERE card_id = ? ORDER BY label", [cardId]) as {
+      label: string;
+    }[]).map((row) => row.label);
+  }
+
+  /** r38：整组替换标签（先删后插；归一规则全在 shared） */
+  private writeCardLabels(cardId: number, labels: readonly string[]): void {
+    const normalized = normalizeCardLabels(labels ?? []);
+    this.db.run("DELETE FROM card_labels WHERE card_id = ?", [cardId]);
+    for (const label of normalized) {
+      this.db.run("INSERT INTO card_labels (card_id, label) VALUES (?, ?)", [cardId, label]);
+    }
+  }
+
+  /** r38：卡片读回时装配标签（老卡无标签行 -> []） */
+  private withCardLabels(card: BoardCard): BoardCard {
+    return { ...card, labels: this.listCardLabels(card.id) };
+  }
+
+  /** r38：负责人指派守卫（存在 + 在职），解析规则全在 shared/org */
+  private assertCardAssignee(memberId: number | null | undefined): number | null {
+    if (memberId === null || memberId === undefined) return null;
+    assertAssignableMember(memberId, this.listMembers(), "负责人");
+    return memberId;
+  }
+
   createBoardCard(
     projectId: number,
     columnId: number,
@@ -764,6 +800,12 @@ export class XieFlowDb {
     description: string | null = null,
     position?: number,
     todoId: number | null = null,
+    /** r38：新增元数据；全部可空，老调用方不传 -> 老卡行为逐字不变 */
+    meta: {
+      labels?: readonly string[] | null;
+      assigneeMemberId?: number | null;
+      dueDate?: string | null;
+    } = {},
   ): BoardCard {
     assertValidBoardName(title);
     if (this.getProject(projectId) === null) {
@@ -780,6 +822,11 @@ export class XieFlowDb {
     if (todoId !== null && this.getTodo(todoId) === null) {
       throw new Error(`关联的待办不存在：${todoId}`);
     }
+    // r38：先守卫后落库（归一与校验全在 shared/cardMeta）
+    const labels = normalizeCardLabels(meta.labels ?? []);
+    const assigneeMemberId = this.assertCardAssignee(meta.assigneeMemberId ?? null);
+    const dueDate = meta.dueDate ?? null;
+    assertValidCardDueDate(dueDate);
     // position 缺省 = 追加到列尾（列内现有张数即下一个下标）
     const pos =
       position ??
@@ -794,35 +841,62 @@ export class XieFlowDb {
       throw new Error(`非法卡片位置：${String(pos)}`);
     }
     const now = new Date().toISOString();
-    const res = this.db.run(
-      "INSERT INTO cards (project_id, column_id, title, description, position, todo_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-      [projectId, columnId, title, description, pos, todoId, now, now],
-    );
-    const row = this.db.get("SELECT * FROM cards WHERE id = ?", [res.lastInsertRowid]);
+    const cardId = this.withTransaction(() => {
+      const res = this.db.run(
+        "INSERT INTO cards (project_id, column_id, title, description, position, todo_id, assignee_member_id, due_date, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [projectId, columnId, title, description, pos, todoId, assigneeMemberId, dueDate, now, now],
+      );
+      const id = Number(res.lastInsertRowid);
+      this.writeCardLabels(id, labels);
+      return id;
+    });
+    const row = this.db.get("SELECT * FROM cards WHERE id = ?", [cardId]);
     if (!row) throw new Error("卡片写入后读回失败");
-    return mapRowToBoardCard(row);
+    return this.withCardLabels(mapRowToBoardCard(row));
   }
 
   getBoardCard(id: number): BoardCard | null {
     const row = this.db.get("SELECT * FROM cards WHERE id = ?", [id]);
-    return row ? mapRowToBoardCard(row) : null;
+    return row ? this.withCardLabels(mapRowToBoardCard(row)) : null;
   }
 
   listBoardCards(columnId: number): BoardCard[] {
     return this.db
       .all("SELECT * FROM cards WHERE column_id = ? ORDER BY position", [columnId])
-      .map(mapRowToBoardCard);
+      .map((row) => this.withCardLabels(mapRowToBoardCard(row)));
   }
 
   listBoardCardsByProject(projectId: number): BoardCard[] {
     return this.db
       .all("SELECT * FROM cards WHERE project_id = ? ORDER BY column_id, position", [projectId])
-      .map(mapRowToBoardCard);
+      .map((row) => this.withCardLabels(mapRowToBoardCard(row)));
+  }
+
+  /** r38：逾期卡片列表（判定全在 shared/cardMeta collectOverdueCards） */
+  listOverdueCards(
+    projectId: number,
+    now: Date = new Date(),
+    columns: readonly BoardColumn[] = this.listBoardColumns(projectId),
+  ): BoardCard[] {
+    return collectOverdueCards(this.listBoardCardsByProject(projectId), now, columns);
+  }
+
+  /** r38：按标签筛选项目内卡片（归一与命中全在 shared/cardMeta） */
+  filterCardsByLabel(projectId: number, label: string): BoardCard[] {
+    return filterCardsByLabelRule(this.listBoardCardsByProject(projectId), label);
   }
 
   updateBoardCard(
     id: number,
-    patch: { title?: string; description?: string | null; todoId?: number | null },
+    patch: {
+      title?: string;
+      description?: string | null;
+      todoId?: number | null;
+      /** r38：三字段全可空；未提供沿用原值，显式 null/[] 清空 */
+      labels?: readonly string[];
+      assigneeMemberId?: number | null;
+      dueDate?: string | null;
+    },
   ): BoardCard {
     const current = this.getBoardCard(id);
     if (!current) throw new Error(`卡片不存在：${id}`);
@@ -831,14 +905,24 @@ export class XieFlowDb {
     const description =
       patch.description !== undefined ? patch.description : current.description;
     const todoId = patch.todoId !== undefined ? patch.todoId : current.todoId;
+    const labels = patch.labels !== undefined ? normalizeCardLabels(patch.labels) : current.labels ?? [];
+    const assigneeMemberId =
+      patch.assigneeMemberId !== undefined
+        ? this.assertCardAssignee(patch.assigneeMemberId)
+        : current.assigneeMemberId ?? null;
+    const dueDate = patch.dueDate !== undefined ? patch.dueDate : current.dueDate ?? null;
     assertValidBoardName(title);
+    assertValidCardDueDate(dueDate);
     if (todoId !== null && this.getTodo(todoId) === null) {
       throw new Error(`关联的待办不存在：${todoId}`);
     }
-    this.db.run(
-      "UPDATE cards SET title = ?, description = ?, todo_id = ?, updated_at = ? WHERE id = ?",
-      [title, description, todoId, new Date().toISOString(), id],
-    );
+    this.withTransaction(() => {
+      this.db.run(
+        "UPDATE cards SET title = ?, description = ?, todo_id = ?, assignee_member_id = ?, due_date = ?, updated_at = ? WHERE id = ?",
+        [title, description, todoId, assigneeMemberId, dueDate, new Date().toISOString(), id],
+      );
+      this.writeCardLabels(id, labels);
+    });
     return this.getBoardCard(id)!;
   }
 

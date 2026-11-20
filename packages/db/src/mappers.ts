@@ -139,6 +139,10 @@ export function mapRowToBoardCard(row: Row): BoardCard {
     todoId: row.todo_id === null ? null : Number(row.todo_id),
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
+    // r38：新列全可空，老库/旧行 row 上不存在时回落 null（向后兼容）
+    labels: [],
+    assigneeMemberId: row.assignee_member_id === null || row.assignee_member_id === undefined ? null : Number(row.assignee_member_id),
+    dueDate: row.due_date === null || row.due_date === undefined ? null : String(row.due_date),
   };
 }
 

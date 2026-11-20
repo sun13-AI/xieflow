@@ -241,7 +241,7 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r35 | M10 后·日历 ICS 导出与订阅（标准 iCalendar） | ✅已发版（初验 UI 打回 U1 图证链→返工#1 同一 ICS 往返→双终审通过） | v0.0.41 | e2e 3069 · audit 2396 | 通过（waizhuan）+ UI 终审通过（U1=0） |
 | r36 | M10 后·日报与周报自动生成 | ✅已发版（首轮双通过；汇总手算 88/88 + 变异红相独立复现） | v0.0.42 | e2e 3167 · audit 2471 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r37 | M10 后·表格分组视图与汇总行 | ✅已发版（首轮双通过；分组手算 66/66 + r7 零回归） | v0.0.43 | e2e 3277 · audit 2536 | 通过（waizhuan）+ UI 通过（阻断岗） |
-| r38 | M10 后·看板卡片元数据（标签/负责人/截止日，向后兼容） | 🔨规划中 | — | — | — |
+| r38 | M10 后·看板卡片元数据（标签/负责人/截止日，向后兼容） | 🔨研发中（yanfa-r38） | — | — | — |
 
 ## 🏁 项目总账（2026-11-19 · M10 收官）
 
@@ -867,6 +867,18 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 ---
 
 ## 记账区（每轮追加）
+
+### 2026-11-21 · r38 研发（yanfa-r38 · M10 后功能补强：看板卡片元数据，向后兼容）
+- 交付：`packages/shared/src/cardMeta.ts` 唯一口径（MAX_CARD_LABELS/MAX_CARD_LABEL_LENGTH · normalizeCardLabels trim/去重/上限/禁空 · assertValidCardLabel/assertValidCardDueDate · isCompletionColumnName 完成列识别 · isOverdue 本地日期口径且完成列抑制 · collectOverdueCards · filterCardsByLabel · cardMetaSummary 标签数/逾期态/负责人摘要 · asCardWithMeta）；`@xieflow/shared/cardMeta` 子路径登记；`SCHEMA_VERSION` 24→25，`BoardCard` 扩三可空字段，api/web 零算法分支；零新依赖、零 token
+- schema：`MIGRATIONS` 追加 v25——`cards.assignee_member_id`（可空 FK→members ON DELETE SET NULL）+ `cards.due_date`（可空 TEXT）+ `card_labels`（card_id FK CASCADE / label / UNIQUE(card_id,label)）+ 三索引；原 cards 六列逐字不动，老卡两列恒 NULL、标签零行，未手改库文件
+- api：卡片 POST/PATCH 扩 labels/assigneeMemberId/dueDate（负责人经 shared/org assertAssignableMember 校验存在+在职；日期/标签经 shared/cardMeta 守卫），响应回带 assigneeMember 摘要；`GET /api/boards/:id/overdue`（逾期卡列表 + count）、`GET /api/boards/:id/cards?label=`（标签筛选，label 缺省返回全部）；4xx：非法/超长/超量标签、停用/不存在成员、非法日期、越权 id 404、非数字 id 400
+- web：`BoardPage.tsx` 卡片正面加标签 chip / 负责人 / 截止日 / 逾期红标（走 shared isOverdue 唯一口径），新建/编辑面板加标签输入（chip 预览）/ 负责人（复用 r24 MemberPicker）/ 截止日 date，筛选栏加标签下拉；十九 tab 数不变，顶栏徽章推进 r38，`styles.css` 新增 `.board-label-*` / `.board-card-*` 规则；`?shot=board-meta-*` 七态钉态
+- 断言：e2e 3277 → **3377（+100）** · audit 2536 → **2616（+80）**，无一条删除；typecheck 5 包；`pnpm run test:all` exit 0；CI smoke 正则升 v25；README 速查行/当前轮对照表/断言规模行三处同步
+- **变异红相 1 组**：`shared/cardMeta.ts` `isOverdue` 完成列抑制分支改坏（去掉 isCompletionColumnName 判断）→ e2e / audit 红，逐字节还原后全绿（详见报告）
+- 「用户第一次用」全链路：`scripts/r38-firstuse-cdp.mjs`（headless CDP 真点：建项目 → 建卡 → 加标签/负责人/截止日 → 逾期红标 → 标签筛选 → reload 不丢 → HTTP truth 回查 → 探针清理）
+- 截图：`docs/ui/r38/` 7 张（空态/标签/负责人/截止日/逾期红标/窄屏/错误）+ 十九 tab 壳同批重拍；7/7、19/19 SHA256 互异、矩阵↔壳重叠 0，逐张 `read_image` 目验；索引 / shell README R38 当前哈希块 / 精简版根 README 同一提交
+- 危险区：未 push / 未打 tag / 未发版 / 未改 CI 发布配置；只走 user_version 迁移、未手改库文件；只删本轮探针与 scratch 库，仓库 `data/xieflow.db` 未作 DB_PATH；全程 headless、服务收净、PowerShell 新段全 ASCII、零 token
+- 报告：`docs/feedback/2026-11-21-r38-yanfa.md`（三态纪律 + 自曝 + 变异红相 + 向后兼容证据）
 
 ### 2026-11-20 · r37 研发（yanfa-r37 · M10 后功能补强：表格分组视图与汇总行）
 - 交付：`packages/shared/src/tableGroups.ts` 唯一口径（GROUP_AGGREGATORS 三枚举 / isGroupAggregator / assertValidGroupAggregator / GroupSpec / NULL_GROUP_KEY / groupRecords 分桶含 null 独立组与确定性组序 / aggregateGroup count|sum|avg 跳过非数值且无有效数值返回 null / countNumericValues / buildGroupView 分组+组内排序+汇总行 / normalizeGroupSpec 字段·聚合·取值字段守卫 / describeGroupSpec）；`@xieflow/shared/tableGroups` 子路径登记；`SCHEMA_VERSION` 23→24，`normalizeViewSpec` / `TableView` 扩 groupSpec，api/web 零算法分支；零新依赖、零 token、聚合只读不落库

@@ -1,6 +1,8 @@
 // 协流 XieFlow — 数据契约与状态定义（宪法第七条：状态机只准住在这里）
 // r37：分组规格类型从 ./tableGroups 引入（分组算法与守卫的唯一实现仍在该文件）
 import { normalizeGroupSpec, describeGroupSpec, type GroupSpec } from "./tableGroups.js";
+// r38：负责人摘要类型（只类型引用，org.ts 仅值引用 ValidationError，无运行时环）
+import type { MemberSummary } from "./org.js";
 
 /** 待办四象限：urgent × important 二维 */
 export type Quadrant = "q1" | "q2" | "q3" | "q4";
@@ -323,7 +325,7 @@ export function assembleRangeSchedules(
 }
 
 /** 数据库 schema 版本号，每轮迁移必须 +1（宪法：禁止手改库文件） */
-export const SCHEMA_VERSION: number = 24;
+export const SCHEMA_VERSION: number = 25;
 
 
 /** 迁移脚本类型：user_version 从 from 升到 to */
@@ -367,6 +369,14 @@ export interface BoardCard {
   todoId: number | null; // 关联待办（可空外键；徽标载体，r3 联动模式复用）
   createdAt: string;
   updatedAt: string;
+  /** r38：标签列表（可空，老卡为 []；落 card_labels 表） */
+  labels?: string[];
+  /** r38：负责人（r23 通讯录成员 id，可空外键；老卡为 null） */
+  assigneeMemberId?: number | null;
+  /** r38：负责人摘要（api 回带，老卡为 null） */
+  assigneeMember?: MemberSummary | null;
+  /** r38：截止日 YYYY-MM-DD（可空；老卡为 null） */
+  dueDate?: string | null;
 }
 
 /** 项目/列/卡片名称统一上限（与待办/日程标题同一 MAX_TODO_TITLE=200 口径） */

@@ -557,6 +557,27 @@ export const MIGRATIONS: Migration[] = [
     ],
     up: [],
   },
+  {
+    version: 25,
+    name: "r38 · 卡片元数据（cards 可空列 + card_labels 标签表，向后兼容）",
+    // 原 cards 六列逐字不动；两列全可空（老卡 assignee_member_id/due_date 恒 NULL），
+    // card_labels 以 UNIQUE(card_id,label) 存多标签，FK CASCADE 删卡即清标签。
+    up: [
+      `CREATE TABLE IF NOT EXISTS card_labels (
+        card_id INTEGER NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
+        label TEXT NOT NULL,
+        UNIQUE (card_id, label)
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_card_labels_card ON card_labels (card_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_card_labels_label ON card_labels (label)`,
+      `CREATE INDEX IF NOT EXISTS idx_cards_assignee_member ON cards (assignee_member_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_cards_due_date ON cards (due_date)`,
+    ],
+    ensureColumns: [
+      { table: "cards", column: "assignee_member_id", sql: `ALTER TABLE cards ADD COLUMN assignee_member_id INTEGER REFERENCES members(id) ON DELETE SET NULL` },
+      { table: "cards", column: "due_date", sql: `ALTER TABLE cards ADD COLUMN due_date TEXT` },
+    ],
+  },
 ];
 
 /** 当前 schema 版本（与 shared 的 SCHEMA_VERSION 保持一致，e2e 会断言二者相等） */

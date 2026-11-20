@@ -24,6 +24,10 @@ import {
   type Project,
   type Todo,
 } from "@xieflow/shared";
+// r38：逾期判定 / 标签筛选 / 标签归一唯一口径在 shared/cardMeta（web 零算法分支）
+import { isOverdue, filterCardsByLabel, normalizeCardLabels } from "@xieflow/shared/cardMeta";
+import type { MemberSummary } from "@xieflow/shared/org";
+import MemberPicker from "./MemberPicker";
 import { SERVICE_DOWN_MESSAGE, fetchJsonOrThrow, apiFetch } from "./httpClient";
 
 const TODO_STATUS_BADGES: Record<Todo["status"], { label: string; cls: string }> = {
@@ -38,6 +42,21 @@ type ExportState =
   | { phase: "exporting" }
   | { phase: "done"; bytes: number; rows: number; fileName: string }
   | { phase: "error"; message: string };
+
+/** 卡片编辑草稿（r38：标签 chip / 负责人 / 截止日全部可空） */
+interface CardDraft {
+  title: string;
+  todoId: string;
+  /** 逗号分隔输入；提交前经 shared normalizeCardLabels 归一 */
+  labels: string;
+  assigneeMemberId: number | null;
+  assigneeMember: MemberSummary | null;
+  dueDate: string;
+}
+
+const EMPTY_DRAFT: CardDraft = {
+  title: "", todoId: "", labels: "", assigneeMemberId: null, assigneeMember: null, dueDate: "",
+};
 
 interface BoardLoadState {
   phase: "loading" | "error" | "ready";
@@ -155,13 +174,39 @@ function pinSeedBoardMoved(now: Date): BoardFetch {
   return { ...seed, cards, stats: computeBoardStats(seed.project!.id, seed.columns, cards, seed.todos) };
 }
 
+/** r38 钉态种子：三张卡带标签 / 负责人 / 逾期截止日（所有数值手算写死，真值由 audit/CDP 背书） */
+function pinSeedBoardMeta(now: Date): BoardFetch {
+  const seed = pinSeedBoard(now);
+  const pinnedMember: MemberSummary = {
+    id: 7, name: "张工", departmentId: 1, departmentName: "研发部", title: "前端工程师", status: "active",
+  };
+  const cards: BoardCard[] = seed.cards.map((c) => {
+    if (c.id === 1) {
+      return {
+        ...c,
+        labels: ["前端", "紧急"],
+        assigneeMemberId: pinnedMember.id,
+        assigneeMember: pinnedMember,
+        dueDate: "2026-11-01", // 固定历史日期：任何当前日期下都是逾期（钉态稳定）
+      };
+    }
+    if (c.id === 2) return { ...c, labels: ["设计"], dueDate: "2026-12-25" };
+    if (c.id === 5) return { ...c, labels: ["前端"], dueDate: "2026-11-01" }; // 已完成列 -> 逾期抑制
+    return c;
+  });
+  return { ...seed, cards };
+}
+
 export default function BoardPage() {
   const [state, setState] = useState<BoardLoadState>({ phase: "loading" });
   const shot = useMemo(() => new URLSearchParams(window.location.search).get("shot"), []);
   // r33 deep-link：卡片结果带 cardId，项目结果带 projectId（后者由 fetchBoard 选中）
   const focusCardId = useMemo(() => Number(new URLSearchParams(window.location.search).get("cardId")) || 0, []);
-  const [modalOpen, setModalOpen] = useState(() => shot === "board-modal");
-  const [draft, setDraft] = useState<{ title: string; todoId: string }>({ title: "", todoId: "" });
+  const [modalOpen, setModalOpen] = useState(() => shot === "board-modal" || shot === "board-meta-assignee" || shot === "board-meta-due");
+  const [draft, setDraft] = useState<CardDraft>({ ...EMPTY_DRAFT });
+  const [editingCardId, setEditingCardId] = useState<number | null>(null);
+  const [pickerOpenSeed, setPickerOpenSeed] = useState(false);
+  const [labelFilter, setLabelFilter] = useState("");
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [exportState, setExportState] = useState<ExportState>({ phase: "idle" });
@@ -215,6 +260,59 @@ export default function BoardPage() {
       setState({ phase: "ready", ...pinSeedBoard(new Date()) });
       return;
     }
+    // ---- r38 卡片元数据七态钉态 ----
+    if (shot === "board-meta-empty") {
+      setState({ phase: "ready", project: null, projects: [], columns: [], cards: [], todos: [], stats: computeBoardStats(0, [], [], []) });
+      return;
+    }
+    if (shot === "board-meta-labels" || shot === "board-meta-narrow") {
+      const seed = pinSeedBoardMeta(new Date());
+      setState({ phase: "ready", ...seed });
+      setLabelFilter("前端");
+      return;
+    }
+    if (shot === "board-meta-overdue") {
+      // 与 02 同数据源但清除标签筛选：三列全显，待办列逾期红标与已完成列抑制同屏可辨
+      setState({ phase: "ready", ...pinSeedBoardMeta(new Date()) });
+      setLabelFilter("");
+      return;
+    }
+    if (shot === "board-meta-assignee") {
+      const seed = pinSeedBoardMeta(new Date());
+      setState({ phase: "ready", ...seed });
+      const card = seed.cards.find((c) => c.id === 1)!;
+      setDraft({
+        title: card.title, todoId: card.todoId === null ? "" : String(card.todoId),
+        labels: (card.labels ?? []).join("，"),
+        assigneeMemberId: card.assigneeMemberId ?? null,
+        assigneeMember: card.assigneeMember ?? null,
+        dueDate: card.dueDate ?? "",
+      });
+      setEditingCardId(card.id);
+      setPickerOpenSeed(true);
+      return;
+    }
+    if (shot === "board-meta-due") {
+      const seed = pinSeedBoardMeta(new Date());
+      setState({ phase: "ready", ...seed });
+      const card = seed.cards.find((c) => c.id === 1)!;
+      setDraft({
+        title: card.title, todoId: card.todoId === null ? "" : String(card.todoId),
+        labels: (card.labels ?? []).join("，"),
+        assigneeMemberId: card.assigneeMemberId ?? null,
+        assigneeMember: card.assigneeMember ?? null,
+        dueDate: card.dueDate ?? "",
+      });
+      setEditingCardId(card.id);
+      return;
+    }
+    if (shot === "board-meta-error") {
+      const seed = pinSeedBoardMeta(new Date());
+      setState({ phase: "ready", ...seed });
+      setSubmitError("卡片失败：标签过长（最多 40 字）· 截图钉态对应 audit 4xx 非法标签");
+      setModalOpen(true);
+      return;
+    }
     void load();
   }, [shot, load]);
 
@@ -242,7 +340,7 @@ export default function BoardPage() {
     await load();
   };
 
-  /** 新建卡片（默认落第一列列尾）：POST 卡片路由。无列时不静默——给出语义提示（A2）。 */
+  /** 新建 / 编辑卡片（r38：标签 / 负责人 / 截止日随同一请求提交） */
   const submitDraft = async (): Promise<void> => {
     setSubmitError(null);
     if (project === null) {
@@ -254,25 +352,50 @@ export default function BoardPage() {
       return;
     }
     try {
-      const res = await apiFetch(`/api/projects/${project.id}/columns/${columns[0]!.id}/cards`, {
-        method: "POST",
+      // 归一在 shared 唯一口径完成；空串标签列表提交 []（清空）
+      const labels = draft.labels.trim() === "" ? [] : draft.labels.split(/[,，\n]/);
+      const payload = {
+        title: draft.title,
+        todoId: draft.todoId === "" ? null : Number(draft.todoId),
+        labels,
+        assigneeMemberId: draft.assigneeMemberId,
+        dueDate: draft.dueDate === "" ? null : draft.dueDate,
+      };
+      const url = editingCardId === null
+        ? `/api/projects/${project.id}/columns/${columns[0]!.id}/cards`
+        : `/api/cards/${editingCardId}`;
+      const res = await apiFetch(url, {
+        method: editingCardId === null ? "POST" : "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          title: draft.title,
-          todoId: draft.todoId === "" ? null : Number(draft.todoId),
-        }),
+        body: JSON.stringify(payload),
       });
       const data = (await fetchJsonOrThrow(res)) as { error?: string } | null;
-      if (res.status !== 201) {
-        setSubmitError(data?.error ?? "新建失败，请稍后重试");
+      if (res.status !== 201 && res.status !== 200) {
+        setSubmitError(data?.error ?? (editingCardId === null ? "新建失败，请稍后重试" : "保存失败，请稍后重试"));
         return;
       }
       setModalOpen(false);
-      setDraft({ title: "", todoId: "" });
+      setDraft({ ...EMPTY_DRAFT });
+      setEditingCardId(null);
       await load();
     } catch (err: unknown) {
       setSubmitError(err instanceof Error ? err.message : SERVICE_DOWN_MESSAGE);
     }
+  };
+
+  /** 打开编辑面板：从卡片现有元数据回填草稿（r38） */
+  const openEdit = (card: BoardCard): void => {
+    setDraft({
+      title: card.title,
+      todoId: card.todoId === null ? "" : String(card.todoId),
+      labels: (card.labels ?? []).join("，"),
+      assigneeMemberId: card.assigneeMemberId ?? null,
+      assigneeMember: card.assigneeMember ?? null,
+      dueDate: card.dueDate ?? "",
+    });
+    setEditingCardId(card.id);
+    setSubmitError(null);
+    setModalOpen(true);
   };
 
   /** 跨列移动（r4 任务单核心交互）：PATCH /api/cards/:id/move { columnId, position } */
@@ -371,8 +494,15 @@ export default function BoardPage() {
     );
   }
 
+  // r38 标签筛选（归一与命中口径全在 shared/cardMeta，web 零算法分支）
+  const visibleCards: BoardCard[] = labelFilter.trim() === ""
+    ? cards
+    : filterCardsByLabel(cards, labelFilter);
+  const labelOptions: string[] = [...new Set(cards.flatMap((c) => c.labels ?? []))].sort();
+  const colNameById = new Map(columns.map((c) => [c.id, c.name]));
+
   const cardsByColumn = new Map<number, BoardCard[]>();
-  for (const c of cards) {
+  for (const c of visibleCards) {
     const list = cardsByColumn.get(c.columnId) ?? [];
     list.push(c);
     cardsByColumn.set(c.columnId, list);
@@ -403,6 +533,19 @@ export default function BoardPage() {
             ))}
           </select>
         </span>
+        <span className="board-label-filter-wrap">
+          <label className="board-switch-label" htmlFor="board-label-filter">标签：</label>
+          <select
+            id="board-label-filter"
+            data-state="board-label-filter"
+            value={labelFilter}
+            onChange={(e) => setLabelFilter(e.target.value)}
+          >
+            <option value="">全部标签</option>
+            {labelOptions.map((l) => <option key={l} value={l}>{l}</option>)}
+          </select>
+          {labelFilter !== "" && <span className="board-filter-count" data-state="board-filter-count">命中 {visibleCards.length} 张</span>}
+        </span>
         <button
           type="button"
           className="btn btn-secondary"
@@ -417,7 +560,9 @@ export default function BoardPage() {
           type="button"
           className="btn btn-primary"
           onClick={() => {
-            setDraft({ title: "", todoId: "" });
+            setDraft({ ...EMPTY_DRAFT });
+            setEditingCardId(null);
+            setPickerOpenSeed(false);
             setSubmitError(null);
             setModalOpen(true);
           }}
@@ -514,7 +659,34 @@ export default function BoardPage() {
                             </span>
                           )}
                         </div>
+                        {(card.labels?.length ?? 0) > 0 && (
+                          <div className="board-card-labels" data-state="board-card-labels">
+                            {card.labels!.map((l) => <span className="board-label-chip" key={l}>{l}</span>)}
+                          </div>
+                        )}
+                        <div className="board-card-meta-line" data-state="board-card-meta">
+                          {card.assigneeMember && (
+                            <span className="board-card-assignee" data-state="board-card-assignee">
+                              负责人：{card.assigneeMember.name}{card.assigneeMember.departmentName ? `（${card.assigneeMember.departmentName}）` : ""}
+                            </span>
+                          )}
+                          {card.dueDate && (
+                            <span className="board-card-due">截止：{card.dueDate}</span>
+                          )}
+                          {isOverdue(card.dueDate, new Date(), colNameById.get(card.columnId) ?? null) && (
+                            <span className="board-card-overdue" data-state="board-card-overdue" title="截止日已过且未进入完成列">逾期</span>
+                          )}
+                        </div>
                         <div className="board-card-actions">
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-small"
+                            data-action="board-card-edit"
+                            title="编辑卡片元数据（标签 / 负责人 / 截止日）"
+                            onClick={() => openEdit(card)}
+                          >
+                            编辑
+                          </button>
                           {columns
                             .filter((c) => c.id !== col.id)
                             .map((target) => (
@@ -544,8 +716,8 @@ export default function BoardPage() {
 
       {modalOpen && (
         <div className="modal-backdrop" data-state="board-modal">
-          <div className="modal-card" role="dialog" aria-label="新建卡片">
-            <h2>新建卡片</h2>
+          <div className="modal-card" role="dialog" aria-label={editingCardId === null ? "新建卡片" : "编辑卡片"}>
+            <h2>{editingCardId === null ? "新建卡片" : "编辑卡片"}</h2>
             <label className="field">
               <span className="field-label">
                 标题（必填，最多 {MAX_BOARD_NAME} 字，当前 {draft.title.length}）
@@ -555,6 +727,7 @@ export default function BoardPage() {
                 value={draft.title}
                 maxLength={MAX_BOARD_NAME}
                 placeholder="例：量房"
+                data-state="board-meta-title"
                 onChange={(e) => setDraft({ ...draft, title: e.target.value })}
               />
             </label>
@@ -572,15 +745,56 @@ export default function BoardPage() {
                 ))}
               </select>
             </label>
+            <label className="field">
+              <span className="field-label">标签（逗号分隔，提交时自动 trim / 去重）</span>
+              <input
+                type="text"
+                value={draft.labels}
+                data-state="board-meta-labels-input"
+                placeholder="例：前端，紧急"
+                onChange={(e) => setDraft({ ...draft, labels: e.target.value })}
+              />
+              <span className="board-label-preview" data-state="board-meta-labels-preview">
+                {normalizeCardLabels(draft.labels.trim() === "" ? [] : draft.labels.split(/[,，\n]/)).map((l) => (
+                  <span className="board-label-chip" key={l}>{l}</span>
+                ))}
+              </span>
+            </label>
+            <div className="field">
+              <span className="field-label">负责人（可选，来自通讯录）</span>
+              <MemberPicker
+                label="负责人"
+                seam="board-assignee"
+                member={draft.assigneeMember}
+                pinned={shot?.startsWith("board-meta-") ? [{
+                  id: 7, name: "张工", departmentId: 1, departmentName: "研发部", title: "前端工程师", status: "active",
+                }] : undefined}
+                openOnInit={shot === "board-meta-assignee" || pickerOpenSeed}
+                onPick={(m: MemberSummary) => {
+                  setDraft({ ...draft, assigneeMemberId: m.id, assigneeMember: m });
+                  setPickerOpenSeed(false);
+                }}
+                onClear={() => setDraft({ ...draft, assigneeMemberId: null, assigneeMember: null })}
+              />
+            </div>
+            <label className="field">
+              <span className="field-label">截止日（可选，留空表示清除；已过且非完成列显示逾期红标）</span>
+              <input
+                type="date"
+                value={draft.dueDate}
+                data-state="board-meta-due-input"
+                onChange={(e) => setDraft({ ...draft, dueDate: e.target.value })}
+              />
+            </label>
             {submitError && (
-              <p className="error-message" role="alert">{submitError}</p>
+              <p className="error-message" data-state="board-meta-error" role="alert">{submitError}</p>
             )}
             <div className="modal-actions">
-              <button type="button" className="btn btn-secondary" onClick={() => setModalOpen(false)}>
+              <button type="button" className="btn btn-secondary" onClick={() => { setModalOpen(false); setPickerOpenSeed(false); }}>
                 取消
               </button>
-              <button type="button" className="btn btn-primary" onClick={() => void submitDraft()}>
-                创建（落到「{columns[0]?.name ?? "——（先建列）"}」）
+              <button type="button" className="btn btn-primary" data-action="board-meta-submit" onClick={() => void submitDraft()}>
+                {editingCardId === null ? `创建（落到「${columns[0]?.name ?? "——（先建列）"}」）` : "保存修改"}
               </button>
             </div>
           </div>

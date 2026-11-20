@@ -56,7 +56,7 @@ param(
   [Parameter(Position = 0)]
   [ValidateSet("up", "shots", "down", "status", "all")]
   [string]$Action = "status",
-  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r26", "r27", "r28", "r29", "r30", "r31", "r32", "r33", "r34", "r35", "r36", "r37")]
+  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r26", "r27", "r28", "r29", "r30", "r31", "r32", "r33", "r34", "r35", "r36", "r37", "r38")]
   [string]$Round = "r1",
   [Parameter()]
   [string]$Shot = ""
@@ -1025,7 +1025,30 @@ function Invoke-Shots {
     }
   }
 
-  if ($Round -eq "r37") {
+  if ($Round -eq "r38") {
+    # r38: force local mode BEFORE capturing (fresh browser profile defaults to
+    # remote login otherwise); all seven pins are deterministic ?shot= states.
+    try {
+      Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/auth/mode" -Method Post `
+        -ContentType "application/json; charset=utf-8" `
+        -Body ([System.Text.Encoding]::UTF8.GetBytes('{"mode":"local"}')) | Out-Null
+      Write-Output "r38 service mode set to local"
+    } catch {
+      Write-Output "warn: r38 mode switch failed ($($_.Exception.Message))"
+    }
+    # r38: board card metadata matrix. Seven deterministic ?shot= pins over the real
+    # BoardPage (label chips / assignee picker / due date / overdue red badge / narrow / error).
+    $r38Base = "http://127.0.0.1:$WebPort/?page=board"
+    $shots = @(
+      @{ name = "01-card-empty";     url = "$r38Base&shot=board-meta-empty";    width = 1280; height = 900 },
+      @{ name = "02-card-labels";    url = "$r38Base&shot=board-meta-labels";   width = 1280; height = 900 },
+      @{ name = "03-card-assignee";  url = "$r38Base&shot=board-meta-assignee"; width = 1280; height = 900 },
+      @{ name = "04-card-due";       url = "$r38Base&shot=board-meta-due";      width = 1280; height = 900 },
+      @{ name = "05-card-overdue";   url = "$r38Base&shot=board-meta-overdue";  width = 1280; height = 900 },
+      @{ name = "06-card-narrow";    url = "$r38Base&shot=board-meta-narrow&narrow=1"; width = 488; height = 1100 },
+      @{ name = "07-card-error";     url = "$r38Base&shot=board-meta-error";    width = 1280; height = 900 }
+    )
+  } elseif ($Round -eq "r37") {
     # r37: table grouping matrix. Seven deterministic ?shot= pins over the real
     # BasesPage (group summary values come from shared/tableGroups via api):
     # empty / dropdown / numeric group / summary row / collapsed / narrow / error.

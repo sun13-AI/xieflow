@@ -17,7 +17,8 @@
     "./todoDeps": "./src/todoDeps.ts",
     "./ics": "./src/ics.ts",
     "./workReports": "./src/workReports.ts",
-    "./tableGroups": "./src/tableGroups.ts"
+    "./tableGroups": "./src/tableGroups.ts",
+    "./cardMeta": "./src/cardMeta.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit"

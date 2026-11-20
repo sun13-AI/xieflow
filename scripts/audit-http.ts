@@ -158,7 +158,7 @@ async function audit() {
     eq(h.json && h.json.ok, true, "health.ok = true");
     // r4 起动态对表：health.schemaVersion 必须等于迁移队列最高版本（不再硬编码 2/3，
     // r3 v0.0.6 CI 红教训——静态硬编码在每轮迁移后必过期）
-    eq(h.json && h.json.schemaVersion, 24, "health.schemaVersion = 18（r25 迁移后）");
+    eq(h.json && h.json.schemaVersion, 25, "health.schemaVersion = 18（r25 迁移后）");
     const s = await req("GET", "/api/settings");
     eq(s.status, 200, "GET /api/settings -> 200");
     ok(Array.isArray(s.json && s.json.settings), "settings 返回数组");
@@ -255,7 +255,7 @@ async function audit() {
   {
     // health 探针反映 schema v8（r4 起迁移后动态推进）
     const h3 = await req("GET", "/api/health");
-    eq(h3.json && h3.json.schemaVersion, 24, "health.schemaVersion = 18（r25 迁移后复核）");
+    eq(h3.json && h3.json.schemaVersion, 25, "health.schemaVersion = 18（r25 迁移后复核）");
 
     const r = await expectStatus(
       "POST",
@@ -2631,7 +2631,7 @@ async function audit() {
     const st0 = await expectStatus("GET", "/api/sync/status", undefined, 200, "r19 GET status -> 200");
     eq(st0.json && st0.json.total, 0, "r19 初始无实体版本");
     eq(st0.json && st0.json.lastChangeId, 0, "r19 初始 lastChangeId=0");
-    eq(st0.json && st0.json.schemaVersion, 24, "r19 status 回带 schema v18（r25 推进）");
+    eq(st0.json && st0.json.schemaVersion, 25, "r19 status 回带 schema v18（r25 推进）");
     const ch0 = await expectStatus("GET", "/api/sync/changes?since=0&limit=50", undefined, 200, "r19 GET changes 空 -> 200");
     eq(ch0.json && ch0.json.count, 0, "r19 初始变更日志为空");
     eq(ch0.json && ch0.json.changes, [], "r19 初始 changes 数组为空");
@@ -2852,7 +2852,7 @@ async function audit() {
     // health：真 HTTP 200 + 真读库语义
     const h = await expectStatus("GET", DEPLOY_PATHS.health, undefined, 200, "r21 GET 契约健康路径 -> 200");
     eq(h.json && h.json.ok, true, "r21 health.ok=true");
-    eq(h.json && h.json.schemaVersion, 24, "r21 health.schemaVersion=18（部署版本一致）");
+    eq(h.json && h.json.schemaVersion, 25, "r21 health.schemaVersion=18（部署版本一致）");
     ok(isServerMode(h.json && h.json.mode), "r21 health.mode 为 local|remote 之一（契约模式合法）");
 
     // mode：模式探针公开可达，回显一致
@@ -2907,7 +2907,7 @@ async function audit() {
   console.log("\n== Org r23: departments / members / tree / search / 4xx ==");
   {
     const h23 = await expectStatus("GET", "/api/health", undefined, 200, "r23 health 真 HTTP 200");
-    eq(h23.json && h23.json.schemaVersion, 24, "r23 health.schemaVersion=18（迁移真生效）");
+    eq(h23.json && h23.json.schemaVersion, 25, "r23 health.schemaVersion=18（迁移真生效）");
     const tree0 = await expectStatus("GET", "/api/org/tree", undefined, 200, "r23 空组织树 -> 200");
     eq(tree0.json && tree0.json.tree, [], "r23 空组织树 tree=[]");
     eq(tree0.json && tree0.json.departments, [], "r23 空组织树 departments=[]");
@@ -2998,7 +2998,7 @@ async function audit() {
   console.log("\n== Org r24: member_id in approvals / assets / usage / 4xx ==");
   {
     const h24 = await expectStatus("GET", "/api/health", undefined, 200, "r24 health 真 HTTP 200");
-    eq(h24.json && h24.json.schemaVersion, 24, "r24 health.schemaVersion=18（迁移真生效）");
+    eq(h24.json && h24.json.schemaVersion, 25, "r24 health.schemaVersion=18（迁移真生效）");
 
     const dept = await expectStatus("POST", "/api/departments", { name: "r24审计研发中心" }, 201, "r24 建部门 -> 201");
     const alice = await expectStatus("POST", "/api/members", {
@@ -3136,7 +3136,7 @@ async function audit() {
   console.log("\n== Approval r25: actorMemberId / linked member / action usage ==");
   {
     const h25 = await expectStatus("GET", "/api/health", undefined, 200, "r25 health 真 HTTP 200");
-    eq(h25.json && h25.json.schemaVersion, 24, "r25 health.schemaVersion=18（v18 迁移真生效）");
+    eq(h25.json && h25.json.schemaVersion, 25, "r25 health.schemaVersion=18（v18 迁移真生效）");
 
     const uname25 = `r25.actor.${Date.now()}`;
     const user25 = await expectStatus("POST", "/api/auth/register", { username: uname25, password: "Passw0rd!" }, 201, "r25 注册登录用户 -> 201");
@@ -3231,7 +3231,7 @@ async function auditR26(): Promise<void> {
   console.log("\n== Notification r26: real event aggregation / idempotent refresh / 4xx ==");
   {
     const h26 = await expectStatus("GET", "/api/health", undefined, 200, "r26 health 真 HTTP 200");
-    eq(h26.json && h26.json.schemaVersion, 24, "r26 health.schemaVersion=19（v19 迁移真生效）");
+    eq(h26.json && h26.json.schemaVersion, 25, "r26 health.schemaVersion=19（v19 迁移真生效）");
     const today = new Date();
     const pad26 = (n: number): string => String(n).padStart(2, "0");
     const todayStr26 = `${today.getFullYear()}-${pad26(today.getMonth() + 1)}-${pad26(today.getDate())}`;
@@ -3364,7 +3364,7 @@ async function auditR27(): Promise<void> {
   console.log("\n== Report r27: real HTTP assembly / hand-check / drilldown / 4xx ==");
   {
     const h27 = await expectStatus("GET", "/api/health", undefined, 200, "r27 health 真 HTTP 200");
-    eq(h27.json && h27.json.schemaVersion, 24, "r27 health.schemaVersion=19（报表轮无新迁移）");
+    eq(h27.json && h27.json.schemaVersion, 25, "r27 health.schemaVersion=19（报表轮无新迁移）");
     const today27 = new Date().toISOString().slice(0, 10);
     const q27 = `from=${today27}&to=${today27}`;
     const stamp27 = Date.now().toString(36);
@@ -3478,7 +3478,7 @@ async function auditR28(): Promise<void> {
   console.log("\n== Meeting r28: real HTTP booking / 409 conflicts / attendees / 4xx ==");
   {
     const h28 = await expectStatus("GET", "/api/health", undefined, 200, "r28 health 真 HTTP 200");
-    eq(h28.json && h28.json.schemaVersion, 24, "r28 health.schemaVersion=20（v20 迁移真生效）");
+    eq(h28.json && h28.json.schemaVersion, 25, "r28 health.schemaVersion=20（v20 迁移真生效）");
     const stamp28 = Date.now().toString(36);
     const day28 = "2027-02-18";
 
@@ -3661,7 +3661,7 @@ async function auditR28(): Promise<void> {
   {
     const stamp29 = `r29-${Date.now()}`;
     const h29 = await expectStatus("GET", "/api/health", undefined, 200, "r29 health -> 200");
-    eq(h29.json && h29.json.schemaVersion, 24, "r29 health.schemaVersion=21（v21 迁移真生效）");
+    eq(h29.json && h29.json.schemaVersion, 25, "r29 health.schemaVersion=21（v21 迁移真生效）");
 
     const docA29 = await expectStatus("POST", "/api/documents", { title: `${stamp29}-A` }, 201, "r29 建探针文档 A -> 201");
     const docB29 = await expectStatus("POST", "/api/documents", { title: `${stamp29}-B` }, 201, "r29 建探针文档 B -> 201");
@@ -3738,7 +3738,7 @@ async function auditR28(): Promise<void> {
   {
     const stamp30 = `r30-${Date.now()}`;
     const h30 = await expectStatus("GET", "/api/health", undefined, 200, "r30 health -> 200");
-    eq(h30.json && h30.json.schemaVersion, 24, "r30 health.schemaVersion=22（v22 迁移真生效）");
+    eq(h30.json && h30.json.schemaVersion, 25, "r30 health.schemaVersion=22（v22 迁移真生效）");
 
     const tbl30 = await expectStatus("POST", "/api/tables", { name: `${stamp30}-formula` }, 201, "r30 建表 -> 201");
     const tid30 = tbl30.json.id;
@@ -4447,6 +4447,134 @@ async function auditR28(): Promise<void> {
       await expectStatus("DELETE", `/api/tables/${tableId}`, undefined, 200, "r37 清理探针表 -> 200");
       const tablesAfter = await expectStatus("GET", "/api/tables", undefined, 200, "r37 清理后表列表 -> 200");
       ok(!JSON.stringify(tablesAfter.json.tables).includes(KEY), "r37 探针归零·表列表不再含本轮 KEY");
+    }
+
+    // ---- r38：看板卡片元数据（真 HTTP + 手算逾期 + 标签筛选 + 4xx + 向后兼容） ----
+    console.log("\n== r38 board card metadata (HTTP) ==");
+    {
+      const KEY = `R38HTTP${Date.now()}`;
+      const dep = await expectStatus("POST", "/api/departments", { name: `${KEY}-研发部` }, 201, "r38 建部门 -> 201");
+      const alice = await expectStatus("POST", "/api/members", {
+        name: `${KEY}-负责人甲`, email: "r38.owner@example.com", departmentId: dep.json.id, title: "前端", status: "active",
+      }, 201, "r38 建在职负责人 -> 201");
+      const retired = await expectStatus("POST", "/api/members", {
+        name: `${KEY}-离职者`, email: "r38.retired@example.com", status: "inactive",
+      }, 201, "r38 建停用成员 -> 201");
+      const proj = await expectStatus("POST", "/api/projects", { name: `${KEY}-元数据看板`, description: "r38" }, 201, "r38 建项目 -> 201");
+      const pid = proj.json.id;
+      const colsRes = await expectStatus("GET", `/api/projects/${pid}/columns`, undefined, 200, "r38 默认三列 -> 200");
+      const [todoCol, doingCol, doneCol] = colsRes.json.columns.map((c: any) => c.id);
+      eq(colsRes.json.columns.map((c: any) => c.name), ["待办", "进行中", "已完成"], "r38 默认三列名称与顺序（完成列用于逾期抑制）");
+
+      // 老卡：只传 title（r4 老请求逐字不变）
+      const legacy = await expectStatus("POST", `/api/projects/${pid}/columns/${todoCol}/cards`, { title: `${KEY}-老卡` }, 201, "r38 向后兼容·老请求只传 title -> 201");
+      eq(legacy.json.labels, [], "r38 向后兼容·老卡 labels=[]");
+      eq(legacy.json.assigneeMemberId, null, "r38 向后兼容·老卡 assigneeMemberId=null");
+      eq(legacy.json.dueDate, null, "r38 向后兼容·老卡 dueDate=null");
+      eq(legacy.json.assigneeMember, null, "r38 向后兼容·老卡 assigneeMember 摘要 null");
+      const legacyGet = await expectStatus("GET", `/api/cards/${legacy.json.id}`, undefined, 200, "r38 向后兼容·老卡详情 -> 200");
+      eq(legacyGet.json.description, null, "r38 向后兼容·老卡原字段 description=null");
+
+      // 新卡 A：逾期（2020-01-01）+ 两标签 + 在职负责人
+      const cardA = await expectStatus("POST", `/api/projects/${pid}/columns/${todoCol}/cards`, {
+        title: `${KEY}-逾期卡`, labels: ["  前端 ", "紧急", "前端"],
+        assigneeMemberId: alice.json.id, dueDate: "2020-01-01",
+      }, 201, "r38 建带元数据卡片 -> 201");
+      eq(cardA.json.labels, ["前端", "紧急"], "r38 建卡·标签 trim/去重回带");
+      eq(cardA.json.assigneeMemberId, alice.json.id, "r38 建卡·负责人 id 回带");
+      eq(cardA.json.assigneeMember?.name, alice.json.name, "r38 建卡·负责人摘要姓名回带");
+      eq(cardA.json.assigneeMember?.departmentName, dep.json.name, "r38 建卡·负责人摘要部门回带");
+      eq(cardA.json.dueDate, "2020-01-01", "r38 建卡·截止日回带");
+      const cardAGet = await expectStatus("GET", `/api/cards/${cardA.json.id}`, undefined, 200, "r38 GET 卡片详情 -> 200");
+      eq(cardAGet.json.labels, ["前端", "紧急"], "r38 GET 详情·标签不丢");
+      const colCards = await expectStatus("GET", `/api/projects/${pid}/columns/${todoCol}/cards`, undefined, 200, "r38 GET 列内卡片 -> 200");
+      eq(colCards.json.cards.find((c: any) => c.id === cardA.json.id)?.labels, ["前端", "紧急"], "r38 GET 列内卡片·标签回带");
+
+      // 新卡 B：未来截止日（2099），无标签无负责人
+      const cardB = await expectStatus("POST", `/api/projects/${pid}/columns/${doingCol}/cards`, {
+        title: `${KEY}-未来卡`, dueDate: "2099-01-01",
+      }, 201, "r38 建未来截止日卡片 -> 201");
+      eq(cardB.json.labels, [], "r38 未来卡·无标签");
+      // 新卡 C：逾期但在「已完成」列 -> 逾期被抑制
+      const cardC = await expectStatus("POST", `/api/projects/${pid}/columns/${doneCol}/cards`, {
+        title: `${KEY}-完成列卡`, labels: ["前端"], dueDate: "2020-01-01",
+      }, 201, "r38 建完成列逾期卡 -> 201");
+
+      // 逾期列表手算：仅 cardA（老卡无日期、B 未来、C 完成列抑制）
+      const overdue = await expectStatus("GET", `/api/boards/${pid}/overdue`, undefined, 200, "r38 GET 逾期列表 -> 200");
+      eq(overdue.json.count, 1, "r38 手算·逾期恰好 1 张");
+      eq(overdue.json.cards.map((c: any) => c.id), [cardA.json.id], "r38 手算·逾期卡 id = 卡A");
+      eq(overdue.json.cards[0]?.assigneeMember?.id, alice.json.id, "r38 逾期列表·负责人摘要回带");
+
+      // 标签筛选
+      const byLabel = await expectStatus("GET", `/api/boards/${pid}/cards?label=${encodeURIComponent("前端")}`, undefined, 200, "r38 GET 标签筛选 -> 200");
+      eq(byLabel.json.label, "前端", "r38 筛选·查询串标签回带");
+      eq(byLabel.json.count, 2, "r38 手算·前端标签 2 张（卡A + 卡C）");
+      ok(byLabel.json.cards.map((c: any) => c.id).includes(cardA.json.id), "r38 筛选·命中卡A");
+      ok(byLabel.json.cards.map((c: any) => c.id).includes(cardC.json.id), "r38 筛选·命中卡C");
+      eq(byLabel.json.cards.map((c: any) => c.id).includes(cardB.json.id), false, "r38 筛选·未命中无标签卡B");
+      const byTrim = await expectStatus("GET", `/api/boards/${pid}/cards?label=${encodeURIComponent("  前端  ")}`, undefined, 200, "r38 GET 标签筛选 trim -> 200");
+      eq(byTrim.json.count, 2, "r38 筛选·查询串 trim 后仍命中 2 张");
+      const byNone = await expectStatus("GET", `/api/boards/${pid}/cards?label=${encodeURIComponent("不存在")}`, undefined, 200, "r38 GET 无命中标签 -> 200");
+      eq(byNone.json.count, 0, "r38 筛选·无命中 0 张");
+      const allCards = await expectStatus("GET", `/api/boards/${pid}/cards`, undefined, 200, "r38 GET 不带 label -> 200");
+      eq(allCards.json.count, 4, "r38 筛选·label 缺省返回全部 4 张");
+
+      // PATCH 元数据整体替换 / 清空
+      const patched = await expectStatus("PATCH", `/api/cards/${cardA.json.id}`, {
+        labels: ["设计"], assigneeMemberId: null, dueDate: null,
+      }, 200, "r38 PATCH 元数据 -> 200");
+      eq(patched.json.labels, ["设计"], "r38 PATCH·标签整体替换");
+      eq(patched.json.assigneeMemberId, null, "r38 PATCH·清空负责人");
+      eq(patched.json.assigneeMember, null, "r38 PATCH·负责人摘要归 null");
+      eq(patched.json.dueDate, null, "r38 PATCH·清空截止日");
+      const afterPatch = await expectStatus("GET", `/api/boards/${pid}/overdue`, undefined, 200, "r38 PATCH 后重查逾期 -> 200");
+      eq(afterPatch.json.count, 0, "r38 手算·清空截止日后逾期归零");
+      await expectStatus("PATCH", `/api/cards/${cardA.json.id}`, { labels: ["前端"], dueDate: "2020-01-01" }, 200, "r38 PATCH 恢复元数据 -> 200");
+      const movedDone = await expectStatus("PATCH", `/api/cards/${cardA.json.id}/move`, { columnId: doneCol, position: 0 }, 200, "r38 移卡到完成列 -> 200");
+      eq(movedDone.json.labels, ["前端"], "r38 移动后元数据不丢");
+      eq((await req("GET", `/api/boards/${pid}/overdue`)).json.count, 0, "r38 手算·移入完成列后逾期归零");
+
+      // 4xx：非法标签 / 停用成员 / 不存在成员 / 非法日期 / 越权 / 非数字 id
+      await expectStatus("POST", `/api/projects/${pid}/columns/${todoCol}/cards`, { title: `${KEY}-空标签`, labels: ["  "] }, 400, "r38 4xx·全空标签 -> 400");
+      await expectStatus("POST", `/api/projects/${pid}/columns/${todoCol}/cards`, { title: `${KEY}-非数组标签`, labels: "前端" }, 400, "r38 4xx·非数组标签 -> 400");
+      await expectStatus("POST", `/api/projects/${pid}/columns/${todoCol}/cards`, { title: `${KEY}-超长标签`, labels: ["x".repeat(41)] }, 400, "r38 4xx·超长标签 -> 400");
+      await expectStatus("POST", `/api/projects/${pid}/columns/${todoCol}/cards`, {
+        title: `${KEY}-过多标签`, labels: Array.from({ length: 11 }, (_, i) => `标签${i}`),
+      }, 400, "r38 4xx·标签超上限 -> 400");
+      await expectStatus("POST", `/api/projects/${pid}/columns/${todoCol}/cards`, {
+        title: `${KEY}-停用负责人`, assigneeMemberId: retired.json.id,
+      }, 400, "r38 4xx·停用成员 -> 400");
+      await expectStatus("POST", `/api/projects/${pid}/columns/${todoCol}/cards`, {
+        title: `${KEY}-不存在负责人`, assigneeMemberId: 999999,
+      }, 400, "r38 4xx·不存在成员 -> 400");
+      await expectStatus("POST", `/api/projects/${pid}/columns/${todoCol}/cards`, {
+        title: `${KEY}-坏日期`, dueDate: "2026-02-30",
+      }, 400, "r38 4xx·非法日期 -> 400");
+      await expectStatus("POST", `/api/projects/${pid}/columns/${todoCol}/cards`, {
+        title: `${KEY}-斜杠日期`, dueDate: "2026/01/01",
+      }, 400, "r38 4xx·非 ISO 日期 -> 400");
+      await expectStatus("PATCH", `/api/cards/${cardA.json.id}`, { labels: ["  "] }, 400, "r38 4xx·PATCH 空标签 -> 400");
+      await expectStatus("PATCH", `/api/cards/${cardA.json.id}`, { dueDate: "bad" }, 400, "r38 4xx·PATCH 非法日期 -> 400");
+      await expectStatus("GET", `/api/boards/${pid}/cards?label=${encodeURIComponent("  ")}`, undefined, 400, "r38 4xx·空白标签查询 -> 400");
+      await expectStatus("GET", "/api/boards/999999/overdue", undefined, 404, "r38 4xx·越权项目 overdue -> 404");
+      await expectStatus("GET", "/api/boards/not-a-number/overdue", undefined, 400, "r38 4xx·非数字项目 id -> 400");
+      await expectStatus("GET", "/api/boards/999999/cards", undefined, 404, "r38 4xx·越权项目 cards -> 404");
+      await expectStatus("PATCH", "/api/cards/999999", { labels: ["x"] }, 404, "r38 4xx·越权卡片 PATCH -> 404");
+
+      // 级联删除 + 清理探针
+      await expectStatus("DELETE", `/api/cards/${cardA.json.id}`, undefined, 200, "r38 删卡 -> 200");
+      await expectStatus("GET", `/api/cards/${cardA.json.id}`, undefined, 404, "r38 删卡后详情 -> 404");
+      eq((await req("GET", `/api/boards/${pid}/cards?label=${encodeURIComponent("设计")}`)).json.count, 0, "r38 级联·删卡后标签不再被筛出");
+      for (const c of [legacy, cardB, cardC]) {
+        await expectStatus("DELETE", `/api/cards/${c.json.id}`, undefined, 200, "r38 清理探针卡 -> 200");
+      }
+      await expectStatus("DELETE", `/api/projects/${pid}`, undefined, 200, "r38 清理探针项目 -> 200");
+      await expectStatus("DELETE", `/api/members/${alice.json.id}`, undefined, 200, "r38 清理在职成员 -> 200");
+      await expectStatus("DELETE", `/api/members/${retired.json.id}`, undefined, 200, "r38 清理停用成员 -> 200");
+      await expectStatus("DELETE", `/api/departments/${dep.json.id}`, undefined, 200, "r38 清理部门 -> 200");
+      const projAfter = await expectStatus("GET", "/api/projects", undefined, 200, "r38 清理后项目列表 -> 200");
+      ok(!JSON.stringify(projAfter.json.projects).includes(KEY), "r38 探针归零·项目列表不含本轮 KEY");
     }
 }
 

@@ -84,6 +84,11 @@ import {
   normalizeGroupSpec,
   type GroupSpec,
 } from "@xieflow/shared/tableGroups";
+// r38：卡片元数据唯一实现在 shared/cardMeta，api 只装配 HTTP 响应与 4xx 映射
+import {
+  normalizeCardLabels,
+  assertValidCardDueDate,
+} from "@xieflow/shared/cardMeta";
 // r35：ICS 编解码/导入规划唯一实现在 shared/ics，api 只装配 HTTP 响应、零算法分支
 import {
   buildIcsCalendar,
@@ -1091,6 +1096,22 @@ interface CreateCardBody {
   description?: unknown;
   position?: unknown;
   todoId?: unknown;
+  /** r38：三字段全可空，老请求不传 -> 老卡行为逐字不变 */
+  labels?: unknown;
+  assigneeMemberId?: unknown;
+  dueDate?: unknown;
+}
+
+/** r38：卡片回带负责人摘要（老卡 assigneeMemberId=NULL -> assigneeMember=null） */
+function withCardMember(store: XieFlowDb, card: ReturnType<XieFlowDb["getBoardCard"]>) {
+  if (card === null) return null;
+  return { ...card, assigneeMember: memberSummaryOf(store, card.assigneeMemberId ?? null) };
+}
+
+/** r38：负责人 id 入参守卫（不存在 / 停用 -> ValidationError -> 400），返回规范化 id 或 null */
+function parseCardAssignee(store: XieFlowDb, value: unknown): number | null {
+  if (value === undefined || value === null || value === "") return null;
+  return assertAssignableMember(value, store.listMembers(), "负责人").id;
 }
 
 function parseOptionalId(value: unknown, label: string): number | undefined {
@@ -1115,6 +1136,10 @@ app.post("/api/projects/:id/columns/:colId/cards", async (req, reply) => {
     if (store.getProject(projectId) === null) {
       return reply.code(404).send({ error: `项目不存在：${projectId}` });
     }
+    const labels = normalizeCardLabels(body.labels ?? []);
+    const assigneeMemberId = parseCardAssignee(store, body.assigneeMemberId);
+    const dueDate = body.dueDate ?? null;
+    assertValidCardDueDate(dueDate);
     const card = store.createBoardCard(
       projectId,
       columnId,
@@ -1124,8 +1149,9 @@ app.post("/api/projects/:id/columns/:colId/cards", async (req, reply) => {
       body.todoId === undefined || body.todoId === null
         ? null
         : (parseOptionalId(body.todoId, "todoId") ?? null),
+      { labels, assigneeMemberId, dueDate },
     );
-    return reply.code(201).send(card);
+    return reply.code(201).send(withCardMember(store, card));
   } catch (err) {
     return toErrorReply(err, reply);
   }
@@ -1142,7 +1168,7 @@ app.get("/api/projects/:id/columns/:colId/cards", async (req, reply) => {
     if (store.getBoardColumn(columnId) === null) {
       return reply.code(404).send({ error: `看板列不存在：${columnId}` });
     }
-    return { cards: store.listBoardCards(columnId) };
+    return { cards: (store.listBoardCards(columnId) ?? []).map((c) => withCardMember(store, c)) };
   } catch (err) {
     return toErrorReply(err, reply);
   }
@@ -1151,11 +1177,12 @@ app.get("/api/projects/:id/columns/:colId/cards", async (req, reply) => {
 app.get("/api/cards/:id", async (req, reply) => {
   try {
     const id = parseId((req.params as { id: string }).id);
-    const card = requireDb().getBoardCard(id);
+    const store = requireDb();
+    const card = store.getBoardCard(id);
     if (!card) {
       return reply.code(404).send({ error: `卡片不存在：${id}` });
     }
-    return card;
+    return withCardMember(store, card);
   } catch (err) {
     return toErrorReply(err, reply);
   }
@@ -1165,12 +1192,17 @@ interface PatchCardBody {
   title?: unknown;
   description?: unknown;
   todoId?: unknown;
+  /** r38：三字段可空，未提供沿用原值；labels 整体替换、null 清空负责人/截止日 */
+  labels?: unknown;
+  assigneeMemberId?: unknown;
+  dueDate?: unknown;
 }
 
 app.patch("/api/cards/:id", async (req, reply) => {
   try {
     const id = parseId((req.params as { id: string }).id);
     const body = (req.body ?? {}) as PatchCardBody;
+    const store = requireDb();
     const patch: Parameters<XieFlowDb["updateBoardCard"]>[1] = {};
     if (body.title !== undefined) {
       if (typeof body.title !== "string") throw new ValidationError("看板名称不能为空");
@@ -1180,12 +1212,61 @@ app.patch("/api/cards/:id", async (req, reply) => {
     if (body.todoId !== undefined) {
       patch.todoId = body.todoId === null ? null : (parseOptionalId(body.todoId, "todoId") ?? null);
     }
-    const updated = requireDb().updateBoardCard(id, patch);
-    return updated;
+    if (body.labels !== undefined) patch.labels = normalizeCardLabels(body.labels);
+    if (body.assigneeMemberId !== undefined) patch.assigneeMemberId = parseCardAssignee(store, body.assigneeMemberId);
+    if (body.dueDate !== undefined) {
+      assertValidCardDueDate(body.dueDate);
+      patch.dueDate = body.dueDate as string | null;
+    }
+    const updated = store.updateBoardCard(id, patch);
+    return withCardMember(store, updated);
   } catch (err) {
     if (err instanceof Error && err.message.includes("卡片不存在")) {
       return reply.code(404).send({ error: err.message });
     }
+    return toErrorReply(err, reply);
+  }
+});
+
+/**
+ * r38：看板卡片元数据查询。
+ * GET /api/boards/:id/overdue —— 逾期卡列表（判定全在 shared/cardMeta collectOverdueCards）
+ * GET /api/boards/:id/cards?label= —— 按标签筛选项目内卡片（label 缺省返回全部）
+ * 两路由只做参数解析 + 404/400 映射 + 摘要装配，零逾期/归一算法分支。
+ */
+app.get("/api/boards/:id/overdue", async (req, reply) => {
+  try {
+    const projectId = parseId((req.params as { id: string }).id);
+    const store = requireDb();
+    if (store.getProject(projectId) === null) {
+      return reply.code(404).send({ error: `项目不存在：${projectId}` });
+    }
+    const cards = store.listOverdueCards(projectId);
+    return { cards: cards.map((c) => withCardMember(store, c)), count: cards.length };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+app.get("/api/boards/:id/cards", async (req, reply) => {
+  try {
+    const projectId = parseId((req.params as { id: string }).id);
+    const store = requireDb();
+    if (store.getProject(projectId) === null) {
+      return reply.code(404).send({ error: `项目不存在：${projectId}` });
+    }
+    const query = req.query as { label?: unknown };
+    const rawLabel = query.label;
+    const label = rawLabel === undefined ? null : String(rawLabel).trim();
+    const cards = label === null
+      ? store.listBoardCardsByProject(projectId)
+      : store.filterCardsByLabel(projectId, label);
+    return {
+      cards: cards.map((c) => withCardMember(store, c)),
+      count: cards.length,
+      label,
+    };
+  } catch (err) {
     return toErrorReply(err, reply);
   }
 });

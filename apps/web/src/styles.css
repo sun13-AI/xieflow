@@ -810,6 +810,49 @@ body {
   gap: 6px;
 }
 
+/* ---- r38：卡片元数据（标签 chip / 负责人 / 截止日 / 逾期红标 / 筛选栏） ---- */
+.board-label-filter-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+.board-filter-count { font-size: 12px; color: var(--text-muted, #64748b); }
+.board-card-labels, .board-label-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.board-label-chip {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #3730a3;
+  border: 1px solid #c7d2fe;
+  font-size: 11px;
+  line-height: 1.6;
+}
+.board-card-meta-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-muted, #64748b);
+}
+.board-card-overdue {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 4px;
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+  font-weight: 600;
+}
+.board-card-overdue::before { content: "● "; font-size: 9px; }
+
 /* ---- r5：看板统计卡 + 导出按钮 ---- */
 .board-stats {
   margin: 0 0 12px;

@@ -72,7 +72,21 @@
 | work-reports-tab-active.png | **报告激活（r36 新增）**（?page=work-reports；真实 0 数据日报空态 + 日报/周报切换 + 日期锚点 + 「生成报告 / 存为文档 / 打印」三按钮 + 十九药丸壳 + r37 徽章） | e2e「r36 App·十九 tab / 报告 tab 激活态 seam」；audit「GET /api/reports/daily 空库六段皆暂无 / summary 全 0」 |
 | meetings-tab-active.png | **会议激活（r28 新增）**（?page=meetings；零会议室 / 零成员空态：「还没有会议室——先在下方新建一间。」/「该日期暂无可用会议室。」/「通讯录暂无成员。」+ 十九药丸壳 + r37 徽章；各轮 shell 零数据最小集惯例，不是三室态） | e2e「r28 十八 tab 与顶栏按钮在场 / 会议页消费 shared 唯一口径」；audit「r28 清理后本轮会议归零」 |
 
-## r37 哈希自查（十九张互异，与当前文件逐字一致；R37 当前哈希块，以下 R36 及以下为历史块）
+## r38 哈希自查（十九张互异，与当前文件逐字一致；R38 当前哈希块，以下 R37 及以下为历史块）
+
+<!-- R38_HASHES_BEGIN -->
+`workbench=6BAB7DB6` · `todos=6AEECB47` · `schedules=DE3FF3D5` · `projects=75E788EF` ·
+`board=54663AE4` · `bases=BA2B09FF` · `docs=7794D5A0` · `chat=FFB3E5B4` ·
+`knowledge=46247EA3` · `mindmap=3F800FD1` · `whiteboard=BF538220` · `approval=E2C8BB1A` ·
+`assets=59E9405D` · `unit-tasks=96F0DAF5` · `org=978A7493` · `notifications=E97E4FCF` ·
+`reports=606281DF` · `work-reports=675FAD00` · `meetings=E6A79E31` —— **19/19 互异**。
+<!-- R38_HASHES_END -->
+
+> r38 渲染层改动（看板卡片正面元数据 + 编辑面板 + 筛选栏）+ 顶栏徽章推进 → 十九张同批重拍，tab 数不变；
+> 矩阵↔壳重叠 0；全库 349 PNG / 347 互异（+7 = r38 矩阵 7 张），同态组仅 r4 已披露 2 组。
+> 截图与 CDP 全程 headless，走 scratch local-mode 库，仓库 `data/xieflow.db` 未作 DB_PATH。
+
+## r37 哈希自查（十九张互异，R37 当前哈希块原样保留为历史块；当前文件见上方 R38 块）
 
 <!-- R37_HASHES_BEGIN -->
 `workbench=5FACDB62` · `todos=33F6A0B9` · `schedules=373CFB32` · `projects=F1741233` ·
