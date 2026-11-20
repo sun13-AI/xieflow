@@ -41,3 +41,4 @@
 | r34 | 2026-11-21 | 任务依赖 | schema v23 + shared/todoDeps 三函数 + 409 守卫 + 前置面板/阻塞徽标；README 精简回归 6 条改指向归档 | e2e 2961/audit 2324，守卫变异红相 |
 | r35 | 2026-11-21 | ICS 日历 | schema 无迁移 + shared/ics 手写编解码 + 三路由 + 导入预览；返工#1 可复拍 seam 对齐 02=04 | e2e 3069/audit 2396，转义变异红相 |
 | r36 | 2026-11-21 | 日报周报 | schema 无迁移 + shared/workReports 六段汇总 + 三路由 + 第 19 tab；零 token 模板化 | e2e 3167/audit 2471，时间窗变异红相 |
+| r37 | 2026-11-21 | 表格分组汇总 | schema v24 views.group_spec + shared/tableGroups 三函数 + 分组下拉/汇总行/折叠 | e2e 3277/audit 2536，sum 虚增变异红相 |
