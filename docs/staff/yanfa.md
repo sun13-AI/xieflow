@@ -31,3 +31,4 @@
 | r24 | 2026-11-19 | 成员接入业务 | schema v17 四个可空 member_id 列 + shared/org 解析 + 通讯录选人弹窗/部门徽标，原自由文本路径零回归 | e2e 2041/audit 1667，向后兼容硬断言通过 |
 | r25 | 2026-11-19 | 第三轮清理 | P3 actorMemberId 真修（v18 actionCount）+ shell R25 当前块/R23R24 对照 + U3 三项 | e2e 2096/audit 1723，变异红相 8+7 红 |
 | r26 | 2026-11-20 | 通知中心+双重返工 | schema v19 + shared/notifications + 16 tab；返工#1 deep-link refId 定位，返工#2 补 09 图证 | e2e 2237/audit 1809，双 VERDICT 闭环 |
+| r27 | 2026-11-20 | 报表中心 | schema 无迁移 + shared/reports 十函数 + 17 tab 六 KPI 卡；首轮截图登录页坑自曝并废片重拍 | e2e 2335/audit 1904，变异红相完成率 |
