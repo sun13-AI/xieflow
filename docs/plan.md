@@ -237,7 +237,7 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r31 | M10 后·第九轮轻量清理（字段类型文案回归 + 浮点展示） | ✅已发版（首轮双通过；8 类字段文案 + 84.8 展示格式化，求值语义零改） | v0.0.37 | e2e 2685 · audit 2138 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r32 | M10 后·文档打印导出增强（HTML 打印版 + Word 兼容） | ✅已发版（首轮双通过；Word COM 真开 + XSS 五字符转义 + 零依赖） | v0.0.38 | e2e 2766 · audit 2185 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r33 | M10 后·全局搜索（跨模块统一检索） | ✅已发版（首轮双通过；跨八源只读检索 + 变异红相 + deep-link 直达） | v0.0.39 | e2e 2849 · audit 2262 | 通过（waizhuan）+ UI 通过（阻断岗） |
-| r34 | M10 后·第十二轮（待定切片） | 🔨规划中 | — | — | — |
+| r34 | M10 后·任务依赖与阻塞关系（待办前置） | 🔨规划中 | — | — | — |
 
 ## 🏁 项目总账（2026-11-19 · M10 收官）
 
@@ -774,6 +774,23 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
   4. 双 VERDICT（waizhuan + ui 阻断岗）通过
 - 前置：r32 已发版（v0.0.38）✅
 - 明确边界：只读检索不改业务数据；零外部搜索服务/零 token；不新增 tab（顶栏搜索框，18 tab 数量不变，壳基线因顶栏变化同批重拍）
+
+### r34 · 任务依赖与阻塞关系（M10 后功能补强）
+- 目标：待办有状态机但无依赖——补前置任务（finish-to-start）：依赖未完成则本任务不可开始，循环依赖检测，看板/待办页可视化阻塞链
+- 交付清单：
+  1. schema v22→v23：todo_dependencies 表（todo_id/depends_on_todo_id，UNIQUE 对，FK CASCADE）
+  2. 依赖规则集中 packages/shared/todoDeps.ts：canStartTodo(todo, deps, todos)（所有前置 done 才能开始）、detectDependencyCycle(deps)（DFS 环检测）、buildDependencyGraph(todos, deps)（拓扑序/阻塞链）——api/web 零算法分支
+  3. api：依赖 CRUD（POST/DELETE /api/todos/:id/dependencies）、GET /:id/dependencies（含前置状态）、GET /api/todos/blocked（被阻塞任务列表）、状态机接入（open→done 时必须无未完成前置，否则 409）
+  4. web：待办详情页加「前置任务」区（添加/移除 + 状态徽标）、列表页阻塞态图标 + 「被 N 项阻塞」提示、循环依赖错误红条
+  5. 断言：e2e ≥+35（依赖判定/环检测/拓扑/状态机接入/阻塞列表）、audit ≥+25（409 阻塞/4xx：自依赖/环/越权/重复依赖）
+  6. 截图 ≥7：待办依赖空态/添加前置/阻塞态列表/依赖满足后/循环错误/窄屏/错误态
+- 验收标准：
+  1. 全量绿：e2e ≥2884、audit ≥2287，README 双节同步（精简版：速查行 + 两节当前 r34 条目，历史仍指向归档）
+  2. **依赖真实性**：waizhuan 造 A→B→C 链，A 未完成时 B/C 转 done 必须 409；A done 后 B 可 done；自依赖/环 A→B→A 被拒
+  3. **既有状态机零回归**（r1 的 todo 状态机断言全绿，只加守卫不改语义）
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r33 已发版（v0.0.39）✅
+- 明确边界：只做 finish-to-start 依赖，不做甘特图/时间约束（超范围）；零新依赖、零 token
 
 ## 历史轮次（r1~r2 已收档，见下方记账区）
 
