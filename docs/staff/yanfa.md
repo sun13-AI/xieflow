@@ -35,3 +35,4 @@
 | r28 | 2026-11-20 | 会议管理+返工 | schema v20 三表 + shared/meetings 冲突检测 + 18 tab；返工#1 建室自动选中/深链回显 | e2e 2460/audit 2004，变异红相 2 组 |
 | r29 | 2026-11-21 | 文档版本/回收站 | schema v21 + shared/docHistory 三函数 + 版本侧栏/回收站入口，18 tab 不变 | e2e 2542/audit 2060，变异红相 nextDocVersion |
 | r30 | 2026-11-21 | 公式字段 | schema v22 + shared/formula 手写 tokenizer/parser/evaluator 零 eval + 网格公式列 | e2e 2664/audit 2122，乘法改加法变异红相 |
+| r31 | 2026-11-21 | 轻量清理 | 8 类字段文案 + shared/formatFormulaDisplay 唯一展示格式化（84.8），求值语义零改 | e2e 2685/audit 2138，变异红相 toPrecision |
