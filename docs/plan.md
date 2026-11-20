@@ -236,7 +236,7 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r30 | M10 后·多维表格公式字段（纯本地表达式，零 eval） | ✅已发版（首轮双通过；公式真实性 78/78 + 零 eval + raw computed 恒 null） | v0.0.36 | e2e 2664 · audit 2122 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r31 | M10 后·第九轮轻量清理（字段类型文案回归 + 浮点展示） | ✅已发版（首轮双通过；8 类字段文案 + 84.8 展示格式化，求值语义零改） | v0.0.37 | e2e 2685 · audit 2138 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r32 | M10 后·文档打印导出增强（HTML 打印版 + Word 兼容） | ✅已发版（首轮双通过；Word COM 真开 + XSS 五字符转义 + 零依赖） | v0.0.38 | e2e 2766 · audit 2185 | 通过（waizhuan）+ UI 通过（阻断岗） |
-| r33 | M10 后·第十一轮（待定切片） | 🔨规划中 | — | — | — |
+| r33 | M10 后·全局搜索（跨模块统一检索） | 🔨规划中 | — | — | — |
 
 ## 🏁 项目总账（2026-11-19 · M10 收官）
 
@@ -757,6 +757,22 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
   4. 双 VERDICT（waizhuan + ui 阻断岗）通过
 - 前置：r31 已发版（v0.0.37）✅
 - 明确边界：不引 pdf/docx 第三方库（危险区），零 token；打印在 headless 下用 spy/seam 不弹系统对话框（r8 教训）
+
+### r33 · 全局搜索（跨模块统一检索，M10 后功能补强）
+- 目标：数据散落 16 个模块，用户找一条待办/文档/会议要切 tab——统一搜索框 + 跨模块结果 + 点结果直达（复用 r26 deep-link 机制）
+- 交付清单：
+  1. 搜索规则集中 packages/shared/globalSearch.ts：normalizeQuery（trim/小写/分词）、scoreMatch(query, text)（标题权重>正文、前缀命中>包含）、assembleSearchResults(query, sources)（跨源聚合/按分数排序/每源上限/去重）——api/web 零算法分支
+  2. api：GET /api/search?q=&limit=&types= 一次检索 8 类源——todos / schedules / projects / cards / documents / knowledge_docs / members / meetings（全读既有表，只读不写）；每条结果带 {type, id, title, snippet, score, tab, deepLink}
+  3. web：顶栏全局搜索框（快捷键 Ctrl/Cmd+K）+ 下拉结果面板（按类型分组图标 + 分数高亮 + 键盘上下选）+ 点结果跳对应 tab 并定位（复用 r26 deep-link）
+  4. 断言：e2e ≥+35（分词/权重/排序/去重/空查询/跨源）、audit ≥+25（4xx：空 q/超长 q/非法 types/越权源）
+  5. 截图 ≥7：搜索空态/输入中/单类型结果/多类型结果/键盘选中/窄屏/错误态
+- 验收标准：
+  1. 全量绿：e2e ≥2801、audit ≥2210，README 双节同步
+  2. **跨源真实性**：waizhuan 在 4 个模块各造一条含同关键词的数据→搜索一次返回 4 条且排序合理（标题命中优先）→点其中会议结果直达该会议（复用 deep-link）
+  3. **只读**：全链路零业务表写入（waizhuan raw 库快照核对）
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r32 已发版（v0.0.38）✅
+- 明确边界：只读检索不改业务数据；零外部搜索服务/零 token；不新增 tab（顶栏搜索框，18 tab 数量不变，壳基线因顶栏变化同批重拍）
 
 ## 历史轮次（r1~r2 已收档，见下方记账区）
 
