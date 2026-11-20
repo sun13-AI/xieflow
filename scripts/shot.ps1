@@ -27,6 +27,7 @@
 #   powershell -File scripts\shot.ps1 shots -Round r26 # capture r26 notification center matrix + 16-tab shell baseline
 #   powershell -File scripts\shot.ps1 shots -Round r24 # capture r24 member-picker matrix + 15-tab shell baseline
 #   powershell -File scripts\shot.ps1 shots -Round r11 -Shot 08-docs-diff-inline # rework#1: re-capture ONLY the diff-inline evidence (no other matrix/shell re-shot)
+#   powershell -File scripts\shot.ps1 shots -Round r26 -Shot 09-notif-deeplink-target # r26 rework#2: seed 3 pending approvals, CDP-click the SECOND notification, capture ONLY 09 (no other matrix/shell re-shot)
 #   powershell -File scripts\shot.ps1 down            # stop servers
 #   powershell -File scripts\shot.ps1 status          # show port status
 #   powershell -File scripts\shot.ps1 all             # up + shots + down
@@ -913,10 +914,47 @@ function Invoke-Shots {
     }
   }
 
+  # r26 rework#2 (UI U1-1): real deep-link target evidence. Seed three pending
+  # approvals with DIFFERENT assignees, refresh notifications, then shot 09 uses a
+  # one-shot headless CDP browser to really click the SECOND notification row
+  # (refId=2) and capture the approval target page. Seeded rows are deleted below.
+  # All literals stay ASCII (PS 5.1 safe); Chinese is produced by the api templates.
+  $r26Fix2ApprovalIds = @()
+  $r26Fix2NotifIds = @()
+  if ($Round -eq "r26" -and ($Shot -eq "" -or $Shot -eq "09-notif-deeplink-target")) {
+    try {
+      $r26Fix2Seeds = @(
+        @{ title = "r26fix2-A-first";   assignee = "fixerYi" },
+        @{ title = "r26fix2-B-target";  assignee = "fixerBing" },
+        @{ title = "r26fix2-C-third";   assignee = "fixerDing" }
+      )
+      foreach ($seed in $r26Fix2Seeds) {
+        $apBody = [System.Text.Encoding]::UTF8.GetBytes(
+          ('{"title":"' + $seed.title + '","type":"leave","applicantId":"r26fix2-yanfa","currentAssignee":"' + $seed.assignee + '","cc":[]}')
+        )
+        $ap26 = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/approvals" -Method Post `
+          -ContentType "application/json; charset=utf-8" -Body $apBody
+        $r26Fix2ApprovalIds += $ap26.id
+        $submit26 = [System.Text.Encoding]::UTF8.GetBytes('{"actor":"r26fix2-yanfa","comment":"pending for deep-link shot"}')
+        Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/approvals/$($ap26.id)/submit" -Method Post `
+          -ContentType "application/json; charset=utf-8" -Body $submit26 | Out-Null
+      }
+      Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/notifications/refresh" -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes('{}')) | Out-Null
+      $notifList26 = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/notifications?pageSize=100" -Method Get
+      $r26Fix2NotifIds = @($notifList26.notifications | Where-Object { $_.title -like "*r26fix2-*" } | ForEach-Object { $_.id })
+      Write-Output "r26 rework#2 seed: approvals=$($r26Fix2ApprovalIds -join ',') notifications=$($r26Fix2NotifIds -join ',')"
+    } catch {
+      Write-Output "warn: r26 rework#2 seed failed ($($_.Exception.Message)) - 09 deep-link shot may miss target"
+    }
+  }
+
   if ($Round -eq "r26") {
     # r26: notification center matrix. All eight states use deterministic ?shot= pins;
     # real aggregation / idempotency / navigation are locked by audit-http + CDP assertions.
     # 08 is rework#1: badge decrements 3 -> 2 in the same shot as the read-state change.
+    # 09 is rework#2: real CDP click of the SECOND approval notification -> target row
+    # selected + #2 detail + actor switch + deep-link URL (captured by helper below).
     $r26Base = "http://127.0.0.1:$WebPort/?page=notifications"
     $shots = @(
       @{ name = "01-notif-empty";      url = "$r26Base&shot=notif-empty";    width = 1280; height = 900 },
@@ -926,7 +964,8 @@ function Invoke-Shots {
       @{ name = "05-notif-refreshed";  url = "$r26Base&shot=notif-refreshed"; width = 1280; height = 900 },
       @{ name = "06-narrow";           url = "$r26Base&shot=notif-unread&narrow=1"; width = 488; height = 1000 },
       @{ name = "07-error";            url = "$r26Base&shot=notif-error";   width = 1280; height = 900 },
-      @{ name = "08-notif-badge-decrement"; url = "$r26Base&shot=notif-read-badge"; width = 1280; height = 900 }
+      @{ name = "08-notif-badge-decrement"; url = "$r26Base&shot=notif-read-badge"; width = 1280; height = 900 },
+      @{ name = "09-notif-deeplink-target"; url = "$r26Base"; width = 1280; height = 900 }
     )
   } elseif ($Round -eq "r25") {
     # r25: approval action actor badge / picker department filter / named badge /
@@ -1342,6 +1381,20 @@ function Invoke-Shots {
     # -Shot <name> re-captures ONE matrix item only (rework#1 U1: supplement 08
     # without re-shooting the already-accepted 7 + shell 8 whose hashes are indexed).
     if ($Shot -ne "" -and $s.name -ne $Shot) { continue }
+
+    # r26 rework#2 U1-1: 09 is not a ?shot= pin - it needs a REAL click on the second
+    # notification row. Delegate to a one-shot headless CDP helper (own browser,
+    # Input.dispatchMouseEvent, real location.href banner, Page.captureScreenshot).
+    if ($Round -eq "r26" -and $s.name -eq "09-notif-deeplink-target") {
+      $out = Join-Path $UiDir ($s.name + ".png")
+      if (Test-Path $out) { Remove-Item $out -Force }
+      $helper = Join-Path $Root "scripts\r26-deeplink-shot.mjs"
+      & node $helper --browser "$browser" --web-port $WebPort --out "$out" --target-id "2" --target-title "r26fix2-B-target" --expected-row "2"
+      if ($LASTEXITCODE -ne 0) { throw "r26 deep-link CDP shot failed (node exit $LASTEXITCODE)" }
+      Write-Output "shot ok: $($s.name).png (CDP real click, deep-link target)"
+      continue
+    }
+
     $out = Join-Path $UiDir ($s.name + ".png")
     # delete any stale png first: a failed capture must never look like a success
     if (Test-Path $out) { Remove-Item $out -Force }
@@ -1644,6 +1697,22 @@ function Invoke-Shots {
   # seed todo, so repeat runs stay deterministic.
   # r5: delete both seeded projects (by id - the script stays ASCII) and the two
   # seeded todos.
+  # r26 rework#2: delete only the three approvals + notifications this run seeded
+  # (scratch db stays clean, repeat runs stay deterministic).
+  if ($Round -eq "r26" -and $r26Fix2ApprovalIds.Count -gt 0) {
+    try {
+      foreach ($nid26 in $r26Fix2NotifIds) {
+        Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/notifications/$nid26" -Method Delete | Out-Null
+      }
+      foreach ($aid26 in $r26Fix2ApprovalIds) {
+        Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/approvals/$aid26" -Method Delete | Out-Null
+      }
+      Write-Output "cleaned r26 rework#2 seed: approvals=$($r26Fix2ApprovalIds -join ',') notifications=$($r26Fix2NotifIds -join ',')"
+    } catch {
+      Write-Output "warn: r26 rework#2 cleanup failed ($($_.Exception.Message))"
+    }
+  }
+
   if ($Round -eq "r16") {
     # r16: delete only the two approvals this run seeded (steps + cc cascade).
     try {

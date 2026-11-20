@@ -6071,7 +6071,7 @@ try {
     ok(ci26.includes("(2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19)"), "r26 CI smoke 正则升 v19");
     ok(shot26.includes('"r26"') && ["01-notif-empty", "02-notif-unread", "03-notif-filtered", "04-notif-read", "05-notif-refreshed", "06-narrow", "07-error", "08-notif-badge-decrement"].every((s) => shot26.includes(s)), "r26 shot.ps1 ValidateSet 与八张矩阵名齐备");
     ok(shell26.includes("<!-- R26_HASHES_BEGIN -->") && shell26.includes("<!-- R26_HASHES_END -->"), "r26 shell README 哈希块在场");
-    ok((r26Index.match(/^\| \[?\d\d-[^|\]]*\.png/gm) ?? []).length === 8, "r26 截图索引含八张矩阵行");
+    ok((r26Index.match(/^\| \[?\d\d-[^|\]]*\.png/gm) ?? []).length === 9, "r26 截图索引含九张矩阵行（返工#2 补 09）");
     ok(root26.includes("e2e（2237 断言）+ HTTP 审计（1809 断言）"), "返工#1 根 README 速查行数字逐字同步");
 
     // (J) 截图矩阵与十六 tab 壳基线（SHA 两两互异 + README 哈希逐字一致）
@@ -6085,8 +6085,8 @@ try {
       return out;
     };
     const matrix26 = walkPng26("docs/ui/r26");
-    eq(matrix26.length, 8, "r26 目录恰好 8 张 PNG");
-    eq(new Set(matrix26.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 8, "r26 八张 PNG SHA256 两两互异");
+    eq(matrix26.length, 9, "r26 目录恰好 9 张 PNG（返工#2 补 09）");
+    eq(new Set(matrix26.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 9, "r26 九张 PNG SHA256 两两互异");
     const shells26 = walkPng26("docs/ui/shell");
     eq(shells26.length, 16, "r26 壳基线 16 张 PNG");
     eq(new Set(shells26.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 16, "r26 壳基线 16 张 SHA256 两两互异");
