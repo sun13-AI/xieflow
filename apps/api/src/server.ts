@@ -76,7 +76,14 @@ import {
   type Schedule,
   type FieldType,
   type ViewFilterCondition,
+  MAX_PAGE_SIZE,
 } from "@xieflow/shared";
+// r37：分组算法唯一实现在 shared/tableGroups，api 只装配 HTTP 响应与 400/404 映射
+import {
+  buildGroupView,
+  normalizeGroupSpec,
+  type GroupSpec,
+} from "@xieflow/shared/tableGroups";
 // r35：ICS 编解码/导入规划唯一实现在 shared/ics，api 只装配 HTTP 响应、零算法分支
 import {
   buildIcsCalendar,
@@ -1745,6 +1752,7 @@ interface ViewBody {
   filterSpec?: unknown;
   sortSpec?: unknown;
   visibleFields?: unknown;
+  groupSpec?: unknown;
   position?: unknown;
 }
 
@@ -1765,6 +1773,7 @@ app.post("/api/tables/:id/views", async (req, reply) => {
       filterSpec: body.filterSpec,
       sortSpec: body.sortSpec,
       visibleFields: body.visibleFields,
+      groupSpec: body.groupSpec,
     }, position);
     return reply.code(201).send(view);
   } catch (err) {
@@ -1814,6 +1823,7 @@ app.patch("/api/views/:id", async (req, reply) => {
     if (body.filterSpec !== undefined) patch.filterSpec = body.filterSpec;
     if (body.sortSpec !== undefined) patch.sortSpec = body.sortSpec;
     if (body.visibleFields !== undefined) patch.visibleFields = body.visibleFields;
+    if (body.groupSpec !== undefined) patch.groupSpec = body.groupSpec;
     if (body.position !== undefined) patch.position = Number(body.position);
     return store.updateView(id, patch);
   } catch (err) {
@@ -1858,6 +1868,65 @@ app.get("/api/views/:id/records", async (req, reply) => {
       pageSize,
     }));
     return { ...computed, viewId: view.id, viewName: view.name };
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+/**
+ * r37：按视图分组查询（分组 + 组内排序 + 每组汇总行，只读不落库）。
+ * 分组规格优先取视图持久化的 group_spec；查询串 fieldId / aggregator /
+ * aggregateFieldId 可临时覆盖（用于校验与预览）。非法字段 / 聚合 / 取值字段
+ * 由 shared/tableGroups.normalizeGroupSpec 守卫 → 400；视图不存在 → 404。
+ */
+app.get("/api/views/:id/grouped", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const store = requireDb();
+    const view = store.getView(id);
+    if (!view) {
+      return reply.code(404).send({ error: `视图不存在：${id}` });
+    }
+    const query = (req.query ?? {}) as Record<string, unknown>;
+    const hasOverride =
+      query.fieldId !== undefined || query.aggregator !== undefined || query.aggregateFieldId !== undefined;
+    let rawSpec: unknown;
+    if (hasOverride) {
+      rawSpec = {
+        fieldId: query.fieldId,
+        aggregator: query.aggregator ?? "count",
+        aggregateFieldId: query.aggregateFieldId ?? null,
+      };
+    } else {
+      if (view.groupSpec === null) {
+        throw new ValidationError("视图未配置分组：请先设置分组字段与聚合方式");
+      }
+      rawSpec = view.groupSpec;
+    }
+    const fields = store.listFields(view.tableId);
+    const groupSpec = normalizeGroupSpec(fields, rawSpec) as GroupSpec;
+
+    // 先按视图筛选条件取全量记录（分页循环，不截断），投影不做（聚合要读原值）
+    const all = store.listRecords(view.tableId);
+    const picked: typeof all = [];
+    let pageNo = 1;
+    for (;;) {
+      const part = queryRecords(all, fields, {
+        filters: view.filterSpec,
+        page: pageNo,
+        pageSize: MAX_PAGE_SIZE,
+      });
+      picked.push(...part.records);
+      if (part.totalPages === 0 || pageNo >= part.totalPages) break;
+      pageNo++;
+    }
+    const grouped = buildGroupView(picked, groupSpec, fields, view.sortSpec);
+    return {
+      ...grouped,
+      viewId: view.id,
+      viewName: view.name,
+      filterHit: picked.length,
+    };
   } catch (err) {
     return toErrorReply(err, reply);
   }

@@ -548,6 +548,15 @@ export const MIGRATIONS: Migration[] = [
       `CREATE INDEX IF NOT EXISTS idx_todo_dependencies_depends ON todo_dependencies (depends_on_todo_id)`,
     ],
   },
+  {
+    version: 24,
+    name: "r37 · views.group_spec 可空列（表格分组视图与汇总行，复用 r7 视图持久化）",
+    // 只加一列可空 JSON 文本，老视图行 group_spec 恒 NULL（= 未分组），零行为改动。
+    ensureColumns: [
+      { table: "views", column: "group_spec", sql: `ALTER TABLE views ADD COLUMN group_spec TEXT` },
+    ],
+    up: [],
+  },
 ];
 
 /** 当前 schema 版本（与 shared 的 SCHEMA_VERSION 保持一致，e2e 会断言二者相等） */

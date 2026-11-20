@@ -1383,6 +1383,67 @@ body {
   background: var(--card);
 }
 
+/* ---- r37：分组下拉 / 折叠组头 / 汇总行 ---- */
+
+.bases-group-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+
+.bases-group-fields {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+}
+
+.bases-group-fields select {
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--card);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.bases-group-bar .error-message {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.bases-group-head-row td {
+  background: var(--accent-soft, #eef4ff);
+  font-weight: 700;
+  cursor: pointer;
+  padding: 8px 12px !important;
+}
+
+.bases-group-caret {
+  display: inline-block;
+  min-width: 16px;
+  color: var(--accent);
+}
+
+.bases-group-summary-row td {
+  background: #fff8e6;
+  border-top: 1px dashed var(--border);
+  font-weight: 700;
+}
+
+.bases-group-summary-value {
+  color: #a15c00;
+  text-align: right;
+}
+
 .bases-view-card {
   max-width: 720px;
 }

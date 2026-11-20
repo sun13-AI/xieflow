@@ -1230,14 +1230,15 @@ export class XieFlowDb {
     }
     const now = new Date().toISOString();
     const res = this.db.run(
-      "INSERT INTO views (table_id, name, filter_spec, sort_spec, visible_fields, position, created_at, updated_at) " +
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO views (table_id, name, filter_spec, sort_spec, visible_fields, group_spec, position, created_at, updated_at) " +
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
       [
         tableId,
         name,
         JSON.stringify(normalized.filterSpec),
         JSON.stringify(normalized.sortSpec),
         JSON.stringify(normalized.visibleFields),
+        normalized.groupSpec === null ? null : JSON.stringify(normalized.groupSpec),
         pos,
         now,
         now,
@@ -1267,6 +1268,7 @@ export class XieFlowDb {
       filterSpec?: unknown;
       sortSpec?: unknown;
       visibleFields?: unknown;
+      groupSpec?: unknown;
       position?: number;
     },
   ): TableView {
@@ -1290,19 +1292,21 @@ export class XieFlowDb {
       sortSpec: patch.sortSpec !== undefined ? patch.sortSpec : current.sortSpec,
       visibleFields:
         patch.visibleFields !== undefined ? patch.visibleFields : current.visibleFields,
+      groupSpec: patch.groupSpec !== undefined ? patch.groupSpec : current.groupSpec,
     });
     const position = patch.position ?? current.position;
     if (!Number.isInteger(position) || position < 0) {
       throw new Error(`非法视图位置：${String(position)}`);
     }
     this.db.run(
-      "UPDATE views SET name = ?, filter_spec = ?, sort_spec = ?, visible_fields = ?, position = ?, updated_at = ? " +
+      "UPDATE views SET name = ?, filter_spec = ?, sort_spec = ?, visible_fields = ?, group_spec = ?, position = ?, updated_at = ? " +
         "WHERE id = ?",
       [
         name,
         JSON.stringify(normalized.filterSpec),
         JSON.stringify(normalized.sortSpec),
         JSON.stringify(normalized.visibleFields),
+        normalized.groupSpec === null ? null : JSON.stringify(normalized.groupSpec),
         position,
         new Date().toISOString(),
         id,

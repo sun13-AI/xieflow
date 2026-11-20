@@ -1,4 +1,6 @@
 // 协流 XieFlow — 数据契约与状态定义（宪法第七条：状态机只准住在这里）
+// r37：分组规格类型从 ./tableGroups 引入（分组算法与守卫的唯一实现仍在该文件）
+import { normalizeGroupSpec, describeGroupSpec, type GroupSpec } from "./tableGroups.js";
 
 /** 待办四象限：urgent × important 二维 */
 export type Quadrant = "q1" | "q2" | "q3" | "q4";
@@ -321,7 +323,7 @@ export function assembleRangeSchedules(
 }
 
 /** 数据库 schema 版本号，每轮迁移必须 +1（宪法：禁止手改库文件） */
-export const SCHEMA_VERSION: number = 23;
+export const SCHEMA_VERSION: number = 24;
 
 
 /** 迁移脚本类型：user_version 从 from 升到 to */
@@ -1350,7 +1352,7 @@ export interface ViewSortRule {
   direction: SortDirection;
 }
 
-/** 视图（表的一个保存态：筛选 / 排序 / 字段可见性） */
+/** 视图（表的一个保存态：筛选 / 排序 / 字段可见性 / 分组） */
 export interface TableView {
   id: number;
   tableId: number;
@@ -1358,6 +1360,8 @@ export interface TableView {
   filterSpec: ViewFilterCondition[];
   sortSpec: ViewSortRule[];
   visibleFields: number[];
+  /** r37：分组规格（group_spec JSON 可空列；老视图为 null） */
+  groupSpec: GroupSpec | null;
   position: number;
   createdAt: string;
   updatedAt: string;
@@ -1368,6 +1372,7 @@ export interface ViewSpecInput {
   filterSpec?: unknown;
   sortSpec?: unknown;
   visibleFields?: unknown;
+  groupSpec?: unknown;
 }
 
 /** 归一后的视图 spec（落库形态） */
@@ -1375,6 +1380,7 @@ export interface NormalizedViewSpec {
   filterSpec: ViewFilterCondition[];
   sortSpec: ViewSortRule[];
   visibleFields: number[];
+  groupSpec: GroupSpec | null;
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -1462,12 +1468,17 @@ export function normalizeViewSpec(
     }
   }
 
-  return { filterSpec, sortSpec, visibleFields };
+  // —— 分组规格（r37；字段存在性 / 聚合枚举 / 聚合取值字段由 shared/tableGroups 守卫）——
+  const groupSpec = normalizeGroupSpec(fields, input.groupSpec);
+
+  return { filterSpec, sortSpec, visibleFields, groupSpec };
 }
 
 /** 视图 spec 的可读摘要（UI 视图条与提示文案共用同一口径） */
 export function describeViewSpec(
-  view: Pick<TableView, "filterSpec" | "sortSpec" | "visibleFields">,
+  view: Pick<TableView, "filterSpec" | "sortSpec" | "visibleFields"> & {
+    groupSpec?: GroupSpec | null;
+  },
   fields: readonly TableField[],
 ): string {
   const byId = new Map(fields.map((f) => [f.id, f]));
@@ -1479,6 +1490,8 @@ export function describeViewSpec(
   const parts: string[] = [];
   if (filters.length > 0) parts.push(`筛选 ${filters.join(" 且 ")}`);
   if (sorts.length > 0) parts.push(`排序 ${sorts.join(" → ")}`);
+  const group = describeGroupSpec(view.groupSpec ?? null, fields);
+  if (group !== "") parts.push(group);
   if (view.visibleFields.length > 0) {
     const hidden = fields.filter((f) => !view.visibleFields.includes(f.id)).map((f) => f.name);
     if (hidden.length > 0) parts.push(`隐藏列 ${hidden.join("、")}`);

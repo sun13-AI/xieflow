@@ -158,7 +158,7 @@ async function audit() {
     eq(h.json && h.json.ok, true, "health.ok = true");
     // r4 起动态对表：health.schemaVersion 必须等于迁移队列最高版本（不再硬编码 2/3，
     // r3 v0.0.6 CI 红教训——静态硬编码在每轮迁移后必过期）
-    eq(h.json && h.json.schemaVersion, 23, "health.schemaVersion = 18（r25 迁移后）");
+    eq(h.json && h.json.schemaVersion, 24, "health.schemaVersion = 18（r25 迁移后）");
     const s = await req("GET", "/api/settings");
     eq(s.status, 200, "GET /api/settings -> 200");
     ok(Array.isArray(s.json && s.json.settings), "settings 返回数组");
@@ -255,7 +255,7 @@ async function audit() {
   {
     // health 探针反映 schema v8（r4 起迁移后动态推进）
     const h3 = await req("GET", "/api/health");
-    eq(h3.json && h3.json.schemaVersion, 23, "health.schemaVersion = 18（r25 迁移后复核）");
+    eq(h3.json && h3.json.schemaVersion, 24, "health.schemaVersion = 18（r25 迁移后复核）");
 
     const r = await expectStatus(
       "POST",
@@ -2631,7 +2631,7 @@ async function audit() {
     const st0 = await expectStatus("GET", "/api/sync/status", undefined, 200, "r19 GET status -> 200");
     eq(st0.json && st0.json.total, 0, "r19 初始无实体版本");
     eq(st0.json && st0.json.lastChangeId, 0, "r19 初始 lastChangeId=0");
-    eq(st0.json && st0.json.schemaVersion, 23, "r19 status 回带 schema v18（r25 推进）");
+    eq(st0.json && st0.json.schemaVersion, 24, "r19 status 回带 schema v18（r25 推进）");
     const ch0 = await expectStatus("GET", "/api/sync/changes?since=0&limit=50", undefined, 200, "r19 GET changes 空 -> 200");
     eq(ch0.json && ch0.json.count, 0, "r19 初始变更日志为空");
     eq(ch0.json && ch0.json.changes, [], "r19 初始 changes 数组为空");
@@ -2852,7 +2852,7 @@ async function audit() {
     // health：真 HTTP 200 + 真读库语义
     const h = await expectStatus("GET", DEPLOY_PATHS.health, undefined, 200, "r21 GET 契约健康路径 -> 200");
     eq(h.json && h.json.ok, true, "r21 health.ok=true");
-    eq(h.json && h.json.schemaVersion, 23, "r21 health.schemaVersion=18（部署版本一致）");
+    eq(h.json && h.json.schemaVersion, 24, "r21 health.schemaVersion=18（部署版本一致）");
     ok(isServerMode(h.json && h.json.mode), "r21 health.mode 为 local|remote 之一（契约模式合法）");
 
     // mode：模式探针公开可达，回显一致
@@ -2907,7 +2907,7 @@ async function audit() {
   console.log("\n== Org r23: departments / members / tree / search / 4xx ==");
   {
     const h23 = await expectStatus("GET", "/api/health", undefined, 200, "r23 health 真 HTTP 200");
-    eq(h23.json && h23.json.schemaVersion, 23, "r23 health.schemaVersion=18（迁移真生效）");
+    eq(h23.json && h23.json.schemaVersion, 24, "r23 health.schemaVersion=18（迁移真生效）");
     const tree0 = await expectStatus("GET", "/api/org/tree", undefined, 200, "r23 空组织树 -> 200");
     eq(tree0.json && tree0.json.tree, [], "r23 空组织树 tree=[]");
     eq(tree0.json && tree0.json.departments, [], "r23 空组织树 departments=[]");
@@ -2998,7 +2998,7 @@ async function audit() {
   console.log("\n== Org r24: member_id in approvals / assets / usage / 4xx ==");
   {
     const h24 = await expectStatus("GET", "/api/health", undefined, 200, "r24 health 真 HTTP 200");
-    eq(h24.json && h24.json.schemaVersion, 23, "r24 health.schemaVersion=18（迁移真生效）");
+    eq(h24.json && h24.json.schemaVersion, 24, "r24 health.schemaVersion=18（迁移真生效）");
 
     const dept = await expectStatus("POST", "/api/departments", { name: "r24审计研发中心" }, 201, "r24 建部门 -> 201");
     const alice = await expectStatus("POST", "/api/members", {
@@ -3136,7 +3136,7 @@ async function audit() {
   console.log("\n== Approval r25: actorMemberId / linked member / action usage ==");
   {
     const h25 = await expectStatus("GET", "/api/health", undefined, 200, "r25 health 真 HTTP 200");
-    eq(h25.json && h25.json.schemaVersion, 23, "r25 health.schemaVersion=18（v18 迁移真生效）");
+    eq(h25.json && h25.json.schemaVersion, 24, "r25 health.schemaVersion=18（v18 迁移真生效）");
 
     const uname25 = `r25.actor.${Date.now()}`;
     const user25 = await expectStatus("POST", "/api/auth/register", { username: uname25, password: "Passw0rd!" }, 201, "r25 注册登录用户 -> 201");
@@ -3231,7 +3231,7 @@ async function auditR26(): Promise<void> {
   console.log("\n== Notification r26: real event aggregation / idempotent refresh / 4xx ==");
   {
     const h26 = await expectStatus("GET", "/api/health", undefined, 200, "r26 health 真 HTTP 200");
-    eq(h26.json && h26.json.schemaVersion, 23, "r26 health.schemaVersion=19（v19 迁移真生效）");
+    eq(h26.json && h26.json.schemaVersion, 24, "r26 health.schemaVersion=19（v19 迁移真生效）");
     const today = new Date();
     const pad26 = (n: number): string => String(n).padStart(2, "0");
     const todayStr26 = `${today.getFullYear()}-${pad26(today.getMonth() + 1)}-${pad26(today.getDate())}`;
@@ -3364,7 +3364,7 @@ async function auditR27(): Promise<void> {
   console.log("\n== Report r27: real HTTP assembly / hand-check / drilldown / 4xx ==");
   {
     const h27 = await expectStatus("GET", "/api/health", undefined, 200, "r27 health 真 HTTP 200");
-    eq(h27.json && h27.json.schemaVersion, 23, "r27 health.schemaVersion=19（报表轮无新迁移）");
+    eq(h27.json && h27.json.schemaVersion, 24, "r27 health.schemaVersion=19（报表轮无新迁移）");
     const today27 = new Date().toISOString().slice(0, 10);
     const q27 = `from=${today27}&to=${today27}`;
     const stamp27 = Date.now().toString(36);
@@ -3478,7 +3478,7 @@ async function auditR28(): Promise<void> {
   console.log("\n== Meeting r28: real HTTP booking / 409 conflicts / attendees / 4xx ==");
   {
     const h28 = await expectStatus("GET", "/api/health", undefined, 200, "r28 health 真 HTTP 200");
-    eq(h28.json && h28.json.schemaVersion, 23, "r28 health.schemaVersion=20（v20 迁移真生效）");
+    eq(h28.json && h28.json.schemaVersion, 24, "r28 health.schemaVersion=20（v20 迁移真生效）");
     const stamp28 = Date.now().toString(36);
     const day28 = "2027-02-18";
 
@@ -3661,7 +3661,7 @@ async function auditR28(): Promise<void> {
   {
     const stamp29 = `r29-${Date.now()}`;
     const h29 = await expectStatus("GET", "/api/health", undefined, 200, "r29 health -> 200");
-    eq(h29.json && h29.json.schemaVersion, 23, "r29 health.schemaVersion=21（v21 迁移真生效）");
+    eq(h29.json && h29.json.schemaVersion, 24, "r29 health.schemaVersion=21（v21 迁移真生效）");
 
     const docA29 = await expectStatus("POST", "/api/documents", { title: `${stamp29}-A` }, 201, "r29 建探针文档 A -> 201");
     const docB29 = await expectStatus("POST", "/api/documents", { title: `${stamp29}-B` }, 201, "r29 建探针文档 B -> 201");
@@ -3738,7 +3738,7 @@ async function auditR28(): Promise<void> {
   {
     const stamp30 = `r30-${Date.now()}`;
     const h30 = await expectStatus("GET", "/api/health", undefined, 200, "r30 health -> 200");
-    eq(h30.json && h30.json.schemaVersion, 23, "r30 health.schemaVersion=22（v22 迁移真生效）");
+    eq(h30.json && h30.json.schemaVersion, 24, "r30 health.schemaVersion=22（v22 迁移真生效）");
 
     const tbl30 = await expectStatus("POST", "/api/tables", { name: `${stamp30}-formula` }, 201, "r30 建表 -> 201");
     const tid30 = tbl30.json.id;
@@ -4337,6 +4337,116 @@ async function auditR28(): Promise<void> {
       for (const id of docIds) await expectStatus("DELETE", `/api/documents/${id}`, undefined, 200, `r36 清理报告文档 ${id} -> 200`);
       const finalDaily = await expectStatus("GET", `/api/reports/daily?date=${TODAY}`, undefined, 200, "r36 清理后回查日报 -> 200");
       ok(!finalDaily.json.markdown.includes(KEY), "r36 探针归零·日报不再含本轮 KEY");
+    }
+
+    // ---- r37：表格分组视图与汇总行（真 HTTP + 手算核对 + 4xx + r7 零回归） ----
+    {
+      const KEY = `R37HTTP${Date.now()}`;
+      const tbl = await expectStatus("POST", "/api/tables", { name: `${KEY}-分组表` }, 201, "r37 建分组探针表 -> 201");
+      const tableId = tbl.json.id as number;
+      const fieldRes = await expectStatus("GET", `/api/tables/${tableId}/fields`, undefined, 200, "r37 默认字段 -> 200");
+      const statusId = fieldRes.json.fields.find((f: any) => f.name === "状态").id as number;
+      const amountId = fieldRes.json.fields.find((f: any) => f.name === "金额").id as number;
+      const nameId = fieldRes.json.fields.find((f: any) => f.name === "名称").id as number;
+      const rec = (name: string, status: string | null, amount: number | null): Promise<any> =>
+        expectStatus(
+          "POST", `/api/tables/${tableId}/records`,
+          { data: { [String(nameId)]: name, [String(statusId)]: status, [String(amountId)]: amount } },
+          201, `r37 录行 ${name} -> 201`,
+        );
+      await rec(`${KEY} A`, "未开始", 10);
+      await rec(`${KEY} B`, "未开始", 20);
+      await rec(`${KEY} C`, "进行中", 30);
+      await rec(`${KEY} D`, null, 5);
+      await rec(`${KEY} E`, "已完成", null);
+
+      const spec = { fieldId: statusId, aggregator: "sum", aggregateFieldId: amountId };
+      const view = await expectStatus(
+        "POST", `/api/tables/${tableId}/views`,
+        { name: `${KEY} 分组视图`, groupSpec: spec }, 201, "r37 POST 带 groupSpec 的视图 -> 201",
+      );
+      const viewId = view.json.id as number;
+      eq(view.json.groupSpec, spec, "r37 视图详情·groupSpec 原样回带");
+      const viewsList = await expectStatus("GET", `/api/tables/${tableId}/views`, undefined, 200, "r37 视图列表 -> 200");
+      eq(viewsList.json.views.find((v: any) => v.id === viewId)?.groupSpec, spec, "r37 视图列表·groupSpec 回带");
+
+      const grouped = await expectStatus("GET", `/api/views/${viewId}/grouped`, undefined, 200, "r37 GET 分组汇总 -> 200");
+      eq(grouped.json.totalRecords, 5, "r37 汇总·总行数 5");
+      eq(grouped.json.totalGroups, 4, "r37 汇总·总组数 4（含空值组）");
+      eq(grouped.json.groups.map((g: any) => g.label), ["未开始", "进行中", "已完成", "（空值）"], "r37 汇总·组序确定且空值恒末");
+      eq(grouped.json.groups[0]?.summary, { count: 2, aggregator: "sum", aggregateFieldId: amountId, numericCount: 2, value: 30 }, "r37 手算·未开始 count=2/sum=30");
+      eq(grouped.json.groups[1]?.summary.value, 30, "r37 手算·进行中 sum=30");
+      eq(grouped.json.groups[2]?.summary.value, null, "r37 手算·已完成无数值 sum=null");
+      eq(grouped.json.groups[3]?.summary.value, 5, "r37 手算·空值组 sum=5");
+      eq(grouped.json.groups[0]?.records.length, 2, "r37 汇总·组内记录回带 2 条");
+      eq(grouped.json.filterHit, 5, "r37 汇总·filterHit 与记录总数一致");
+      eq(grouped.json.viewId, viewId, "r37 汇总·viewId 回带");
+
+      const avg = await expectStatus(
+        "GET", `/api/views/${viewId}/grouped?fieldId=${statusId}&aggregator=avg&aggregateFieldId=${amountId}`,
+        undefined, 200, "r37 GET 查询串覆盖为均值 -> 200",
+      );
+      eq(avg.json.groups[0]?.summary.value, 15, "r37 手算·未开始 avg=15");
+      eq(avg.json.groups[1]?.summary.value, 30, "r37 手算·进行中 avg=30");
+      eq(avg.json.groups[3]?.summary.value, 5, "r37 手算·空值组 avg=5");
+      const cnt = await expectStatus(
+        "GET", `/api/views/${viewId}/grouped?fieldId=${statusId}&aggregator=count`,
+        undefined, 200, "r37 GET 查询串覆盖为计数 -> 200",
+      );
+      eq(cnt.json.groups[0]?.summary.value, 2, "r37 手算·未开始 count=2");
+      eq(cnt.json.groups[0]?.summary.aggregateFieldId, null, "r37 手算·count 归一无取值字段");
+
+      const patched = await expectStatus(
+        "PATCH", `/api/views/${viewId}`,
+        { groupSpec: { fieldId: statusId, aggregator: "avg", aggregateFieldId: amountId } },
+        200, "r37 PATCH 视图改分组规格 -> 200",
+      );
+      eq(patched.json.groupSpec?.aggregator, "avg", "r37 持久化·PATCH 后 groupSpec 回带 avg");
+      const reloaded = await expectStatus("GET", `/api/views/${viewId}`, undefined, 200, "r37 持久化·重新 GET 视图 -> 200");
+      eq(reloaded.json.groupSpec?.aggregator, "avg", "r37 持久化·reload 后 groupSpec 仍是 avg");
+      const groupedAfter = await expectStatus("GET", `/api/views/${viewId}/grouped`, undefined, 200, "r37 持久化·按新口径分组 -> 200");
+      eq(groupedAfter.json.groups[0]?.summary.value, 15, "r37 持久化·新口径未开始 avg=15");
+      const cleared = await expectStatus("PATCH", `/api/views/${viewId}`, { groupSpec: null }, 200, "r37 PATCH 清空分组 -> 200");
+      eq(cleared.json.groupSpec, null, "r37 持久化·清空分组 groupSpec=null");
+      await expectStatus("GET", `/api/views/${viewId}/grouped`, undefined, 400, "r37 4xx·未配置分组视图 -> 400");
+      await expectStatus("PATCH", `/api/views/${viewId}`, { groupSpec: spec }, 200, "r37 恢复分组规格 -> 200");
+
+      // r7 零回归：同一视图的筛选 / 排序 / 投影仍走原端点
+      const legacy = await expectStatus(
+        "POST", `/api/tables/${tableId}/views`,
+        { name: `${KEY} r7视图`, filterSpec: [{ fieldId: statusId, value: "未开始" }], sortSpec: [{ fieldId: amountId, direction: "desc" }], visibleFields: [nameId, amountId] },
+        201, "r37 r7 零回归·建含筛选排序投影的视图 -> 201",
+      );
+      const legacyId = legacy.json.id as number;
+      const legacyRecords = await expectStatus("GET", `/api/views/${legacyId}/records`, undefined, 200, "r37 r7 零回归·按视图查询 -> 200");
+      eq(legacyRecords.json.total, 2, "r37 r7 零回归·筛选命中 2 行");
+      eq(legacyRecords.json.records.map((r: any) => r.data[String(amountId)]), [20, 10], "r37 r7 零回归·排序 desc 20,10");
+      ok(Object.keys(legacyRecords.json.records[0]?.data ?? {}).length <= 2, "r37 r7 零回归·投影只留可见字段");
+      await expectStatus("PATCH", `/api/views/${legacyId}`, { groupSpec: spec }, 200, "r37 r7 视图叠加 groupSpec -> 200");
+      const legacyGrouped = await expectStatus("GET", `/api/views/${legacyId}/grouped`, undefined, 200, "r37 r7 视图也能叠加分组 -> 200");
+      eq(legacyGrouped.json.totalRecords, 2, "r37 叠加分组·先筛选后分组只算 2 行");
+      eq(legacyGrouped.json.groups?.[0]?.summary.value, 30, "r37 叠加分组·筛选后未开始 sum=30");
+
+      // 4xx：非法字段 / 聚合 / 取值字段 / 越权 view
+      await expectStatus("GET", "/api/views/99999999/grouped", undefined, 404, "r37 4xx·越权 view id -> 404");
+      await expectStatus("GET", "/api/views/not-a-number/grouped", undefined, 400, "r37 4xx·非数字 view id -> 400");
+      await expectStatus("GET", `/api/views/${viewId}/grouped?fieldId=99999&aggregator=sum&aggregateFieldId=${amountId}`, undefined, 400, "r37 4xx·非法分组字段 -> 400");
+      await expectStatus("GET", `/api/views/${viewId}/grouped?fieldId=${statusId}&aggregator=median&aggregateFieldId=${amountId}`, undefined, 400, "r37 4xx·非法聚合方式 -> 400");
+      await expectStatus("GET", `/api/views/${viewId}/grouped?fieldId=${statusId}&aggregator=sum&aggregateFieldId=99999`, undefined, 400, "r37 4xx·非法聚合取值字段 -> 400");
+      await expectStatus("GET", `/api/views/${viewId}/grouped?fieldId=${statusId}&aggregator=sum&aggregateFieldId=${nameId}`, undefined, 400, "r37 4xx·文本字段作取值字段 -> 400");
+      await expectStatus("POST", `/api/tables/${tableId}/views`, { name: `${KEY} 坏分组`, groupSpec: { fieldId: 99999, aggregator: "count" } }, 400, "r37 4xx·建视图非法分组字段 -> 400");
+      await expectStatus("POST", `/api/tables/${tableId}/views`, { name: `${KEY} 坏聚合`, groupSpec: { fieldId: statusId, aggregator: "median" } }, 400, "r37 4xx·建视图非法聚合 -> 400");
+      await expectStatus("POST", `/api/tables/${tableId}/views`, { name: `${KEY} 坏取值`, groupSpec: { fieldId: statusId, aggregator: "sum", aggregateFieldId: nameId } }, 400, "r37 4xx·建视图文本字段取值 -> 400");
+      await expectStatus("PATCH", `/api/views/${viewId}`, { groupSpec: { fieldId: 99999, aggregator: "count" } }, 400, "r37 4xx·PATCH 非法分组字段 -> 400");
+
+      const beforeDelete = await req("GET", `/api/views/${viewId}/grouped`);
+      eq(beforeDelete.status, 200, "r37 清理前分组端点仍 200");
+      await expectStatus("DELETE", `/api/views/${legacyId}`, undefined, 200, "r37 清理 r7 视图 -> 200");
+      await expectStatus("DELETE", `/api/views/${viewId}`, undefined, 200, "r37 清理分组视图 -> 200");
+      await expectStatus("GET", `/api/views/${viewId}/grouped`, undefined, 404, "r37 删视图后 grouped -> 404");
+      await expectStatus("DELETE", `/api/tables/${tableId}`, undefined, 200, "r37 清理探针表 -> 200");
+      const tablesAfter = await expectStatus("GET", "/api/tables", undefined, 200, "r37 清理后表列表 -> 200");
+      ok(!JSON.stringify(tablesAfter.json.tables).includes(KEY), "r37 探针归零·表列表不再含本轮 KEY");
     }
 }
 

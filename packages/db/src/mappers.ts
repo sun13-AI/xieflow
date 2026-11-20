@@ -233,6 +233,17 @@ function parseJsonArray(raw: unknown): unknown[] {
 }
 
 export function mapRowToTableView(row: Row): TableView {
+  let groupSpec: TableView["groupSpec"] = null;
+  if (typeof row.group_spec === "string" && row.group_spec.trim() !== "") {
+    try {
+      const parsed: unknown = JSON.parse(row.group_spec);
+      if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) {
+        groupSpec = parsed as TableView["groupSpec"];
+      }
+    } catch {
+      /* 坏 JSON -> 未分组（视图本身仍可读，不炸整表） */
+    }
+  }
   return {
     id: Number(row.id),
     tableId: Number(row.table_id),
@@ -240,6 +251,7 @@ export function mapRowToTableView(row: Row): TableView {
     filterSpec: parseJsonArray(row.filter_spec) as ViewFilterCondition[],
     sortSpec: parseJsonArray(row.sort_spec) as ViewSortRule[],
     visibleFields: parseJsonArray(row.visible_fields).map((v) => Number(v)),
+    groupSpec,
     position: Number(row.position),
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),

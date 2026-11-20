@@ -7,7 +7,7 @@
 // 截图钉态：?page=bases&shot=bases-* 让 headless 确定性捕获（真实状态都存在）；
 // 深链参数 ?tableId= / ?viewId= / ?filterFieldId= / ?filterValue= / ?sortFieldId= /
 // ?sortDirection= / ?pageNo= 可分享、可回放（筛选排序后的形态由真实 API 查询得出）。
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   FIELD_TYPE_LABELS,
   fieldTypeUsesOptions,
@@ -45,6 +45,39 @@ interface BasesData {
   page: number;
   pageSize: number;
   totalPages: number;
+  /** r37：分组视图结果（仅当前视图配置了 groupSpec 时有值） */
+  grouped: GroupedData | null;
+}
+
+/** r37：分组汇总行（只读，来自 shared/tableGroups 的纯函数结果） */
+interface GroupSummaryView {
+  count: number;
+  aggregator: "count" | "sum" | "avg";
+  aggregateFieldId: number | null;
+  numericCount: number;
+  value: number | null;
+}
+
+interface GroupedGroupView {
+  key: string;
+  label: string;
+  records: BasesRecord[];
+  summary: GroupSummaryView;
+}
+
+interface GroupedData {
+  groupSpec: { fieldId: number; aggregator: "count" | "sum" | "avg"; aggregateFieldId?: number | null };
+  groups: GroupedGroupView[];
+  totalRecords: number;
+  totalGroups: number;
+  filterHit: number;
+}
+
+/** r37：分组下拉草稿（分组字段 + 聚合方式 + 取值字段） */
+interface GroupDraft {
+  fieldId: string;
+  aggregator: "count" | "sum" | "avg";
+  aggregateFieldId: string;
 }
 
 type BasesState =
@@ -129,6 +162,7 @@ async function fetchBases(query: BasesQuery): Promise<BasesData> {
       page: 1,
       pageSize: 20,
       totalPages: 0,
+      grouped: null,
     };
   }
   const fieldsRes = await apiFetch(`/api/tables/${table.id}/fields`);
@@ -152,6 +186,12 @@ async function fetchBases(query: BasesQuery): Promise<BasesData> {
     : `/api/tables/${table.id}/records${qs === "" ? "" : `?${qs}`}`;
   const recordsRes = await apiFetch(recordsUrl);
   const result = (await fetchJsonOrThrow(recordsRes)) as RecordQueryResult;
+  // r37：视图配了分组时，另取分组+汇总（真 HTTP，web 零算法分支）
+  let grouped: GroupedData | null = null;
+  if (activeView?.groupSpec != null) {
+    const groupedRes = await apiFetch(`/api/views/${activeView.id}/grouped`);
+    grouped = (await fetchJsonOrThrow(groupedRes)) as GroupedData;
+  }
   return {
     tables: tablesData.tables,
     table,
@@ -163,6 +203,7 @@ async function fetchBases(query: BasesQuery): Promise<BasesData> {
     page: result.page,
     pageSize: result.pageSize,
     totalPages: result.totalPages,
+    grouped,
   };
 }
 
@@ -234,6 +275,66 @@ function pinSeedRecords(fields: TableField[]): BasesRecord[] {
     createdAt: iso,
     updatedAt: iso,
   }));
+}
+
+/**
+ * r37 分组截图钉态：金额 10/20/30，按状态分组（未开始 10/20、进行中 30、空值 5），
+ * 汇总行由真 HTTP 的 shared 算法产出；这里只钉「输入记录」与视图口径，截图像素由真实结果决定。
+ */
+function pinGroupRecords(fields: TableField[]): BasesRecord[] {
+  const iso = "2026-11-21T08:00:00.000Z";
+  const key = (name: string): string => String(fields.find((f) => f.name === name)!.id);
+  const rows: Record<string, unknown>[] = [
+    { [key("名称")]: "量房", [key("状态")]: "未开始", [key("金额")]: 10 },
+    { [key("名称")]: "选瓷砖", [key("状态")]: "未开始", [key("金额")]: 20 },
+    { [key("名称")]: "定预算", [key("状态")]: "进行中", [key("金额")]: 30 },
+    { [key("名称")]: "待分类", [key("状态")]: null, [key("金额")]: 5 },
+  ];
+  return rows.map((data, i) => ({
+    id: 21 + i,
+    tableId: 1,
+    data,
+    position: i,
+    createdAt: iso,
+    updatedAt: iso,
+  }));
+}
+
+function pinGroupedResult(fields: TableField[], records: BasesRecord[], aggregator: "count" | "sum" | "avg"): GroupedData {
+  const statusId = fields.find((f) => f.name === "状态")!.id;
+  const amountId = fields.find((f) => f.name === "金额")!.id;
+  const rowsOf = (pred: (r: BasesRecord) => boolean): BasesRecord[] => records.filter(pred);
+  const byStatus = rowsOf((r) => r.data[String(statusId)] === "未开始");
+  const inProgress = rowsOf((r) => r.data[String(statusId)] === "进行中");
+  const empty = rowsOf((r) => r.data[String(statusId)] == null);
+  // 手算口径写死在钉态（10+20=30 / 30 / 5；均值 15/30/5），web 不跑任何分组算法
+  const values: Record<string, { count: number; numericCount: number; sum: number }> = {
+    "未开始": { count: 2, numericCount: 2, sum: 30 },
+    "进行中": { count: 1, numericCount: 1, sum: 30 },
+    "（空值）": { count: 1, numericCount: 1, sum: 5 },
+  };
+  const summaryOf = (label: string): GroupSummaryView => {
+    const v = values[label]!;
+    return {
+      count: v.count,
+      aggregator,
+      aggregateFieldId: aggregator === "count" ? null : amountId,
+      numericCount: v.numericCount,
+      value: aggregator === "count" ? v.count : aggregator === "sum" ? v.sum : v.sum / v.numericCount,
+    };
+  };
+  const groups: GroupedGroupView[] = [
+    { key: "select:未开始", label: "未开始", records: byStatus, summary: summaryOf("未开始") },
+    { key: "select:进行中", label: "进行中", records: inProgress, summary: summaryOf("进行中") },
+    { key: "__null__", label: "（空值）", records: empty, summary: summaryOf("（空值）") },
+  ].filter((g) => g.records.length > 0);
+  return {
+    groupSpec: { fieldId: statusId, aggregator, aggregateFieldId: aggregator === "count" ? null : amountId },
+    groups,
+    totalRecords: records.length,
+    totalGroups: groups.length,
+    filterHit: records.length,
+  };
 }
 
 /**
@@ -413,6 +514,11 @@ export default function BasesPage() {
   // r7：视图 / 导入
   const [viewDraft, setViewDraft] = useState<ViewDraft | null>(null);
   const [viewError, setViewError] = useState<string | null>(null);
+  // r37：分组下拉 / 折叠 / 错误
+  const [groupDraft, setGroupDraft] = useState<GroupDraft>({ fieldId: "", aggregator: "count", aggregateFieldId: "" });
+  const [groupError, setGroupError] = useState<string | null>(null);
+  const [groupDropdownOpen, setGroupDropdownOpen] = useState(false);
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const [importOpen, setImportOpen] = useState(false);
   const [importText, setImportText] = useState("");
   const [importPreview, setImportPreview] = useState<ImportPreview | null>(null);
@@ -478,6 +584,7 @@ export default function BasesPage() {
         page: 1,
         pageSize: 20,
         totalPages: 0,
+        grouped: null,
       });
       return;
     }
@@ -523,6 +630,7 @@ export default function BasesPage() {
         page: 1,
         pageSize: 20,
         totalPages: 1,
+        grouped: null,
       });
       setFieldsOpen(showPanel);
       setFormulaPin({
@@ -555,6 +663,70 @@ export default function BasesPage() {
       });
       return;
     }
+    // r37 分组视图截图钉态：空态 / 下拉 / 数值分组 / 汇总 / 折叠 / 窄屏 / 错误
+    const groupShots = [
+      "bases-group-empty",
+      "bases-group-dropdown",
+      "bases-group-numeric",
+      "bases-group-summary",
+      "bases-group-collapsed",
+      "bases-group-narrow",
+      "bases-group-error",
+    ];
+    if (shot !== null && groupShots.includes(shot)) {
+      const now = new Date();
+      const fields = pinSeedFields(now);
+      const table: BaseTable = {
+        id: 1,
+        name: "装修预算表 · 分组视图",
+        description: "r37 表格分组与汇总行截图钉态",
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString(),
+      };
+      const records = pinGroupRecords(fields);
+      const aggregator: "count" | "sum" | "avg" = shot === "bases-group-summary" ? "avg" : "sum";
+      const grouped = shot === "bases-group-empty" ? null : pinGroupedResult(fields, records, aggregator);
+      const statusId = fields.find((f) => f.name === "状态")!.id;
+      const amountId = fields.find((f) => f.name === "金额")!.id;
+      const activeView: TableView = {
+        id: 37,
+        tableId: 1,
+        name: "金额分组视图",
+        filterSpec: [],
+        sortSpec: [],
+        visibleFields: [],
+        groupSpec:
+          shot === "bases-group-empty"
+            ? null
+            : { fieldId: statusId, aggregator, aggregateFieldId: amountId },
+        position: 0,
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString(),
+      };
+      setState({
+        phase: "ready",
+        tables: [table],
+        table,
+        fields,
+        views: [activeView],
+        activeView,
+        records,
+        total: records.length,
+        page: 1,
+        pageSize: 20,
+        totalPages: 1,
+        grouped,
+      });
+      setGroupDraft({
+        fieldId: String(statusId),
+        aggregator,
+        aggregateFieldId: String(amountId),
+      });
+      setGroupError(shot === "bases-group-error" ? "分组失败：聚合字段不存在（截图钉态）" : null);
+      setCollapsedGroups(shot === "bases-group-collapsed" ? { "select:未开始": true } : {});
+      setGroupDropdownOpen(shot === "bases-group-dropdown");
+      return;
+    }
     if (shot === "bases-data" || shot === "bases-fields" || shot === "bases-narrow" || shot === "bases-edit") {
       const now = new Date();
       const fields = pinSeedFields(now);
@@ -577,6 +749,7 @@ export default function BasesPage() {
         page: 1,
         pageSize: 20,
         totalPages: 1,
+        grouped: null,
       });
       if (shot === "bases-fields") setFieldsOpen(true);
       // 单元格编辑态钉态：第一行第一列进入编辑（按类型给出对应控件）
@@ -626,11 +799,23 @@ export default function BasesPage() {
   const table = data?.table ?? null;
   const views = data?.views ?? [];
   const activeView = data?.activeView ?? null;
+  const grouped = data?.grouped ?? null;
 
   // 深链改写筛选值时同步输入框（避免界面与口径不一致）
   useEffect(() => {
     setFilterDraft(query.filterValue);
   }, [query.filterValue]);
+
+  // 切换视图 / 重载后把分组下拉同步成视图里已保存的口径（reload 不丢）
+  useEffect(() => {
+    if (activeView?.groupSpec != null) {
+      setGroupDraft({
+        fieldId: String(activeView.groupSpec.fieldId),
+        aggregator: activeView.groupSpec.aggregator,
+        aggregateFieldId: String(activeView.groupSpec.aggregateFieldId ?? ""),
+      });
+    }
+  }, [activeView]);
 
   /** 视图口径下的可见列（visible_fields 为空 = 全部可见） */
   const visibleColumns = useMemo(() => {
@@ -848,6 +1033,37 @@ export default function BasesPage() {
     }
   };
 
+  /** r37：把分组下拉的设置写入当前视图（PATCH groupSpec），再按新口径重载 */
+  const applyGroup = async (clear: boolean = false): Promise<void> => {
+    if (!activeView) {
+      setGroupError("请先选中一个视图，再设置分组。");
+      return;
+    }
+    setGroupError(null);
+    const groupSpec = clear
+      ? null
+      : {
+          fieldId: Number(groupDraft.fieldId),
+          aggregator: groupDraft.aggregator,
+          aggregateFieldId: groupDraft.aggregator === "count" ? null : Number(groupDraft.aggregateFieldId),
+        };
+    setBusy(true);
+    try {
+      const res = await sendJson("PATCH", `/api/views/${activeView.id}`, { groupSpec });
+      if (res.status !== 200) {
+        setGroupError(String(res.data?.error ?? `保存分组失败（HTTP ${res.status}）`));
+        return;
+      }
+      setGroupDropdownOpen(false);
+      setNotice(clear ? "已取消分组。" : "已保存分组设置——汇总行只读，刷新页面也不会丢。");
+      await applyQuery({ viewId: String(activeView.id) });
+    } catch (err: unknown) {
+      setGroupError(err instanceof Error ? err.message : SERVICE_DOWN_MESSAGE);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   /** 删除视图 */
   const deleteView = async (): Promise<void> => {
     if (!viewDraft || viewDraft.id === null) return;
@@ -920,6 +1136,71 @@ export default function BasesPage() {
     } finally {
       setImportBusy(false);
     }
+  };
+
+  /** r37：网格行渲染（普通网格与分组网格共用同一份单元格口径） */
+  const renderGridRow = (r: BasesRecord): ReactNode => (
+    <tr key={r.id} data-record-id={r.id}>
+      {visibleColumns.map((f) => {
+        const value = r.data[String(f.id)];
+        const computedCell = f.type === "formula" ? r.computed?.[String(f.id)] : undefined;
+        const isEditing =
+          editing !== null && editing.recordId === r.id && editing.fieldId === f.id && f.type !== "formula";
+        return (
+          <td
+            key={f.id}
+            data-field-id={f.id}
+            data-field-type={f.type}
+            className={`bases-cell bases-cell-${f.type}`}
+            onClick={() => {
+              if (!isEditing && f.type !== "formula") setEditing({ recordId: r.id, fieldId: f.id });
+            }}
+          >
+            {isEditing ? (
+              <CellEditor
+                field={f}
+                value={value}
+                busy={busy}
+                onCommit={(v) => void saveCell(r.id, f, v)}
+                onCancel={() => setEditing(null)}
+              />
+            ) : (
+              <CellView
+                field={f}
+                value={f.type === "formula" ? computedCell?.value : value}
+                error={computedCell?.error}
+              />
+            )}
+          </td>
+        );
+      })}
+      <td className="bases-col-action">
+        <button
+          type="button"
+          className="btn btn-ghost btn-small"
+          disabled={busy}
+          title="删除这一行"
+          onClick={() => void removeRow(r.id)}
+        >
+          删除
+        </button>
+      </td>
+    </tr>
+  );
+
+  /** r37：汇总行（只读；数值来自服务端 shared/tableGroups 的手算结果） */
+  const renderSummaryRow = (label: string, summary: GroupSummaryView): ReactNode => {
+    const aggLabel = summary.aggregator === "count" ? "计数" : summary.aggregator === "sum" ? "求和" : "均值";
+    const shown = summary.value === null ? "—" : String(summary.value);
+    return (
+      <tr className="bases-group-summary-row" data-state="bases-group-summary">
+        <td colSpan={Math.max(1, visibleColumns.length)} className="bases-group-summary-label">
+          {label} · 汇总（{aggLabel}
+          {summary.aggregateFieldId !== null ? ` / ${fields.find((f) => f.id === summary.aggregateFieldId)?.name ?? `#${summary.aggregateFieldId}`}` : ""}）
+        </td>
+        <td className="bases-group-summary-value" data-state="bases-group-summary-value">{shown}</td>
+      </tr>
+    );
   };
 
   if (state.phase === "loading") {
@@ -1106,8 +1387,71 @@ export default function BasesPage() {
         </button>
       </div>
 
-      {activeView !== null && (
-        <p className="hint bases-view-summary" data-state="bases-view-summary">
+       {/* r37：分组下拉（字段 + 聚合方式 + 取值字段），写入当前视图 groupSpec */}
+       <div className="bases-group-bar" data-state="bases-group-dropdown">
+         <span className="bases-switch-label">分组：</span>
+         <button
+           type="button"
+           className="btn btn-secondary btn-small"
+           data-state="bases-group-toggle"
+           disabled={activeView === null}
+           onClick={() => setGroupDropdownOpen((v) => !v)}
+         >
+           {activeView?.groupSpec == null ? "（未分组）" : "已分组 · 修改"}
+         </button>
+         {groupDropdownOpen && (
+           <div className="bases-group-fields" data-state="bases-group-fields">
+             <select
+               aria-label="分组字段"
+               data-state="bases-group-field"
+               value={groupDraft.fieldId}
+               onChange={(e) => setGroupDraft((d) => ({ ...d, fieldId: e.target.value }))}
+             >
+               <option value="">（选分组字段）</option>
+               {fields.map((f) => (
+                 <option key={f.id} value={f.id}>{f.name}</option>
+               ))}
+             </select>
+             <select
+               aria-label="聚合方式"
+               data-state="bases-group-aggregator"
+               value={groupDraft.aggregator}
+               onChange={(e) =>
+                 setGroupDraft((d) => ({ ...d, aggregator: e.target.value as GroupDraft["aggregator"] }))
+               }
+             >
+               <option value="count">计数</option>
+               <option value="sum">求和</option>
+               <option value="avg">均值</option>
+             </select>
+             {groupDraft.aggregator !== "count" && (
+               <select
+                 aria-label="聚合取值字段"
+                 data-state="bases-group-aggregate-field"
+                 value={groupDraft.aggregateFieldId}
+                 onChange={(e) => setGroupDraft((d) => ({ ...d, aggregateFieldId: e.target.value }))}
+               >
+                 <option value="">（选数值字段）</option>
+                 {fields.filter((f) => f.type === "number").map((f) => (
+                   <option key={f.id} value={f.id}>{f.name}</option>
+                 ))}
+               </select>
+             )}
+             <button type="button" className="btn btn-primary btn-small" data-state="bases-group-apply" disabled={busy} onClick={() => void applyGroup()}>
+               应用分组
+             </button>
+             <button type="button" className="btn btn-ghost btn-small" data-state="bases-group-clear" disabled={busy} onClick={() => void applyGroup(true)}>
+               取消分组
+             </button>
+           </div>
+         )}
+         {groupError !== null && (
+           <p className="error-message" role="alert" data-state="bases-group-error">{groupError}</p>
+         )}
+       </div>
+
+       {activeView !== null && (
+         <p className="hint bases-view-summary" data-state="bases-view-summary">
           当前视图「{activeView.name}」口径：{describeViewSpec(activeView, fields)}（命中 {data!.total} 行）
         </p>
       )}
@@ -1237,7 +1581,39 @@ export default function BasesPage() {
             </tr>
           </thead>
           <tbody>
-            {records.length === 0 ? (
+            {grouped !== null ? (
+              grouped.groups.length === 0 ? (
+                <tr data-state="bases-no-records">
+                  <td className="bases-empty-row" colSpan={visibleColumns.length + 1}>
+                    当前分组口径下没有记录——取消分组或调整视图筛选再看。
+                  </td>
+                </tr>
+              ) : (
+                grouped.groups.map((g) => (
+                  <Fragment key={g.key}>
+                    <tr
+                      className="bases-group-head-row"
+                      data-state="bases-group-head"
+                      data-group-key={g.key}
+                      onClick={() =>
+                        setCollapsedGroups((prev) => ({ ...prev, [g.key]: !prev[g.key] }))
+                      }
+                    >
+                      <td colSpan={visibleColumns.length + 1}>
+                        <span className="bases-group-caret">{collapsedGroups[g.key] ? "▸" : "▾"}</span>
+                        {" 分组："}{g.label} · {g.summary.count} 行
+                      </td>
+                    </tr>
+                    {!collapsedGroups[g.key] && (
+                      <>
+                        {g.records.map(renderGridRow)}
+                        {renderSummaryRow(g.label, g.summary)}
+                      </>
+                    )}
+                  </Fragment>
+                ))
+              )
+            ) : records.length === 0 ? (
               <tr data-state="bases-no-records">
                 <td className="bases-empty-row" colSpan={visibleColumns.length + 1}>
                   {activeView !== null

@@ -240,7 +240,7 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r34 | M10 后·任务依赖与阻塞关系（待办前置） | ✅已发版（首轮双通过；依赖守卫 40/40 + 既有状态机零回归） | v0.0.40 | e2e 2961 · audit 2324 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r35 | M10 后·日历 ICS 导出与订阅（标准 iCalendar） | ✅已发版（初验 UI 打回 U1 图证链→返工#1 同一 ICS 往返→双终审通过） | v0.0.41 | e2e 3069 · audit 2396 | 通过（waizhuan）+ UI 终审通过（U1=0） |
 | r36 | M10 后·日报与周报自动生成 | ✅已发版（首轮双通过；汇总手算 88/88 + 变异红相独立复现） | v0.0.42 | e2e 3167 · audit 2471 | 通过（waizhuan）+ UI 通过（阻断岗） |
-| r37 | M10 后·表格分组视图与汇总行 | 🔨规划中 | — | — | — |
+| r37 | M10 后·表格分组视图与汇总行 | ✅已研发（待双 VERDICT） | —（lead 收尾发版） | e2e 3277 · audit 2536 | 待 waizhuan / ui 复验 |
 
 ## 🏁 项目总账（2026-11-19 · M10 收官）
 
@@ -849,6 +849,18 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 ---
 
 ## 记账区（每轮追加）
+
+### 2026-11-20 · r37 研发（yanfa-r37 · M10 后功能补强：表格分组视图与汇总行）
+- 交付：`packages/shared/src/tableGroups.ts` 唯一口径（GROUP_AGGREGATORS 三枚举 / isGroupAggregator / assertValidGroupAggregator / GroupSpec / NULL_GROUP_KEY / groupRecords 分桶含 null 独立组与确定性组序 / aggregateGroup count|sum|avg 跳过非数值且无有效数值返回 null / countNumericValues / buildGroupView 分组+组内排序+汇总行 / normalizeGroupSpec 字段·聚合·取值字段守卫 / describeGroupSpec）；`@xieflow/shared/tableGroups` 子路径登记；`SCHEMA_VERSION` 23→24，`normalizeViewSpec` / `TableView` 扩 groupSpec，api/web 零算法分支；零新依赖、零 token、聚合只读不落库
+- schema：`MIGRATIONS` 追加 v24（`ALTER TABLE views ADD COLUMN group_spec TEXT` 可空列，老视图恒 NULL=未分组），mapRowToTableView 读回、createView/updateView 持久化与清空，未手改库文件
+- api：视图 CRUD 扩 groupSpec；`GET /api/views/:id/grouped`（视图持久化口径 + 查询串 fieldId/aggregator/aggregateFieldId 覆盖；先按视图筛选全量再分组，组内排序复用 view.sortSpec），4xx：非法字段/聚合/取值字段（文本列不可求和）/未配置分组 view/越权 view id/非数字 id
+- web：表格页视图栏加分组下拉（字段+聚合方式+数值取值字段）、分组折叠头 + 每组只读汇总行 + 错误红条；十九 tab 数不变，顶栏徽章推进 r37，`styles.css` 新增 `.bases-group-*` 规则；`?shot=bases-group-*` 七态钉态
+- 断言：e2e 3167 → **3277（+110）** · audit 2471 → **2536（+65）**，无一条删除；typecheck 5 包；`pnpm run test:all` exit 0；CI smoke 正则升 v24；README 速查行/当前轮对照表/断言规模行三处同步
+- **变异红相 1 组**：`aggregateGroup` 的 `sum += n` → `sum += n + 1`（聚合算法改坏）→ e2e 11 红（手算 sum 30→32 / avg 15→16 / 空值组 5→6 等）+ audit 8 红（HTTP 回传汇总值全错）；逐字节还原（SHA `CAC8FFE60C8D118E4CB39B9A1D229456D3DBDC67D83F8277393CB15576F6DA27` 前后同值、`MUTATION-PROBE r37` 零残留）双套件全绿
+- 「用户第一次用」全链路：`scripts/r37-firstuse-cdp.mjs`（headless CDP 真点 11 步全绿）造表录 10/20/30/空值 4 行 → 选视图 → 真点分组下拉设口径 → 看汇总 30 → 折叠组（4→2 行可见）→ reload 不丢 → HTTP truth 回查 groupSpec 与 sum=30 → 探针清理、服务收净
+- 截图：`docs/ui/r37/` 7 张（空态/下拉/数值分组/均值汇总/折叠后/窄屏/错误）+ 十九 tab 壳同批重拍；7/7、19/19 SHA256 互异，矩阵↔壳重叠 0，全库 342 PNG / 340 互异，26 张逐张 `read_image` 目验；索引 / shell README R37 当前哈希块 / 精简版根 README 同一提交
+- 危险区：未 push / 未打 tag / 未发版 / 未改 CI 发布配置；只走 user_version 迁移、未手改库文件；截图与 CDP 走 scratch 库并在批次末删除，仓库 `data/xieflow.db` 全程未作 DB_PATH；全程 headless、服务收净（8787/8788/5173/8791 终态 listen=0）、PowerShell 新段全 ASCII、零 token
+- 报告：`docs/feedback/2026-11-21-r37-yanfa.md`（三态纪律 + 自曝 + 变异红相 + 全链路证据）
 
 ### 2026-11-20 · r36 研发（yanfa-r36 · M10 后功能补强：日报与周报自动生成）
 - 交付：`packages/shared/src/workReports.ts` 唯一口径（`parseWorkReportPeriod` 日/自然周/ISO 周锚点 · `inWorkReportWindow` 闭区间过滤 · `collectReportData` 完成按 updatedAt / 新建进行中按 createdAt||updatedAt / 阻塞取 r34 依赖图 · `buildReportMarkdown` 六段 · `buildReportHtml` 打印版五字符转义 · `reportSummary` 计数 · `assertValidWorkReportSave` 守卫）；`@xieflow/shared/workReports` 子路径登记；api/web 零算法分支；零新依赖、零 token、无 schema 迁移（复用 documents + blocks）

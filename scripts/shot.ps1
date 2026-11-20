@@ -56,7 +56,7 @@ param(
   [Parameter(Position = 0)]
   [ValidateSet("up", "shots", "down", "status", "all")]
   [string]$Action = "status",
-  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r26", "r27", "r28", "r29", "r30", "r31", "r32", "r33", "r34", "r35", "r36")]
+  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r26", "r27", "r28", "r29", "r30", "r31", "r32", "r33", "r34", "r35", "r36", "r37")]
   [string]$Round = "r1",
   [Parameter()]
   [string]$Shot = ""
@@ -1025,7 +1025,21 @@ function Invoke-Shots {
     }
   }
 
-  if ($Round -eq "r36") {
+  if ($Round -eq "r37") {
+    # r37: table grouping matrix. Seven deterministic ?shot= pins over the real
+    # BasesPage (group summary values come from shared/tableGroups via api):
+    # empty / dropdown / numeric group / summary row / collapsed / narrow / error.
+    $r37Base = "http://127.0.0.1:$WebPort/?page=bases"
+    $shots = @(
+      @{ name = "01-group-empty";     url = "$r37Base&shot=bases-group-empty";     width = 1280; height = 900 },
+      @{ name = "02-group-dropdown";  url = "$r37Base&shot=bases-group-dropdown";  width = 1280; height = 900 },
+      @{ name = "03-group-numeric";   url = "$r37Base&shot=bases-group-numeric";   width = 1280; height = 900 },
+      @{ name = "04-group-summary";   url = "$r37Base&shot=bases-group-summary";   width = 1280; height = 900 },
+      @{ name = "05-group-collapsed"; url = "$r37Base&shot=bases-group-collapsed"; width = 1280; height = 900 },
+      @{ name = "06-group-narrow";    url = "$r37Base&shot=bases-group-narrow&narrow=1"; width = 488; height = 1100 },
+      @{ name = "07-group-error";     url = "$r37Base&shot=bases-group-error";     width = 1280; height = 900 }
+    )
+  } elseif ($Round -eq "r36") {
     # r36: report tab matrix. Seven deterministic ?shot= pins over the real
     # WorkReportsPage (all markdown assembled by shared/workReports): empty /
     # daily / weekly / editable / saved receipt / narrow / error state.
