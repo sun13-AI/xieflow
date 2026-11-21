@@ -248,7 +248,7 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r42 | M10 后·README 版本号自动校验（watchdog） | ✅已发版（首轮双通过；DOC-CONTRACT 27 checks + 两处 vN 变异红相） | v0.0.48 | e2e 3551 · audit 2703 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r43 | M10 后·会议室设备与智能推荐（按人数/设备筛可用） | ✅已发版（首轮双通过；推荐 48/48 + r28 零回归 252 条） | v0.0.49 | e2e 3665 · audit 2802 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r44 | M10 后·图证与文档口径修正（r43 U2-1 时段不自洽等） | ✅已发版（首轮双通过；三项挂账全闭合 + DOC-CONTRACT 43） | v0.0.50 | e2e 3677 · audit 2802 | 通过（waizhuan）+ UI 通过（阻断岗） |
-| r45 | M10 后·第二十轮（待定切片） | 🔨规划中 | — | — | — |
+| r45 | M10 后·文档块拖拽排序（HTML5 DnD + 触屏） | 🔨规划中 | — | — | — |
 
 ## 🏁 项目总账（2026-11-19 · M10 收官）
 
@@ -951,6 +951,21 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 - 验收标准：全量绿（规模只涨不缩），README 双节同步；双 VERDICT 通过；截图若重拍则 20 壳同批（无渲染层改动则沿用并声明）
 - 前置：r43 已发版（v0.0.49）✅
 - 明确边界：只改图证/文档/用户可见文案，不动业务逻辑
+
+### r45 · 文档块拖拽排序（HTML5 DnD + 触屏按钮，M10 后功能补强）
+- 目标：块编辑器目前只有上移/下移按钮——补拖拽手柄（桌面 HTML5 DnD + 触屏复用现有上/下移按钮作为无障碍路径），复用已有 `POST /api/blocks/:id/move`（r8），不改 API 语义
+- 交付清单：
+  1. 拖拽规则集中 packages/shared/blockDnd.ts：planBlockDrop(fromIndex, toIndex, count)（边界钳制/同序返回 null/目标 position 换算）、validateDropTarget(fromId, toId)（禁止拖到自身/子块）——纯函数，api/web 零算法分支
+  2. web DocsPage：每个块加拖拽手柄（⠿）→ dragstart 记录源块 → dragover 显示插入线（视觉反馈）→ drop 调 planBlockDrop 得目标 position → 真发 `POST /api/blocks/:id/move` → 本地列表同步；触屏仍可用上/下移按钮（无障碍保留）
+  3. 断言：e2e ≥+30（拖放计划/边界钳制/同序 null/HTTP move 落库/持久化）、audit ≥+20（复用 move 端点 4xx：越权/非法 position）
+  4. 截图 ≥7：块列表有手柄/拖拽中插入线/放下后顺序/跨类型拖拽/触屏按钮态/窄屏/错误态
+- 验收标准：
+  1. 全量绿：e2e ≥3707、audit ≥2822，README 双节同步（精简版三处）
+  2. **拖拽真实性**：waizhuan headless CDP 真拖第 3 块到第 1 位→HTTP 回读 position 连号且顺序正确→reload 不丢；拖到边界钳制不越界
+  3. **r8/r9 块引擎零回归**（拆合/转换/移动/全文装配断言全绿，只加 UI 拖拽入口）
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r44 已发版（v0.0.50）✅
+- 明确边界：不改 schema（无新版本）、不改 API 语义（复用 move 端点）、零新依赖、零 token；无新 tab（20 tab 数量不变，壳基线因文档页变化同批重拍）
 
 ## 历史轮次（r1~r2 已收档，见下方记账区）
 
