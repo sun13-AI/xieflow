@@ -5158,6 +5158,9 @@ async function auditR53Restart(): Promise<void> {
     if (process.platform === "win32") {
       spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], { stdio: "ignore" });
     } else {
+      // Linux CI：tsx 启动的 node 可能派生子进程持有端口；detached 进程组整组杀，
+      // 否则 waitFor(false) 探测 12s 后误判「端口已收净」→ 下一阶段连到旧进程读到 local。
+      try { if (child.pid) process.kill(-child.pid, "SIGKILL"); } catch { /* already gone */ }
       child.kill("SIGKILL");
     }
   };
@@ -5182,6 +5185,7 @@ async function auditR53Restart(): Promise<void> {
     env: { ...process.env, XIEFLOW_DB_PATH: dbPath, XIEFLOW_API_PORT: String(port), XIEFLOW_MODE: mode },
     stdio: "ignore",
     windowsHide: true,
+    detached: process.platform !== "win32", // 见 killTree：Linux 需独立进程组以便整组回收
   });
 
   let child: ChildProcess | null = null;
