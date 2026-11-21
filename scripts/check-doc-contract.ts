@@ -615,8 +615,8 @@ check(
 const plan50 = read("docs/plan.md");
 const dangerLedger = parseDangerLedger(plan50);
 check(
-  dangerLedger.rows.length === 8,
-  `r50·docplan 危险区台账 8 行分类表在场（实际 ${dangerLedger.rows.length} 行）`,
+  dangerLedger.rows.length >= 8,
+  `r50·docplan 危险区台账 ≥8 行分类表在场（实际 ${dangerLedger.rows.length} 行；r55 CI 修复追加为第 9 行）`,
 );
 check(dangerLedger.confirmed, "r50·docplan 危险区台账「未触发区确认」在场");
 check(
