@@ -256,7 +256,8 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r50 | M10 后·里程碑体系复审（第 50 轮检查点） | ✅已发版（首轮双通过；台账补齐 8 行 + 不做清单零越界 + DOC-CONTRACT 98） | v0.0.56 | e2e 3922 · audit 2957 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r51 | M10 后·台账精度修正（r50 P3/P4/P5） | ✅已发版（首轮双通过；台账四证核实 + DOC-CONTRACT 105 精度防回退） | v0.0.57 | e2e 3922 · audit 2957 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r52 | M10 后·质量审计 #1：注入与越权（安全维度） | 🔴审计打回 P0×2/P1×2/P2×3 → 修复中 | — | 修复后重报 | auditor-r52 AUDIT-VERDICT: 打回（注入/XSS 零问题，越权/认证四类真漏洞） |
-| r53 | M10 后·r52 安全漏洞修复（P0/P1/P2 全修 + 回归断言） | 🛠研发完成（待双 VERDICT） | — | e2e 3937 · audit 3014 | — |
+| r53 | M10 后·r52 安全漏洞修复（P0/P1/P2 全修 + 回归断言） | 🟡5/6 关闭（审计重放 P0-1 未关：已认证 user 仍跨用户读写删） | —（r54 补修后发版） | e2e 3937 · audit 3014 | 审计 AUDIT-VERDICT: 打回（仅 P0-1） |
+| r54 | M10 后·P0-1 补修：remote 业务路由统一 admin 闸门 | 🔨规划中 | — | — | — |
 
 ## 🏁 项目总账（2026-11-19 · M10 收官）
 
@@ -1157,6 +1158,19 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
   3. 双 VERDICT（waizhuan + ui 阻断岗）通过；无渲染层改动则沿用壳图声明
 - 前置：r52 审计报告已出（v0.0.57）✅
 - 明确边界：只修安全漏洞不改产品功能；零新依赖、零 token、零密钥文件；危险区交 lead
+
+### r54 · P0-1 补修：remote 业务路由统一 admin 闸门（lead 重定方案）
+- 背景：r53 关闭了开放注册（P0-1 前半），但审计员 r53 原步骤重放证实——**已认证 user token 仍能 GET/DELETE admin 文档（200）**。关入口 ≠ 消除越权。r53 其余 5 项（P0-2/P1-1/P1-2/P2-2/P2-3）重放全部关闭。
+- 根因：`server.ts:444-453` 的 remote onRequest hook 只验「已登录」不验角色；`assertPermission` 只在少数敏感路由（user:manage/auth:mode）调用；业务数据路由零角色闸门。
+- lead 方案（单工作区语义：**一个数据所有者 = admin**，不引入多租户/资源归属表）：
+  1. 在 remote onRequest hook 加统一闸门：除 PUBLIC_AUTH_PATHS + `ALWAYS_PROTECTED_PATHS` + `/api/auth/me`/`guard` 外，remote 模式下**所有 `/api/*` 业务路由要求 `user:manage` 权限**（即 admin）；非 admin 返回 403 `FORBIDDEN`
+  2. 保留 r53 的注册闸门与 admin 建账号能力——user 账号可存在，但 remote 下只能调用 auth 探针（me/guard），无法访问业务数据
+  3. local 模式完全不受影响（本地单机语义匿名可用）
+  4. 补断言：remote 下 user token 对 ≥10 条代表性业务路由（documents/projects/todos/schedules/board/tables/approvals/assets/backup/forms）GET/DELETE 均 403；admin 同路由 200
+  5. 变异红相 ≥1 组：闸门条件改坏（如只拦 DELETE 不拦 GET）→ 新断言红 → 还原全绿
+- 验收标准：审计员用 r52 原复现步骤重放 P0-1 全部失败（user 读写删 403）；全量绿（既有断言零回归）；双 VERDICT 通过
+- 前置：r53 修复已落（本地 HEAD 06e0b44）；审计重放报告 docs/feedback/2026-11-21-r53-audit-recheck.md ✅
+- 明确边界：只加统一闸门 + 断言，不改业务功能/角色定义；零新依赖、零 token；无渲染层改动（沿用壳图三处声明）
 
 ## 历史轮次（r1~r2 已收档，见下方记账区）
 
