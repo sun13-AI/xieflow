@@ -27,6 +27,15 @@ export const BACKUP_RUNTIME_TABLES = [
 ] as const;
 
 /**
+ * r53 P0-2：settings 表内同样属于运行时状态的键，绝进不了备份快照/恢复。
+ * server.mode 决定鉴权是否生效——恢复若可改写它，重启即可让 remote 静默降级为 local。
+ */
+export const BACKUP_PROTECTED_SETTING_KEYS = ["server.mode"] as const;
+export function isProtectedSettingKey(key: unknown): boolean {
+  return typeof key === "string" && (BACKUP_PROTECTED_SETTING_KEYS as readonly string[]).includes(key);
+}
+
+/**
  * 业务表白名单，按「父表在前、子表在后」的插入依赖顺序排列。
  * db 层恢复时按此顺序 INSERT，按反序 DELETE，全程 FK 约束保持开启。
  */
@@ -227,6 +236,14 @@ export function validateBackupFile(input: unknown): BackupValidation {
     if (!Array.isArray(rows)) {
       errors.push(`表 ${name} 的值必须是数组`);
       continue;
+    }
+    // r53 P0-2：即使 settings 表在白名单内，受保护设置键也不得随备份恢复。
+    if (name === "settings") {
+      for (const row of rows) {
+        if (isPlainObject(row) && isProtectedSettingKey(row.key)) {
+          errors.push(`受保护的设置键不得出现在备份中：${String(row.key)}`);
+        }
+      }
     }
     let columns: string[] | null = null;
     for (let i = 0; i < rows.length; i++) {

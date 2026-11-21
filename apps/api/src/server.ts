@@ -113,7 +113,9 @@ import {
   validateSession,
   generateSessionToken,
   normalizeServerMode,
+  resolveStartupMode,
   assertValidServerMode,
+  isPublicSettingKey,
   ConflictError,
   ForbiddenError,
   SESSION_TTL_MS,
@@ -377,11 +379,10 @@ try {
 }
 
 const ENV_MODE: ServerMode = normalizeServerMode(process.env.XIEFLOW_MODE);
-let serverMode: ServerMode = ENV_MODE;
-{
-  const saved = db?.getSetting("server.mode");
-  if (saved) serverMode = normalizeServerMode(saved.value);
-}
+let serverMode: ServerMode = resolveStartupMode(
+  process.env.XIEFLOW_MODE,
+  db?.getSetting("server.mode")?.value,
+);
 
 const app = Fastify({ logger: { level: "warn" } });
 
@@ -458,6 +459,33 @@ function authErrorReply(err: unknown, reply: FastifyReply): FastifyReply {
   return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
 }
 
+/**
+ * r53 P1-2：remote 模式下敏感入口统一 admin 闸门（user:manage）。
+ * local 单机语义不变（无登录、无角色）；返回非 null 表示已发错误响应，调用方须立即返回。
+ */
+function assertAdminForRemote(req: FastifyRequest, reply: FastifyReply): FastifyReply | null {
+  if (serverMode !== "remote") return null;
+  const ctx = (req as AuthRequest).auth ?? resolveAuth(req);
+  if (!ctx) return responseCleared(reply);
+  try {
+    assertPermission(ctx.user.role, "user:manage");
+  } catch (err) {
+    return authErrorReply(err, reply);
+  }
+  return null;
+}
+
+/**
+ * r53 P1-1 / P2-3：审批 actor 与物资 operator 唯一从会话派生。
+ * 会话关联成员（members.user_id）优先，未关联回落登录用户名；body 声明一律忽略。
+ */
+function sessionIdentity(req: FastifyRequest): { actor: string; actorMemberId: number | null } | null {
+  const ctx = (req as AuthRequest).auth ?? resolveAuth(req);
+  if (!ctx) return null;
+  const member = resolveMemberForUser(ctx.user.id, requireDb().listMembers());
+  return { actor: ctx.user.username, actorMemberId: member?.id ?? null };
+}
+
 /** 统一错误映射：ValidationError → 400，其余业务错误 → 400（消息透传） */
 function toErrorReply(err: unknown, reply: FastifyReply): FastifyReply {
   const message = err instanceof Error ? err.message : String(err);
@@ -508,12 +536,21 @@ app.get("/api/health", async () => {
   const store = requireDb();
   // 探针：真读一次库，不只是进程活着
   store.setSetting("last_health_check", new Date().toISOString());
-  const settings = store.listSettings();
-  return { ok: true, schemaVersion: CURRENT_SCHEMA_VERSION, mode: serverMode, settings };
+  return {
+    ok: true,
+    schemaVersion: CURRENT_SCHEMA_VERSION,
+    mode: serverMode,
+    settings: publicSettingsSnapshot(store),
+  };
 });
 
+/** r53 P2-2：匿名可见的设置键白名单（订阅 key 等敏感值绝不回显） */
+function publicSettingsSnapshot(store: XieFlowDb) {
+  return store.listSettings().filter((setting) => isPublicSettingKey(setting.key));
+}
+
 app.get("/api/settings", async () => {
-  return { settings: requireDb().listSettings() };
+  return { settings: publicSettingsSnapshot(requireDb()) };
 });
 
 // ---- r35：本地订阅 key（settings 里的随机串，非密钥/token，不写密钥文件） ----
@@ -3392,17 +3429,32 @@ app.post("/api/approvals/:id/cc", async (req, reply) => {
 /** 五个动作共用一条装配路径：动作合法性、角色与状态判定全在 shared/db */
 async function runApprovalAction(
   action: "submit" | "approve" | "reject" | "delegate" | "withdraw",
-  req: { params: unknown; body?: unknown },
+  req: FastifyRequest,
   reply: FastifyReply,
 ): Promise<FastifyReply> {
   try {
     const id = parseId((req.params as { id: string }).id);
     const body = (req.body ?? {}) as ApprovalBody;
     const store = requireDb();
-    const approval = store.actOnApproval(id, action, body.actor, {
+    const initial = {
+      actorMemberId: firstDefined(body.actorMemberId, body.actor_member_id, body.memberId, body.member_id),
+    };
+    let actor: unknown = body.actor;
+    let actorMemberId: unknown = initial.actorMemberId;
+    if (serverMode === "remote") {
+      // r53 P1-1：actor 只认会话用户；body 声明冒充一律 403。
+      const identity = sessionIdentity(req);
+      if (!identity) return responseCleared(reply);
+      if (actor !== undefined && actor !== identity.actor) {
+        return reply.code(403).send({ error: "审批身份必须与登录会话一致", code: "ACTOR_FORGED" });
+      }
+      actor = identity.actor;
+      actorMemberId = identity.actorMemberId;
+    }
+    const approval = store.actOnApproval(id, action, actor, {
       comment: body.comment,
       targetAssignee: body.targetAssignee,
-      actorMemberId: firstDefined(body.actorMemberId, body.actor_member_id, body.memberId, body.member_id),
+      actorMemberId,
       targetAssigneeMemberId: firstDefined(
         body.targetAssigneeMemberId, body.target_assignee_member_id,
         body.assigneeMemberId, body.assignee_member_id,
@@ -3515,11 +3567,22 @@ app.post("/api/assets/:id/transactions", async (req, reply) => {
     if (!isAssetTxType(body.type)) throw new ValidationError(`非法流水类型：${String(body.type)}`);
     const store = requireDb();
     const memberRef = firstDefined(body.memberId, body.member_id);
-    const operatorRef = firstDefined(body.operatorMemberId, body.operator_member_id, memberRef);
+    let operatorRef: unknown = firstDefined(body.operatorMemberId, body.operator_member_id, memberRef);
     const custodianRef = firstDefined(body.custodianMemberId, body.custodian_member_id, memberRef);
-    const operator = operatorRef === undefined
-      ? body.operator
-      : assertAssignableMember(operatorRef, store.listMembers(), "操作人").name;
+    let operator: unknown;
+    if (serverMode === "remote") {
+      // r53 P2-3：流水操作人只认会话；body.operator / operatorMemberId 一律忽略。
+      const identity = sessionIdentity(req);
+      if (!identity) return responseCleared(reply);
+      operatorRef = identity.actorMemberId;
+      operator = identity.actorMemberId === null
+        ? identity.actor
+        : assertAssignableMember(identity.actorMemberId, store.listMembers(), "操作人").name;
+    } else {
+      operator = operatorRef === undefined
+        ? body.operator
+        : assertAssignableMember(operatorRef, store.listMembers(), "操作人").name;
+    }
     const tx = store.applyAssetTx(id, {
       type: body.type, quantity: body.quantity,
       from: body.from, to: body.to, operator,
@@ -3647,6 +3710,18 @@ interface AuthBody {
 
 app.post("/api/auth/register", async (req, reply) => {
   try {
+    // r53 P0-1：remote 模式关闭公开注册；admin 经 user:manage 建账号。
+    // local 单机语义保留公开注册（无登录、首用户即 admin）。
+    if (serverMode === "remote") {
+      const ctx = (req as AuthRequest).auth ?? resolveAuth(req);
+      if (!ctx) {
+        return reply.code(403).send({
+          error: "远端模式禁止公开注册，请联系管理员创建账号",
+          code: "REGISTER_CLOSED",
+        });
+      }
+      assertPermission(ctx.user.role, "user:manage");
+    }
     const body = (req.body ?? {}) as AuthBody;
     const user = requireDb().createUser({ username: body.username, password: body.password });
     return reply.code(201).send({ user });
@@ -4669,7 +4744,9 @@ function backupFromBody(body: unknown): unknown {
   return rest;
 }
 
-app.get("/api/backup/export", async (_req, reply) => {
+app.get("/api/backup/export", async (req, reply) => {
+  const gated = assertAdminForRemote(req, reply);
+  if (gated) return gated;
   const store = requireDb();
   const snapshot = store.exportBackupSnapshot();
   const backup = buildBackupFile(snapshot);
@@ -4680,6 +4757,8 @@ app.get("/api/backup/export", async (_req, reply) => {
 });
 
 app.post("/api/backup/validate", async (req, reply) => {
+  const gated = assertAdminForRemote(req, reply);
+  if (gated) return gated;
   const backup = backupFromBody(req.body);
   const result = validateBackupFile(backup);
   if (!result.valid) {
@@ -4702,6 +4781,8 @@ app.post("/api/backup/validate", async (req, reply) => {
 });
 
 app.post("/api/backup/restore", async (req, reply) => {
+  const gated = assertAdminForRemote(req, reply);
+  if (gated) return gated;
   try {
     const body = (req.body ?? {}) as Record<string, unknown>;
     assertRestoreConfirmed(body.confirm);

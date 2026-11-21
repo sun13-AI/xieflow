@@ -32,6 +32,26 @@ export function normalizeServerMode(value: unknown): ServerMode {
   return isServerMode(value) ? value : "local";
 }
 
+/**
+ * r53 P0-2：启动模式唯一口径。
+ * ENV_MODE 显式给定时恒优先于 DB（备份恢复不能靠改 settings 让 remote 静默降级）；
+ * ENV 未给定时保留 r18 既有语义——DB 中持久化的切换值生效，否则 local。
+ */
+export function resolveStartupMode(envMode: unknown, savedMode: unknown): ServerMode {
+  if (isServerMode(envMode)) return envMode;
+  if (isServerMode(savedMode)) return savedMode;
+  return "local";
+}
+
+/**
+ * r53 P2-2：匿名 /api/settings 与 /api/health 只可回显的设置键白名单。
+ * calendar_feed_key 等敏感值一律不进公开响应（订阅 key 仍由 /api/feeds/:key.ics 自身校验）。
+ */
+export const PUBLIC_SETTING_KEYS = ["server.mode", "last_health_check"] as const;
+export function isPublicSettingKey(key: unknown): boolean {
+  return typeof key === "string" && (PUBLIC_SETTING_KEYS as readonly string[]).includes(key);
+}
+
 export function assertValidServerMode(value: unknown): asserts value is ServerMode {
   if (!isServerMode(value)) throw new ValidationError(`非法服务模式：${String(value)}`);
 }

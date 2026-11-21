@@ -104,6 +104,7 @@ import {
   BACKUP_RUNTIME_TABLES,
   BACKUP_TABLES,
   isBackupTable,
+  isProtectedSettingKey,
   type BackupRow,
   type BackupSnapshot,
   type RestorePlan,
@@ -652,7 +653,11 @@ export class XieFlowDb {
   exportBackupSnapshot(): BackupSnapshot {
     const snapshot: BackupSnapshot = {};
     for (const table of BACKUP_TABLES) {
-      snapshot[table] = this.db.all(`SELECT * FROM "${table}"`) as BackupRow[];
+      const rows = this.db.all(`SELECT * FROM "${table}"`) as BackupRow[];
+      // r53 P0-2：受保护设置键（server.mode）与运行时表同等对待，永不进快照。
+      snapshot[table] = table === "settings"
+        ? rows.filter((row) => !isProtectedSettingKey(row.key))
+        : rows;
     }
     return snapshot;
   }
@@ -679,6 +684,12 @@ export class XieFlowDb {
     const given = Object.keys(snapshot).sort();
     if (JSON.stringify(wanted) !== JSON.stringify(given)) {
       throw new Error("快照表集合与白名单不一致，拒绝恢复");
+    }
+    // r53 P0-2：服务端二次防线——即便校验被绕过，受保护设置键也绝不写回。
+    for (const row of snapshot.settings ?? []) {
+      if (isProtectedSettingKey(row.key)) {
+        throw new Error(`拒绝恢复受保护设置键：${String(row.key)}`);
+      }
     }
     this.db.exec("BEGIN IMMEDIATE");
     try {

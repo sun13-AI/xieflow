@@ -13,7 +13,7 @@ pnpm install
 powershell -File scripts\start.ps1 start   # api:8787 + web:5173
 powershell -File scripts\start.ps1 stop
 # 开发模式：pnpm dev:api / pnpm dev:web
-pnpm run test:all    # typecheck + 文档契约 + 文案扫描 + e2e（3922 断言）+ HTTP 审计（2957 断言）
+pnpm run test:all    # typecheck + 文档契约 + 文案扫描 + e2e（3937 断言）+ HTTP 审计（3014 断言）
 ```
 
 - 打包：`pnpm run pack`（免安装目录 `release/xieflow-portable/`，双击 `start.cmd` 即用）/ `pnpm run dist`（setup zip）；均单端口 8080，数据落目录内 `data/`
@@ -26,7 +26,7 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 
 ## 界面与测试对照
 
-按宪法第一条：**界面更新必须带截图证据（每次，无例外）**，截图与实现同一提交。当前轮 r51 为**台账精度修正轮**（无功能新增、无渲染层改动，沿用 r49 图证与七态矩阵 + 20 壳索引，透明声明沿用 r50 三处声明）；上一轮 r50 为里程碑体系复审轮；上一功能轮 r49 工作区数据备份与恢复（总入口）：工作台设置区新增「数据备份与恢复」卡（导出 JSON / 选文件预览校验 / 二次确认单事务恢复 / 重载提示），**二十 tab 数量不变、壳基线同批重拍**；图证索引见 [r49 矩阵](docs/ui/r49/README.md) 与 [shell 当前块](docs/ui/shell/README.md)：
+按宪法第一条：**界面更新必须带截图证据（每次，无例外）**，截图与实现同一提交。当前轮 r53 为**安全漏洞修复轮**（关闭 r52 审计 P0×2 / P1×2 / P2×2，P2-1 按 C9 设计取舍记账不改；无功能新增、无渲染层改动，沿用 r49 图证与七态矩阵 + 20 壳索引，透明声明沿用 r50/r51 三处声明）；上一轮 r51 为台账精度修正轮，上一轮 r50 为里程碑体系复审轮；上一功能轮 r49 工作区数据备份与恢复（总入口）：工作台设置区新增「数据备份与恢复」卡（导出 JSON / 选文件预览校验 / 二次确认单事务恢复 / 重载提示），**二十 tab 数量不变、壳基线同批重拍**；图证索引见 [r49 矩阵](docs/ui/r49/README.md) 与 [shell 当前块](docs/ui/shell/README.md)：
 
 | 截图 | 形态 | 对应断言 |
 |---|---|---|
@@ -41,7 +41,7 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 
 > **返工 #1 透明声明**：本轮为纯数字口径修复，**无渲染层改动，沿用 r49 七图 + 二十 tab 壳图**，不新增/不重拍截图；上表索引与哈希块逐字沿用 r49，未作改动。
 
-> **r51 台账精度修正透明声明**（沿用 r50 里程碑复审三处声明）：本轮无渲染层改动、无功能新增，**沿用 r49 七图 + 20 壳**；截图 mtime / SHA256 哈希块与 r49 索引逐字沿用，不新增、不重拍、不复制伪造图证（三处声明见本 README、[r50 报告](docs/feedback/2026-11-21-r50-yanfa.md)、[shell README R50 块](docs/ui/shell/README.md)）。
+> **r53 安全修复透明声明**（沿用 r50 里程碑复审 / r51 台账精度三处声明）：本轮无渲染层改动、无功能新增，**沿用 r49 七图 + 20 壳**；截图 mtime / SHA256 哈希块与 r49 索引逐字沿用，不新增、不重拍、不复制伪造图证（三处声明见本 README、[r50 报告](docs/feedback/2026-11-21-r50-yanfa.md)、[shell README R50 块](docs/ui/shell/README.md)）。
 
 **r49 危险区声明**：备份白名单只含 38 张业务表，`sessions` / `change_log` / `entity_versions` / `users` 四类认证与同步运行时表既不导出也不替换；恢复先全量校验再单事务替换，坏 JSON / 未知表 / 版本不兼容 / 无二次确认一律拒绝且零半态（详见 [docs/plan.md r49 任务单](docs/plan.md)）。
 
@@ -51,8 +51,8 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 
 ### 断言规模（每轮更新，下降 = 回归 = 冻结发版）
 
-- **当前 r51**（台账精度修正轮，无功能新增）：e2e **3922**（服务离线口径；api 在线 +1 = 3923）· HTTP audit **2957** · check:text 文案扫描 **0 命中** · typecheck 5 包全绿；规模与 r49/r50 持平（无断言增删）；DOC-CONTRACT **105** checks（r50 为 98，本轮 +7 锁台账精度防回退）。r50 台账三条记账（backlog 范围 / CI 拆分轮次 / PID 瞬时性）已按 git 实证精修。
-- **r50**：里程碑体系复审（台账补齐 8 行 + 不做清单零越界，DOC-CONTRACT 86→98）。
+- **当前 r53**（安全漏洞修复轮，P0/P1/P2 逐项关闭，无功能新增、无渲染层改动）：e2e **3937**（服务离线口径；api 在线 +1 = 3938）· HTTP audit **3014**（e2e +15 / audit +57 全为 r52 审计复现断言，零删除）· check:text 文案扫描 **0 命中** · typecheck 5 包全绿；DOC-CONTRACT **105** checks（schema v27 未变，ROUND 推进 r53，历史专段保留）。P0-1 注册闸门 / P0-2 mode 保护 / P1-1 审批 actor / P1-2 备份 admin 闸门 / P2-2 settings 白名单 / P2-3 物资 operator 全部关闭；P2-1 autoExecute 按 C9 已披露口径记账不改。
+- **r51**：台账精度修正（DOC-CONTRACT 105 checks，台账四证核实）。
 - **r49**：e2e 3922 / audit 2957（e2e +92 / audit +66 全为备份恢复新增）· 备份卡渲染层改动 → 七图 + 20 壳同批重拍；schema v27。
 - 纪律：断言只涨不缩；禁自洽占位；关键行为做变异红相留痕（改坏实现 → 断言变红 → 逐字节还原全绿）。
 - **逐轮规模变化（r1~r32 的完整记账）见 [README 归档](docs/README-ARCHIVE.md)**；CI smoke 正则随 schema 版本同步至 v27；CI 三平台 verify + tag 触发 Release。

@@ -44,6 +44,11 @@ import { planBlockDrop } from "@xieflow/shared/blockDnd";
 
 // r49: backup rules are shared; audit drives the real HTTP routes with 4xx branches.
 import { BACKUP_CONFIRM_TOKEN, BACKUP_TABLES } from "@xieflow/shared/backup";
+// r53: restart probe spawns two throwaway api processes on a dedicated scratch db.
+import { spawn, spawnSync, type ChildProcess } from "node:child_process";
+import { existsSync, unlinkSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const PORT = Number(process.env.XIEFLOW_API_PORT ?? 8788);
 const BASE = `http://127.0.0.1:${PORT}`;
@@ -4209,7 +4214,7 @@ async function auditR28(): Promise<void> {
       ok(/^[0-9a-f]{24}$/.test(String(feedKey.json?.key)), "r35 key·本地随机串 24 位 hex");
       eq(feedKey.json.url, `/api/feeds/${feedKey.json.key}.ics`, "r35 key·回带订阅 URL");
       const settings = await expectStatus("GET", "/api/settings", undefined, 200, "r35 GET settings -> 200");
-      ok(settings.json.settings.some((s: any) => s.key === "calendar_feed_key" && s.value === feedKey.json.key), "r35 key·确实存 settings（非密钥文件）");
+      ok(!settings.json.settings.some((s: any) => s.key === "calendar_feed_key" || String(s.value).includes(feedKey.json.key)), "r35 key·公开 settings 白名单不回显订阅 key（r53 P2-2）");
       const feed = await reqText(`/api/feeds/${feedKey.json.key}.ics`);
       eq(feed.status, 200, "r35 GET 正确 key 订阅源 -> 200");
       ok(String(feed.headers.get("content-type")).includes("text/calendar"), "r35 feed·Content-Type 为 text/calendar");
@@ -5135,11 +5140,204 @@ async function auditR49(): Promise<void> {
   ok(!JSON.stringify((await req("GET", "/api/todos")).json.todos).includes(stamp), "r49 探针归零");
 }
 
+// ---------- r53: replay the r52 audit reproductions over real HTTP ----------
+async function auditR53Restart(): Promise<void> {
+  const scratch = dirname(process.env.XIEFLOW_DB_PATH ?? "scripts/.tmp-audit/audit.db");
+  const dbPath = join(scratch, "r53-restart.db");
+  const port = 18791;
+  const base = `http://127.0.0.1:${port}`;
+  const cwd = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+
+  const killTree = (child: ChildProcess | null): void => {
+    if (!child || child.exitCode !== null) return;
+    if (process.platform === "win32") {
+      spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], { stdio: "ignore" });
+    } else {
+      child.kill("SIGKILL");
+    }
+  };
+  const waitFor = async (wantAlive: boolean, child: ChildProcess | null): Promise<boolean> => {
+    const deadline = Date.now() + 12000;
+    while (Date.now() < deadline) {
+      let alive = false;
+      try {
+        const r = await fetch(`${base}/api/health`, { signal: AbortSignal.timeout(700) });
+        alive = r.status === 200;
+      } catch { /* not listening yet */ }
+      if (alive === wantAlive) return true;
+      if (!wantAlive && child && child.exitCode !== null) return true;
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    return false;
+  };
+  const startApi = (mode: string): ChildProcess => spawn(process.execPath, [
+    resolve(cwd, "node_modules/tsx/dist/cli.mjs"), "apps/api/src/server.ts",
+  ], {
+    cwd,
+    env: { ...process.env, XIEFLOW_DB_PATH: dbPath, XIEFLOW_API_PORT: String(port), XIEFLOW_MODE: mode },
+    stdio: "ignore",
+    windowsHide: true,
+  });
+
+  let child: ChildProcess | null = null;
+  try {
+    if (existsSync(dbPath)) unlinkSync(dbPath);
+    // phase 1: local mode persists server.mode=local into the DB (the tampered state).
+    child = startApi("local");
+    ok(await waitFor(true, child), "r53 重启探针·local 阶段 scratch api 就绪");
+    const written = await fetch(`${base}/api/auth/mode`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ mode: "local" }),
+      signal: AbortSignal.timeout(5000),
+    });
+    eq(written.status, 200, "r53 重启探针·local 阶段写入 server.mode=local -> 200");
+    killTree(child);
+    child = null;
+    ok(await waitFor(false, child), "r53 重启探针·端口 18791 首次收净");
+
+    // phase 2: same DB, XIEFLOW_MODE=remote -> ENV must win; no silent downgrade.
+    child = startApi("remote");
+    ok(await waitFor(true, child), "r53 重启探针·remote 阶段 scratch api 就绪");
+    const health = await fetch(`${base}/api/health`, { signal: AbortSignal.timeout(5000) });
+    const h = await health.json() as any;
+    eq(h && h.mode, "remote", "r53 P0-2·ENV_MODE=remote 优先于 DB 的 local（重启不降级）");
+    const anonTodos = await fetch(`${base}/api/todos`, { signal: AbortSignal.timeout(5000) });
+    eq(anonTodos.status, 401, "r53 P0-2·重启后 remote 鉴权未消失（匿名业务路由 401）");
+  } finally {
+    killTree(child);
+    child = null;
+    await waitFor(false, child);
+    if (existsSync(dbPath)) unlinkSync(dbPath);
+  }
+}
+
+async function auditR53(): Promise<void> {
+  console.log("\n== Security r53: replay r52 audit reproductions ==");
+  const stamp = `r53sec-${Date.now().toString(36)}`;
+  const adminName = `${stamp}-admin`;
+  const userName = `${stamp}-user`;
+  const pw = "R53-Strong-Pass-2026";
+  let adminId = -1;
+  let userId = -1;
+  let extraId = -1;
+  let assetId = -1;
+  let approvalId = -1;
+  let adminToken = "";
+  let userToken = "";
+  try {
+    // baseline: local mode keeps the documented single-user registration path
+    await expectStatus("POST", "/api/auth/mode", { mode: "local" }, 200, "r53 基线·切回 local -> 200");
+    const adminReg = await expectStatus("POST", "/api/auth/register", { username: adminName, password: pw }, 201, "r53 基线·local 公开注册管理员 -> 201");
+    adminId = adminReg.json.user.id;
+    const userReg = await expectStatus("POST", "/api/auth/register", { username: userName, password: pw }, 201, "r53 基线·local 公开注册普通用户 -> 201");
+    userId = userReg.json.user.id;
+    adminToken = (await expectStatus("POST", "/api/auth/login", { username: adminName, password: pw }, 200, "r53 管理员登录 -> 200")).json.token;
+    userToken = (await expectStatus("POST", "/api/auth/login", { username: userName, password: pw }, 200, "r53 普通用户登录 -> 200")).json.token;
+    await expectAuth("POST", "/api/auth/mode", adminToken, { mode: "remote" }, 200, "r53 管理员切 remote -> 200");
+    eq((await req("GET", "/api/auth/mode")).json.mode, "remote", "r53 模式确为 remote（后续断言前提）");
+
+    // P0-1: remote 关闭公开注册，admin 经 user:manage 建账号
+    const anonReg = await expectStatus("POST", "/api/auth/register", { username: `${stamp}-anon`, password: pw }, 403, "r53 P0-1·remote 匿名注册 -> 403");
+    eq(anonReg.json.code, "REGISTER_CLOSED", "r53 P0-1·匿名注册错误码 REGISTER_CLOSED");
+    await expectAuth("POST", "/api/auth/register", userToken, { username: `${stamp}-byuser`, password: pw }, 403, "r53 P0-1·普通用户注册 -> 403");
+    const adminCreate = await expectAuth("POST", "/api/auth/register", adminToken, { username: `${stamp}-byadmin`, password: pw }, 201, "r53 P0-1·admin(user:manage) 建账号 -> 201");
+    extraId = adminCreate.json.user.id;
+    eq(adminCreate.json.user.role, "user", "r53 P0-1·admin 建账号默认 role=user");
+
+    // P1-2: 备份三路由统一 admin 闸门
+    await expectAuth("GET", "/api/backup/export", userToken, undefined, 403, "r53 P1-2·user 备份导出 -> 403");
+    await expectAuth("POST", "/api/backup/validate", userToken, { backup: {} }, 403, "r53 P1-2·user 备份校验 -> 403");
+    await expectAuth("POST", "/api/backup/restore", userToken, { backup: {}, confirm: BACKUP_CONFIRM_TOKEN }, 403, "r53 P1-2·user 备份恢复 -> 403");
+    const exported = await expectAuth("GET", "/api/backup/export", adminToken, undefined, 200, "r53 P1-2·admin 备份导出 -> 200");
+    ok(exported.json && exported.json.format === "xieflow-workspace-backup", "r53 P1-2·admin 导出为真备份快照");
+
+    // P0-2: 篡改 settings.server.mode 的备份 422 + 重启 ENV 优先
+    const backup = exported.json as any;
+    const tamperedSettings = (backup.tables.settings ?? []).map((row: any) =>
+      row.key === "server.mode" ? { ...row, value: "local" } : row,
+    );
+    const hasModeRow = tamperedSettings.some((row: any) => row.key === "server.mode");
+    const tampered = {
+      ...backup,
+      tables: { ...backup.tables, settings: hasModeRow ? tamperedSettings : [...tamperedSettings, { key: "server.mode", value: "local", updated_at: "2026-11-21T00:00:00.000Z" }] },
+    };
+    const badValidate = await expectAuth("POST", "/api/backup/validate", adminToken, { backup: tampered }, 422, "r53 P0-2·篡改 server.mode 备份校验 -> 422");
+    eq(badValidate.json.valid, false, "r53 P0-2·篡改备份 valid=false");
+    ok(String(JSON.stringify(badValidate.json.errors)).includes("server.mode"), "r53 P0-2·422 错误清单点名 server.mode");
+    await expectAuth("POST", "/api/backup/restore", adminToken, { backup: tampered, confirm: BACKUP_CONFIRM_TOKEN }, 422, "r53 P0-2·篡改 server.mode 备份恢复 -> 422");
+    eq((await req("GET", "/api/auth/mode")).json.mode, "remote", "r53 P0-2·拒绝后内存模式仍 remote（零半态）");
+    ok(!JSON.stringify(backup.tables.settings ?? []).includes('"server.mode"'), "r53 P0-2·合法导出本身不含受保护 server.mode 行");
+    await auditR53Restart();
+
+    // P1-1: 审批 actor 从会话派生，伪造 actor 403
+    const createdApproval = await expectAuth("POST", "/api/approvals", adminToken, {
+      title: `${stamp}-approval`, type: "leave", applicantId: adminName, currentAssignee: adminName,
+    }, 201, "r53 P1-1·admin 建审批 -> 201");
+    approvalId = createdApproval.json.id;
+    await expectAuth("POST", `/api/approvals/${approvalId}/submit`, userToken, { actor: adminName }, 403, "r53 P1-1·普通用户伪造 actor 提交 -> 403");
+    const draftCheck = await expectAuth("GET", `/api/approvals/${approvalId}`, adminToken, undefined, 200, "r53 P1-1·伪造被拒后审批回读 -> 200");
+    eq(draftCheck.json.status, "draft", "r53 P1-1·伪造被拒后审批仍 draft");
+    await expectAuth("POST", `/api/approvals/${approvalId}/submit`, adminToken, { actor: "someone-else" }, 403, "r53 P1-1·admin 冒用他人 actor -> 403");
+    await expectAuth("POST", `/api/approvals/${approvalId}/submit`, userToken, {}, 400, "r53 P1-1·非发起人 session 提交 -> 400（actor 来自会话）");
+    const submitted = await expectAuth("POST", `/api/approvals/${approvalId}/submit`, adminToken, {}, 200, "r53 P1-1·admin 不传 actor 按会话提交 -> 200");
+    eq(submitted.json.status, "pending", "r53 P1-1·提交后 pending");
+    const steps = await expectAuth("GET", `/api/approvals/${approvalId}/steps`, adminToken, undefined, 200, "r53 P1-1·步骤回读 -> 200");
+    eq(steps.json.steps[0]?.assignee, adminName, "r53 P1-1·提交步骤 assignee = 会话用户（忽略 body 声明）");
+    const approved = await expectAuth("POST", `/api/approvals/${approvalId}/approve`, adminToken, {}, 200, "r53 P1-1·会话审批人通过 -> 200");
+    eq(approved.json.status, "approved", "r53 P1-1·通过后终态 approved");
+
+    // P2-3: 物资 operator 从会话派生
+    const createdAsset = await expectAuth("POST", "/api/assets", adminToken, {
+      name: `${stamp}-asset`, category: "office", quantity: 5, unit: "pcs", location: "loc", custodian: "cust",
+    }, 201, "r53 P2-3·建物资 -> 201");
+    assetId = createdAsset.json.id;
+    const tx = await expectAuth("POST", `/api/assets/${assetId}/transactions`, userToken, {
+      type: "in", quantity: 1, to: "r53-loc", operator: "forged-operator",
+    }, 201, "r53 P2-3·user 入库（body.operator 伪造）-> 201");
+    eq(tx.json.operator, userName, "r53 P2-3·流水 operator = 会话用户，忽略 body.operator");
+    const txs = await expectAuth("GET", `/api/assets/${assetId}/transactions`, adminToken, undefined, 200, "r53 P2-3·流水回读 -> 200");
+    eq(txs.json.transactions[0]?.operator, userName, "r53 P2-3·落库流水 operator 为会话用户");
+
+    // P2-2: 公开 settings/health 只返白名单键
+    const pubSettings = await req("GET", "/api/settings");
+    eq(pubSettings.status, 200, "r53 P2-2·匿名 settings -> 200");
+    ok(!JSON.stringify(pubSettings.json).includes("calendar_feed_key"), "r53 P2-2·匿名 settings 不回显 calendar_feed_key");
+    const pubHealth = await req("GET", "/api/health");
+    eq(pubHealth.status, 200, "r53 P2-2·匿名 health -> 200");
+    ok(!JSON.stringify(pubHealth.json).includes("calendar_feed_key"), "r53 P2-2·匿名 health 不回显 calendar_feed_key");
+    ok((pubHealth.json.settings ?? []).every((s: any) => ["server.mode", "last_health_check"].includes(s.key)), "r53 P2-2·公开 settings 仅白名单键");
+  } finally {
+    if (assetId > 0) await expectAuth("DELETE", `/api/assets/${assetId}`, adminToken, undefined, 200, "r53 清理探针物资 -> 200").catch(() => {});
+    if (approvalId > 0) await expectAuth("DELETE", `/api/approvals/${approvalId}`, adminToken, undefined, 200, "r53 清理探针审批 -> 200").catch(() => {});
+    if (adminToken) {
+      if (extraId > 0) await expectAuth("DELETE", `/api/auth/users/${extraId}`, adminToken, undefined, 200, "r53 清理 admin 建账号 -> 200").catch(() => {});
+      await expectAuth("POST", "/api/auth/mode", adminToken, { mode: "local" }, 200, "r53 终态切回 local -> 200").catch(() => {});
+      if (userId > 0) await expectAuth("DELETE", `/api/auth/users/${userId}`, adminToken, undefined, 200, "r53 清理普通用户 -> 200").catch(() => {});
+      if (adminId > 0) await expectAuth("DELETE", `/api/auth/users/${adminId}`, adminToken, undefined, 200, "r53 清理管理员 -> 200").catch(() => {});
+    }
+  }
+}
+
+/** r53: authenticated expectStatus (Bearer token, never a public-path bypass). */
+async function expectAuth(
+  method: string,
+  path: string,
+  token: string | null,
+  body: unknown,
+  wantStatus: number,
+  label: string,
+): Promise<{ status: number; json: any; headers: Headers }> {
+  const r = await authReq(method, path, token, body);
+  if (r.status !== wantStatus) console.error(`  expectAuth detail ${method} ${path}: ${JSON.stringify(r.json)}`);
+  eq(r.status, wantStatus, label);
+  return r;
+}
+
 try {
   await audit();
   await auditR45();
   await auditR47();
   await auditR49();
+  await auditR53();
 } catch (err) {
   failures.push(`audit 抛错：${err instanceof Error ? err.message : String(err)}`);
   console.error(`audit crashed: ${err instanceof Error ? err.stack : String(err)}`);

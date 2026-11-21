@@ -256,7 +256,7 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r50 | M10 后·里程碑体系复审（第 50 轮检查点） | ✅已发版（首轮双通过；台账补齐 8 行 + 不做清单零越界 + DOC-CONTRACT 98） | v0.0.56 | e2e 3922 · audit 2957 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r51 | M10 后·台账精度修正（r50 P3/P4/P5） | ✅已发版（首轮双通过；台账四证核实 + DOC-CONTRACT 105 精度防回退） | v0.0.57 | e2e 3922 · audit 2957 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r52 | M10 后·质量审计 #1：注入与越权（安全维度） | 🔴审计打回 P0×2/P1×2/P2×3 → 修复中 | — | 修复后重报 | auditor-r52 AUDIT-VERDICT: 打回（注入/XSS 零问题，越权/认证四类真漏洞） |
-| r53 | M10 后·r52 安全漏洞修复（P0/P1/P2 全修 + 回归断言） | 🔨规划中 | — | — | — |
+| r53 | M10 后·r52 安全漏洞修复（P0/P1/P2 全修 + 回归断言） | 🛠研发完成（待双 VERDICT） | — | e2e 3937 · audit 3014 | — |
 
 ## 🏁 项目总账（2026-11-19 · M10 收官）
 
@@ -1163,6 +1163,13 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 ---
 
 ## 记账区（每轮追加）
+
+### 2026-11-21 · r53 研发（yanfa-r53 · r52 安全漏洞修复，lead 定方案）
+- 交付：按 `r52-audit.md` 真实复现逐项关闭——P0-1 remote 注册闸门（403 `REGISTER_CLOSED` / admin `user:manage` 建账号，local 保留公开注册）；P0-2 `BACKUP_PROTECTED_SETTING_KEYS` 排除 `server.mode` + db 双防线 + `resolveStartupMode` ENV 优先 + restore admin；P1-1 审批 actor/actorMemberId 从会话派生（伪造 403 `ACTOR_FORGED`）；P1-2 备份三路由 remote admin 闸门；P2-2 公开 settings/health 白名单；P2-3 物资 operator 从会话派生。P2-1 autoExecute 按 C9 记账不改。零新依赖、零 token、无多租户/归属表。
+- 断言：e2e 3922→**3937（+15）** · audit 2957→**3014（+57）**，零删除；typecheck 5 包；`pnpm run test:all` exit 0；DOC-CONTRACT **105 checks**（ROUND r53，r50/r51 历史专段保留；schema v27 未变）；check:text 7047 literals / 26 tsx / 0 命中。README 速查行 / 当前轮对照表 / 断言规模行三处同步。
+- **变异红相 3 组**：① 注册闸门回滚 → audit 3 红；② 备份保护键校验回滚 → e2e 3 红 + audit 4 红；③ ENV 优先回滚 → audit 2 红（逐字复现 remote→local 降级、匿名 200）。三组均逐字节还原（SHA `38520AF3…45D32` / `4DDF7A53…B67C9A` 前后同值）后全绿。
+- 工程纪律：TDD 先红（e2e 24 红 / audit 11 红）再实现；双进程重启探针用 scratch DB、脚本内一次性进程收净端口 18791；headless、未 push / 未打 tag / 未发版 / 未动用户数据。
+- 报告：`docs/feedback/2026-11-21-r53-yanfa.md`（逐项修复表 + 三态纪律 + 变异红相证据）。
 
 ### 2026-11-21 · r49 返工 #1（断言数字口径对齐 · waizhuan P2-1）
 - 问题：r49 发布口径把 e2e 实测 3922（在线 3923）误写为 3921；`check-doc-contract.ts:parsePublishedCounts` 从 `e2e-test.ts` 最后一条 `e2e（N 断言）` 取数，与 e2e 自身期望串同源，故 `test:all` 自洽绿但文案与实测差 1（宪法第四条「禁自洽占位」反面）。
