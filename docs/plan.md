@@ -1,794 +1,1369 @@
-﻿# 鍗忔祦 XieFlow 路 璺嚎鍥句笌杞璁拌处
+# 协流 XieFlow · 路线图与轮次记账
 
-> 瀹硶瑙佽璁″寘 AGENTS.md锛涜疆娆¤鍒欒 RUNBOOK.md锛堝潎鍦?D:\work\濂戒笢瑗縗xieflow-design\锛夈€?
-### 2026-11-20 路 r28 鐮斿彂锛坹anfa-r28 路 M10 鍚庡姛鑳借ˉ寮猴細浼氳绠＄悊涓庝細璁 / 棰勭害鍐茬獊妫€娴嬶級
-- 浜や粯锛歴chema v19鈫抳20锛坮ooms / meetings / meeting_attendees 涓夎〃 + 绱㈠紩/澶栭敭/UNIQUE锛夛紱`packages/shared/meetings.ts` 涓夊嚱鏁帮紙detectTimeConflict 鍚屽閲嶅彔涓旇竟鐣岀浉鎺ヤ笉鍐茬獊 / validateMeetingWindow 缁撴潫鏅氫簬寮€濮嬩笖鏈€闀?8h / normalizeAttendees 鍘婚噸+鍋滅敤鏍￠獙锛? 棰勭害缂栨帓涓庡彲鐢ㄦ€ц閰嶏紝api/web 闆剁畻娉曞垎鏀紱鏃犳柊渚濊禆銆侀浂 token銆佷笉鎺ヨ棰戜細璁垨澶栭儴鏃ュ巻
-- api锛氫細璁 CRUD + `GET /api/rooms/:id/availability?date=`锛涗細璁?CRUD / 棰勭害锛堢湡鍐茬獊 409 + 鍐茬獊浼氳 id锛? 鎸夋棩鏈熶笌浼氳瀹ゆ煡璇?/ 鏀规湡鑷垜鎺掗櫎锛涘弬浼氫汉 GET/PUT/POST/DELETE 涓?4xx 闆跺崐鎬?- web锛氭柊澧炵鍗佸叓 tab銆屼細璁€嶁€斺€斿乏浼氳瀹ゅ垪琛紙鍚仠鐢ㄦ€侊級/ 涓椂娈电綉鏍硷紙杈圭晫鐩告帴涓ゅ満骞舵帓锛? 鍙抽绾﹁〃鍗曪紙閫氳褰曞弬浼氫汉锛屽仠鐢ㄧ閫夛級+ 鍐茬獊绾㈡潯锛涘崄鍏?tab 澹冲熀绾垮悓鎵归噸鎷嶏紝`?date=&roomId=` reload 涓嶄涪
-- 鏂█锛歟2e 2335鈫?*2448锛?113锛?* 路 audit 1904鈫?*1992锛?88锛?*锛屾棤涓€鏉″垹鏀癸紱typecheck 5 鍖咃紱`pnpm run test:all` exit 0锛汣I smoke 姝ｅ垯鍗?v20锛汻EADME 閫熸煡琛?鍙岃妭/r28 鐭╅樀绱㈠紩/澹?R28 鍝堝笇鍧楅€愬瓧鍚屾
-- **鍙樺紓绾㈢浉 1 缁?*锛歚meetingWindowsOverlap` 涓ユ牸閲嶅彔 `as < be && bs < ae` 鈫?`as <= be && bs <= ae`锛堣竟鐣岀浉鎺ヨ鍒ゅ啿绐侊級鈫?e2e 4 绾?+ 鏁版嵁灞傛姏閿欎腑鏂?/ audit 10 绾紱閫愬瓧鑺傝繕鍘燂紙SHA `2BA5D403鈥01379A562`锛夊弻濂椾欢鍏ㄧ豢
-- 銆岀敤鎴风涓€娆＄敤銆嶅叏閾捐矾锛坔eadless CDP 鐪熺偣锛? 鏁版嵁璧锋锛夛細寤轰細璁 鈫?09鈥?0 棰勭害 鈫?09:30鈥?0:30 琚?409 鎷掔粷涓旂孩鏉″洖甯?#1 鈫?鏀?10鈥?1 杈圭晫鐩告帴鎴愬姛 鈫?閫氳褰曢€夊弬浼氫汉棰勭害 11鈥?2 鈫?reload 涓夊満鍏ㄥ湪 鈫?DELETE 鎺㈤拡褰掗浂銆佺鍙ｆ敹鍑€
-- 鎴浘锛歚docs/ui/r28/` 7 寮?+ 鍗佸叓 tab 澹冲熀绾垮悓鎵归噸鎷嶏紱7/7銆?8/18 SHA256 浜掑紓锛岀煩闃碘啍澹抽噸鍙?0锛屽叏搴?283 PNG / 281 浜掑紓锛堝悓鎬佺粍浠?r4 宸叉姭闇?2 缁勶級锛岄€愬紶 `read_image` 鐩獙锛涢杞櫧灞忓簾鐗囧凡鍏ㄦ壒閲嶆媿鏈叆搴?- 鍗遍櫓鍖猴細鏈?push / 鏈墦 tag / 鏈彂鐗?/ 鏈敼 CI release 閰嶇疆锛涘彧璧?user_version 杩佺Щ銆佹湭鎵嬫敼搴撴枃浠讹紱鍙敤 scratch 搴撲笌鐪?HTTP 鎺㈤拡骞舵竻鐞嗭紱鍏ㄧ▼ headless銆佹湇鍔℃敹鍑€銆丳owerShell 鏂版鍏?ASCII銆侀浂 token
-- 鎶ュ憡锛歚docs/feedback/2026-11-20-r28-yanfa.md`锛堜笁鎬佺邯寰?+ 鑷洕鑺?+ 鍙樺紓绾㈢浉 + 鍏ㄩ摼璺瘉鎹級
+> 宪法见设计包 AGENTS.md；轮次规则见 RUNBOOK.md（均在 D:\work\好东西\xieflow-design\）。
 
-### 2026-11-20 路 r28 杩斿伐#1锛坹anfa-r28fix 路 waizhuan P2-1 鍙戠増闃绘柇 + P5 绗旇 + UI U2脳2锛?- A锛氬缓瀹ゆ垚鍔熷悗鑷姩閫変腑鏂板锛堣 POST /api/rooms 鍝嶅簲 id锛宍chooseRoom(createdId)` 鍚屾 roomId/form/URL锛夛紱`load()` 鐢?shared `resolveSelectedRoomId` 鎶婃繁閾?鏃ч粯璁?id 绾犲亸鍒扮湡瀹炲惎鐢ㄥ锛堟棤鍚敤瀹よ繑鍥?0锛屼笉 POST锛夛紱涓嬫媺妗?`value={form.roomId}` 涓庢彁浜ゅ彛寰勪弗鏍煎悓婧愶紱鏃?`roomId` 娣遍摼 reload 鑷姩鍥炴樉
-- 鏂█锛歟2e 2448 鈫?**2460锛?12锛岀绾垮彛寰勶紱鍦ㄧ嚎 +1 = 2461锛?* 路 audit 1992 鈫?**2004锛?12锛?*锛屾棤涓€鏉″垹鏀癸紱**鍙樺紓绾㈢浉 2 缁?*锛歴hared 閫変腑鍙ｅ緞鏀瑰洖 `return 1` 鈫?e2e 4 绾紱鍒犳帀寤哄鑷姩閫変腑 鈫?e2e 1 绾紱閫愬瓧鑺傝繕鍘燂紙SHA 鍚屽€笺€佹帰閽堥浂娈嬬暀锛夊悗鍏ㄧ豢
-- B/C锛歊EADME:489 `2444`鈫抈2461` 涓?CI 姝ｅ垯 `19`鈫抈20`锛泂hell README:55 meetings 褰㈡€佹敼鐪熷疄绌哄簱鎬侊紱r28/05 涓庢牴 README/05 琛ャ€宨d鈫斾細璁爣棰?鏃舵銆嶆槧灏勮鏄?- 鎴浘锛氭覆鏌撳眰鏀瑰姩 鈫?`docs/ui/r28/` 7 寮?+ 鍗佸叓 tab 澹冲熀绾垮悓鎵归噸鎷嶏紝7/7銆?8/18 SHA256 浜掑紓銆佺煩闃碘啍澹抽噸鍙?0銆佸叏搴?283 PNG / 281 浜掑紓锛涚储寮?/ shell README R28 鍝堝笇鍧?/ 鏍?README 鍚屼竴鎻愪氦锛涢€愬紶 `read_image` 鐩獙锛?2/04/05/meetings/board锛?- 鍗遍櫓鍖猴細鏈?push / 鏈墦 tag / 鏈彂鐗堬紱headless 鍏ㄧ▼銆佹湇鍔℃敹鍑€銆佸彧鍔?scratch 搴撲笌鎺㈤拡銆佹湭鍔ㄧ敤鎴锋暟鎹€侀浂 token
-- 鎶ュ憡锛歚docs/feedback/2026-11-20-r28-yanfa.md` 鏈熬銆岃繑宸?#1銆嶈妭
+### 2026-11-20 · r28 研发（yanfa-r28 · M10 后功能补强：会议管理与会议室 / 预约冲突检测）
+- 交付：schema v19→v20（rooms / meetings / meeting_attendees 三表 + 索引/外键/UNIQUE）；`packages/shared/meetings.ts` 三函数（detectTimeConflict 同室重叠且边界相接不冲突 / validateMeetingWindow 结束晚于开始且最长 8h / normalizeAttendees 去重+停用校验）+ 预约编排与可用性装配，api/web 零算法分支；无新依赖、零 token、不接视频会议或外部日历
+- api：会议室 CRUD + `GET /api/rooms/:id/availability?date=`；会议 CRUD / 预约（真冲突 409 + 冲突会议 id）/ 按日期与会议室查询 / 改期自我排除；参会人 GET/PUT/POST/DELETE 与 4xx 零半态
+- web：新增第十八 tab「会议」——左会议室列表（含停用态）/ 中时段网格（边界相接两场并排）/ 右预约表单（通讯录参会人，停用禁选）+ 冲突红条；十八 tab 壳基线同批重拍，`?date=&roomId=` reload 不丢
+- 断言：e2e 2335→**2448（+113）** · audit 1904→**1992（+88）**，无一条删改；typecheck 5 包；`pnpm run test:all` exit 0；CI smoke 正则升 v20；README 速查行/双节/r28 矩阵索引/壳 R28 哈希块逐字同步
+- **变异红相 1 组**：`meetingWindowsOverlap` 严格重叠 `as < be && bs < ae` → `as <= be && bs <= ae`（边界相接误判冲突）→ e2e 4 红 + 数据层抛错中断 / audit 10 红；逐字节还原（SHA `2BA5D403…E01379A562`）双套件全绿
+- 「用户第一次用」全链路（headless CDP 真点，0 数据起步）：建会议室 → 09–10 预约 → 09:30–10:30 被 409 拒绝且红条回带 #1 → 改 10–11 边界相接成功 → 通讯录选参会人预约 11–12 → reload 三场全在 → DELETE 探针归零、端口收净
+- 截图：`docs/ui/r28/` 7 张 + 十八 tab 壳基线同批重拍；7/7、18/18 SHA256 互异，矩阵↔壳重叠 0，全库 283 PNG / 281 互异（同态组仅 r4 已披露 2 组），逐张 `read_image` 目验；首轮白屏废片已全批重拍未入库
+- 危险区：未 push / 未打 tag / 未发版 / 未改 CI release 配置；只走 user_version 迁移、未手改库文件；只用 scratch 库与真 HTTP 探针并清理；全程 headless、服务收净、PowerShell 新段全 ASCII、零 token
+- 报告：`docs/feedback/2026-11-20-r28-yanfa.md`（三态纪律 + 自曝节 + 变异红相 + 全链路证据）
 
-### 2026-11-20 路 r27 鐮斿彂锛坹anfa-r27 路 M10 鍚庡姛鑳借ˉ寮猴細鎶ヨ〃涓績 / 璺ㄦā鍧楁暟鎹湅鏉匡級
-- 浜や粯锛歚packages/shared/reports.ts` 鍏寚鏍囩函鍑芥暟锛坈omputeTodoCompletion / computeScheduleLoad / computeBoardThroughput / computeApprovalSla / computeAssetTurnover / computeDocOutput + assembleReport / parseReportRange / reportWindow / selectReportMetric锛夛紝api/web 闆剁畻娉曞垎鏀紱鏃犳柊渚濊禆銆佹棤 schema 杩佺Щ锛堝彧璇绘棦鏈夎〃锛?- api锛歚GET /api/reports/overview?from=&to=` 鍏寚鏍囦竴娆¤繑鍥?+ `GET /api/reports/:metric?from=&to=[&id=]` 鍗曢」涓嬮捇锛堟湭鐭ュ悕 metric 400 / 瓒婃潈 id 404 / 闈炴硶鑼冨洿 400锛?- web锛氭柊澧炵鍗佷竷 tab銆屾姤琛ㄣ€嶏紙鍏紶 KPI 鍗★細鏁板€?+ 鐜瘮 + CSS 杩蜂綘鏉★紱鏄庣粏琛ㄧ偣鍗″垏鎹紱杩?7/30/90 澶?+ 鑷畾涔夎寖鍥达紱`?metric=&from=&to=` 娣遍摼 reload 涓嶄涪锛夛紝鍗佷竷 tab 澹冲熀绾垮悓鎵归噸鎷?- 鏂█锛歟2e 2237鈫?*2335锛?98锛?* 路 audit 1809鈫?*1904锛?95锛?*锛屾棤涓€鏉″垹鏀癸紱typecheck 5 鍖咃紱`pnpm run test:all` exit 0锛汣I smoke 姝ｅ垯淇濇寔 `(2|鈥19)`锛汻EADME 閫熸煡琛?鍙岃妭/r27 鐭╅樀绱㈠紩/澹?R27 鍝堝笇鍧楅€愬瓧鍚屾
-- **鍙樺紓绾㈢浉 1 缁?*锛歚computeTodoCompletion` 瀹屾垚鐜囧垎瀛?`done`鈫抈done+1` 鏀瑰潖 鈫?e2e 6 绾?/ audit 2 绾紱閫愬瓧鑺傝繕鍘燂紙SHA `9B4A4659鈥4455`锛夊弻濂椾欢鍏ㄧ豢
-- 銆岀敤鎴风涓€娆＄敤銆嶅叏閾捐矾锛氶€犳暟鎹?鈫?鐪嬫姤琛?鈫?鍒囨椂闂磋寖鍥?鈫?鐐?KPI 涓嬮捇 鈫?reload 淇濇寔锛堣瑙?r27 yanfa 鎶ュ憡锛?- 鎴浘锛歚docs/ui/r27/` 7 寮?+ 鍗佷竷 tab 澹冲熀绾垮悓鎵归噸鎷嶏紱7/7銆?7/17 SHA256 浜掑紓锛岀煩闃碘啍澹抽噸鍙?0锛屽叏搴?275 PNG / 273 浜掑紓锛堝悓鎬佺粍浠?r4 宸叉姭闇?2 缁勶級锛岄€愬紶 `read_image` 鐩獙
-- 鍗遍櫓鍖猴細鏈?push / 鏈墦 tag / 鏈彂鐗?/ 鏈敼 CI release 閰嶇疆锛涗粨搴?`data/xieflow.db` 鍙锛堟埅鍥?瀹¤璧?scratch 搴擄級锛涘叏绋?headless銆佹湇鍔℃敹鍑€銆丳owerShell 鏂版鍏?ASCII銆侀浂 token
-- 鎶ュ憡锛歚docs/feedback/2026-11-20-r27-yanfa.md`锛堜笁鎬佺邯寰?+ 鑷洕鑺?+ 鍙樺紓绾㈢浉 + 鍏ㄩ摼璺瘉鎹級
+### 2026-11-20 · r28 返工#1（yanfa-r28fix · waizhuan P2-1 发版阻断 + P5 笔误 + UI U2×2）
+- A：建室成功后自动选中新室（读 POST /api/rooms 响应 id，`chooseRoom(createdId)` 同步 roomId/form/URL）；`load()` 用 shared `resolveSelectedRoomId` 把深链/旧默认 id 纠偏到真实启用室（无启用室返回 0，不 POST）；下拉框 `value={form.roomId}` 与提交口径严格同源；无 `roomId` 深链 reload 自动回显
+- 断言：e2e 2448 → **2460（+12，离线口径；在线 +1 = 2461）** · audit 1992 → **2004（+12）**，无一条删改；**变异红相 2 组**：shared 选中口径改回 `return 1` → e2e 4 红；删掉建室自动选中 → e2e 1 红；逐字节还原（SHA 同值、探针零残留）后全绿
+- B/C：README:489 `2444`→`2461` 与 CI 正则 `19`→`20`；shell README:55 meetings 形态改真实空库态；r28/05 与根 README/05 补「id↔会议标题/时段」映射说明
+- 截图：渲染层改动 → `docs/ui/r28/` 7 张 + 十八 tab 壳基线同批重拍，7/7、18/18 SHA256 互异、矩阵↔壳重叠 0、全库 283 PNG / 281 互异；索引 / shell README R28 哈希块 / 根 README 同一提交；逐张 `read_image` 目验（02/04/05/meetings/board）
+- 危险区：未 push / 未打 tag / 未发版；headless 全程、服务收净、只动 scratch 库与探针、未动用户数据、零 token
+- 报告：`docs/feedback/2026-11-20-r28-yanfa.md` 末尾「返工 #1」节
 
-### 2026-11-20 路 r26 鐮斿彂锛坹anfa-r26 路 M10 鍚庡姛鑳借ˉ寮猴細閫氱煡涓績 / 绔欏唴娑堟伅鑱氬悎锛?- 浜や粯锛歴chema v18鈫抳19锛坣otifications 鍏垪 + 鍥涚储寮曪級锛沗packages/shared/notifications.ts` 浜斾欢濂楋紙buildNotification / shouldNotify / notificationSummary / queryNotifications / notificationTargetTab + collectNotificationCandidates锛夛紝api/web 闆剁畻娉曞垎鏀?- api锛歯otifications CRUD + 鏈杩囨护/鍒嗛〉 + `POST /:id/read` + `/read-all` + `/refresh`锛堝箓绛夛級+ `/summary`锛涘悓姝?409 浜嬩欢鏃佽矾钀戒竴鏉?`sync_conflict` 閫氱煡锛屼笉鐮村潖 r19 闆跺崐鎬?- web锛氭柊澧炵鍗佸叚 tab銆岄€氱煡銆嶏紙鍏被绛涢€?+ 鏈鍔犵矖/鏃堕棿/鍥炬爣鍒楄〃 + 鐐规潯璺虫ā鍧?+ 椤舵爮鏈寰芥爣锛夛紝鍗佸叚 tab 澹冲熀绾垮悓鎵归噸鎷?- 鏂█锛歟2e 2096鈫?*2221锛?125锛?* 路 audit 1723鈫?*1791锛?68锛?*锛屾棤涓€鏉″垹鏀癸紱typecheck 5 鍖咃紱`pnpm run test:all` exit 0锛汣I smoke 姝ｅ垯鍗?v19锛汻EADME 閫熸煡琛?鍙岃妭/r26 鐭╅樀绱㈠紩/澹?R26 鍝堝笇鍧楅€愬瓧鍚屾
-- **鍙樺紓绾㈢浉 1 缁?*锛歞b `upsertNotification` 鍒ら噸鏀瑰潖 鈫?e2e 4 绾?/ audit 5 绾紱閫愬瓧鑺傝繕鍘燂紙SHA `5823EA8B鈥A14`锛夊弻濂椾欢鍏ㄧ豢
-- 銆岀敤鎴风涓€娆＄敤銆嶅叏閾捐矾锛坔eadless CDP 鐪熺偣锛? 閫氱煡璧锋锛夛細閫犲鎵?pending + 搴撳瓨浣?+ 褰撳ぉ鏃ョ▼ + 鐪?409 鍐茬獊 鈫?refresh 4 鏉?鈫?鐪熺偣瀹℃壒閫氱煡璺冲鎵?tab 涓斿窘鏍?4鈫? 鈫?杩斿洖閫氱煡椤靛凡璇讳笉 bold 鈫?reload summary unread=3/total=4 涓嶄涪 鈫?鎺㈤拡娓呯悊銆佺鍙ｆ敹鍑€
-- 鎴浘锛歚docs/ui/r26/` 7 寮?+ 鍗佸叚 tab 澹冲熀绾垮悓鎵归噸鎷嶏紱7/7銆?6/16 SHA256 浜掑紓锛屽叏搴?265 PNG / 263 浜掑紓锛堝悓鎬佺粍浠?r4 宸叉姭闇?2 缁勶級锛? 寮犻€愬紶 `read_image` 鐩獙
-- 鍗遍櫓鍖猴細鏈?push / 鏈墦 tag / 鏈彂鐗?/ 鏈敼 CI release 閰嶇疆锛涘彧璧?user_version 杩佺Щ銆佹湭鎵嬫敼搴撴枃浠讹紱鍙垹鏈疆鎺㈤拡涓?scratch 搴擄紝`data/xieflow.db` 鍙锛涘叏绋?headless銆佹湇鍔℃敹鍑€銆丳owerShell 鏂版鍏?ASCII銆侀浂 token銆佷笉鎺ュ閮?IM/閭欢
-- 鎶ュ憡锛歚docs/feedback/2026-11-20-r26-yanfa.md`锛堜笁鎬佺邯寰?+ 鑷洕鑺?+ 鍙樺紓绾㈢浉 + 鍏ㄩ摼璺瘉鎹級
+### 2026-11-20 · r27 研发（yanfa-r27 · M10 后功能补强：报表中心 / 跨模块数据看板）
+- 交付：`packages/shared/reports.ts` 六指标纯函数（computeTodoCompletion / computeScheduleLoad / computeBoardThroughput / computeApprovalSla / computeAssetTurnover / computeDocOutput + assembleReport / parseReportRange / reportWindow / selectReportMetric），api/web 零算法分支；无新依赖、无 schema 迁移（只读既有表）
+- api：`GET /api/reports/overview?from=&to=` 六指标一次返回 + `GET /api/reports/:metric?from=&to=[&id=]` 单项下钻（未知名 metric 400 / 越权 id 404 / 非法范围 400）
+- web：新增第十七 tab「报表」（六张 KPI 卡：数值 + 环比 + CSS 迷你条；明细表点卡切换；近 7/30/90 天 + 自定义范围；`?metric=&from=&to=` 深链 reload 不丢），十七 tab 壳基线同批重拍
+- 断言：e2e 2237→**2335（+98）** · audit 1809→**1904（+95）**，无一条删改；typecheck 5 包；`pnpm run test:all` exit 0；CI smoke 正则保持 `(2|…|19)`；README 速查行/双节/r27 矩阵索引/壳 R27 哈希块逐字同步
+- **变异红相 1 组**：`computeTodoCompletion` 完成率分子 `done`→`done+1` 改坏 → e2e 6 红 / audit 2 红；逐字节还原（SHA `9B4A4659…D4455`）双套件全绿
+- 「用户第一次用」全链路：造数据 → 看报表 → 切时间范围 → 点 KPI 下钻 → reload 保持（详见 r27 yanfa 报告）
+- 截图：`docs/ui/r27/` 7 张 + 十七 tab 壳基线同批重拍；7/7、17/17 SHA256 互异，矩阵↔壳重叠 0，全库 275 PNG / 273 互异（同态组仅 r4 已披露 2 组），逐张 `read_image` 目验
+- 危险区：未 push / 未打 tag / 未发版 / 未改 CI release 配置；仓库 `data/xieflow.db` 只读（截图/审计走 scratch 库）；全程 headless、服务收净、PowerShell 新段全 ASCII、零 token
+- 报告：`docs/feedback/2026-11-20-r27-yanfa.md`（三态纪律 + 自曝节 + 变异红相 + 全链路证据）
 
-### 2026-11-19 路 r24 鐮斿彂锛坹anfa-r24 路 M10 鍚庡姛鑳借ˉ寮猴細鎴愬憳鎺ュ叆瀹℃壒/鐗╄祫锛屽悜鍚庡吋瀹癸級
-- 浜や粯锛歴chema v16鈫抳17锛坅pprovals.applicant_member_id / approval_steps.assignee_member_id / approval_cc.cc_member_id / assets.custodian_member_id 鍥涘垪鍏ㄥ彲绌恒€丗K ON DELETE SET NULL锛涘師 TEXT NOT NULL 鍒楅€愬垪涓嶅姩锛夛紱`packages/shared/src/org.ts` 鏂板 resolveAssignee / assertAssignableMember / memberSummary / memberDisplayName / countMemberUsage锛宎pi/web 闆剁畻娉曞垎鏀?- api锛氬鎵瑰彂璧?鎻愪氦/杞氦/鎶勯€併€佺墿璧勫缓璐?缂栬緫/鍑哄叆搴撳潎鎺ュ彈鍙€?member_id锛堜笉瀛樺湪/鍋滅敤/闈炴硶 id 鈫?400锛夛紝鍝嶅簲鍥炲甫 {name,department} 鎽樿锛汫ET /api/org/members/:id/usage 鍥涚被璁℃暟锛涜€佽姹備笉浼?member_id 鐨勫瓧娈靛€间笌鎽樿 NULL 閫愬瓧涓嶅彉
-- web锛氭柊澧炲叡浜?MemberPicker锛堥€氳褰曟悳绱㈠脊绐楋級锛屽鎵圭敵璇蜂汉/瀹℃壒浜?杞氦鐩爣涓庣墿璧勪繚绠″憳/鍑哄叆搴撴搷浣滀汉鍙€変汉锛涘師鑷敱鏂囨湰杈撳叆妗嗗叏閮ㄤ繚鐣欙紱瀹℃壒鏃堕棿绾夸笌鐗╄祫鍗＄墖/璇︽儏娓叉煋閮ㄩ棬寰芥爣
-- 鏂█锛歟2e 1952鈫?*2041锛?89锛?* 路 audit 1582鈫?*1667锛?85锛?*锛屾棤涓€鏉″垹鏀癸紱typecheck 5 鍖咃紱`pnpm run test:all` exit 0锛汣I smoke 姝ｅ垯鍗?v17锛汻EADME 閫熸煡琛?鍙岃妭/r24 鐭╅樀绱㈠紩/澹冲熀绾胯鏄庨€愬瓧鍚屾
-- **鍙樺紓绾㈢浉 1 缁?*锛歴hared/org `resolveAssignee` 鏈?member_id 鏃舵敼鍥炶惤鑷敱鏂囨湰 鈫?e2e 8 绾㈠悗涓柇 / audit 20 绾紱閫愬瓧鑺傝繕鍘燂紙SHA `2A304216鈥A7EC`锛夊弻濂椾欢鍏ㄧ豢
-- 銆岀敤鎴风涓€娆＄敤銆嶅叏閾捐矾锛坔eadless CDP 鐪熺偣锛? 鏁版嵁璧锋锛夛細寤洪儴闂ㄤ笌涓ゅ悕鎴愬憳 鈫?瀹℃壒閫夌敵璇蜂汉/瀹℃壒浜哄彂璧?鈫?鎻愪氦 鈫?鍒囪韩浠介€変汉杞氦 鈫?鐗╄祫閫変繚绠″憳寤鸿处 鈫?鍑哄叆搴撻€夋搷浣滀汉 鈫?usage 鍥炴煡 鈫?reload 鏁版嵁鍏ㄥ湪 鈫?DELETE 鎺㈤拡褰掗浂銆佺鍙ｆ敹鍑€
-- 鎴浘锛歚docs/ui/r24/` 7 寮?+ 鍗佷簲 tab 澹冲熀绾垮悓鎵归噸鎷嶏紱7/7銆?5/15 SHA256 浜掑紓锛屽叏搴?250 PNG / 248 浜掑紓锛堝悓鎬佺粍浠?r4 宸叉姭闇?2 缁勶級锛岄€愬紶 `read_image` 鐩獙锛涢杞鐢ㄨ繙绔ā寮忓簱瀵艰嚧涓冨紶鍚屼负鐧诲綍椤碉紝宸茬敤 scratch 搴撳叏鐭╅樀閲嶆媿銆佸簾鐗囨湭鍏ュ簱
-- 鍗遍櫓鍖猴細鏈?push / 鏈墦 tag / 鏈彂鐗?/ 鏈敼 CI release 閰嶇疆锛涘彧璧?user_version 杩佺Щ锛屾湭鎵嬫敼搴撴枃浠讹紱鍙垹鏈疆鎺㈤拡鏁版嵁涓?scratch 搴擄紝浠撳簱 `data/xieflow.db` 鍙锛涘叏绋?headless銆佹湇鍔℃敹鍑€銆丳owerShell 鏂版鍏?ASCII銆侀浂 token
-- 鎶ュ憡锛歚docs/feedback/2026-11-19-r24-yanfa.md`锛堜笁鎬佺邯寰?+ 鑷洕鑺?+ 鍙樺紓绾㈢浉 + 鍚戝悗鍏煎璇佹嵁锛?
-### 2026-11-19 路 r23 鐮斿彂锛坹anfa-r23 路 M10 鍚庡姛鑳借ˉ寮猴細缁勭粐鏋舵瀯涓庨€氳褰曪級
-- 浜や粯锛歴chema v15鈫抳16锛坉epartments 浜斿垪 + members 涔濆垪锛屽閿?CHECK/UNIQUE 鐪熺害鏉燂級锛沗packages/shared/src/org.ts` 鍞竴鍙ｅ緞锛坆uildDepartmentTree 灞傜骇/鐜?瀛ゅ効銆乿alidateDepartmentMove 闃茶嚜鎸傞槻鎴愮幆銆乶ormalizeMember 閭涓庡瓧娈靛綊涓€銆乻earchMembers 涓夊瓧娈靛ぇ灏忓啓涓嶆晱鎰熴€乥uildOrgTree 閮ㄩ棬甯︿汉鍛橈級锛宎pi/web 闆剁畻娉曞垎鏀?- api锛歞epartments CRUD + move銆乵embers CRUD + 鎸夐儴闂ㄦ煡璇?+ 妯＄硦鎼滅储銆丟ET /api/org/tree锛泈eb 鏂扮鍗佷簲 tab銆岀粍缁囥€嶁€斺€斿乏閮ㄩ棬鏍戝睍寮€鎶樺彔 + 鍙充汉鍛樺崱鐗?+ 鏂板缓/缂栬緫琛ㄥ崟 + 鎼滅储妗嗭紱**涓嶆帴瀹℃壒/鐗╄祫**锛堜换鍔″崟鏄庣‘杈圭晫锛岀暀 r24锛?- 鏂█锛歟2e 1856鈫?*1952锛?96锛?* 路 audit 1514鈫?*1582锛?68锛?*锛屾棤涓€鏉″垹鍑忥紱typecheck 5 鍖咃紱`pnpm run test:all` exit 0锛汣I smoke 姝ｅ垯鍗?v16锛汻EADME 閫熸煡琛?鍙岃妭/r23 鐭╅樀绱㈠紩/澹冲熀绾胯鏄庨€愬瓧鍚屾
-- **鍙樺紓绾㈢浉 1 缁?*锛歴hared/org `searchMembers` 鏀瑰ぇ灏忓啓鏁忔劅 鈫?e2e 4 绾?/ audit 5 绾紱閫愬瓧鑺傝繕鍘燂紙SHA `7500FB40鈥?2CE76`锛夊叏缁?- 銆岀敤鎴风涓€娆＄敤銆嶅叏閾捐矾锛坔eadless CDP 鐪熺偣锛? 鏁版嵁璧锋锛夛細涓夌骇閮ㄩ棬 鈫?寤轰汉鍛?鈫?`ENGINEER` 鎼滅储 鈫?绉诲姩閮ㄩ棬 鈫?reload 鍏ㄥ湪 鈫?HTTP 鍥炴煡 parentId/departmentId 鈫?DELETE 鎺㈤拡褰掗浂銆佺鍙ｆ敹鍑€
-- 鎴浘锛歚docs/ui/r23/` 7 寮?+ 鍗佷簲 tab 澹冲熀绾垮悓鎵归噸鎷嶏紙鏂板 `org-tab-active.png`锛夛紱7/7銆?5/15 SHA256 浜掑紓锛屽叏搴?243 PNG / 241 浜掑紓锛堝悓鎬佺粍浠?r4 宸叉姭闇?2 缁勶級锛岄€愬紶 `read_image` 鐩獙
-- 鍗遍櫓鍖猴細鏈?push / 鏈墦 tag / 鏈彂鐗?/ 鏈敼 CI release 閰嶇疆锛涘彧璧?user_version 杩佺Щ銆佹湭鎵嬫敼搴撴枃浠讹紱鍏ㄧ▼ headless銆佹湇鍔℃敹鍑€銆丳owerShell 鏂版鍏?ASCII銆侀浂 token
-- 鎶ュ憡锛歚docs/feedback/2026-11-19-r23-yanfa.md`锛堜笁鎬佺邯寰?+ 鑷洕鑺?+ 鍙樺紓绾㈢浉璁板綍锛?
-### 2026-11-18 路 r15 鍙戠増锛圡7 鏀跺畼 路 鐧芥澘鐢诲竷锛?- 鍙?VERDICT 澶嶉獙浼氳瘽鍦ㄦ姤鍛婅惤鐩樺墠涓柇锛?8h gap锛夛紝浼氳瘽鎭㈠鍚庨噸璺戝楠?- **CI 骞冲彴瀹归敊淇锛坙ead锛?*锛歮acos-latest runner 鎸佺画琚钩鍙?cancel锛坲buntu/windows 姣忚疆鍏ㄧ豢锛夛紝闃绘柇 v0.0.15~v0.0.18 鍥涜疆 Release鈥斺€攋ob 绾?`continue-on-error: ${{ matrix.os == 'macos-latest' }}`锛屼笁骞冲彴浠嶅叏璺戝彲瑙侊紝浠呭钩鍙颁晶 cancel 涓嶅啀闃绘柇鍙戠増锛堜笉鏄檷浣庢祴璇曡鐩栵級
-- 鍙戠増锛歷0.0.18 鈫?**v0.0.19**锛圕I 瀹归敊鍚庨鐗堬紝寰?Release 璧勪骇鏍稿锛?
-### 2026-11-18 路 r15 鐮斿彂锛坹anfa 路 M7 鏀跺畼锛氱櫧鏉跨敾甯冧笌 AI 寤烘澘锛?- schema v11 涓よ〃锛泂hared 浜斾欢濂楋紙褰掍竴/閬胯/mock 寤烘澘/瀵煎嚭/鍧愭爣鎹㈢畻锛夛紱api 13 璺敱锛泈eb 绗崄涓€ tab銆岀櫧鏉裤€嶆棤闄愮敾甯?+ 渚跨 CRUD + AI 寤烘澘 + 瀵煎嚭锛宎pi/web 闆剁畻娉曞垎鏀?- 鏂█锛歟2e 1221鈫?326 / audit 1020鈫?100锛涘彉寮傜孩鐩?1 缁勭嫭绔嬪鐜?- 鐪熷疄缂洪櫡淇锛歷iewport `setPointerCapture` 鍚炰究绛炬寜閽?click锛屽姞 `.wb-note` 瀹堝崼
+### 2026-11-20 · r26 研发（yanfa-r26 · M10 后功能补强：通知中心 / 站内消息聚合）
+- 交付：schema v18→v19（notifications 八列 + 四索引）；`packages/shared/notifications.ts` 五件套（buildNotification / shouldNotify / notificationSummary / queryNotifications / notificationTargetTab + collectNotificationCandidates），api/web 零算法分支
+- api：notifications CRUD + 未读过滤/分页 + `POST /:id/read` + `/read-all` + `/refresh`（幂等）+ `/summary`；同步 409 事件旁路落一条 `sync_conflict` 通知，不破坏 r19 零半态
+- web：新增第十六 tab「通知」（六类筛选 + 未读加粗/时间/图标列表 + 点条跳模块 + 顶栏未读徽标），十六 tab 壳基线同批重拍
+- 断言：e2e 2096→**2221（+125）** · audit 1723→**1791（+68）**，无一条删改；typecheck 5 包；`pnpm run test:all` exit 0；CI smoke 正则升 v19；README 速查行/双节/r26 矩阵索引/壳 R26 哈希块逐字同步
+- **变异红相 1 组**：db `upsertNotification` 判重改坏 → e2e 4 红 / audit 5 红；逐字节还原（SHA `5823EA8B…AA14`）双套件全绿
+- 「用户第一次用」全链路（headless CDP 真点，0 通知起步）：造审批 pending + 库存低 + 当天日程 + 真 409 冲突 → refresh 4 条 → 真点审批通知跳审批 tab 且徽标 4→3 → 返回通知页已读不 bold → reload summary unread=3/total=4 不丢 → 探针清理、端口收净
+- 截图：`docs/ui/r26/` 7 张 + 十六 tab 壳基线同批重拍；7/7、16/16 SHA256 互异，全库 265 PNG / 263 互异（同态组仅 r4 已披露 2 组），8 张逐张 `read_image` 目验
+- 危险区：未 push / 未打 tag / 未发版 / 未改 CI release 配置；只走 user_version 迁移、未手改库文件；只删本轮探针与 scratch 库，`data/xieflow.db` 只读；全程 headless、服务收净、PowerShell 新段全 ASCII、零 token、不接外部 IM/邮件
+- 报告：`docs/feedback/2026-11-20-r26-yanfa.md`（三态纪律 + 自曝节 + 变异红相 + 全链路证据）
 
-### 2026-11-17 路 r13/r14 鍙戠増锛圡6 鏀跺畼 + M7 璧锋锛?- r13 RAG 瀵硅瘽涓庡紩鐢ㄦ函婧?鈫?v0.0.17锛坙ead 淇?P4 閫熸煡琛?1087/923鈫?161/966锛?- r14 鎬濈淮瀵煎浘 Markdown 鍙岃鍥?鈫?v0.0.18锛圡arkdown鈫旀爲 37/37 + 鍙樺紓绾㈢浉锛?- **CI 绉帇**锛歷0.0.15~v0.0.18 鍥?macOS runner 骞冲彴渚?cancel 缂?Release 璧勪骇鈥斺€旈噸璺?+ 鏈€缁堝閿欎慨澶嶈涓婃柟
+### 2026-11-19 · r24 研发（yanfa-r24 · M10 后功能补强：成员接入审批/物资，向后兼容）
+- 交付：schema v16→v17（approvals.applicant_member_id / approval_steps.assignee_member_id / approval_cc.cc_member_id / assets.custodian_member_id 四列全可空、FK ON DELETE SET NULL；原 TEXT NOT NULL 列逐列不动）；`packages/shared/src/org.ts` 新增 resolveAssignee / assertAssignableMember / memberSummary / memberDisplayName / countMemberUsage，api/web 零算法分支
+- api：审批发起/提交/转交/抄送、物资建账/编辑/出入库均接受可选 member_id（不存在/停用/非法 id → 400），响应回带 {name,department} 摘要；GET /api/org/members/:id/usage 四类计数；老请求不传 member_id 的字段值与摘要 NULL 逐字不变
+- web：新增共享 MemberPicker（通讯录搜索弹窗），审批申请人/审批人/转交目标与物资保管员/出入库操作人可选人；原自由文本输入框全部保留；审批时间线与物资卡片/详情渲染部门徽标
+- 断言：e2e 1952→**2041（+89）** · audit 1582→**1667（+85）**，无一条删改；typecheck 5 包；`pnpm run test:all` exit 0；CI smoke 正则升 v17；README 速查行/双节/r24 矩阵索引/壳基线说明逐字同步
+- **变异红相 1 组**：shared/org `resolveAssignee` 有 member_id 时改回落自由文本 → e2e 8 红后中断 / audit 20 红；逐字节还原（SHA `2A304216…CA7EC`）双套件全绿
+- 「用户第一次用」全链路（headless CDP 真点，0 数据起步）：建部门与两名成员 → 审批选申请人/审批人发起 → 提交 → 切身份选人转交 → 物资选保管员建账 → 出入库选操作人 → usage 回查 → reload 数据全在 → DELETE 探针归零、端口收净
+- 截图：`docs/ui/r24/` 7 张 + 十五 tab 壳基线同批重拍；7/7、15/15 SHA256 互异，全库 250 PNG / 248 互异（同态组仅 r4 已披露 2 组），逐张 `read_image` 目验；首轮误用远端模式库导致七张同为登录页，已用 scratch 库全矩阵重拍、废片未入库
+- 危险区：未 push / 未打 tag / 未发版 / 未改 CI release 配置；只走 user_version 迁移，未手改库文件；只删本轮探针数据与 scratch 库，仓库 `data/xieflow.db` 只读；全程 headless、服务收净、PowerShell 新段全 ASCII、零 token
+- 报告：`docs/feedback/2026-11-19-r24-yanfa.md`（三态纪律 + 自曝节 + 变异红相 + 向后兼容证据）
 
-### 2026-11-18 路 CI/Release 绉帇娓呰处锛坙ead 璺ㄨ疆澶勭悊锛?- 鏍瑰洜閾撅細macos-latest 琚钩鍙?**cancelled**锛堜笉鏄?failure锛夆啋 job 绾?continue-on-error 涓嶈鐩?cancelled 鈫?鍥涜疆 Release 琚烦杩囷紱v0.0.19 棣栬疆瀹归敊浠嶅け璐ュ嵃璇?- 姝ｈВ锛?*鎷?job**鈥斺€攙erify-core锛坲buntu+windows锛変负鍙戠増闂ㄧ銆乿erify-macos 鐙珛瑙傚療锛坈ontinue-on-error锛夛紱v0.0.21 CI 瀹炶瘉 release success + assets=1
-- 绉帇琛ュ彂锛歷0.0.15~v0.0.20 鍏釜 tag 鐢?git archive 閫?tag 鏋勫缓婧愮爜鍖呯粡 GitHub API 涓婁紶锛堜笉鎸棫 tag銆佷笉浼€犲唴瀹光€斺€旀瘡涓寘瀵瑰簲鍏?tag commit锛夛紝鍏ㄩ儴 assets=1
-- 缁堟€侊細v0.0.10~v0.0.21 杩炵画 12 涓?Release 璧勪骇榻愬叏锛涘娉曠浜屾潯鏀跺熬鏍稿闂幆
+### 2026-11-19 · r23 研发（yanfa-r23 · M10 后功能补强：组织架构与通讯录）
+- 交付：schema v15→v16（departments 五列 + members 九列，外键/CHECK/UNIQUE 真约束）；`packages/shared/src/org.ts` 唯一口径（buildDepartmentTree 层级/环/孤儿、validateDepartmentMove 防自挂防成环、normalizeMember 邮箱与字段归一、searchMembers 三字段大小写不敏感、buildOrgTree 部门带人员），api/web 零算法分支
+- api：departments CRUD + move、members CRUD + 按部门查询 + 模糊搜索、GET /api/org/tree；web 新第十五 tab「组织」——左部门树展开折叠 + 右人员卡片 + 新建/编辑表单 + 搜索框；**不接审批/物资**（任务单明确边界，留 r24）
+- 断言：e2e 1856→**1952（+96）** · audit 1514→**1582（+68）**，无一条删减；typecheck 5 包；`pnpm run test:all` exit 0；CI smoke 正则升 v16；README 速查行/双节/r23 矩阵索引/壳基线说明逐字同步
+- **变异红相 1 组**：shared/org `searchMembers` 改大小写敏感 → e2e 4 红 / audit 5 红；逐字节还原（SHA `7500FB40…72CE76`）全绿
+- 「用户第一次用」全链路（headless CDP 真点，0 数据起步）：三级部门 → 建人员 → `ENGINEER` 搜索 → 移动部门 → reload 全在 → HTTP 回查 parentId/departmentId → DELETE 探针归零、端口收净
+- 截图：`docs/ui/r23/` 7 张 + 十五 tab 壳基线同批重拍（新增 `org-tab-active.png`）；7/7、15/15 SHA256 互异，全库 243 PNG / 241 互异（同态组仅 r4 已披露 2 组），逐张 `read_image` 目验
+- 危险区：未 push / 未打 tag / 未发版 / 未改 CI release 配置；只走 user_version 迁移、未手改库文件；全程 headless、服务收净、PowerShell 新段全 ASCII、零 token
+- 报告：`docs/feedback/2026-11-19-r23-yanfa.md`（三态纪律 + 自曝节 + 变异红相记录）
 
-### 2026-11-18 路 r11 鐮斿彂锛坹anfa-r11 路 M5 鏀跺畼锛氬杞笂涓嬫枃涓庝骇鐗╃敓鎴愶級
-- 浜や粯锛氬杞笂涓嬫枃锛坰hared `DEFAULT_CONTEXT_WINDOW=8` / `MAX=20` / `normalizeContextWindow` / `toPlannerContext` / `resolveContextualMessage`锛屾寚浠ｆ秷瑙ｃ€屽啀寤轰竴涓?/ 鎶婂畠鏀规垚銆嶇函鍑芥暟鍖栵紝api 鎸夌獥鍙ｆ埅鍙栫湡瀹炶惤搴撴秷鎭敞鍏?planner锛宍resolution` 鍏冩暟鎹洖鏄撅級锛?*浜х墿鐢熸垚鍣?* `packages/agent/artifact-generators.ts`锛圚TML 鎶ュ憡 / Markdown 琛ㄦ牸 / JSON 鏁版嵁锛屽叏浠庣湡瀹炲伐鍏峰洖鎵ц閰嶏紝iframe/sandbox 棰勮锛夛紱宸ュ叿閾?8鈫?*12**锛?summarize_document / export_document_md / list_schedules / create_schedule锛宧andler 鍏ㄦ帴 XieFlowDb锛宑reate_schedule 绾冲叆鐘舵€佸彉鏇存竻鍗曪級锛沘pi `chat` 甯?`context_window` + `artifactType`銆乣GET /api/artifacts/:id/content` 鎸?type 杩斿洖鍙瑙堟鏂?- web锛氬璇濇祦澶氳疆杩炵画 + 涓婁笅鏂囨彁绀烘潯 + 12 宸ュ叿 6/椤靛垎椤?+ 浜х墿 HTML/琛ㄦ牸/JSON 涓?tab 鍒囨崲锛?*r9 U2 蹇呬慨**锛坰hared `computeInlineDiff` + DocsPage 鍘熸枃绾㈠垹/寤鸿缁垮琛屽唴楂樹寒锛夈€?*r10 U2 蹇呬慨**锛堜骇鐗╁崱銆岀 N 杞骇鐗?路 瀵瑰簲鏈疆瀵硅瘽銆嶄笌娴佸悓杞€佺獎瀹瑰櫒鍏嵂涓?nowrap + 488px 椤舵爮绾垫帓涓嶆姌琛屼笉瑁佸垏锛?- 鍥炴斁璇勬祴闆?17鈫?*27**锛?4 鏂板伐鍏?+3 澶氳疆鎸囦唬 +3 浜х墿绫诲瀷锛沗runToolReplay` 鏍稿 `resolution` / `artifactType` / `expectState.schedules`锛?- 鏂█瑙勬ā锛歟2e 924 鈫?**1020锛?96锛?*路 audit 786 鈫?**867锛?81锛?*路 typecheck 5 鍖呭叏缁匡紱`pnpm run test:all` exit 0銆?*鏃犱竴鏉℃柇瑷€琚垹**锛涘彧鏇存柊 6 鏉℃棦鏈夋湡鏈涘€?鏍囩锛坋2e 宸ュ叿鏁?宸ュ叿鍚?鐘舵€佸彉鏇存竻鍗?8鈫?2 脳3銆佹敞鍐岃〃 8鈫?2 脳1銆乤udit 宸ュ叿鐩綍鏁颁笌宸ュ叿鍚?8鈫?2 脳2锛夛紱**鏈疆鏃?schema 杩佺Щ**锛坅rtifacts.type 涓?TEXT锛屼笁绫绘柊浜х墿涓嶉渶 v9锛夛紝CI smoke 姝ｅ垯淇濇寔 `(2|3|4|5|6|7|8)`
-- **鍙樺紓绾㈢浉鐣欑棔锛堜袱缁勶級**锛氣憼 shared `resolveContextualMessage` 寮哄埗涓嶈В鏋?鈫?e2e 1003-17 / audit 799-1 鎶涢敊锛堟寚浠ｉ摼璺叏绾級锛涒憽 HTML 浜х墿鐢熸垚鍣ㄦ敼鍗犱綅 鈫?e2e 1017-3 / audit 865-2銆備袱缁勭洰鏍囨枃浠?SHA256 `BD5897CE鈥 / `1B8AF531鈥 鏀瑰墠鏀瑰悗瀹屽叏鐩稿悓锛宍MUTATION-PROBE` 闆舵畫鐣欙紝閲嶈窇鍏ㄧ豢
-- 鎴浘鐭╅樀锛歞ocs/ui/r11/ **7 寮?*锛堝杞璇?/ 涓婁笅鏂囨彁绀?/ 浜х墿 HTML / 浜х墿琛ㄦ牸 / 宸ュ叿閾剧 2 椤?/ 绐勫睆 U2 淇 / 閿欒鎬侊級+ 澹冲熀绾?8 寮犲悓鎵归噸鎷嶏紙寰界珷 r11锛屼笌 r10 閫愪綅鍏ㄥ紓锛夛紱7/7 涓?8/8 鍝堝笇浜掑紓锛屽叏搴?111 PNG / 109 浜掑紓锛堜粎 r4 宸叉姭闇?2 缁勫悓鎬侊級锛涢杞?01 鍛藉悕涓庢暟鎹笉绗?+ 绐勫睆绗叓鑽父瑁佸垏涓ゅ缁忓叏鐭╅樀閲嶆媿淇锛屽簾鐗囨湭鍏ュ簱锛涢€愬紶 `read_image` 鐩獙
-- 銆岀敤鎴风涓€娆＄敤銆嶅叏閾捐矾锛坔eadless CDP 鐪熺偣锛? 浼氳瘽璧锋锛夛細寤轰細璇?conv#19 鈫?鐪熷彂銆屾柊寤哄緟鍔烇細CDP r11 鐪熷缓瀹炰綋锛岀劧鍚庡垪鍑烘枃妗ｃ€? 宸ュ叿锛堢湡寤?#60锛夆啋 鐪熷彂銆屽啀寤轰竴涓€嶁啋 UI 鏄俱€屽紩鐢ㄤ笂涓€杞€?repeat)銆? 鐪熷缓 #61 + 浜х墿 #23銆岀 2 杞骇鐗┿€嶁啋 HTTP 鍥炴煡 6 娑堟伅 / 3+2 tool_call / 2 浜х墿 / 寰呭姙 #60#61 鈫?reload 鍏ㄥ湪 鈫?鍒囥€岃〃鏍笺€嶉瑙?tab 鈫?DELETE 鎺㈤拡鍚?conv=0 / todos=1锛堟湭鍔?r3 鏃㈡湁銆?2銆嶏級鈫?鏈嶅姟鏀跺噣
-- 鍗遍櫓鍖猴細鏈?push / 鏈墦 tag / 鏈彂鐗?/ 鏈敼 CI release 閰嶇疆锛?*鏃?schema 杩佺Щ銆佹湭鎵嬫敼搴撴枃浠?*锛涘彧鍒犳湰杞嚜寤烘帰閽堜細璇?寰呭姙/鏃ョ▼/鏂囨。锛汸owerShell 鏂板娈靛叏 ASCII锛坰hot.ps1 81960 B銆侀潪 ASCII 0銆丳S5.1 Parser 0 閿欒锛夛紱鍏ㄧ▼ headless銆佹湇鍔℃敹鍑€銆侀浂 token锛堝彧 mock锛?
-### 2026-11-17 路 r10 鐮斿彂锛坹anfa-r10 路 M5 璧锋锛欰I 宸ヤ綔鍙板璇濅笌宸ュ叿璋冪敤妗嗘灦锛?- 浜や粯锛歴chema v7鈫抳8锛坈onversations / messages / artifacts 涓夎〃 + role CHECK + conversation_id ON DELETE CASCADE + `tool_calls_json` 閫愭潯鍥炴墽锛夛紱`recordChatExchange` 鍗曚簨鍔¤惤 user/tool/assistant/artifact锛涘伐鍏峰绾︿笌鑴氭湰瑙勫垝鍙ｅ緞鍏ㄩ泦涓?shared锛圱OOL_NAMES / STATE_CHANGING_TOOLS / 鍙傛暟褰掍竴 / SCRIPTED_INTENTS / buildChatSummary锛?- packages/agent锛歚ToolRegistry` 8 宸ュ叿 handler **鍏ㄦ帴鐪熷疄 XieFlowDb**锛坰earch_knowledge 鎸変换鍔″崟涓?M6 鍓嶇┖鍗犱綅骞舵樉寮?placeholder=true锛夛紱`mock-planner.ts`锛坄mock-scripted-v1`锛夎瘑鍒剰鍥锯啋鎵ц鈫掓眹鎬伙紱evals 浠?r9 鍗曟淇楠ㄦ灦鎵╀负 **17 鏉″姝ュ伐鍏疯建杩瑰綍鍒跺洖鏀?*锛屽惈 7 鏉°€屽疄闄呭垱寤恒€嶇姸鎬佹柇瑷€锛堝娉曞洓鏉★級
-- api锛歝onversations CRUD銆丟ET /api/tools 鐩綍銆丳OST `/api/conversations/:id/chat`锛坢ock 瑙勫垝鎵ц + 閫愭潯 tool_call 钀藉簱 + 浜х墿锛夈€乵essages / artifacts / artifact 鍗曠瘒璇诲彇锛?xx锛氱┖/瓒呴暱娑堟伅銆佹湭鐭ュ伐鍏枫€侀潪娉曞弬鏁般€佺┖/瓒呴暱鏍囬銆佽秺鏉?id锛涙崲鐪熷疄妯″瀷鍙崲 planner 涓€澶勬敞鍏?- web锛氭柊澧炵鍏釜 tab銆孉I 宸ヤ綔鍙般€嶁€斺€斾細璇濆垪琛?+ 瀵硅瘽娴侊紙鐢ㄦ埛钃?/ AI 鐏?/ tool-call 铏氱嚎姘旀场锛屽彲灞曞紑 arguments锛? 鍙充晶浜х墿棰勮 JSON 闈㈡澘 + 绐勫睆涓夋爮绾垫帓锛涘３鍩虹嚎鐢变竷寮犳墿涓哄叓寮狅紙`chat-tab-active.png` 鍚屾壒閲嶆媿锛?- 銆岀敤鎴风涓€娆＄敤銆嶅叏閾捐矾锛坔eadless CDP 鐪熺偣锛? 浼氳瘽璧锋锛夛細寤轰細璇?鈫?鐪熷彂銆屾柊寤哄緟鍔?鍒楁枃妗ｃ€嶁啋 3 娆″伐鍏疯皟鐢紙create_todo 鐪熷缓寰呭姙 #53锛夎惤搴?鈫?AI 姹囨€?鈫?浜х墿 #10 棰勮 鈫?HTTP 鍥炴煡 roles/3 鏉?tool_call/浜х墿/寰呭姙鍏ㄥ湪 鈫?reload 涓嶄涪 鈫?鍒犳帰閽堜細璇濅笌寰呭姙锛屽簱鍐?0 浼氳瘽銆佸彧鍓?r3 鏃㈡湁寰呭姙銆?2銆嶏紱鏈嶅姟鏀跺噣
-- 鏂█瑙勬ā锛歟2e 809 鈫?**924锛?115锛氭暟鎹眰 33 + 宸ュ叿濂戠害 34 + 娉ㄥ唽琛?26 + 鍥炴斁 9 + 缂栨帓 13锛?*路 audit 706 鈫?**786锛?80锛氬伐鍏?浼氳瘽/chat/浜х墿/4xx/绾ц仈鍒犻櫎鐪?HTTP 瑁呴厤锛?*路 typecheck 5 鍖呭叏缁匡紱`pnpm run test:all` exit 0銆?*鏃犱竴鏉℃柇瑷€琚垹**锛涢殢 v8 杩佺Щ鍙洿鏂?6 鏉℃棦鏈夋湡鏈涘€间笌鑻ュ共鏍囩鏂囧瓧锛孋I smoke 姝ｅ垯鍚屾涓?`(2|3|4|5|6|7|8)`
-- **鍙樺紓绾㈢浉鐣欑棔锛堜袱缁勶級**锛氣憼 `ToolRegistry.execute` 璺宠繃 handler 鏀瑰亣鍥炴墽 鈫?e2e 910-14 / audit 777-4锛坈reate_todo 鏈湡鍐欏簱銆佸洖鏀剧姸鎬佹柇瑷€绾級锛涒憽 `recordChatExchange` tool 娑堟伅瀛樼┖鏁扮粍 鈫?audit 783-3锛堥€愭潯 tool_call 钀藉簱/宸ュ叿鍚?arguments 鍏ㄧ孩锛夈€備袱缁勫潎閫愬瓧鑺傝繕鍘燂紙SHA `6DB7092A鈥 / `F6738570鈥 鍓嶅悗涓€鑷达級銆乣MUTATION-PROBE` 闆舵畫鐣欙紝閲嶈窇鍏ㄧ豢
-- 鎴浘鐭╅樀锛歞ocs/ui/r10/ **7 寮?*锛堢┖鎬?浼氳瘽鍒楄〃/瀵硅瘽娴?宸ュ叿璋冪敤姘旀场/浜х墿棰勮/绐勫睆/閿欒鎬侊級+ 澹冲熀绾?8 寮狅紱7/7 涓?8/8 鍝堝笇浜掑紓锛屽叏搴?104 PNG / 102 浜掑紓锛堜粎 r4 宸叉姭闇?2 缁勫悓鎬侊級锛涢杞?01 宸ュ叿鏁扮煕鐩?+ 涓庡３ chat 鍚屽瓧鑺備袱澶勬瘺鍒虹粡鍏ㄧ煩闃甸噸鎷嶄慨姝ｏ紝搴熺墖鏈叆搴擄紱閫愬紶 `read_image` 鐩獙
-- 鍗遍櫓鍖猴細鏈?push / 鏈墦 tag / 鏈彂鐗?/ 鏈敼 CI release 閰嶇疆锛涘彧璧?user_version 杩佺Щ銆佹湭鎵嬫敼搴撴枃浠讹紱鍙垹鏈疆鑷缓鎺㈤拡浼氳瘽涓庡緟鍔烇紱PowerShell 鏂板娈靛叏 ASCII锛坰hot.ps1 75998 B銆侀潪 ASCII 0銆丳S5.1 Parser 0 閿欒锛夛紱鍏ㄧ▼ headless銆佹湇鍔℃敹鍑€
+### 2026-11-18 · r15 发版（M7 收官 · 白板画布）
+- 双 VERDICT 复验会话在报告落盘前中断（18h gap），会话恢复后重跑复验
+- **CI 平台容错修复（lead）**：macos-latest runner 持续被平台 cancel（ubuntu/windows 每轮全绿），阻断 v0.0.15~v0.0.18 四轮 Release——job 级 `continue-on-error: ${{ matrix.os == 'macos-latest' }}`，三平台仍全跑可见，仅平台侧 cancel 不再阻断发版（不是降低测试覆盖）
+- 发版：v0.0.18 → **v0.0.19**（CI 容错后首版，待 Release 资产核对）
 
-### 2026-11-17 路 r9 鐮斿彂锛坹anfa-r9b 路 M4 鏀跺畼杞細缁仛涓柇浼氳瘽骞舵敹灏撅級
-- 浜や粯锛歁arkdown 鍙屽悜杞崲寮曟搸鍏ㄩ泦涓?shared锛坄markdownToBlocks` / `blocksToMarkdown`锛?0 绫诲瀷銆佺┖琛屽垎鍧椼€佷唬鐮佸洿鏍忋€佹湭鐭ヨ娉曢€愬瓧闄嶇骇 paragraph銆乵arker 杞箟寰€杩斾笉涓紱`computeNumberedOrdinals`銆乣buildDocumentMdFileName`锛夛紱瀵煎叆闆跺崐鎬侊紙`normalizeMarkdownImportPayload` 鈫?`planMarkdownImport` 鈫?`shouldCommitMarkdownImport` 鈫?db `importBlocks` 浜嬪姟澶栨暣浣撴牎楠?+ 鍗曚簨鍔℃暣绡囨浛鎹級锛汚I 淇濂戠害锛坄RevisionProvider` / `assertValidRevisionInstruction` / `planRevisionApply`锛?*鏈噰绾抽浂鍐欏叆**锛宎pi 涓€澶勬敞鍏?mock provider锛孧5 鍙崲鐪熷疄妯″瀷锛?- api锛歚POST /api/documents/:id/import.md/preview`锛堝彧瑙ｆ瀽涓嶅啓搴擄級銆乣POST /api/documents/:id/import.md`锛堝叏鍚堟硶 200 / 閮ㄥ垎澶辫触 422 闆跺崐鎬侊級銆乣GET /api/documents/:id/export.md`锛圧FC 5987 涓枃鍚?+ text/markdown锛夈€乣POST /api/documents/:id/blocks/:blockId/revise`锛堝缓璁瑙?/ 閲囩撼鎵?updateBlock锛?xx锛氱┖/瓒呴暱 instruction銆佷笉瀛樺湪鍧?404銆佽法鏂囨。鍧?400锛?- web锛氭枃妗ｉ〉鍔犮€屽鍏?Markdown銆嶏紙棰勮琛?+ 閿欒娓呭崟 + 鍚庢灉鎻愮ず + 纭锛夈€併€屽鍑?.md銆嶏紙鎸夊瓧鑺備笅杞斤級銆佸潡绾с€孉I 淇銆嶉潰鏉匡紙鍘熸枃/寤鸿 diff + 鐞嗙敱 + 閲囩撼/鏀惧純锛夛紱椤烘墜淇?r8 U2 涓ら」蹇呬慨锛氱獎灞忛暱鏂囨湰 textarea 鑷姩鎾戦珮锛堜笉鍐?1px 瑁佸垏娓ｏ級銆佺紪杈戞€佸垪琛ㄥ潡琛?`鈥 / `1.` marker
-- packages/agent锛歮ock 鑴氭湰 provider锛堢簿绠€/鎵╁啓/瑕佺偣/姝ｅ紡/榛樿锛岄浂 token 闆堕殢鏈猴級+ evals 褰曞埗鍥炴斁楠ㄦ灦锛坄RecordedCall` / `runReplay`锛岄敊璇湡鏈涘繀椤昏妫€鍑猴級锛沘pi / 鏍?package / pack.js 渚濊禆鍚屾
-- 銆岀敤鎴风涓€娆＄敤銆嶅叏閾捐矾锛坔eadless CDP 鐪熺偣锛夛細0 鏂囨。 鈫?寤烘枃妗ｏ紙榛樿棣栧潡锛夆啋 瀵煎叆 5 鍧?鈫?淇寤鸿锛圚TTP 蹇収 SHA `12ED9D9F鈥 鍓嶅悗鐩哥瓑锛岄浂鍐欏叆锛夆啋 閲囩撼锛堝潡鏂囨湰鐪熸浛鎹級鈫?鍙︿竴鍧楁斁寮冿紙蹇収 `6ADD6D93鈥 鐩哥瓑锛夆啋 瀵煎嚭 153 瀛楄妭 鈫?reload 5 鍧楀叏鍦?鈫?瀵煎嚭 md 鍐嶅鍏ユ柊鏂囨。閫愬瓧娈电浉绛?鈫?鍒犳帰閽堟枃妗ｏ紝搴撳唴 0 绡囥€佺鍙ｆ敹鍑€
-- 鏂█瑙勬ā锛歟2e 716 鈫?**809锛?93锛氬弻鍚戝紩鎿?36 + 瀵煎叆璁″垝 25 + 淇璇箟 20 + 瀵煎叆鏁版嵁灞?12锛?*路 audit 639 鈫?**706锛?67锛歳9 鐪?HTTP 瑁呴厤鑺傦紝鍚?4xx 涓庨浂鍗婃€侊級**路 typecheck **5 鍖?*锛堟柊澧?agent锛夊叏缁匡紱`pnpm run test:all` exit 0銆傛棤鏂█琚垹锛涙湰杞棤 schema 杩佺Щ锛孋I smoke 姝ｅ垯淇濇寔 `(2|3|4|5|6|7)`
-- **鍙樺紓绾㈢浉鐣欑棔锛堜袱缁勶級**锛氣憼 `planRevisionApply` 鏀广€屾€绘槸搴旂敤銆嶁啋 e2e 2 绾?/ audit 4 绾紙鍚€屾湭閲囩撼涓嶆敼搴撱€嶅揩鐓ц鏀癸級锛涒憽 `shouldCommitMarkdownImport` 鏀广€屽拷鐣ラ敊璇銆嶁啋 e2e 1 绾?/ audit 2 绾?+ 1 宕╂簝锛堥儴鍒嗗け璐?200 got銆乮mported=1锛夈€備袱缁勫潎閫愬瓧鑺傝繕鍘燂紝`packages/shared/src/index.ts` SHA256 `EDCBFD5F鈥?3CC1BF6` 鍓嶅悗瀹屽叏鐩稿悓锛岄噸璺戝叏缁?- 鎴浘鐭╅樀锛歞ocs/ui/r9/ 鍏?**8 寮?*锛堝鍏ラ瑙?/ 瀵煎叆鎴愬姛鍚?/ 瀵煎嚭钀界洏 / 淇 diff / 閲囩撼鍚?/ 鏀惧純鍚?/ 绐勫睆 U2 淇 / 绐勫睆瀵煎叆锛? 1 浠界湡瀹炲鍑?.md 瀛楄妭璇佹嵁锛涢€愬紶 `read_image` 鐩獙锛?/8 SHA256 浜掑紓锛屽叏搴?96 PNG / 94 浜掑紓锛堜粎 r4 宸叉姭闇?2 缁勶級锛涢杞?01/04/08 閽夋€佸洜 `useEffect` 闂寘 state 鏈彁浜よ€岀己棰勮/diff锛屽畾浣嶅悗鏄惧紡浼?`data.doc` 骞?*鍏ㄧ煩闃甸噸鎷?*锛堝簾鐗囨湭鍏ュ簱锛夛紱涓?tab 澹冲熀绾胯嚜鍔ㄩ噸鎷嶃€佸窘绔犳帹杩?r9锛屼笌 r8 閫愪綅鍏ㄥ紓
-- 鍗遍櫓鍖猴細鏈?push / 鏈墦 tag / 鏈彂鐗?/ 鏈敼 CI release 閰嶇疆锛涙棤 schema 杩佺Щ銆佹湭鎵嬫敼搴撴枃浠讹紱鍙垹鏈疆鑷缓鎺㈤拡鏂囨。锛汸owerShell 鏂板娈靛叏 ASCII锛坰hot.ps1 0 闈?ASCII 瀛楄妭 / PS5.1 Parser 0 閿欒锛夛紝鍏ㄧ▼ headless銆佹湇鍔℃敹鍑€
-- 缁仛璇存槑锛氬墠浠?yanfa-r9 浼氳瘽涓柇锛岀暀涓嬪伐浣滄爲 609 琛屽崐鎴愬搧锛坰hared/db/e2e/agent 楠ㄦ灦锛変笖 `test:all` 绾紙e2e TS2322脳3锛夛紱鏈疆鍏堜慨缁匡紙鍏堜慨鏂█绫诲瀷锛宔2e 809 鍏ㄧ豢锛夊啀鍦ㄥ叾鍩虹涓婄画鍋?api/web/audit/鎴浘/鏂囨。锛屾湭鎺ㄥ€掗噸鍐?
-### 2026-11-15 路 r8 鐮斿彂锛坹anfa 路 M4 璧锋杞級
-- 浜や粯锛歴chema v6鈫抳7锛坄documents` 琛?id/title/created_at/updated_at + `blocks` 琛?id/document_id/type/position/content JSON/parent_id 鍙┖ + type CHECK + 2 绱㈠紩 + ON DELETE CASCADE锛? shared 鍧楃被鍨嬪紩鎿庯紙10 绉嶏細paragraph / heading1-3 / bullet / numbered / todo / quote / code / divider锛沗normalizeBlockContent` / `canConvertBlockType` / `convertBlockContent` / `planBlockSplit` / `mergeBlockContent` / `planBlockReorder` / `assembleDocumentText`锛?*api 灞傞浂绫诲瀷鍒嗘敮**锛? api锛坉ocuments CRUD銆乥locks CRUD銆佸叏鏂囪銆佹媶 / 鍚?/ 绉诲姩 / 鎵归噸鎺?/ 绫诲瀷杞崲锛?xx锛氶潪娉曞潡绫诲瀷 / 瓒婃潈 document_id / 闈炴硶 position / 闈炴硶杞崲 / 閲嶅鎴栬秺鏉冮噸鎺?id锛? db锛堟媶鍚堢Щ鍔ㄥ崟浜嬪姟銆乸osition 杩炲彿鏀舵嫝銆佹寔涔呭寲閲嶅紑涓嶄涪锛? web锛堛€屾枃妗ｃ€峵ab锛氭枃妗ｅ垪琛?+ 缂栬緫鍣ㄥ绫诲瀷娓叉煋 + 鍥炶溅鎷嗗潡 / 閫€鏍煎悎鍧?/ 涓婄Щ涓嬬Щ / 绫诲瀷鍒囨崲涓嬫媺 + 鎵撳嵃棰勮 `window.print()` + `@media print` 鏍峰紡琛級
-- 銆岀敤鎴风涓€娆＄敤銆嶅叏閾捐矾锛坮4 鏁欒锛塰eadless CDP 鐪熺偣锛?*寤烘枃妗?鈫?榛樿棣栧潡鑷姩鍦ㄥ満锛堥潪姝昏矾锛夆啋 杈撳叆 鈫?鍥炶溅鎷嗗潡 鈫?绫诲瀷鍒囨崲 鈫?涓婄Щ 鈫?淇濆瓨 鈫?reload 閲嶅紑涓嶄涪**锛屽苟 `GET /api/documents/:id/text` 鍥炴煡 `blockCount=2` / 鍏ㄦ枃閫愬瓧鐩哥瓑锛涢獙鍚?DELETE 娓呯悊锛? 绡囷級銆傚彟鏈?HTTP 灞傚叏閾捐矾鏂█涓?e2e 鍏冲簱閲嶅紑 `JSON.stringify` 閫愬瓧鑺傜浉绛夋柇瑷€閿佸畾鎷?/ 鍚?/ 绉诲姩 / 閲嶆帓鍚庣殑鍧楅『搴忋€?- 鏂█瑙勬ā锛歟2e 587 鈫?**716**锛?129锛氬潡绫诲瀷寮曟搸 64 + v6鈫抳7 杩佺Щ涓庢枃妗ｆ暟鎹眰 65锛壜?audit-http 522 鈫?**639**锛?117锛歞ocuments + blocks 涓€鑺傦級路 typecheck 4 鍖呭叏缁匡紱`pnpm run test:all` **exit 0**銆侰I HTTP smoke 姝ｅ垯鍚屾涓?`(2|3|4|5|6|7)`锛坴0.0.6 鏁欒锛夈€傞殢杩佺Щ鍙洿鏂?6 鏉℃棦鏈夋柇瑷€鏈熸湜鍊?+ 8 鏉℃爣绛炬枃瀛楋紝鏉℃暟涓嶅彉锛?*鏃犱竴鏉℃柇瑷€琚垹**銆?- **鍙樺紓绾㈢浉鐣欑棔锛堜袱缁勶級**锛氣憼 涓存椂鎶?shared `splitBlockText` 鏀瑰潖锛堝拷鐣?caret锛夆啋 e2e **8 鏉″け璐?*銆乤udit **2 鏉″け璐?*锛堝惈銆宺8 鎷嗗潡锛氬墠鍗婃鐣欏師鍧?got 涓€绾ф爣棰?want 涓€绾с€嶏級锛涒憽 涓存椂鍘绘帀 `assembleDocumentText` 鐨?position 鎺掑簭 鈫?e2e **1 鏉″け璐?*锛堛€屼贡搴忚緭鍏ユ寜 position 鎺掑簭銆嶏級銆備袱娆″潎閫愬瓧鑺傝繕鍘燂紙`packages/shared/src/index.ts` SHA256 `1A16B5C7鈥71981` 鍓嶅悗瀹屽叏鐩稿悓銆乣git diff` 绌猴級鍚庡叏缁库€斺€旇瘉鏄庢媶鍧椾笌鍏ㄦ枃瑁呴厤鏂█涓嶆槸鑷唇鍗犱綅銆?- 鎴浘鐭╅樀锛歞ocs/ui/r8/ 鍏?**11 寮?*锛堜换鍔″崟 6 鎬佸叏瑕嗙洊 + 鐪熷疄鎷嗗潡鍓嶅悗 + 鍔犺浇 / 閿欒 + r7 U2 淇璇佹嵁锛夛紝07/08 涓ゆ媿闂寸湡鍙?`POST /api/blocks/:id/split`锛涢€愬紶 `read_image` 鐩獙 + 鍏ㄥ簱 **88 寮?PNG / 86 浜掑紓鍝堝笇**锛堜粎 r4 宸叉姭闇?2 缁勫悓鎬侊紝r8 闆舵柊澧烇級锛?*澹冲熀绾跨敱 6 寮犳墿涓?7 寮?*锛堟柊澧炪€屾枃妗ｃ€峵ab 婵€娲绘€?`docs-tab-active.png`锛夛紝鏃у叚寮犲悓鎵归噸鎷嶄笌 r7 鍝堝笇鍏ㄥ紓銆?- 椤哄甫淇?r7 UI 璁拌处浣庢垚鏈」锛?*U2-1** 閿欒琛屽彿鍙ｅ緞锛堥瑙堣〃鍔犮€屾暟鎹鍙枫€嶅垪銆佹竻鍗曟敼銆岀 N 鏉℃暟鎹紙CSV 绗?N+1 琛岋級銆嶃€佸ご閮ㄥ啓鏄庡彛寰勶級路 **U2-4** 纭鎸夐挳鍚庢灉鎻愮ず锛堛€屽皢鍚戝綋鍓嶈〃杩藉姞 N 琛?/ 涓嶅彲鎾ら攢銆嶅墠缃埌鍐崇瓥鐐癸級銆傚叾浣?U2锛堢鐢ㄩ敊璇€佺‘璁ゆ寜閽€佹埅鏂彁绀恒€佸綋鍓嶈鍥炬寚绀猴級鐣?M4 瑙嗗浘杞€?- 宸茬煡閬楃暀锛氣憼 鍧楃紪杈戝櫒涓哄崟浜虹増锛宍parent_id` 宸茶惤搴撲笌鏍￠獙浣?UI 鏈仛宓屽缂╄繘 / 灞傜骇娓叉煋锛圡9 鍗忓悓 CRDT 鏃跺啀灞曞紑锛夆憽 鍧楁枃鏈紪杈戜负 textarea 鍗曡/澶氳杈撳叆锛屾湭鍋氬瘜鏂囨湰 inline 鏍峰紡 鈶?鎵撳嵃棰勮涓烘祻瑙堝櫒 `window.print()`锛屾湭璧?printToPDF 鏈嶅姟绔嚭 PDF 鈶?绫诲瀷鍒囨崲鐭╅樀褰撳墠瑙勫垯涓恒€岀粨鏋勫潡 divider 闅旂銆嶏紝鍚庣画鍙墿涓烘洿缁嗙殑杞崲鐧藉悕鍗?鈶?鏈満鏃?pwsh 7锛宻hot.ps1 鏂板娈靛叏 ASCII + PS5.1 Parser 0 閿欒锛寀nix 鍒嗘敮鏈疄娴嬶紙涓?r5/r6/r7 鍚屾鏈獙椤癸級鈶?涓夊钩鍙?CI 鏈疄璺戯紙灞?lead 鍙戠増鐜妭锛夈€?- 鍗遍櫓鍖猴細鏈?push / 鏈墦 tag / 鏈彂鐗?/ 鏈敼 CI release 閰嶇疆锛涘彧璧?user_version 杩佺Щ锛屾湭鎵嬫敼搴撴枃浠讹紱鍙垹鏈疆鑷缓鏂囨。涓庤〃銆?
-### 2026-11-15 路 r7 鐮斿彂锛坹anfa 路 M3 鏀跺畼杞級
-- 浜や粯锛歴chema v5鈫抳6 杩佺Щ锛坄views` 琛細id/table_id/name/filter_spec JSON/sort_spec JSON/visible_fields JSON/position + 绱㈠紩 + ON DELETE CASCADE锛? shared 瑙嗗浘鍙ｅ緞锛坄normalizeViewSpec` 褰㈢姸/瀛楁瀛樺湪鎬?鍙栧€肩被鍨?鍘婚噸褰掍竴銆乣describeViewSpec` 鎽樿銆乣assertValidSortDirection`锛? `queryRecords` 鎵╀负**澶氬瓧娈?AND 绛涢€?/ 澶氱骇鎺掑簭 / 瀛楁鎶曞奖**锛堝崟鏉′欢鏃у叆鍙ｄ繚鎸佸吋瀹癸紝api 灞傞浂鍙ｅ緞鍒嗘敮锛? CSV 瀵煎叆鍙ｅ緞锛坄parseCsvText` RFC4180銆乣mapCsvHeadersToFields`銆乣planCsvImport` 閫愯璧?`normalizeRecordData` 涓旈敊璇甯﹁鍙?鍘熷洜鑱氬悎銆乣shouldCommitImport` 闆跺崐鎬佸垽瀹氥€乣normalizeCsvImportPayload`锛? api锛坴iews CRUD銆乣GET /api/views/:id/records` 鎸夎鍥炬煡璇€乣POST /api/tables/:id/import.csv/preview` 棰勮銆乣POST /api/tables/:id/import.csv` 鍗曚簨鍔″師瀛愬鍏ャ€乣?filters=` 澶氭潯浠?AND銆侀潪娉曟柟鍚?400锛? db锛坄createView`/`getView`/`listViews`/`updateView`/`deleteView`/`importRecords` BEGIN IMMEDIATE鈥OMMIT/ROLLBACK锛? web锛堣鍥惧垏鎹㈡爮 / 瑙嗗浘缂栬緫闈㈡澘锛氱瓫閫壜锋帓搴徛烽殣钘忓垪 / CSV 瀵煎叆瀵硅瘽妗嗭細鍓?5 琛岄瑙?閿欒琛屾竻鍗?纭瀵煎叆锛?- **r6 閬楃暀涓夐」鍏ㄤ慨**锛氣憼 澶氬瓧娈?AND 绛涢€夛紙闆嗕腑 shared `queryRecords`锛孒TTP `?filters=` 涓庤鍥?spec 鍚屼竴璺緞锛夆憽 **U2-1** 缂栬緫鎬佹暣琛ㄥ垪瀹借烦鍙?鈫?`table-layout: fixed` + 缂栬緫妗?`box-sizing: border-box`锛?8 鍥句笌 01 鍒椾綅瀵圭収锛夆憿 **U2-2** 绛涢€夋彁浜ゆ棤鍙嶉 鈫?銆屽簲鐢ㄧ瓫閫?/ 娓呴櫎銆嶆寜閽?+ 鐪熷疄鍛戒腑鏁版垚鍔熸潯锛?9 鍥撅級锛涙棤鏁堟柟鍚戜笅鎷?鈫?鏈€夋帓搴忓瓧娈垫椂绂佺敤+鎻愮ず锛岄潪娉曟柟鍚?deep link 鐢?shared 瀹堝崼/api 400 鎷︿笅
-- 楠屾敹閲嶇偣銆?*瀵煎叆閮ㄥ垎澶辫触闆跺崐鎬?*銆嶏細棰勮绔偣鍙В鏋愪笉钀藉簱锛涙彁浜ょ鐐逛换涓€琛岄潪娉?鈫?422 + 閿欒琛屾竻鍗曚笖涓€琛屼笉鍐欙紝鍏ㄩ儴鍚堟硶 鈫?鏁翠釜鎵规涓€涓?SQLite 浜嬪姟钀藉簱锛沘udit 4 鏉℃柇瑷€閿佸畾锛坕mported=0 / 閿欒琛屽彿 / 閮ㄥ垎澶辫触鍓嶅悗璁板綍蹇収 `JSON.stringify` **閫愬瓧鑺傜浉绛?* / 鍚堟硶琛?A路B 鍧囨湭鍗婅矾钀藉簱锛夛紝e2e 鍙︽湁鏈嶅姟灞傘€屽厛鍚堟硶鍚庨潪娉?鈫?琛ㄥ唴浠?0 琛屻€嶆柇瑷€
-- 銆岀敤鎴风涓€娆＄敤銆嶅叏閾捐矾锛坮4 鏁欒锛夛細headless CDP 鐪熺偣璧伴€?**寤鸿〃锛? 榛樿瀛楁锛夆啋 瑙嗗浘缂栬緫闈㈡澘寤鸿鍥撅紙绛涢€?鎺掑簭/闅愯棌鍒楋級鈫?鍒囨崲瑙嗗浘锛堝叏閮ㄨ褰?鈫?鎴戠殑瑙嗗浘锛? 鍒楁姇褰憋級鈫?缂栬緫瑙嗗浘锛堟敼鍚?鍘荤瓫閫夛級鈫?瀵煎叆 CSV 瀵硅瘽妗嗭紙棰勮鈫掔‘璁わ級鈫?鎴愬姛鏉?+ HTTP 鍥炴煡 2 琛岃惤搴?*锛岄殢鍚庡垹琛ㄦ竻鐞嗭紙搴撳唴 0 琛級锛汬TTP 灞傚彟鏈?audit銆屽缓琛ㄢ啋寤鸿鍥锯啋鎸夎鍥炬煡鈫掔紪杈戣鍥锯啋瀵煎叆銆嶅叏閾捐矾鏂█
-- 鏂█瑙勬ā锛歟2e 449 鈫?**587**锛?138锛氳鍥?spec 褰掍竴 31 + 鎸夎鍥炬煡璇㈠彛寰?21 + CSV 瀵煎叆鍙ｅ緞 43 + v5鈫抳6 杩佺Щ涓庤鍥炬暟鎹眰 43锛壜?audit-http 403 鈫?**522**锛?119锛歷iews + CSV import 涓€鑺傦級路 typecheck 4 鍖呭叏缁匡紱`pnpm run test:all` **exit 0**锛堢绾?587 / 鍦ㄧ嚎 588 路 522锛夈€侰I 鐨?HTTP smoke 闈欐€佹鍒欏悓姝ヤ负 `(2|3|4|5|6)`锛坴0.0.6 鏁欒锛?- **绾㈢浉鐣欑棔**锛氫复鏃舵妸 shared `shouldCommitImport` 鏀规垚銆屽拷鐣ラ敊璇銆嶁啋 e2e 1 鏉″け璐ャ€乤udit 4 鏉″け璐ワ紙鍚?`閮ㄥ垎澶辫触 -> 422 got 201`銆乣imported=0 got 2`锛夛紝鎭㈠鍚庡叏缁库€斺€旇瘉鏄庨浂鍗婃€佹柇瑷€涓嶆槸鑷唇鍗犱綅
-- 鎴浘鐭╅樀锛歞ocs/ui/r7/ 鍏?**9 寮?*锛堜换鍔″崟 6 鎬佸叏瑕嗙洊 + 绐勫睆 + U2-1 鍥哄畾鍒楀 + U2-2 绛涢€夊弽棣堬級锛? 寮犺蛋鐪熷疄 api 閾捐矾銆? 寮犻拤鎬佺紪杈戝櫒锛涢€愬紶 `read_image` 鐩獙 + SHA256 涓や袱浜掑紓锛堝叏搴?76 寮?PNG / 74 浜掑紓锛屼粎 r4 宸叉姭闇?2 缁勫悓鎬侊紝r7 闆舵柊澧烇級锛涘３鍩虹嚎 6 寮犺嚜鍔ㄩ噸鎷嶏紙鏈疆鏈柊澧?tab锛屼絾寰界珷鏀?r7 / 宸ヤ綔鍙?schema v6锛屽搱甯屼笌 r6 鍏ㄥ紓锛?- 宸茬煡閬楃暀锛氣憼 瑙嗗浘绛涢€変粛涓恒€岀瓑鍊?/ 鍖呭惈銆嶈涔夛紝鍖洪棿锛堥噾棰?> 1000锛変笌 OR 缁勫悎鏈仛 鈶?CSV 瀵煎叆鎸夎〃澶村垪鍚嶆垨瀛楁 id 鏄犲皠锛屾湭鍋氫氦浜掑紡鍒楁槧灏勯潰鏉?鈶?瑙嗗浘 position 涓嶅己鍒跺敮涓€锛堝彧褰卞搷鎺掑簭锛屽悓 position 鎸?id 鍏滃簳锛夆懀 鏈満鏃?pwsh 7锛宺7 鏂板 ps1 娈靛叏 ASCII + PS5.1 Parser 0 閿欒锛寀nix 鍒嗘敮鏈疄娴嬶紙涓?r5/r6 鍚屾鏈獙椤癸級
+### 2026-11-18 · r15 研发（yanfa · M7 收官：白板画布与 AI 建板）
+- schema v11 两表；shared 五件套（归一/避让/mock 建板/导出/坐标换算）；api 13 路由；web 第十一 tab「白板」无限画布 + 便签 CRUD + AI 建板 + 导出，api/web 零算法分支
+- 断言：e2e 1221→1326 / audit 1020→1100；变异红相 1 组独立复现
+- 真实缺陷修复：viewport `setPointerCapture` 吞便签按钮 click，加 `.wb-note` 守卫
 
-### 2026-11-15 路 r6 澶嶉獙涓庡彂鐗堬紙M3 璧锋锛?- 棣栬疆鍙岄€氳繃锛歸aizhuan **187 鏉＄湡瀹?HTTP 鏂█**锛? 绉嶅瓧娈电被鍨嬪悇璧板缓琛ㄢ啋鍔犲瓧娈碘啋鍔犺褰曗啋绛涢€夆啋鎺掑簭鈫掕鍥烇紝number 鎸夊€兼帓 [2,9,10,100] 闈炲瓧鍏稿簭銆乻elect 鎸夊€欓€夐」搴忋€乶ull 鍙屽悜鎭掓湯锛? 13 涓?4xx 鍒嗘敮 + 閲嶅惎鍓嶅悗蹇収閫愬瓧鑺傜浉绛夛紙9 琛?81 瀛楁/37 璁板綍锛夛紱ui 闃绘柇宀楀叏搴?67 寮?PNG 鍝堝笇浜茬畻銆佸叚鑽父鏂板３鏈哄埗浠嶇敓鏁堛€?4鈫?1 鍍忕礌宸?5.4% 鍧愬疄绛涢€夋帓搴忕湡瀹?- 鍏抽敭宸ョ▼锛? 绫诲瀷寮曟搸涓夊嚱鏁板叏闆嗕腑 shared锛宎pi 灞傞浂绫诲瀷鍒嗘敮锛坙ead 宸℃煡 grep 纭锛夛紱寤鸿〃鑷甫 8 榛樿瀛楁锛屾秷鐏?r4 寮忛浂瀛楁姝昏矾
-- 浼氳瘽寮傚父锛歽anfa-r6 鍦ㄦ渶缁堟敹灏炬姤浼氳瘽閿欎絾鎻愪氦宸茶惤鐩樷€斺€攍ead 鎸夊娉曠銆囨潯浜茶嚜澶嶈窇 test:all 鍏ㄧ豢鎵嶆斁琛屽楠岋紙浠撳簱浜嬪疄浼樺厛锛?- 鍙戠増锛?*v0.0.10 涓夊钩鍙板叏缁?+ Release 璧勪骇鏍稿閫氳繃锛坸ieflow-v0.0.10.tar.gz 6.6MB锛?*
-- 閬楃暀锛氬瀛楁 AND 绛涢€夈€佺紪杈戞€佸垪瀹借烦鍙樸€佺瓫閫夋彁浜ゆ棤鍙嶉銆佹柊寤哄崟閫夊瓧娈电己鍊欓€夎緭鍏ヨ瘉鎹?鈫?r7 涓€骞朵慨
+### 2026-11-17 · r13/r14 发版（M6 收官 + M7 起步）
+- r13 RAG 对话与引用溯源 → v0.0.17（lead 修 P4 速查行 1087/923→1161/966）
+- r14 思维导图 Markdown 双视图 → v0.0.18（Markdown↔树 37/37 + 变异红相）
+- **CI 积压**：v0.0.15~v0.0.18 因 macOS runner 平台侧 cancel 缺 Release 资产——重跑 + 最终容错修复见上方
 
-### 2026-11-15 路 r6 鐮斿彂锛坹anfa 路 M3 璧锋杞級
-- 浜や粯锛歴chema v4鈫抳5 杩佺Щ锛坱ables / fields / records 涓夎〃锛宺ecords.data 瀛?JSON銆侀敭涓哄瓧娈?id锛? 瀛楁绫诲瀷寮曟搸鍏ㄩ泦涓?shared锛坄validateFieldValue` / `coerceFieldValue` / `compareValues` / `normalizeRecordData` / `queryRecords`锛? 绉嶇被鍨?text路number路date路select路multi-select路checkbox路url锛?*api 灞傞浂绫诲瀷鍒嗘敮**锛? api 璺敱锛坱ables/fields/records CRUD + 鎸夊瓧娈电瓫閫?+ 鎸夊瓧娈垫帓搴?+ 鍒嗛〉锛?xx锛氶潪娉曠被鍨?/ 鏈煡瀛楁 / 绛涢€夊€肩被鍨嬩笉绗?/ 鏈煡绛涢€夋垨鎺掑簭瀛楁锛? web 澶氱淮琛ㄦ牸椤碉紙銆岃〃鏍笺€峵ab锛氱綉鏍艰鍥?+ 鍗曞厓鏍兼寜绫诲瀷娓叉煋涓庣紪杈?+ 瀛楁绠＄悊闈㈡澘 + 绛涢€?鎺掑簭/鍒嗛〉 + 娣遍摼鍙傛暟锛?- 椤哄甫淇?r5 閬楃暀锛?*U2-1** 鍒楃骇鎸囨爣鏀瑰悕銆屽緟鍔炲畬鎴愮巼銆嶏紙姹囨€诲崱鍚屾鏀广€岄」鐩緟鍔炲畬鎴愮巼銆嶏紝閬垮厤涓庡垪鍚嶃€屽凡瀹屾垚銆嶈涔夊啿绐侊級+ **U2-2** 瀵煎嚭鏂囦欢鍚嶆敼 `xieflow-board-<椤圭洰鍚?-<YYYYMMDD>.csv`锛堝彛寰勯泦涓?shared `buildBoardCsvFileName`锛屼腑鏂囧悕鎸?RFC 5987 `filename*=UTF-8''` 涓嬪彂锛?- 銆岀敤鎴风涓€娆＄敤銆嶅叏閾捐矾瀹炶窇閫氾紙headless Edge + CDP 鐪熺偣锛夛細寤鸿〃 鈫?鍔犲瓧娈碉紙闈㈡澘锛夆啋 鍔犺 鈫?缂栬緫鍗曞厓鏍?鈫?绛涢€?鈫?鎺掑簭 鈫?鍒犺〃娓呯悊锛堟帰閽堟棩蹇楄 r6 yanfa 鎶ュ憡绗簲鑺傦級
-- 鏂█瑙勬ā锛歟2e 288 鈫?**449**锛?161锛氬瓧娈电被鍨嬪紩鎿?86 + 璁板綍褰掍竴涓庢煡璇㈣閰?25 + 瀵煎嚭鏂囦欢鍚?6 + v4鈫抳5 杩佺Щ涓庢暟鎹眰 44锛壜?audit-http 313 鈫?**403**锛?90锛歵ables/fields/records 86 + U2-2 鏂囦欢鍚?4锛壜?typecheck 4 鍖呭叏缁匡紱`pnpm run test:all` exit 0
-- 鎴浘鐭╅樀锛歞ocs/ui/r6/ 鍏?8 寮狅紙澶氱被鍨嬬綉鏍?/ 鐪熷疄绌鸿〃 / 瀛楁绠＄悊闈㈡澘 / 绛涢€夋帓搴忓悗 / 绐勫睆 / 閿欒鎬?/ 鍔犺浇鎬?/ 鍗曞厓鏍肩紪杈戞€侊級锛岄€愬紶 read_image 鐩獙 + 鍏ㄥ簱 67 寮?SHA256 涓や袱浜掑紓鑷煡锛堝敮涓€鍚屾€佺粍浠嶆槸 r4 宸叉姭闇茬殑涓ょ粍锛夛紱澹冲熀绾跨敱 5 寮犳墿涓?**6 寮?*锛堟柊澧炪€岃〃鏍笺€峵ab 婵€娲绘€侊級
-- 宸茬煡閬楃暀锛氣憼 绛涢€変负鍗曞€肩瓑鍊?鍖呭惈璇箟锛堝瀛楁 AND 绛涢€夋湭鍋氾紝鐣?r7 瑙嗗浘杞級鈶?璁板綍 data 浠ュ瓧娈?id 涓洪敭锛屽瓧娈垫敼鍚嶄笉褰卞搷鏁版嵁銆佷絾澶栭儴鐩存帴璇诲簱闇€鍏堟煡瀛楁琛?鈶?r5 鐩綍鐪嬫澘鍥句粛鏄敼鍚嶅墠褰㈡€侊紙鏈噸鎷嶏紝閬垮厤鐮村潖 r5 鐪熷€煎鐪熷浘璇佹嵁閾撅級
+### 2026-11-18 · CI/Release 积压清账（lead 跨轮处理）
+- 根因链：macos-latest 被平台 **cancelled**（不是 failure）→ job 级 continue-on-error 不覆盖 cancelled → 四轮 Release 被跳过；v0.0.19 首轮容错仍失败印证
+- 正解：**拆 job**——verify-core（ubuntu+windows）为发版门禁、verify-macos 独立观察（continue-on-error）；v0.0.21 CI 实证 release success + assets=1
+- 积压补发：v0.0.15~v0.0.20 六个 tag 用 git archive 逐 tag 构建源码包经 GitHub API 上传（不挪旧 tag、不伪造内容——每个包对应其 tag commit），全部 assets=1
+- 终态：v0.0.10~v0.0.21 连续 12 个 Release 资产齐全；宪法第二条收尾核对闭环
 
-### 2026-11-15 路 r5 鐮斿彂锛坹anfa 路 M2 鏀跺畼杞級
-- 浜や粯锛歛pi 缁熻绔偣 `GET /api/projects/:id/stats`锛堝悇鍒楀崱鐗囨暟/瀹屾垚鐜?寰呭姙鍏宠仈鏁?+ 椤圭洰鍚堣锛壜?api 瀵煎嚭绔偣 `GET /api/projects/:id/export.csv`锛圲TF-8 BOM + CRLF + RFC4180 杞箟 + 涓枃琛ㄥご 9 鍒?+ 姣忓垪鑷冲皯涓€琛岋級路 web 鐪嬫澘椤电粺璁″崱锛堝洓鍧楁眹鎬?+ 鍚勫垪瀹屾垚鐜囨潯锛変笌銆屽鍑?CSV銆嶆寜閽紙鎸夊瓧鑺傝惤鐩橈紝淇濈暀 BOM锛?- 瑙勫垯闆嗕腑锛氱粺璁″彛寰勫彧鍐欏湪 shared `computeBoardStats`锛堝畬鎴?= 鍏宠仈寰呭姙鐘舵€?done锛涘垎姣?0 璁?0% 涓嶉櫎闆讹級锛汣SV 鐢熸垚鍙啓鍦?shared `buildBoardCsvContent` / `escapeCsvField` / `countCsvRecords`锛坅pi 鍙閰?+ 404/400 鏄犲皠锛?- 鏂█瑙勬ā锛歟2e 217 鈫?**288**锛?71锛氱粺璁″彛寰?35 + CSV 鍙拌处 36锛壜?audit-http 233 鈫?**313**锛?80锛氱粺璁?4xx / BOM 瀛楄妭澶?/ 鍒楀榻?/ 杞箟 / 绌洪」鐩鍑鸿鏁?/ 缁熻-绉诲姩鑱斿姩锛壜?typecheck 4 鍖呭叏缁匡紱`pnpm run test:all` exit 0
-- 鎴浘鐭╅樀锛歞ocs/ui/r5/ 鍏?8 寮?+ 1 浠借惤鐩?CSV锛堢粺璁″崱鏈夋暟鎹?/ 绌洪」鐩粺璁?/ 瀵煎嚭鎸夐挳鎬?/ CSV 钀界洏鍐呭 / 绐勫睆 / 寤哄崱寮圭獥 / 鍔犺浇鎬?/ 閿欒鎬侊級锛岄€愬紶 read_image 鐩獙 + SHA256 涓や袱浜掑紓鑷煡锛涘３鍩虹嚎 5 寮犺嚜鍔ㄩ噸鎷?- 宸茬煡閬楃暀锛氣憼 瀵煎嚭鍚?headless 娴忚鍣ㄤ笉鑷閫€鍑猴紙瑙﹀彂鏂囦欢涓嬭浇锛夆啋 shot.ps1 鏀逛负銆岀瓑 PNG 钀界洏 鈫?蹇呰鏃舵潃娴忚鍣ㄦ爲銆嶇殑闃叉寕姝绘崟鑾?鈶?r4 鐩綍鐪嬫澘鍥炬槸 r5 涔嬪墠褰㈡€侊紙鐪嬫澘椤典互 r5 鐩綍涓哄噯锛夆憿 鏈疆鏃?schema 杩佺Щ锛堢粺璁?瀵煎嚭澶嶇敤 v4 涓夎〃锛?
-### 2026-11-15 路 r5 鐪嬫澘缁熻涓庡鍑猴紙M2 鏀跺畼锛?- 棣栬疆鍙岄€氳繃锛歸aizhuan **Excel COM 鐪熷紑**楠岃瘉锛? 鍒椾笉涓插垪銆丅OM EF BB BF銆佸惈閫楀彿/寮曞彿/鎹㈣鍚屾牸锛? 缁熻鍙ｅ緞閫愬瓧娈垫墜绠楀惢鍚堬紙鍒嗘瘝 0 涓夋。鍏ㄨ 0% 鏃?NaN锛? 绉诲姩鑱斿姩鍗虫椂鍙樺寲锛泆i 闃绘柇宀?U1=0锛?8 寮犲搱甯屼翰绠椼€乺3 鍋囧浘闆跺鍙戯級
-- 鍏抽敭宸ョ▼缁嗚妭锛欳SV 涓嬭浇鐢?arrayBuffer 鎸夊瓧鑺傝惤鐩橈紙fetch 鏂囨湰瑙ｇ爜浼氬墺 BOM锛夛紱缁熻鍙ｅ緞闆嗕腑 shared computeBoardStats锛岄浂鍒嗘瘝涓嶉櫎闆?- 鍙戠増锛?*v0.0.9 涓夊钩鍙板叏缁?+ Release 璧勪骇鏍稿閫氳繃锛坸ieflow-v0.0.9.tar.gz 5.3MB锛?*
-- 閬楃暀锛歎2-1 鍒楃骇銆屽畬鎴愮巼銆嶄笌鍒楀悕銆屽凡瀹屾垚銆嶈涔夊啿绐?鈫?r6 蹇呬慨锛沀2-2 瀵煎嚭鏂囦欢鍚嶅彧鍚唴閮?id 鈫?r6 蹇呬慨锛汸4脳2 CSV 鏃犻」鐩悕鍒?绌哄垪鍗犱綅琛?鈫?r6 璇勪及
+### 2026-11-18 · r11 研发（yanfa-r11 · M5 收官：多轮上下文与产物生成）
+- 交付：多轮上下文（shared `DEFAULT_CONTEXT_WINDOW=8` / `MAX=20` / `normalizeContextWindow` / `toPlannerContext` / `resolveContextualMessage`，指代消解「再建一个 / 把它改成」纯函数化，api 按窗口截取真实落库消息注入 planner，`resolution` 元数据回显）；**产物生成器** `packages/agent/artifact-generators.ts`（HTML 报告 / Markdown 表格 / JSON 数据，全从真实工具回执装配，iframe/sandbox 预览）；工具链 8→**12**（+summarize_document / export_document_md / list_schedules / create_schedule，handler 全接 XieFlowDb，create_schedule 纳入状态变更清单）；api `chat` 带 `context_window` + `artifactType`、`GET /api/artifacts/:id/content` 按 type 返回可预览正文
+- web：对话流多轮连续 + 上下文提示条 + 12 工具 6/页分页 + 产物 HTML/表格/JSON 三 tab 切换；**r9 U2 必修**（shared `computeInlineDiff` + DocsPage 原文红删/建议绿增行内高亮）、**r10 U2 必修**（产物卡「第 N 轮产物 · 对应本轮对话」与流同轮、窄容器八药丸 nowrap + 488px 顶栏纵排不折行不裁切）
+- 回放评测集 17→**27**（+4 新工具 +3 多轮指代 +3 产物类型；`runToolReplay` 核对 `resolution` / `artifactType` / `expectState.schedules`）
+- 断言规模：e2e 924 → **1020（+96）**· audit 786 → **867（+81）**· typecheck 5 包全绿；`pnpm run test:all` exit 0。**无一条断言被删**；只更新 6 条既有期望值/标签（e2e 工具数/工具名/状态变更清单 8→12 ×3、注册表 8→12 ×1、audit 工具目录数与工具名 8→12 ×2）；**本轮无 schema 迁移**（artifacts.type 为 TEXT，三类新产物不需 v9），CI smoke 正则保持 `(2|3|4|5|6|7|8)`
+- **变异红相留痕（两组）**：① shared `resolveContextualMessage` 强制不解析 → e2e 1003-17 / audit 799-1 抛错（指代链路全红）；② HTML 产物生成器改占位 → e2e 1017-3 / audit 865-2。两组目标文件 SHA256 `BD5897CE…` / `1B8AF531…` 改前改后完全相同，`MUTATION-PROBE` 零残留，重跑全绿
+- 截图矩阵：docs/ui/r11/ **7 张**（多轮对话 / 上下文提示 / 产物 HTML / 产物表格 / 工具链第 2 页 / 窄屏 U2 修复 / 错误态）+ 壳基线 8 张同批重拍（徽章 r11，与 r10 逐位全异）；7/7 与 8/8 哈希互异，全库 111 PNG / 109 互异（仅 r4 已披露 2 组同态）；首轮 01 命名与数据不符 + 窄屏第八药丸裁切两处经全矩阵重拍修正，废片未入库；逐张 `read_image` 目验
+- 「用户第一次用」全链路（headless CDP 真点，0 会话起步）：建会话 conv#19 → 真发「新建待办：CDP r11 真建实体，然后列出文档」3 工具（真建 #60）→ 真发「再建一个」→ UI 显「引用上一轮…(repeat)」+ 真建 #61 + 产物 #23「第 2 轮产物」→ HTTP 回查 6 消息 / 3+2 tool_call / 2 产物 / 待办 #60#61 → reload 全在 → 切「表格」预览 tab → DELETE 探针后 conv=0 / todos=1（未动 r3 既有「22」）→ 服务收净
+- 危险区：未 push / 未打 tag / 未发版 / 未改 CI release 配置；**无 schema 迁移、未手改库文件**；只删本轮自建探针会话/待办/日程/文档；PowerShell 新增段全 ASCII（shot.ps1 81960 B、非 ASCII 0、PS5.1 Parser 0 错误）；全程 headless、服务收净、零 token（只 mock）
 
-### 2026-11-15 路 r4 澶嶉獙杩斿伐璁板綍锛圡2 璧锋锛?- 鍒濋獙鍙屾墦鍥烇細waizhuan P1 **鐢ㄦ埛姝昏矾**锛堝缓椤圭洰闆跺垪銆佸缓鍗￠潤榛樻棤鏁堚€斺€旂函鏁版嵁灞備氦浠樻紡浜嗙敤鎴风涓€娆＄敤鐨勫畬鏁撮摼璺級+ ui-reviewer U1 **澹冲彉鏇?tab 婵€娲讳笁杩炴紡**锛坮2/r3/r4 鍚岀被鍧戠涓夌姱锛?- 杩斿伐 #1锛坹anfa-r4b锛宔64abd8锛夛細createProject 鑷姩涓夊垪锛坰hared DEFAULT_BOARD_COLUMNS锛? 鍙屽畧鍗笉闈欓粯 + **澹冲熀绾垮浐鍖?*锛坰hot.ps1 Invoke-ShellBaseline锛屾瘡杞嚜鍔ㄦ媿浜?tab 婵€娲绘€佲€斺€斾笁杩炴紡娴佺▼鎬у綊闆讹級+ 椤圭洰鍒囨崲娣遍摼 + 鏂█ e2e 217 / audit 233
-- 澶嶅鍙岄€氳繃锛歸aizhuan 浜叉祴姝昏矾缁堢粨锛堜笁鍒楄嚜鍔ㄥ湪鍦?绉诲姩闂幆锛夛紱ui 闃绘柇宀楃湡璺?shell 鍩虹嚎鏈哄埗楠岃瘉 + 13/05 鍚屾€佽鍐虫斁琛岋紙鍚岀湡瀹炴暟鎹€佸璇佹嵁浣嶏紝闈為€犲亣锛?- 鍙戠増锛?*v0.0.8 涓夊钩鍙板叏缁?+ Release 璧勪骇鏍稿閫氳繃**
-- 鏁欒锛氭暟鎹眰浜や粯蹇呴』琛ャ€岀敤鎴风涓€娆＄敤銆嶅叏閾捐矾瑙嗚锛涘３/甯冨眬鍙樻洿褰撹疆蹇呴』琛ユ媿鍏ㄩ儴婵€娲绘€侊紙宸叉満鍒跺寲锛?
-### 2026-11-15 路 r3 澶嶉獙銆佽繑宸ヤ笌鍙戠増鍏ㄨ褰曪紙M1 鏀跺畼锛?- 鍒濋獙鍙屾墦鍥烇細waizhuan **P1 寰幆瀹炰緥 HTTP 灞傚畬鍏ㄤ笉鐢熸晥**锛堝幓閲嶆潯浠舵亽鍋団€斺€攅2e 14 鏉″叏娴嬬函鍑芥暟銆丠TTP 闆惰鐩栵紝浼氦浠樿瀹炶窇鎴崇┛锛? ui-reviewer **U1 鍋囧浘**锛?6/10 SHA256 瀛楄妭绾х浉鍚岋紝鏀规湡璇佹嵁澶辩湡锛?- **UI 瀹℃煡瀹樺崌绾ч樆鏂矖**锛坮3 璧凤級锛氳繛缁袱杞紡缃?U1 鍛戒腑 + 瀛楄妭绾ф瘮瀵规柊鎶€鏈紱org.md 涓夎妭鏀瑰啓锛孶I-VERDICT 涓?VERDICT 骞惰瑁佸喅
-- 杩斿伐 #1锛坹anfa-r3b锛?de574d锛夛細A 瑁呴厤闆嗕腑 shared assembleRangeSchedules + HTTP 23 鏉″惊鐜柇瑷€锛汢 鍋囧浘鏍瑰洜锛坰eed 涓€娆℃€у缓瀹岋級鈫?seed 鎷嗕袱鎷嶇湡瀹?PATCH锛汣~F 琛?11-todos-tab / 绐勫睆閲嶆媿 / 鏂囨 / line-clamp
-- 鎬荤洃杩囩▼宸℃煡鍒剁敓鏁堬紙owner 鎸囦护鍏ュ矖锛夛細宸℃煡涓籂鍋?2 椤癸紙閿氭棩绐楀鏂█纭銆佸亣鍥炬牴鍥犲厛瀹氫綅鍚庢媿锛夆€斺€旂爺鍙戝洖搴旇川閲忛珮
-- 澶嶅鎻掓洸锛坙ead 涓ゆ杩濆琚姄锛夛細鈶犲紑婧愬寲鍒犳牴 README銆岀晫闈笌娴嬭瘯瀵圭収銆嶈妭锛坲i 闃绘柇宀楅瑁佹墦鍥烇紝lead 浜蹭慨鎭㈠锛夆憽閫熸煡琛屾柇瑷€瑙勬ā鍥為€€ 167/138鈫?55/113 涓旇妯¤妭鏈仮澶嶏紙waizhuan 鎵撳洖锛宭ead 浜蹭慨锛夆€斺€?*澶嶉獙浣撶郴涓嶅洜 lead 韬唤璞佸厤锛屽娉曟不鎵€鏈?agent**
-- 鍙戠増锛歷0.0.6 CI 绾紙HTTP smoke 纭紪鐮?schemaVersion:2锛宺3 宸茶縼 v3 杩囨湡锛夆啋 **v0.0.7 涓夊钩鍙板叏缁?+ Release 璧勪骇鏍稿閫氳繃锛坸ieflow-v0.0.7.tar.gz锛?*
-- 鏁欒锛氭湰鏈哄姩鎬佹柇瑷€ vs CI 闈欐€佹柇瑷€鐨勫樊寮傞潰锛沞2e 娴嬬函鍑芥暟 鈮?HTTP 灞傜敓鏁堚€斺€旂敤鎴疯瑙掑疄璺戞槸鍞竴鐪熺浉婧?
-### 2026-11-15 路 r7 澶嶉獙涓庡彂鐗堬紙M3 鏀跺畼锛?- 棣栬疆鍙岄€氳繃锛歸aizhuan 闆跺崐鎬佺嫭绔嬪鐜帮紙閮ㄥ垎澶辫触 CSV 鈫?422 + imported=0 + 鍓嶅悗蹇収閫愬瓧鑺傜浉绛夛級+ **鍙樺紓绾㈢浉浜茶嚜澶嶇幇**锛堜复鏃舵敼鍧?shouldCommitImport 鈫?5 鏉℃柇瑷€鍙樼孩 鈫?閫愬瓧鑺傝繕鍘熷叏缁匡級锛泆i 闃绘柇宀?76 寮犲搱甯屼翰绠椼€?1鈫?3 闅愯棌鍒楀儚绱犲樊 63.6% 鍧愬疄
-- 鏂规硶璁烘柊澧烇細鍙樺紓绾㈢浉鐣欑棔锛堟妸瀹炵幇鏁呮剰鏀瑰潖璇佹槑鏂█闈炲崰浣嶏級鈥斺€攚aizhuan 涓?yanfa 鍙屽悜鐙珛楠岃瘉锛屽缓璁啓鍏ュ娉曞洓鏉?- 鍙戠増锛?*v0.0.11 涓夊钩鍙板叏缁?+ Release 璧勪骇鏍稿閫氳繃锛坸ieflow-v0.0.11.tar.gz 8.7MB锛?*
-- M3 閲岀▼纰戞敹瀹橈細7 绫诲瀷瀛楁寮曟搸 + 缃戞牸 + 瑙嗗浘鎸佷箙鍖?+ CSV 瀵煎叆闆跺崐鎬?
-### 2026-11-15 路 寮€婧愶紙owner 鎸囦护锛?- 鍏ㄥ巻鍙插瘑閽ユ壂鎻忛€氳繃锛坓ho_/ghp_/github_pat_ 浠呭懡涓姤鍛婂唴鐨勬壂鎻忔ā寮忔弿杩版枃鏈紝鏃犵湡 token锛?- MIT LICENSE + README 寮€婧愬寲锛堟柟娉曡/璐＄尞鑰呭叆鍙?鐩綍缁撴瀯/璺嚎鍥撅級+ RUNBOOK 鍏ュ簱锛堜粨搴撹嚜鍖呭惈锛?- 浠撳簱 sun13-AI/xieflow 璁句负 public锛涗綘鏈嬪弸鍙闂?https://github.com/sun13-AI/xieflow
-- 璁板綍锛氬紑婧愬喅绛栫敱 owner 鍦?ask 纭锛圡IT 璁稿彲璇侀€夋嫨锛?
-## 閲岀▼纰戞€昏
+### 2026-11-17 · r10 研发（yanfa-r10 · M5 起步：AI 工作台对话与工具调用框架）
+- 交付：schema v7→v8（conversations / messages / artifacts 三表 + role CHECK + conversation_id ON DELETE CASCADE + `tool_calls_json` 逐条回执）；`recordChatExchange` 单事务落 user/tool/assistant/artifact；工具契约与脚本规划口径全集中 shared（TOOL_NAMES / STATE_CHANGING_TOOLS / 参数归一 / SCRIPTED_INTENTS / buildChatSummary）
+- packages/agent：`ToolRegistry` 8 工具 handler **全接真实 XieFlowDb**（search_knowledge 按任务单为 M6 前空占位并显式 placeholder=true）；`mock-planner.ts`（`mock-scripted-v1`）识别意图→执行→汇总；evals 从 r9 单步修订骨架扩为 **17 条多步工具轨迹录制回放**，含 7 条「实际创建」状态断言（宪法四条）
+- api：conversations CRUD、GET /api/tools 目录、POST `/api/conversations/:id/chat`（mock 规划执行 + 逐条 tool_call 落库 + 产物）、messages / artifacts / artifact 单篇读取；4xx：空/超长消息、未知工具、非法参数、空/超长标题、越权 id；换真实模型只换 planner 一处注入
+- web：新增第八个 tab「AI 工作台」——会话列表 + 对话流（用户蓝 / AI 灰 / tool-call 虚线气泡，可展开 arguments）+ 右侧产物预览 JSON 面板 + 窄屏三栏纵排；壳基线由七张扩为八张（`chat-tab-active.png` 同批重拍）
+- 「用户第一次用」全链路（headless CDP 真点，0 会话起步）：建会话 → 真发「新建待办+列文档」→ 3 次工具调用（create_todo 真建待办 #53）落库 → AI 汇总 → 产物 #10 预览 → HTTP 回查 roles/3 条 tool_call/产物/待办全在 → reload 不丢 → 删探针会话与待办，库内 0 会话、只剩 r3 既有待办「22」；服务收净
+- 断言规模：e2e 809 → **924（+115：数据层 33 + 工具契约 34 + 注册表 26 + 回放 9 + 编排 13）**· audit 706 → **786（+80：工具/会话/chat/产物/4xx/级联删除真 HTTP 装配）**· typecheck 5 包全绿；`pnpm run test:all` exit 0。**无一条断言被删**；随 v8 迁移只更新 6 条既有期望值与若干标签文字，CI smoke 正则同步为 `(2|3|4|5|6|7|8)`
+- **变异红相留痕（两组）**：① `ToolRegistry.execute` 跳过 handler 改假回执 → e2e 910-14 / audit 777-4（create_todo 未真写库、回放状态断言红）；② `recordChatExchange` tool 消息存空数组 → audit 783-3（逐条 tool_call 落库/工具名/arguments 全红）。两组均逐字节还原（SHA `6DB7092A…` / `F6738570…` 前后一致）、`MUTATION-PROBE` 零残留，重跑全绿
+- 截图矩阵：docs/ui/r10/ **7 张**（空态/会话列表/对话流/工具调用气泡/产物预览/窄屏/错误态）+ 壳基线 8 张；7/7 与 8/8 哈希互异，全库 104 PNG / 102 互异（仅 r4 已披露 2 组同态）；首轮 01 工具数矛盾 + 与壳 chat 同字节两处毛刺经全矩阵重拍修正，废片未入库；逐张 `read_image` 目验
+- 危险区：未 push / 未打 tag / 未发版 / 未改 CI release 配置；只走 user_version 迁移、未手改库文件；只删本轮自建探针会话与待办；PowerShell 新增段全 ASCII（shot.ps1 75998 B、非 ASCII 0、PS5.1 Parser 0 错误）；全程 headless、服务收净
 
-M0 绔嬮」 鈫?M1 寰呭姙+鏃ョ▼ 鈫?M2 椤圭洰+鐪嬫澘 鈫?M3 澶氱淮琛ㄦ牸 鈫?M4 鏂囨。 鈫?M5 AI 宸ヤ綔鍙?v1
-鈫?M6 鐭ヨ瘑搴?RAG 鈫?M7 瀵煎浘+鐧芥澘 鈫?M8 缁勭粐绠＄悊 鈫?M9 缃戠粶鐗?鈫?M10 澶氱涓庡崟鏈虹増
+### 2026-11-17 · r9 研发（yanfa-r9b · M4 收官轮：续做中断会话并收尾）
+- 交付：Markdown 双向转换引擎全集中 shared（`markdownToBlocks` / `blocksToMarkdown`：10 类型、空行分块、代码围栏、未知语法逐字降级 paragraph、marker 转义往返不丢；`computeNumberedOrdinals`、`buildDocumentMdFileName`）；导入零半态（`normalizeMarkdownImportPayload` → `planMarkdownImport` → `shouldCommitMarkdownImport` → db `importBlocks` 事务外整体校验 + 单事务整篇替换）；AI 修订契约（`RevisionProvider` / `assertValidRevisionInstruction` / `planRevisionApply`，**未采纳零写入**，api 一处注入 mock provider，M5 可换真实模型）
+- api：`POST /api/documents/:id/import.md/preview`（只解析不写库）、`POST /api/documents/:id/import.md`（全合法 200 / 部分失败 422 零半态）、`GET /api/documents/:id/export.md`（RFC 5987 中文名 + text/markdown）、`POST /api/documents/:id/blocks/:blockId/revise`（建议预览 / 采纳才 updateBlock；4xx：空/超长 instruction、不存在块 404、跨文档块 400）
+- web：文档页加「导入 Markdown」（预览表 + 错误清单 + 后果提示 + 确认）、「导出 .md」（按字节下载）、块级「AI 修订」面板（原文/建议 diff + 理由 + 采纳/放弃）；顺手修 r8 U2 两项必修：窄屏长文本 textarea 自动撑高（不再 1px 裁切渣）、编辑态列表块补 `•` / `1.` marker
+- packages/agent：mock 脚本 provider（精简/扩写/要点/正式/默认，零 token 零随机）+ evals 录制回放骨架（`RecordedCall` / `runReplay`，错误期望必须被检出）；api / 根 package / pack.js 依赖同步
+- 「用户第一次用」全链路（headless CDP 真点）：0 文档 → 建文档（默认首块）→ 导入 5 块 → 修订建议（HTTP 快照 SHA `12ED9D9F…` 前后相等，零写入）→ 采纳（块文本真替换）→ 另一块放弃（快照 `6ADD6D93…` 相等）→ 导出 153 字节 → reload 5 块全在 → 导出 md 再导入新文档逐字段相等 → 删探针文档，库内 0 篇、端口收净
+- 断言规模：e2e 716 → **809（+93：双向引擎 36 + 导入计划 25 + 修订语义 20 + 导入数据层 12）**· audit 639 → **706（+67：r9 真 HTTP 装配节，含 4xx 与零半态）**· typecheck **5 包**（新增 agent）全绿；`pnpm run test:all` exit 0。无断言被删；本轮无 schema 迁移，CI smoke 正则保持 `(2|3|4|5|6|7)`
+- **变异红相留痕（两组）**：① `planRevisionApply` 改「总是应用」→ e2e 2 红 / audit 4 红（含「未采纳不改库」快照被改）；② `shouldCommitMarkdownImport` 改「忽略错误行」→ e2e 1 红 / audit 2 红 + 1 崩溃（部分失败 200 got、imported=1）。两组均逐字节还原，`packages/shared/src/index.ts` SHA256 `EDCBFD5F…13CC1BF6` 前后完全相同，重跑全绿
+- 截图矩阵：docs/ui/r9/ 共 **8 张**（导入预览 / 导入成功后 / 导出落盘 / 修订 diff / 采纳后 / 放弃后 / 窄屏 U2 修复 / 窄屏导入）+ 1 份真实导出 .md 字节证据；逐张 `read_image` 目验，8/8 SHA256 互异，全库 96 PNG / 94 互异（仅 r4 已披露 2 组）；首轮 01/04/08 钉态因 `useEffect` 闭包 state 未提交而缺预览/diff，定位后显式传 `data.doc` 并**全矩阵重拍**（废片未入库）；七 tab 壳基线自动重拍、徽章推进 r9，与 r8 逐位全异
+- 危险区：未 push / 未打 tag / 未发版 / 未改 CI release 配置；无 schema 迁移、未手改库文件；只删本轮自建探针文档；PowerShell 新增段全 ASCII（shot.ps1 0 非 ASCII 字节 / PS5.1 Parser 0 错误），全程 headless、服务收净
+- 续做说明：前任 yanfa-r9 会话中断，留下工作树 609 行半成品（shared/db/e2e/agent 骨架）且 `test:all` 红（e2e TS2322×3）；本轮先修绿（先修断言类型，e2e 809 全绿）再在其基础上续做 api/web/audit/截图/文档，未推倒重写
 
-## 杩涘害鐪嬫澘锛堟瘡杞洿鏂帮級
+### 2026-11-15 · r8 研发（yanfa · M4 起步轮）
+- 交付：schema v6→v7（`documents` 表 id/title/created_at/updated_at + `blocks` 表 id/document_id/type/position/content JSON/parent_id 可空 + type CHECK + 2 索引 + ON DELETE CASCADE）+ shared 块类型引擎（10 种：paragraph / heading1-3 / bullet / numbered / todo / quote / code / divider；`normalizeBlockContent` / `canConvertBlockType` / `convertBlockContent` / `planBlockSplit` / `mergeBlockContent` / `planBlockReorder` / `assembleDocumentText`，**api 层零类型分支**）+ api（documents CRUD、blocks CRUD、全文读、拆 / 合 / 移动 / 批重排 / 类型转换，4xx：非法块类型 / 越权 document_id / 非法 position / 非法转换 / 重复或越权重排 id）+ db（拆合移动单事务、position 连号收拢、持久化重开不丢）+ web（「文档」tab：文档列表 + 编辑器多类型渲染 + 回车拆块 / 退格合块 / 上移下移 / 类型切换下拉 + 打印预览 `window.print()` + `@media print` 样式表）
+- 「用户第一次用」全链路（r4 教训）headless CDP 真点：**建文档 → 默认首块自动在场（非死路）→ 输入 → 回车拆块 → 类型切换 → 上移 → 保存 → reload 重开不丢**，并 `GET /api/documents/:id/text` 回查 `blockCount=2` / 全文逐字相等；验后 DELETE 清理（0 篇）。另有 HTTP 层全链路断言与 e2e 关库重开 `JSON.stringify` 逐字节相等断言锁定拆 / 合 / 移动 / 重排后的块顺序。
+- 断言规模：e2e 587 → **716**（+129：块类型引擎 64 + v6→v7 迁移与文档数据层 65）· audit-http 522 → **639**（+117：documents + blocks 一节）· typecheck 4 包全绿；`pnpm run test:all` **exit 0**。CI HTTP smoke 正则同步为 `(2|3|4|5|6|7)`（v0.0.6 教训）。随迁移只更新 6 条既有断言期望值 + 8 条标签文字，条数不变，**无一条断言被删**。
+- **变异红相留痕（两组）**：① 临时把 shared `splitBlockText` 改坏（忽略 caret）→ e2e **8 条失败**、audit **2 条失败**（含「r8 拆块：前半段留原块 got 一级标题 want 一级」）；② 临时去掉 `assembleDocumentText` 的 position 排序 → e2e **1 条失败**（「乱序输入按 position 排序」）。两次均逐字节还原（`packages/shared/src/index.ts` SHA256 `1A16B5C7…C71981` 前后完全相同、`git diff` 空）后全绿——证明拆块与全文装配断言不是自洽占位。
+- 截图矩阵：docs/ui/r8/ 共 **11 张**（任务单 6 态全覆盖 + 真实拆块前后 + 加载 / 错误 + r7 U2 修复证据），07/08 两拍间真发 `POST /api/blocks/:id/split`；逐张 `read_image` 目验 + 全库 **88 张 PNG / 86 互异哈希**（仅 r4 已披露 2 组同态，r8 零新增）；**壳基线由 6 张扩为 7 张**（新增「文档」tab 激活态 `docs-tab-active.png`），旧六张同批重拍与 r7 哈希全异。
+- 顺带修 r7 UI 记账低成本项：**U2-1** 错误行号口径（预览表加「数据行号」列、清单改「第 N 条数据（CSV 第 N+1 行）」、头部写明口径）· **U2-4** 确认按钮后果提示（「将向当前表追加 N 行 / 不可撤销」前置到决策点）。其余 U2（禁用错误态确认按钮、截断提示、当前视图指示）留 M4 视图轮。
+- 已知遗留：① 块编辑器为单人版，`parent_id` 已落库与校验但 UI 未做嵌套缩进 / 层级渲染（M9 协同 CRDT 时再展开）② 块文本编辑为 textarea 单行/多行输入，未做富文本 inline 样式 ③ 打印预览为浏览器 `window.print()`，未走 printToPDF 服务端出 PDF ④ 类型切换矩阵当前规则为「结构块 divider 隔离」，后续可扩为更细的转换白名单 ⑤ 本机无 pwsh 7，shot.ps1 新增段全 ASCII + PS5.1 Parser 0 错误，unix 分支未实测（与 r5/r6/r7 同款未验项）⑥ 三平台 CI 未实跑（属 lead 发版环节）。
+- 危险区：未 push / 未打 tag / 未发版 / 未改 CI release 配置；只走 user_version 迁移，未手改库文件；只删本轮自建文档与表。
 
-| 杞?| 浠诲姟 | 鐘舵€?| 鐗堟湰 | 鏂█瑙勬ā | VERDICT |
+### 2026-11-15 · r7 研发（yanfa · M3 收官轮）
+- 交付：schema v5→v6 迁移（`views` 表：id/table_id/name/filter_spec JSON/sort_spec JSON/visible_fields JSON/position + 索引 + ON DELETE CASCADE）+ shared 视图口径（`normalizeViewSpec` 形状/字段存在性/取值类型/去重归一、`describeViewSpec` 摘要、`assertValidSortDirection`）+ `queryRecords` 扩为**多字段 AND 筛选 / 多级排序 / 字段投影**（单条件旧入口保持兼容，api 层零口径分支）+ CSV 导入口径（`parseCsvText` RFC4180、`mapCsvHeadersToFields`、`planCsvImport` 逐行走 `normalizeRecordData` 且错误行带行号+原因聚合、`shouldCommitImport` 零半态判定、`normalizeCsvImportPayload`）+ api（views CRUD、`GET /api/views/:id/records` 按视图查询、`POST /api/tables/:id/import.csv/preview` 预览、`POST /api/tables/:id/import.csv` 单事务原子导入、`?filters=` 多条件 AND、非法方向 400）+ db（`createView`/`getView`/`listViews`/`updateView`/`deleteView`/`importRecords` BEGIN IMMEDIATE…COMMIT/ROLLBACK）+ web（视图切换栏 / 视图编辑面板：筛选·排序·隐藏列 / CSV 导入对话框：前 5 行预览+错误行清单+确认导入）
+- **r6 遗留三项全修**：① 多字段 AND 筛选（集中 shared `queryRecords`，HTTP `?filters=` 与视图 spec 同一路径）② **U2-1** 编辑态整表列宽跳变 → `table-layout: fixed` + 编辑框 `box-sizing: border-box`（08 图与 01 列位对照）③ **U2-2** 筛选提交无反馈 → 「应用筛选 / 清除」按钮 + 真实命中数成功条（09 图）；无效方向下拉 → 未选排序字段时禁用+提示，非法方向 deep link 由 shared 守卫/api 400 拦下
+- 验收重点「**导入部分失败零半态**」：预览端点只解析不落库；提交端点任一行非法 → 422 + 错误行清单且一行不写，全部合法 → 整个批次一个 SQLite 事务落库；audit 4 条断言锁定（imported=0 / 错误行号 / 部分失败前后记录快照 `JSON.stringify` **逐字节相等** / 合法行 A·B 均未半路落库），e2e 另有服务层「先合法后非法 → 表内仍 0 行」断言
+- 「用户第一次用」全链路（r4 教训）：headless CDP 真点走通 **建表（8 默认字段）→ 视图编辑面板建视图（筛选/排序/隐藏列）→ 切换视图（全部记录 ↔ 我的视图，6 列投影）→ 编辑视图（改名+去筛选）→ 导入 CSV 对话框（预览→确认）→ 成功条 + HTTP 回查 2 行落库**，随后删表清理（库内 0 表）；HTTP 层另有 audit「建表→建视图→按视图查→编辑视图→导入」全链路断言
+- 断言规模：e2e 449 → **587**（+138：视图 spec 归一 31 + 按视图查询口径 21 + CSV 导入口径 43 + v5→v6 迁移与视图数据层 43）· audit-http 403 → **522**（+119：views + CSV import 一节）· typecheck 4 包全绿；`pnpm run test:all` **exit 0**（离线 587 / 在线 588 · 522）。CI 的 HTTP smoke 静态正则同步为 `(2|3|4|5|6)`（v0.0.6 教训）
+- **红相留痕**：临时把 shared `shouldCommitImport` 改成「忽略错误行」→ e2e 1 条失败、audit 4 条失败（含 `部分失败 -> 422 got 201`、`imported=0 got 2`），恢复后全绿——证明零半态断言不是自洽占位
+- 截图矩阵：docs/ui/r7/ 共 **9 张**（任务单 6 态全覆盖 + 窄屏 + U2-1 固定列宽 + U2-2 筛选反馈），8 张走真实 api 链路、1 张钉态编辑器；逐张 `read_image` 目验 + SHA256 两两互异（全库 76 张 PNG / 74 互异，仅 r4 已披露 2 组同态，r7 零新增）；壳基线 6 张自动重拍（本轮未新增 tab，但徽章改 r7 / 工作台 schema v6，哈希与 r6 全异）
+- 已知遗留：① 视图筛选仍为「等值 / 包含」语义，区间（金额 > 1000）与 OR 组合未做 ② CSV 导入按表头列名或字段 id 映射，未做交互式列映射面板 ③ 视图 position 不强制唯一（只影响排序，同 position 按 id 兜底）④ 本机无 pwsh 7，r7 新增 ps1 段全 ASCII + PS5.1 Parser 0 错误，unix 分支未实测（与 r5/r6 同款未验项）
+
+### 2026-11-15 · r6 复验与发版（M3 起步）
+- 首轮双通过：waizhuan **187 条真实 HTTP 断言**（7 种字段类型各走建表→加字段→加记录→筛选→排序→读回，number 按值排 [2,9,10,100] 非字典序、select 按候选项序、null 双向恒末）+ 13 个 4xx 分支 + 重启前后快照逐字节相等（9 表/81 字段/37 记录）；ui 阻断岗全库 67 张 PNG 哈希亲算、六药丸新壳机制仍生效、04↔01 像素差 5.4% 坐实筛选排序真实
+- 关键工程：7 类型引擎三函数全集中 shared，api 层零类型分支（lead 巡查 grep 确认）；建表自带 8 默认字段，消灭 r4 式零字段死路
+- 会话异常：yanfa-r6 在最终收尾报会话错但提交已落盘——lead 按宪法第〇条亲自复跑 test:all 全绿才放行复验（仓库事实优先）
+- 发版：**v0.0.10 三平台全绿 + Release 资产核对通过（xieflow-v0.0.10.tar.gz 6.6MB）**
+- 遗留：多字段 AND 筛选、编辑态列宽跳变、筛选提交无反馈、新建单选字段缺候选输入证据 → r7 一并修
+
+### 2026-11-15 · r6 研发（yanfa · M3 起步轮）
+- 交付：schema v4→v5 迁移（tables / fields / records 三表，records.data 存 JSON、键为字段 id）+ 字段类型引擎全集中 shared（`validateFieldValue` / `coerceFieldValue` / `compareValues` / `normalizeRecordData` / `queryRecords`，7 种类型 text·number·date·select·multi-select·checkbox·url，**api 层零类型分支**）+ api 路由（tables/fields/records CRUD + 按字段筛选 + 按字段排序 + 分页，4xx：非法类型 / 未知字段 / 筛选值类型不符 / 未知筛选或排序字段）+ web 多维表格页（「表格」tab：网格视图 + 单元格按类型渲染与编辑 + 字段管理面板 + 筛选/排序/分页 + 深链参数）
+- 顺带修 r5 遗留：**U2-1** 列级指标改名「待办完成率」（汇总卡同步改「项目待办完成率」，避免与列名「已完成」语义冲突）+ **U2-2** 导出文件名改 `xieflow-board-<项目名>-<YYYYMMDD>.csv`（口径集中 shared `buildBoardCsvFileName`，中文名按 RFC 5987 `filename*=UTF-8''` 下发）
+- 「用户第一次用」全链路实跑通（headless Edge + CDP 真点）：建表 → 加字段（面板）→ 加行 → 编辑单元格 → 筛选 → 排序 → 删表清理（探针日志见 r6 yanfa 报告第五节）
+- 断言规模：e2e 288 → **449**（+161：字段类型引擎 86 + 记录归一与查询装配 25 + 导出文件名 6 + v4→v5 迁移与数据层 44）· audit-http 313 → **403**（+90：tables/fields/records 86 + U2-2 文件名 4）· typecheck 4 包全绿；`pnpm run test:all` exit 0
+- 截图矩阵：docs/ui/r6/ 共 8 张（多类型网格 / 真实空表 / 字段管理面板 / 筛选排序后 / 窄屏 / 错误态 / 加载态 / 单元格编辑态），逐张 read_image 目验 + 全库 67 张 SHA256 两两互异自查（唯一同态组仍是 r4 已披露的两组）；壳基线由 5 张扩为 **6 张**（新增「表格」tab 激活态）
+- 已知遗留：① 筛选为单值等值/包含语义（多字段 AND 筛选未做，留 r7 视图轮）② 记录 data 以字段 id 为键，字段改名不影响数据、但外部直接读库需先查字段表 ③ r5 目录看板图仍是改名前形态（未重拍，避免破坏 r5 真值对真图证据链）
+
+### 2026-11-15 · r5 研发（yanfa · M2 收官轮）
+- 交付：api 统计端点 `GET /api/projects/:id/stats`（各列卡片数/完成率/待办关联数 + 项目合计）· api 导出端点 `GET /api/projects/:id/export.csv`（UTF-8 BOM + CRLF + RFC4180 转义 + 中文表头 9 列 + 每列至少一行）· web 看板页统计卡（四块汇总 + 各列完成率条）与「导出 CSV」按钮（按字节落盘，保留 BOM）
+- 规则集中：统计口径只写在 shared `computeBoardStats`（完成 = 关联待办状态 done；分母 0 记 0% 不除零）；CSV 生成只写在 shared `buildBoardCsvContent` / `escapeCsvField` / `countCsvRecords`（api 只装配 + 404/400 映射）
+- 断言规模：e2e 217 → **288**（+71：统计口径 35 + CSV 台账 36）· audit-http 233 → **313**（+80：统计 4xx / BOM 字节头 / 列对齐 / 转义 / 空项目导出行数 / 统计-移动联动）· typecheck 4 包全绿；`pnpm run test:all` exit 0
+- 截图矩阵：docs/ui/r5/ 共 8 张 + 1 份落盘 CSV（统计卡有数据 / 空项目统计 / 导出按钮态 / CSV 落盘内容 / 窄屏 / 建卡弹窗 / 加载态 / 错误态），逐张 read_image 目验 + SHA256 两两互异自查；壳基线 5 张自动重拍
+- 已知遗留：① 导出后 headless 浏览器不自行退出（触发文件下载）→ shot.ps1 改为「等 PNG 落盘 → 必要时杀浏览器树」的防挂死捕获 ② r4 目录看板图是 r5 之前形态（看板页以 r5 目录为准）③ 本轮无 schema 迁移（统计/导出复用 v4 三表）
+
+### 2026-11-15 · r5 看板统计与导出（M2 收官）
+- 首轮双通过：waizhuan **Excel COM 真开**验证（9 列不串列、BOM EF BB BF、含逗号/引号/换行同格）+ 统计口径逐字段手算吻合（分母 0 三档全记 0% 无 NaN）+ 移动联动即时变化；ui 阻断岗 U1=0（58 张哈希亲算、r3 假图零复发）
+- 关键工程细节：CSV 下载用 arrayBuffer 按字节落盘（fetch 文本解码会剥 BOM）；统计口径集中 shared computeBoardStats，零分母不除零
+- 发版：**v0.0.9 三平台全绿 + Release 资产核对通过（xieflow-v0.0.9.tar.gz 5.3MB）**
+- 遗留：U2-1 列级「完成率」与列名「已完成」语义冲突 → r6 必修；U2-2 导出文件名只含内部 id → r6 必修；P4×2 CSV 无项目名列/空列占位行 → r6 评估
+
+### 2026-11-15 · r4 复验返工记录（M2 起步）
+- 初验双打回：waizhuan P1 **用户死路**（建项目零列、建卡静默无效——纯数据层交付漏了用户第一次用的完整链路）+ ui-reviewer U1 **壳变更 tab 激活三连漏**（r2/r3/r4 同类坑第三犯）
+- 返工 #1（yanfa-r4b，e64abd8）：createProject 自动三列（shared DEFAULT_BOARD_COLUMNS）+ 双守卫不静默 + **壳基线固化**（shot.ps1 Invoke-ShellBaseline，每轮自动拍五 tab 激活态——三连漏流程性归零）+ 项目切换深链 + 断言 e2e 217 / audit 233
+- 复审双通过：waizhuan 亲测死路终结（三列自动在场+移动闭环）；ui 阻断岗真跑 shell 基线机制验证 + 13/05 同态裁决放行（同真实数据态多证据位，非造假）
+- 发版：**v0.0.8 三平台全绿 + Release 资产核对通过**
+- 教训：数据层交付必须补「用户第一次用」全链路视角；壳/布局变更当轮必须补拍全部激活态（已机制化）
+
+### 2026-11-15 · r3 复验、返工与发版全记录（M1 收官）
+- 初验双打回：waizhuan **P1 循环实例 HTTP 层完全不生效**（去重条件恒假——e2e 14 条全测纯函数、HTTP 零覆盖，伪交付被实跑戳穿）+ ui-reviewer **U1 假图**（06/10 SHA256 字节级相同，改期证据失真）
+- **UI 审查官升级阻断岗**（r3 起）：连续两轮漏网 U1 命中 + 字节级比对新技术；org.md 三节改写，UI-VERDICT 与 VERDICT 并行裁决
+- 返工 #1（yanfa-r3b，8de574d）：A 装配集中 shared assembleRangeSchedules + HTTP 23 条循环断言；B 假图根因（seed 一次性建完）→ seed 拆两拍真实 PATCH；C~F 补 11-todos-tab / 窄屏重拍 / 文案 / line-clamp
+- 总监过程巡查制生效（owner 指令入岗）：巡查中纠偏 2 项（锚日窗外断言确认、假图根因先定位后拍）——研发回应质量高
+- 复审插曲（lead 两次违宪被抓）：①开源化删根 README「界面与测试对照」节（ui 阻断岗首裁打回，lead 亲修恢复）②速查行断言规模回退 167/138→155/113 且规模节未恢复（waizhuan 打回，lead 亲修）——**复验体系不因 lead 身份豁免，宪法治所有 agent**
+- 发版：v0.0.6 CI 红（HTTP smoke 硬编码 schemaVersion:2，r3 已迁 v3 过期）→ **v0.0.7 三平台全绿 + Release 资产核对通过（xieflow-v0.0.7.tar.gz）**
+- 教训：本机动态断言 vs CI 静态断言的差异面；e2e 测纯函数 ≠ HTTP 层生效——用户视角实跑是唯一真相源
+
+### 2026-11-15 · r7 复验与发版（M3 收官）
+- 首轮双通过：waizhuan 零半态独立复现（部分失败 CSV → 422 + imported=0 + 前后快照逐字节相等）+ **变异红相亲自复现**（临时改坏 shouldCommitImport → 5 条断言变红 → 逐字节还原全绿）；ui 阻断岗 76 张哈希亲算、01↔03 隐藏列像素差 63.6% 坐实
+- 方法论新增：变异红相留痕（把实现故意改坏证明断言非占位）——waizhuan 与 yanfa 双向独立验证，建议写入宪法四条
+- 发版：**v0.0.11 三平台全绿 + Release 资产核对通过（xieflow-v0.0.11.tar.gz 8.7MB）**
+- M3 里程碑收官：7 类型字段引擎 + 网格 + 视图持久化 + CSV 导入零半态
+
+### 2026-11-15 · 开源（owner 指令）
+- 全历史密钥扫描通过（gho_/ghp_/github_pat_ 仅命中报告内的扫描模式描述文本，无真 token）
+- MIT LICENSE + README 开源化（方法论/贡献者入口/目录结构/路线图）+ RUNBOOK 入库（仓库自包含）
+- 仓库 sun13-AI/xieflow 设为 public；你朋友可访问 https://github.com/sun13-AI/xieflow
+- 记录：开源决策由 owner 在 ask 确认（MIT 许可证选择）
+
+## 里程碑总览
+
+M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 文档 → M5 AI 工作台 v1
+→ M6 知识库 RAG → M7 导图+白板 → M8 组织管理 → M9 网络版 → M10 多端与单机版
+
+## 进度看板（每轮更新）
+
+| 轮 | 任务 | 状态 | 版本 | 断言规模 | VERDICT |
 |----|------|------|------|----------|---------|
-| r1 | M0 浠撳簱楠ㄦ灦 | 鉁呭凡鍙戠増锛堟湰鍦?tag锛沺ush 寰呴厤 remote锛?| v0.0.1 | e2e 42 | 閫氳繃 |
-| r2 | M1 绗?1 鐗囷細寰呭姙 CRUD UI + 鍥涜薄闄?| 鉁呭凡鍙戠増锛堝垵楠屽弻鎵撳洖鈫掕繑宸?1鈫掑弻 VERDICT 閫氳繃锛?| v0.0.5 | e2e 69 路 audit 52 | 閫氳繃锛坵aizhuan锛? UI 閫氳繃锛堣瀵熷憳锛?|
-| r3 | M1 绗?2 鐗囷細鏃ョ▼涓庡緟鍔炲弻鍚戣仈鍔?| 鉁呭凡鍙戠増锛堝垵楠屽弻鎵撳洖鈫掕繑宸?1鈫掑瀹★細ui 鏀捐鈫抴aizhuan P2 淇纭 + CI 涓よ烦 v0.0.6/v0.0.7 鍏ㄧ豢锛?| v0.0.7 | e2e 167 路 audit 138 | 閫氳繃锛坵aizhuan锛? UI 閫氳繃锛堥樆鏂矖锛?|
-| r4 | M2 绗?1 鐗囷細椤圭洰+鐪嬫澘鏁版嵁灞備笌鏈€灏?UI | 鉁呭凡鍙戠増锛堝垵楠屽弻鎵撳洖鈫掕繑宸?1鈫掑弻澶嶅閫氳繃锛涘３鍩虹嚎鏈哄埗鍥哄寲锛?| v0.0.8 | e2e 217 路 audit 233 | 閫氳繃锛坵aizhuan锛? UI 閫氳繃锛堥樆鏂矖锛?|
-| r5 | M2 绗?2 鐗囷細鐪嬫澘缁熻涓?Excel/CSV 瀵煎嚭锛圡2 鏀跺畼锛?| 鉁呭凡鍙戠増锛堥杞弻閫氳繃锛汦xcel COM 鐪熷紑楠岃瘉锛?| v0.0.9 | e2e 288 路 audit 313 | 閫氳繃锛坵aizhuan锛? UI 閫氳繃锛堥樆鏂矖锛?|
-| r6 | M3 绗?1 鐗囷細澶氱淮琛ㄦ牸瀛楁寮曟搸 + 缃戞牸瑙嗗浘 | 鉁呭凡鍙戠増锛堥杞弻閫氳繃锛?87 鏉＄湡瀹?HTTP 鏂█ + 67 寮犲搱甯屼翰绠楋級 | v0.0.10 | e2e 449 路 audit 403 | 閫氳繃锛坵aizhuan锛? UI 閫氳繃锛堥樆鏂矖锛?|
-| r7 | M3 绗?2 鐗囷細瑙嗗浘鎸佷箙鍖栦笌 CSV 瀵煎叆锛圡3 鏀跺畼锛?| 鉁呭凡鍙戠増锛堥杞弻閫氳繃锛涢浂鍗婃€佸彉寮傜孩鐩哥嫭绔嬪鐜帮級 | v0.0.11 | e2e 587 路 audit 522 | 閫氳繃锛坵aizhuan锛? UI 閫氳繃锛堥樆鏂矖锛?|
-| r8 | M4 绗?1 鐗囷細鏂囨。鍧楃紪杈戝櫒锛堝崟浜虹増锛?| 鉁呭凡鍙戠増锛堥杞弻閫氳繃锛涘潡鎿嶄綔 97/97 + 鍙樺紓绾㈢浉 2 缁勭嫭绔嬪鐜帮級 | v0.0.12 | e2e 716 路 audit 639 | 閫氳繃锛坵aizhuan锛? UI 閫氳繃锛堥樆鏂矖锛?|
-| r9 | M4 绗?2 鐗囷細Markdown 瀵煎叆瀵煎嚭 + AI 鍧楃骇淇锛坢ock锛?| 鉁呭凡鍙戠増锛堥杞弻閫氳繃锛涗細璇濅腑鏂悗缁仛鏀跺畼锛?| v0.0.13 | e2e 809 路 audit 706 | 閫氳繃锛坵aizhuan锛? UI 閫氳繃锛堥樆鏂矖锛?|
-| r10 | M5 绗?1 鐗囷細AI 宸ヤ綔鍙板璇濅笌宸ュ叿璋冪敤妗嗘灦 | 鉁呭凡鍙戠増锛堥杞弻閫氳繃锛? 宸ュ叿鐪熷疄 handler + 17 鍥炴斁锛?| v0.0.14 | e2e 924 路 audit 786 | 閫氳繃锛坵aizhuan锛? UI 閫氳繃锛堥樆鏂矖锛?|
-| r11 | M5 绗?2 鐗囷細澶氳疆涓婁笅鏂囦笌浜х墿鐢熸垚锛圡5 鏀跺畼锛?| 鉁呭凡鍙戠増锛堝垵楠?ui 鎵撳洖 U1 缂哄浘璇佲啋杩斿伐#1 琛ュ浘鈫掑瀹″弻閫氳繃锛?| v0.0.15 | e2e 1020 路 audit 867 | 閫氳繃锛坵aizhuan锛? UI 閫氳繃锛堥樆鏂矖锛?|
-| r12 | M6 绗?1 鐗囷細鐭ヨ瘑搴撳叆搴撲笌鏈湴妫€绱?| 鉁呭凡鍙戠増锛堥杞弻閫氳繃锛汿F-IDF 鎵嬬畻鏍稿 + 鍙樺紓绾㈢浉 2 缁勶級 | v0.0.16 | e2e 1087 路 audit 923 | 閫氳繃锛坵aizhuan锛? UI 閫氳繃锛堥樆鏂矖锛?|
-| r13 | M6 绗?2 鐗囷細RAG 瀵硅瘽涓庡紩鐢ㄦ函婧愶紙M6 鏀跺畼锛?| 鉁呭凡鍙戠増锛堥杞弻閫氳繃锛涘紩鐢ㄨ烦杞湡鐐?+ lead 淇?P4 閫熸煡琛岋級 | v0.0.17 | e2e 1161 路 audit 966 | 閫氳繃锛坵aizhuan锛? UI 閫氳繃锛堥樆鏂矖锛?|
-| r14 | M7 绗?1 鐗囷細鎬濈淮瀵煎浘 Markdown 鍙岃鍥撅紙M7 璧锋锛?| 鉁呭凡鍙戠増锛堥杞弻閫氳繃锛汳arkdown鈫旀爲 37/37 + 鍙樺紓绾㈢浉锛?| v0.0.18 | e2e 1221 路 audit 1020 | 閫氳繃锛坵aizhuan锛? UI 閫氳繃锛堥樆鏂矖锛?|
-| r15 | M7 绗?2 鐗囷細鐧芥澘鐢诲竷涓?AI 寤烘澘锛圡7 鏀跺畼锛?| 鉁呭凡鍙戠増锛堝垵楠?waizhuan 鎵撳洖 P1 AI 寤烘澘閲嶅彔鈫掕繑宸?1 鍏ㄧ敾甯冮浂閲嶅彔鈫掑瀹″弻閫氳繃锛?| v0.0.19 | e2e 1331 路 audit 1111 | 閫氳繃锛坵aizhuan锛? UI 閫氳繃锛堥樆鏂矖锛?|
-| r16 | M8 绗?1 鐗囷細瀹℃壒娴佸紩鎿庯紙M8 璧锋锛?| 鉁呭凡鍙戠増锛堥杞弻閫氳繃锛涘瑙掕壊瀹℃壒 44/44 + CI 浜屾瀹归敊鎷?job锛?| v0.0.21 | e2e 1464 路 audit 1214 | 閫氳繃锛坵aizhuan锛? UI 閫氳繃锛堥樆鏂矖锛?|
-| r17 | M8 绗?2 鐗囷細鐗╄祫鍙拌处涓庡崟浣嶄换鍔★紙M8 鏀跺畼锛?| 鉁呭凡鍙戠増锛堥杞弻閫氳繃锛涚墿璧?浠诲姟 44/44 + 鍙樺紓绾㈢浉 2 缁勶級 | v0.0.22 | e2e 1552 路 audit 1302 | 閫氳繃锛坵aizhuan锛? UI 閫氳繃锛堥樆鏂矖锛?|
-| r18 | M9 绗?1 鐗囷細璐﹀彿涓庣綉缁滅増鏈嶅姟锛圡9 璧锋锛?| 鉁呭凡鍙戠増锛堝垵楠?waizhuan 鎵撳洖 P1 remote 401 姝昏矾鈫掕繑宸?1 13 椤电粺涓€ apiFetch鈫掑瀹″弻閫氳繃锛?| v0.0.23 | e2e 1638 路 audit 1376 | 閫氳繃锛坵aizhuan锛? UI 閫氳繃锛堥樆鏂矖锛?|
-| r19 | M9 绗?2 鐗囷細澶氱鍚屾涓庡啿绐佸鐞嗭紙M9 鏀跺畼锛?| 鉁呭凡鍙戠増锛堝垵楠?waizhuan 鎵撳洖 P2 status 鍙栨渶鏃┾啋杩斿伐#1 绮剧‘鏈€鏂扳啋澶嶅鍙岄€氳繃锛?| v0.0.24 | e2e 1721 路 audit 1442 | 閫氳繃锛坵aizhuan锛? UI 閫氳繃锛堥樆鏂矖锛?|
-| r20 | M10 绗?1 鐗囷細绂荤嚎妯″紡涓?PWA 绉诲姩閫傞厤锛圡10 璧锋锛?| 鉁呭凡鍙戠増锛堥杞弻閫氳繃锛涚湡鏂綉鍗佹 + 390px 瀹炴祴 + tar pack 淇锛?| v0.0.26 | e2e 1803 路 audit 1484 | 閫氳繃锛坵aizhuan锛? UI 閫氳繃锛堥樆鏂矖锛?|
-| r21 | M10 绗?2 鐗囷細绉佹湁鍖栭儴缃蹭笌鍗曟満鐗堬紙M10 鏀跺畼锛?| 鉁呭凡鍙戠増锛堟渶缁堝弻 VERDICT 閫氳繃锛?| v0.0.27 | e2e 1842 路 audit 1503 | 閫氳繃锛坵aizhuan锛? UI 閫氳繃锛堥樆鏂矖锛?|
+| r1 | M0 仓库骨架 | ✅已发版（本地 tag；push 待配 remote） | v0.0.1 | e2e 42 | 通过 |
+| r2 | M1 第 1 片：待办 CRUD UI + 四象限 | ✅已发版（初验双打回→返工#1→双 VERDICT 通过） | v0.0.5 | e2e 69 · audit 52 | 通过（waizhuan）+ UI 通过（观察员） |
+| r3 | M1 第 2 片：日程与待办双向联动 | ✅已发版（初验双打回→返工#1→复审：ui 放行→waizhuan P2 修复确认 + CI 两跳 v0.0.6/v0.0.7 全绿） | v0.0.7 | e2e 167 · audit 138 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r4 | M2 第 1 片：项目+看板数据层与最小 UI | ✅已发版（初验双打回→返工#1→双复审通过；壳基线机制固化） | v0.0.8 | e2e 217 · audit 233 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r5 | M2 第 2 片：看板统计与 Excel/CSV 导出（M2 收官） | ✅已发版（首轮双通过；Excel COM 真开验证） | v0.0.9 | e2e 288 · audit 313 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r6 | M3 第 1 片：多维表格字段引擎 + 网格视图 | ✅已发版（首轮双通过；187 条真实 HTTP 断言 + 67 张哈希亲算） | v0.0.10 | e2e 449 · audit 403 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r7 | M3 第 2 片：视图持久化与 CSV 导入（M3 收官） | ✅已发版（首轮双通过；零半态变异红相独立复现） | v0.0.11 | e2e 587 · audit 522 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r8 | M4 第 1 片：文档块编辑器（单人版） | ✅已发版（首轮双通过；块操作 97/97 + 变异红相 2 组独立复现） | v0.0.12 | e2e 716 · audit 639 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r9 | M4 第 2 片：Markdown 导入导出 + AI 块级修订（mock） | ✅已发版（首轮双通过；会话中断后续做收官） | v0.0.13 | e2e 809 · audit 706 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r10 | M5 第 1 片：AI 工作台对话与工具调用框架 | ✅已发版（首轮双通过；8 工具真实 handler + 17 回放） | v0.0.14 | e2e 924 · audit 786 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r11 | M5 第 2 片：多轮上下文与产物生成（M5 收官） | ✅已发版（初验 ui 打回 U1 缺图证→返工#1 补图→复审双通过） | v0.0.15 | e2e 1020 · audit 867 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r12 | M6 第 1 片：知识库入库与本地检索 | ✅已发版（首轮双通过；TF-IDF 手算核对 + 变异红相 2 组） | v0.0.16 | e2e 1087 · audit 923 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r13 | M6 第 2 片：RAG 对话与引用溯源（M6 收官） | ✅已发版（首轮双通过；引用跳转真点 + lead 修 P4 速查行） | v0.0.17 | e2e 1161 · audit 966 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r14 | M7 第 1 片：思维导图 Markdown 双视图（M7 起步） | ✅已发版（首轮双通过；Markdown↔树 37/37 + 变异红相） | v0.0.18 | e2e 1221 · audit 1020 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r15 | M7 第 2 片：白板画布与 AI 建板（M7 收官） | ✅已发版（初验 waizhuan 打回 P1 AI 建板重叠→返工#1 全画布零重叠→复审双通过） | v0.0.19 | e2e 1331 · audit 1111 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r16 | M8 第 1 片：审批流引擎（M8 起步） | ✅已发版（首轮双通过；多角色审批 44/44 + CI 二次容错拆 job） | v0.0.21 | e2e 1464 · audit 1214 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r17 | M8 第 2 片：物资台账与单位任务（M8 收官） | ✅已发版（首轮双通过；物资/任务 44/44 + 变异红相 2 组） | v0.0.22 | e2e 1552 · audit 1302 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r18 | M9 第 1 片：账号与网络版服务（M9 起步） | ✅已发版（初验 waizhuan 打回 P1 remote 401 死路→返工#1 13 页统一 apiFetch→复审双通过） | v0.0.23 | e2e 1638 · audit 1376 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r19 | M9 第 2 片：多端同步与冲突处理（M9 收官） | ✅已发版（初验 waizhuan 打回 P2 status 取最早→返工#1 精确最新→复审双通过） | v0.0.24 | e2e 1721 · audit 1442 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r20 | M10 第 1 片：离线模式与 PWA 移动适配（M10 起步） | ✅已发版（首轮双通过；真断网十步 + 390px 实测 + tar pack 修复） | v0.0.26 | e2e 1803 · audit 1484 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r21 | M10 第 2 片：私有化部署与单机版（M10 收官） | ✅已发版（最终双 VERDICT 通过） | v0.0.27 | e2e 1842 · audit 1503 | 通过（waizhuan）+ UI 通过（阻断岗） |
 
-| r22 | M10 鍚幝烽仐鐣欐竻鐞嗕笌璐ㄩ噺鏀舵暃锛坰hell 绱㈠紩/绉诲姩搴曟爮/閮ㄧ讲鏂囨。锛?| 鉁呭凡鍙戠増锛堥杞弻閫氳繃锛沀1=0/U2=0锛? 椤规寕璐﹀叏娓?+ 鏃ユ湡纰版挒鐪熶慨锛?| v0.0.28 | e2e 1856 路 audit 1514 | 閫氳繃锛坵aizhuan锛? UI 閫氳繃锛堥樆鏂矖锛?|
-| r23 | M10 鍚幝风粍缁囨灦鏋勪笌閫氳褰曪紙閮ㄩ棬鏍?+ 浜哄憳鐩綍锛?| 鉁呭凡鍙戠増锛堥杞弻閫氳繃锛涗笁绾ф爲/鐜娴?澶у皬鍐欎笉鏁忔劅鎼滅储锛?| v0.0.29 | e2e 1952 路 audit 1582 | 閫氳繃锛坵aizhuan锛? UI 閫氳繃锛堥樆鏂矖锛?|
-| r24 | M10 鍚幝风粍缁囨垚鍛樻帴鍏ュ鎵?鐗╄祫锛堝悜鍚庡吋瀹癸級 | 鉁呭凡鍙戠増锛堥杞弻閫氳繃锛涘悜鍚庡吋瀹?64/64 + 鍙樺紓绾㈢浉鐙珛澶嶇幇锛?| v0.0.30 | e2e 2041 路 audit 1667 | 閫氳繃锛坵aizhuan锛? UI 閫氳繃锛堥樆鏂矖锛?|
-| r25 | M10 鍚幝风涓夎疆閬楃暀娓呯悊锛坰hell 鍝堝笇鍧?瀹℃壒 actorMemberId/鏂囨。鍙ｅ緞锛?| 鉁呭凡鍙戠増锛堥杞弻閫氳繃锛汸3 actorMemberId 鐪熶慨 35/35锛?| v0.0.31 | e2e 2096 路 audit 1723 | 閫氳繃锛坵aizhuan锛? UI 閫氳繃锛堥樆鏂矖锛?|
-| r26 | M10 鍚幝烽€氱煡涓績锛堢珯鍐呮秷鎭仛鍚堬級 | 鉁呭凡鍙戠増锛堝垵楠?waizhuan 鎵撳洖 P2 閫氱煡涓嶅畾浣嶁啋杩斿伐#1 deep-link refId鈫扷I 鎵撳洖闆跺浘璇佲啋杩斿伐#2 琛?09 鍥锯啋鍙岀粓瀹￠€氳繃锛?| v0.0.32 | e2e 2237 路 audit 1809 | 閫氳繃锛坵aizhuan锛? UI 缁堝閫氳繃锛圲1/U2/U3 鍏ㄩ浂锛?|
-| r27 | M10 鍚幝锋姤琛ㄤ腑蹇冿紙璺ㄦā鍧楁暟鎹湅鏉匡級 | 鉁呭凡鍙戠増锛堥杞弻閫氳繃锛涘叚鎸囨爣鎵嬬畻鍏ㄥ + 淇?README 绗旇锛?| v0.0.33 | e2e 2335 路 audit 1904 | 閫氳繃锛坵aizhuan锛? UI 閫氳繃锛堥樆鏂矖锛?|
-| r28 | M10 鍚幝蜂細璁鐞嗕笌浼氳瀹わ紙棰勭害/鍐茬獊妫€娴嬶級 | 鉁呭凡鍙戠増锛堝垵楠?waizhuan 鎵撳洖 P2 寤哄鍚庨绾︽棫 roomId鈫掕繑宸?1 鑷姩閫変腑/娣遍摼鍥炴樉鈫掑弻澶嶅閫氳繃锛?| v0.0.34 | e2e 2460 路 audit 2004 | 閫氳繃锛坵aizhuan锛? UI 閫氳繃锛堥樆鏂矖锛?|
-| r29 | M10 鍚幝锋枃妗ｇ増鏈巻鍙蹭笌鍥炴敹绔?| 鉁呭凡鍙戠増锛堥杞弻閫氳繃锛涙仮澶嶇敓鎴?v4 涓嶈鐩?+ 杞垹鍥炴敹绔?+ 姘镐箙鍒犻櫎鐪熶簩娆＄‘璁わ級 | v0.0.35 | e2e 2542 路 audit 2060 | 閫氳繃锛坵aizhuan锛? UI 閫氳繃锛堥樆鏂矖锛?|
-| r30 | M10 鍚幝峰缁磋〃鏍煎叕寮忓瓧娈碉紙绾湰鍦拌〃杈惧紡锛岄浂 eval锛?| 鉁呭凡鍙戠増锛堥杞弻閫氳繃锛涘叕寮忕湡瀹炴€?78/78 + 闆?eval + raw computed 鎭?null锛?| v0.0.36 | e2e 2664 路 audit 2122 | 閫氳繃锛坵aizhuan锛? UI 閫氳繃锛堥樆鏂矖锛?|
-| r31 | M10 鍚幝风涔濊疆杞婚噺娓呯悊锛堝瓧娈电被鍨嬫枃妗堝洖褰?+ 娴偣灞曠ず锛?| 鉁呭凡鍙戠増锛堥杞弻閫氳繃锛? 绫诲瓧娈垫枃妗?+ 84.8 灞曠ず鏍煎紡鍖栵紝姹傚€艰涔夐浂鏀癸級 | v0.0.37 | e2e 2685 路 audit 2138 | 閫氳繃锛坵aizhuan锛? UI 閫氳繃锛堥樆鏂矖锛?|
-| r32 | M10 鍚幝锋枃妗ｆ墦鍗板鍑哄寮猴紙HTML 鎵撳嵃鐗?+ Word 鍏煎锛?| 鉁呭凡鍙戠増锛堥杞弻閫氳繃锛沇ord COM 鐪熷紑 + XSS 浜斿瓧绗﹁浆涔?+ 闆朵緷璧栵級 | v0.0.38 | e2e 2766 路 audit 2185 | 閫氳繃锛坵aizhuan锛? UI 閫氳繃锛堥樆鏂矖锛?|
-| r33 | M10 鍚幝峰叏灞€鎼滅储锛堣法妯″潡缁熶竴妫€绱級 | 鉁呭凡鍙戠増锛堥杞弻閫氳繃锛涜法鍏簮鍙妫€绱?+ 鍙樺紓绾㈢浉 + deep-link 鐩磋揪锛?| v0.0.39 | e2e 2849 路 audit 2262 | 閫氳繃锛坵aizhuan锛? UI 閫氳繃锛堥樆鏂矖锛?|
-| r34 | M10 鍚幝蜂换鍔′緷璧栦笌闃诲鍏崇郴锛堝緟鍔炲墠缃級 | 鉁呭凡鍙戠増锛堥杞弻閫氳繃锛涗緷璧栧畧鍗?40/40 + 鏃㈡湁鐘舵€佹満闆跺洖褰掞級 | v0.0.40 | e2e 2961 路 audit 2324 | 閫氳繃锛坵aizhuan锛? UI 閫氳繃锛堥樆鏂矖锛?|
-| r35 | M10 鍚幝锋棩鍘?ICS 瀵煎嚭涓庤闃咃紙鏍囧噯 iCalendar锛?| 鉁呭凡鍙戠増锛堝垵楠?UI 鎵撳洖 U1 鍥捐瘉閾锯啋杩斿伐#1 鍚屼竴 ICS 寰€杩斺啋鍙岀粓瀹￠€氳繃锛?| v0.0.41 | e2e 3069 路 audit 2396 | 閫氳繃锛坵aizhuan锛? UI 缁堝閫氳繃锛圲1=0锛?|
-| r36 | M10 鍚幝锋棩鎶ヤ笌鍛ㄦ姤鑷姩鐢熸垚 | 鉁呭凡鍙戠増锛堥杞弻閫氳繃锛涙眹鎬绘墜绠?88/88 + 鍙樺紓绾㈢浉鐙珛澶嶇幇锛?| v0.0.42 | e2e 3167 路 audit 2471 | 閫氳繃锛坵aizhuan锛? UI 閫氳繃锛堥樆鏂矖锛?|
-| r37 | M10 鍚幝疯〃鏍煎垎缁勮鍥句笌姹囨€昏 | 鉁呭凡鍙戠増锛堥杞弻閫氳繃锛涘垎缁勬墜绠?66/66 + r7 闆跺洖褰掞級 | v0.0.43 | e2e 3277 路 audit 2536 | 閫氳繃锛坵aizhuan锛? UI 閫氳繃锛堥樆鏂矖锛?|
-| r38 | M10 鍚幝风湅鏉垮崱鐗囧厓鏁版嵁锛堟爣绛?璐熻矗浜?鎴鏃ワ紝鍚戝悗鍏煎锛?| 鉁呭凡鍙戠増锛堥杞弻閫氳繃锛涘悜鍚庡吋瀹?65/65 + 鍏冩暟鎹噸鍚笉涓級 | v0.0.44 | e2e 3377 路 audit 2616 | 閫氳繃锛坵aizhuan锛? UI 閫氳繃锛堥樆鏂矖锛?|
-| r39 | M10 鍚幝风敤鎴峰彲瑙佹枃妗堟竻鐞嗭紙閿欒鏉″唴閮ㄦ湳璇紝杩炵画 4 杞寕璐﹀繀淇級 | 鉁呭凡鍙戠増锛堝墠浠讳腑鏂啋r39b 缁仛锛涢杞弻閫氳繃锛涜繛缁?4 杞?U2 鏈闂悎锛?| v0.0.45 | e2e 3412 路 audit 2623 | 閫氳繃锛坵aizhuan锛? UI 閫氳繃锛堥樆鏂矖锛?|
-| r40 | M10 鍚幝峰彛寰勬竻鐞嗕笌鎵弿鍣ㄥ姞鍥猴紙鐧诲綍椤?tab 鏁?+ rN 姝ｅ垯锛?| 鉁呭凡鍙戠増锛堥杞弻閫氳繃锛涘彛寰勯摼闂悎 + 11 澶勫崟浣嶆暟 rN 娓呯悊锛?| v0.0.46 | e2e 3430 路 audit 2641 | 閫氳繃锛坵aizhuan锛? UI 閫氳繃锛堥樆鏂矖锛?|
-| r41 | M10 鍚幝疯交閲忚〃鍗曟敹闆嗭紙鍒涘缓/濉啓/姹囨€伙級 | 鉁呭凡鍙戠増锛堥杞弻閫氳繃锛涙眹鎬绘墜绠楀叏瀵?+ 闆跺崐鎬侊級 | v0.0.47 | e2e 3551 路 audit 2703 | 閫氳繃锛坵aizhuan锛? UI 閫氳繃锛堥樆鏂矖锛?|
-| r42 | M10 鍚幝稲EADME 鐗堟湰鍙疯嚜鍔ㄦ牎楠岋紙watchdog锛?| 鉁呭凡鍙戠増锛堥杞弻閫氳繃锛汥OC-CONTRACT 27 checks + 涓ゅ vN 鍙樺紓绾㈢浉锛?| v0.0.48 | e2e 3551 路 audit 2703 | 閫氳繃锛坵aizhuan锛? UI 閫氳繃锛堥樆鏂矖锛?|
-| r43 | M10 鍚幝蜂細璁璁惧涓庢櫤鑳芥帹鑽愶紙鎸変汉鏁?璁惧绛涘彲鐢級 | 鉁呭凡鍙戠増锛堥杞弻閫氳繃锛涙帹鑽?48/48 + r28 闆跺洖褰?252 鏉★級 | v0.0.49 | e2e 3665 路 audit 2802 | 閫氳繃锛坵aizhuan锛? UI 閫氳繃锛堥樆鏂矖锛?|
-| r44 | M10 鍚幝峰浘璇佷笌鏂囨。鍙ｅ緞淇锛坮43 U2-1 鏃舵涓嶈嚜娲界瓑锛?| 鉁呭凡鍙戠増锛堥杞弻閫氳繃锛涗笁椤规寕璐﹀叏闂悎 + DOC-CONTRACT 43锛?| v0.0.50 | e2e 3677 路 audit 2802 | 閫氳繃锛坵aizhuan锛? UI 閫氳繃锛堥樆鏂矖锛?|
-| r45 | M10 鍚幝锋枃妗ｅ潡鎷栨嫿鎺掑簭锛圚TML5 DnD + 瑙﹀睆锛?| 鉁呭凡鍙戠増锛堥杞弻閫氳繃锛涚湡杈撳叆鎷栨嫿 23/23 + r8/r9 闆跺洖褰掞級 | v0.0.51 | e2e 3731 路 audit 2838 | 閫氳繃锛坵aizhuan锛? UI 閫氳繃锛堥樆鏂矖锛?|
-| r46 | M10 鍚幝风储寮曞彛寰勪慨姝ｏ紙r45 U2 鍥捐瘉/鏂囨锛?| 鉁呭凡鍙戠増锛堥杞弻閫氳繃锛涗笁澶勫彛寰勯棴鍚?+ DOC-CONTRACT 59 checks锛?| v0.0.52 | e2e 3731 路 audit 2838 | 閫氳繃锛坵aizhuan锛? UI 閫氳繃锛堥樆鏂矖锛?|
-| r47 | M10 鍚幝稟I 宸ュ叿璋冪敤纭闂搁棬锛堝嵄闄╂搷浣滃厛棰勮鍚庢墽琛岋級 | 鉁呭凡鍙戠増锛堥杞弻閫氳繃锛涢椄闂?51/51 + r10/r11 闆跺洖褰掞級 | v0.0.53 | e2e 3830 路 audit 2891 | 閫氳繃锛坵aizhuan锛? UI 閫氳繃锛堥樆鏂矖锛?|
-| r48 | M10 鍚幝风户鎵挎€ч仐鐣欑洏鐐逛笌鍒嗙被锛堟敹鏁涜疆锛?| 鉁呭凡鍙戠増锛堥杞弻閫氳繃锛?8 鏉￠仐鐣欏叏鍒嗙被銆佺湡缂洪櫡 0銆丏OC-CONTRACT 76 checks锛?| v0.0.54 | e2e 3830 路 audit 2891 | 閫氳繃锛坵aizhuan锛? UI 閫氳繃锛堥樆鏂矖锛?|
-| r49 | M10 鍚幝峰伐浣滃尯鏁版嵁澶囦唤涓庢仮澶嶏紙鎬诲叆鍙ｏ級 | 鉁呭凡鍙戠増锛坵aizhuan 鍒濇墦鍥?P2 鏁板瓧宸?1鈫掕繑宸?1 涓夊瀵归綈鈫掑瀹￠€氳繃锛涘嵄闄╁尯鍥涜〃鎺掗櫎纭锛?| v0.0.55 | e2e 3922 路 audit 2957 | 閫氳繃锛坵aizhuan 澶嶅锛? UI 閫氳繃锛堥樆鏂矖锛?|
-| r50 | M10 鍚幝烽噷绋嬬浣撶郴澶嶅锛堢 50 杞鏌ョ偣锛?| 鉁呭凡鍙戠増锛堥杞弻閫氳繃锛涘彴璐﹁ˉ榻?8 琛?+ 涓嶅仛娓呭崟闆惰秺鐣?+ DOC-CONTRACT 98锛?| v0.0.56 | e2e 3922 路 audit 2957 | 閫氳繃锛坵aizhuan锛? UI 閫氳繃锛堥樆鏂矖锛?|
-| r51 | M10 鍚幝峰彴璐︾簿搴︿慨姝ｏ紙r50 P3/P4/P5锛?| 鉁呭凡鍙戠増锛堥杞弻閫氳繃锛涘彴璐﹀洓璇佹牳瀹?+ DOC-CONTRACT 105 绮惧害闃插洖閫€锛?| v0.0.57 | e2e 3922 路 audit 2957 | 閫氳繃锛坵aizhuan锛? UI 閫氳繃锛堥樆鏂矖锛?|
-| r52 | M10 鍚幝疯川閲忓璁?#1锛氭敞鍏ヤ笌瓒婃潈锛堝畨鍏ㄧ淮搴︼級 | 馃敶瀹¤鎵撳洖 P0脳2/P1脳2/P2脳3 鈫?淇涓?| 鈥?| 淇鍚庨噸鎶?| auditor-r52 AUDIT-VERDICT: 鎵撳洖锛堟敞鍏?XSS 闆堕棶棰橈紝瓒婃潈/璁よ瘉鍥涚被鐪熸紡娲烇級 |
-| r53 | M10 鍚幝穜52 瀹夊叏婕忔礊淇锛圥0/P1/P2 鍏ㄤ慨 + 鍥炲綊鏂█锛?| 馃煛5/6 鍏抽棴锛堝璁￠噸鏀?P0-1 鏈叧锛氬凡璁よ瘉 user 浠嶈法鐢ㄦ埛璇诲啓鍒狅級 | 鈥旓紙r54 琛ヤ慨鍚庡彂鐗堬級 | e2e 3937 路 audit 3014 | 瀹¤ AUDIT-VERDICT: 鎵撳洖锛堜粎 P0-1锛?|
-| r54 | M10 鍚幝稰0-1 琛ヤ慨锛歳emote 涓氬姟璺敱缁熶竴 admin 闂搁棬 | 鉁呯爺鍙戝畬鎴愶紙寰呭楠岋級 | 鈥旓紙澶嶉獙閫氳繃鍚庡彂鐗堬級 | e2e 3946 路 audit 3120 | TDD 绾?68 鈫?缁?0锛涘彉寮傜孩鐩?1 缁勶紙24 绾級 |
+| r22 | M10 后·遗留清理与质量收敛（shell 索引/移动底栏/部署文档） | ✅已发版（首轮双通过；U1=0/U2=0，5 项挂账全清 + 日期碰撞真修） | v0.0.28 | e2e 1856 · audit 1514 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r23 | M10 后·组织架构与通讯录（部门树 + 人员目录） | ✅已发版（首轮双通过；三级树/环检测/大小写不敏感搜索） | v0.0.29 | e2e 1952 · audit 1582 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r24 | M10 后·组织成员接入审批/物资（向后兼容） | ✅已发版（首轮双通过；向后兼容 64/64 + 变异红相独立复现） | v0.0.30 | e2e 2041 · audit 1667 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r25 | M10 后·第三轮遗留清理（shell 哈希块/审批 actorMemberId/文档口径） | ✅已发版（首轮双通过；P3 actorMemberId 真修 35/35） | v0.0.31 | e2e 2096 · audit 1723 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r26 | M10 后·通知中心（站内消息聚合） | ✅已发版（初验 waizhuan 打回 P2 通知不定位→返工#1 deep-link refId→UI 打回零图证→返工#2 补 09 图→双终审通过） | v0.0.32 | e2e 2237 · audit 1809 | 通过（waizhuan）+ UI 终审通过（U1/U2/U3 全零） |
+| r27 | M10 后·报表中心（跨模块数据看板） | ✅已发版（首轮双通过；六指标手算全对 + 修 README 笔误） | v0.0.33 | e2e 2335 · audit 1904 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r28 | M10 后·会议管理与会议室（预约/冲突检测） | ✅已发版（初验 waizhuan 打回 P2 建室后预约旧 roomId→返工#1 自动选中/深链回显→双复审通过） | v0.0.34 | e2e 2460 · audit 2004 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r29 | M10 后·文档版本历史与回收站 | ✅已发版（首轮双通过；恢复生成 v4 不覆盖 + 软删回收站 + 永久删除真二次确认） | v0.0.35 | e2e 2542 · audit 2060 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r30 | M10 后·多维表格公式字段（纯本地表达式，零 eval） | ✅已发版（首轮双通过；公式真实性 78/78 + 零 eval + raw computed 恒 null） | v0.0.36 | e2e 2664 · audit 2122 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r31 | M10 后·第九轮轻量清理（字段类型文案回归 + 浮点展示） | ✅已发版（首轮双通过；8 类字段文案 + 84.8 展示格式化，求值语义零改） | v0.0.37 | e2e 2685 · audit 2138 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r32 | M10 后·文档打印导出增强（HTML 打印版 + Word 兼容） | ✅已发版（首轮双通过；Word COM 真开 + XSS 五字符转义 + 零依赖） | v0.0.38 | e2e 2766 · audit 2185 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r33 | M10 后·全局搜索（跨模块统一检索） | ✅已发版（首轮双通过；跨八源只读检索 + 变异红相 + deep-link 直达） | v0.0.39 | e2e 2849 · audit 2262 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r34 | M10 后·任务依赖与阻塞关系（待办前置） | ✅已发版（首轮双通过；依赖守卫 40/40 + 既有状态机零回归） | v0.0.40 | e2e 2961 · audit 2324 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r35 | M10 后·日历 ICS 导出与订阅（标准 iCalendar） | ✅已发版（初验 UI 打回 U1 图证链→返工#1 同一 ICS 往返→双终审通过） | v0.0.41 | e2e 3069 · audit 2396 | 通过（waizhuan）+ UI 终审通过（U1=0） |
+| r36 | M10 后·日报与周报自动生成 | ✅已发版（首轮双通过；汇总手算 88/88 + 变异红相独立复现） | v0.0.42 | e2e 3167 · audit 2471 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r37 | M10 后·表格分组视图与汇总行 | ✅已发版（首轮双通过；分组手算 66/66 + r7 零回归） | v0.0.43 | e2e 3277 · audit 2536 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r38 | M10 后·看板卡片元数据（标签/负责人/截止日，向后兼容） | ✅已发版（首轮双通过；向后兼容 65/65 + 元数据重启不丢） | v0.0.44 | e2e 3377 · audit 2616 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r39 | M10 后·用户可见文案清理（错误条内部术语，连续 4 轮挂账必修） | ✅已发版（前任中断→r39b 续做；首轮双通过；连续 4 轮 U2 术语闭合） | v0.0.45 | e2e 3412 · audit 2623 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r40 | M10 后·口径清理与扫描器加固（登录页 tab 数 + rN 正则） | ✅已发版（首轮双通过；口径链闭合 + 11 处单位数 rN 清理） | v0.0.46 | e2e 3430 · audit 2641 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r41 | M10 后·轻量表单收集（创建/填写/汇总） | ✅已发版（首轮双通过；汇总手算全对 + 零半态） | v0.0.47 | e2e 3551 · audit 2703 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r42 | M10 后·README 版本号自动校验（watchdog） | ✅已发版（首轮双通过；DOC-CONTRACT 27 checks + 两处 vN 变异红相） | v0.0.48 | e2e 3551 · audit 2703 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r43 | M10 后·会议室设备与智能推荐（按人数/设备筛可用） | ✅已发版（首轮双通过；推荐 48/48 + r28 零回归 252 条） | v0.0.49 | e2e 3665 · audit 2802 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r44 | M10 后·图证与文档口径修正（r43 U2-1 时段不自洽等） | ✅已发版（首轮双通过；三项挂账全闭合 + DOC-CONTRACT 43） | v0.0.50 | e2e 3677 · audit 2802 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r45 | M10 后·文档块拖拽排序（HTML5 DnD + 触屏） | ✅已发版（首轮双通过；真输入拖拽 23/23 + r8/r9 零回归） | v0.0.51 | e2e 3731 · audit 2838 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r46 | M10 后·索引口径修正（r45 U2 图证/文案） | ✅已发版（首轮双通过；三处口径闭合 + DOC-CONTRACT 59 checks） | v0.0.52 | e2e 3731 · audit 2838 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r47 | M10 后·AI 工具调用确认闸门（危险操作先预览后执行） | ✅已发版（首轮双通过；闸门 51/51 + r10/r11 零回归） | v0.0.53 | e2e 3830 · audit 2891 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r48 | M10 后·继承性遗留盘点与分类（收敛轮） | ✅已发版（首轮双通过；28 条遗留全分类、真缺陷 0、DOC-CONTRACT 76 checks） | v0.0.54 | e2e 3830 · audit 2891 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r49 | M10 后·工作区数据备份与恢复（总入口） | ✅已发版（waizhuan 初打回 P2 数字差 1→返工#1 三处对齐→复审通过；危险区四表排除确认） | v0.0.55 | e2e 3922 · audit 2957 | 通过（waizhuan 复审）+ UI 通过（阻断岗） |
+| r50 | M10 后·里程碑体系复审（第 50 轮检查点） | ✅已发版（首轮双通过；台账补齐 8 行 + 不做清单零越界 + DOC-CONTRACT 98） | v0.0.56 | e2e 3922 · audit 2957 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r51 | M10 后·台账精度修正（r50 P3/P4/P5） | ✅已发版（首轮双通过；台账四证核实 + DOC-CONTRACT 105 精度防回退） | v0.0.57 | e2e 3922 · audit 2957 | 通过（waizhuan）+ UI 通过（阻断岗） |
+| r52 | M10 后·质量审计 #1：注入与越权（安全维度） | 🔴审计打回 P0×2/P1×2/P2×3 → 修复中 | — | 修复后重报 | auditor-r52 AUDIT-VERDICT: 打回（注入/XSS 零问题，越权/认证四类真漏洞） |
+| r53 | M10 后·r52 安全漏洞修复（P0/P1/P2 全修 + 回归断言） | 🟡5/6 关闭（P0-1 由 r54 补修关闭） | —（并入 v0.0.58） | e2e 3937 · audit 3014 | 审计 AUDIT-VERDICT: 打回（仅 P0-1） |
+| r54 | M10 后·P0-1 补修：remote 业务路由统一 admin 闸门 | ✅已发版（审计原步骤重放 52/52 全关 P0-1；local 零回归） | v0.0.58 | e2e 3946 · audit 3120 | 审计 AUDIT-VERDICT: 通过 |
+| r55 | M10 后·CI ubuntu 重启探针跨平台修复（v0.0.58 红灯补发） | ✅已发版（spawn detached + Linux 进程组整组 kill；旧 tag 未挪） | v0.0.60 | e2e 3946 · audit 3120 | lead 亲修 + CI 验证 |
 
-## 馃弫 椤圭洰鎬昏处锛?026-11-19 路 M10 鏀跺畼锛?
-**11 涓噷绋嬬鍏ㄩ儴杈炬垚**锛圡0 绔嬮」 鈫?M1 寰呭姙/鏃ョ▼ 鈫?M2 椤圭洰/鐪嬫澘 鈫?M3 澶氱淮琛ㄦ牸 鈫?M4 鏂囨。 鈫?M5 AI 宸ヤ綔鍙?鈫?M6 鐭ヨ瘑搴?RAG 鈫?M7 瀵煎浘/鐧芥澘 鈫?M8 缁勭粐绠＄悊 鈫?M9 缃戠粶鐗?鈫?M10 澶氱/鍗曟満鐗堬級銆?
-| 缁村害 | 缁堝€?|
+## 🏁 项目总账（2026-11-19 · M10 收官）
+
+**11 个里程碑全部达成**（M0 立项 → M1 待办/日程 → M2 项目/看板 → M3 多维表格 → M4 文档 → M5 AI 工作台 → M6 知识库/RAG → M7 导图/白板 → M8 组织管理 → M9 网络版 → M10 多端/单机版）。
+
+| 维度 | 终值 |
 |---|---|
-| 杞 | r1~r21锛?1 杞紝鍚?r2/r3/r4/r11/r15/r18/r19 杩斿伐闂幆锛?|
-| 鐗堟湰 | v0.0.1 鈫?**v0.0.27**锛?7 娆?patch 鍙戠増锛孯elease 璧勪骇鍏ㄩ綈锛?|
-| 鏂█ | e2e 0 鈫?**1842** 路 audit-http 0 鈫?**1503** 路 typecheck 5 鍖?|
-| 鎴浘璇佹嵁 | 232 寮?PNG锛?30 浜掑紓锛屽悓鎬佺粍浠?r4 宸叉姭闇?2 缁勶級锛岄€愯疆鐭╅樀 + 绱㈠紩 + 鏍?README 涓夊鍚屾 |
-| 鍛樺伐 | 4 宀楋紙椤圭洰鎬荤洃/鐮斿彂瑙嗚/浣跨敤鑰呰瑙?UI 瀹℃煡瀹橀樆鏂矖锛夛紝閫愯疆灞ュ巻鍦?docs/staff/ |
-| 杩斿伐 | 7 杞墦鍥炲叏閮ㄩ棴鐜紙AI 寤烘澘閲嶅彔銆乺emote 401 姝昏矾銆乻tatus 鍙栨渶鏃╃瓑鐪熺己闄峰潎鏍归櫎锛?|
-| 鍙樺紓绾㈢浉 | 姣忚疆鍏抽敭琛屼负鐣欑棔锛堟敼鍧忓疄鐜扳啋鏂█鍙樼孩鈫扴HA 杩樺師鍏ㄧ豢锛夛紝瀹硶鍥涙潯瀹炶瘉 |
-| 鍏紑浠撳簱 | https://github.com/sun13-AI/xieflow锛圡IT锛宲ublic锛?|
+| 轮次 | r1~r21（21 轮，含 r2/r3/r4/r11/r15/r18/r19 返工闭环） |
+| 版本 | v0.0.1 → **v0.0.27**（27 次 patch 发版，Release 资产全齐） |
+| 断言 | e2e 0 → **1842** · audit-http 0 → **1503** · typecheck 5 包 |
+| 截图证据 | 232 张 PNG（230 互异，同态组仅 r4 已披露 2 组），逐轮矩阵 + 索引 + 根 README 三处同步 |
+| 员工 | 4 岗（项目总监/研发视角/使用者视角/UI 审查官阻断岗），逐轮履历在 docs/staff/ |
+| 返工 | 7 轮打回全部闭环（AI 建板重叠、remote 401 死路、status 取最早等真缺陷均根除） |
+| 变异红相 | 每轮关键行为留痕（改坏实现→断言变红→SHA 还原全绿），宪法四条实证 |
+| 公开仓库 | https://github.com/sun13-AI/xieflow（MIT，public） |
 
-**鏂规硶璁烘矇娣€**锛氫粨搴撳嵆鐘舵€?路 鍙?agent + 鍙?VERDICT 瑁佸喅 路 鎴浘瀛楄妭绾ч獙鍥?路 鏂█鍙定涓嶇缉 + 鍙樺紓绾㈢浉 路 鎬荤洃杩囩▼宸℃煡 路 姣忚疆鍙戠増 + Release 鏍稿 路 鍗遍櫓鍖轰笌鐔旀柇銆傚埗搴﹁ AGENTS.md / RUNBOOK.md / workflows/org.md銆?
-闄勫姞浜や粯锛坮2 鍐?lead 鐩村仛锛屽凡鍏ュ簱 8e4fb9b锛夛細
-- 涓€閿惎鍔細start.cmd 鍙屽嚮 / scripts\start.ps1 start|stop|status锛堜笁杞叏閾捐矾楠岃瘉锛涙湡闂存帓鎺夈€屽兊灏?api 鎶?8787銆嶇幆澧冨潙锛岄潪鑴氭湰缂洪櫡锛?- 鎵撳寘鍛戒护锛歱npm run pack锛堝厤瀹夎鐩綍锛? pnpm run dist锛坰etup zip锛夆€斺€斿榻?IKanBot pack/dist 璇箟锛沺ortable 鐩綍瀹炴祴 boot锛歛pi 200 + web 200 @8080锛涚粫寮€ Node 24.14 cpSync 鐩綍澶嶅埗宕╂簝锛?xC0000409锛夛紝Windows 璧?robocopy
+**方法论沉淀**：仓库即状态 · 双 agent + 双 VERDICT 裁决 · 截图字节级验图 · 断言只涨不缩 + 变异红相 · 总监过程巡查 · 每轮发版 + Release 核对 · 危险区与熔断。制度见 AGENTS.md / RUNBOOK.md / workflows/org.md。
 
-### 2026-11-15 路 r2 澶嶉獙銆佽繑宸ヤ笌鍙戠増鍏ㄨ褰?- 鍒濋獙锛歸aizhuan VERDICT 鎵撳洖锛圥1 shot.ps1 鍒嗙鍚姩 3 鍐峰惎 1 瀛樻椿 / P3 vite 浠ｇ悊 500 閿欎綅 / P5 鏍囬鏃犱笂闄愶級+ ui-reviewer UI-VERDICT 鎵撳洖锛圲1脳2锛歵ab 婵€娲婚浂璇佹嵁銆佷笁褰㈡€佺己鍥撅紱U2锛氬寘璺緞杩?UI锛?- lead 淇?P1锛堥潪 watch + HTTP 200 鍒ゅ畾锛?/3 楠岃瘉杩囷級锛泍anfa-r2c 杩斿伐 A~G 鍏ㄦ竻锛?b0422c锛夛細鏂█ e2e 69 / audit 52锛屾埅鍥剧煩闃?10 寮?- 澶嶅锛歸aizhuan VERDICT 閫氳繃锛堢嫭绔?3/3 澶嶉獙锛? ui-reviewer UI-VERDICT 閫氳繃锛堝洓寮犳柊鍥惧叏琛ュ疄鍥撅紝鎶撳埌鐮斿彂鍔犲垎椤癸級鈫?瑙傚療鍛樺崌绾ч棬妲涜繘搴?1/2
-- 鍙戠増鍘嗙▼锛歷0.0.3 CI 绾紙pwsh 7 鍙鍙橀噺 `$isWindows` 璧嬪€肩偢锛屾湰鏈?PS5.1 涓嶆姤锛夆啋 v0.0.4 CI 绾紙Unix pwsh 涓嶆敮鎸?Start-Process -WindowStyle锛夆啋 **v0.0.5 涓夊钩鍙板叏缁?+ Release 璧勪骇鏍稿閫氳繃锛坸ieflow-v0.0.5.tar.gz锛?*
-- 瀹硶鏂板锛坥wner 鎸囦护锛夛細鑷祴鍏ㄧ▼ headless/闅愯棌绐楀彛锛屼笉寮逛换浣曞彲瑙佺獥鍙?- 鏁欒娌夋穩锛歅owerShell 骞冲彴宸紓涓よ繛鍧戯紙鑷姩鍙橀噺鍚?/ Windows 涓撳睘鍙傛暟锛夆啋 璺ㄥ钩鍙?ps1 蹇呴』鍦?pwsh 7 + PS 5.1 鍙岀幆澧冮獙璇侊紱鏈湴缁?鈮?CI 缁匡紝tag 鍓?CI 瀹炶瘉涓嶅彲鐪?
-### 2026-11-15 路 r3 鐮斿彂锛坹anfa 路 M1 鏀跺畼杞級
-- 浜や粯锛歴chema v2鈫抳3 杩佺Щ锛坰chedules 琛細id/title/date/start_time/end_time/todo_id 鍙┖澶栭敭 + repeat CHECK none-daily-weekly-monthly锛壜?api 鏃ョ▼璺敱锛圕RUD + 鍖洪棿鏌ヨ + 寰呭姙鈫旀棩绋嬪弻鍚戣仈鍔級路 web 鏃ョ▼椤碉紙鏈堣鍥剧綉鏍?+ 鐐规棩鏈熷缓鏃ョ▼ + 鍏宠仈寰呭姙鐘舵€佸窘鏍囷級+ 宸ヤ綔鍙般€屼粖鏃ユ棩绋嬨€嶅崱
-- 瑙勫垯闆嗕腑锛氬惊鐜疄渚嬪寲鍙湪 `packages/shared` 鐨?`computeRepeatInstances`锛堟湀鏈敹鏁?1-31鈫?-28銆佷笉涓㈤敋鏃ャ€佸疄渚嬫暟灏侀《锛夛紱鏃ョ▼瀹堝崼锛堟爣棰?鏃ユ湡/HH:mm/璧锋鍊掓寕/repeat锛夊悓灞傦紝api 鍙仛 400/404 鏄犲皠
-- 鍙屽悜闂幆鏂█锛氬緟鍔炴敼鏈熲啋鏃ョ▼鍙橈紙audit銆屽緟鍔炴敼鏈熷悓姝ユ棩绋?date銆嶏級涓庢棩绋嬫敼鏈熲啋寰呭姙 dueDate 鍥炲啓锛坅udit銆屾棩绋嬫敼鏈熷洖鍐欏緟鍔?dueDate銆嶏級鍚勬湁鐙珛鏂█锛屽彟 e2e 瑕嗙洊娓呯┖ dueDate 鍒犳棩绋?/ 寰呭姙鍒犻櫎绾ц仈鍒犳棩绋?- 鏂█瑙勬ā锛歟2e 69 鈫?**155**锛堢绾?154锛壜?audit-http 52 鈫?**113**锛堝彧娑ㄦ湭缂╋級锛泃ypecheck 4 鍖呭叏缁匡紱`pnpm run test:all` exit 0锛堣繑宸?#1 鍚庝负 e2e 167 / audit 138锛岃杩斿伐璁板綍锛?- 鎴浘鐭╅樀锛歞ocs/ui/r3/ 鍏?10 寮狅紙鏈堣鍥剧┖鎬?鏈夋棩绋?寤哄脊绐?鑱斿姩寰芥爣/鏀规湡鍚屾鍚?绐勫睆 + 宸ヤ綔鍙颁粖鏃ユ棩绋嬪崱/鍔犺浇鎬?閿欒鎬?鐪熷疄閾捐矾锛夛紝閫愬紶 read_image 鐩獙
-- 宸茬煡閬楃暀锛氣憼 data/xieflow.db 鏈変竴鏉℃棦鏈夊緟鍔炪€?2銆嶏紙闈炴湰杞骇鐢燂紝鏈垹鐢ㄦ埛鏁版嵁锛屽緟 lead/waizhuan 鍒ゅ畾锛夆憽 宸ヤ綔鍙般€屼粖鏃ユ棩绋嬨€嶅崱鍦ㄩ拤鎬佷笅涓嶅甫寰呭姙鍒楄〃锛屾晠鍗＄墖鏉＄洰涓嶆樉绀虹姸鎬佸窘鏍囷紙寰芥爣褰㈡€佷互 04-schedule-badge 涓哄噯锛夆憿 鐗堟湰鍙?0.0.4鈫?.0.5 鐨勮ˉ姝ｈ yanfa r3 鎶ュ憡鑷洕鑺傦紙鐗堟湰鍙蜂笌鍙戠増鍔ㄤ綔浠嶅睘 lead锛?
-鐘舵€佹灇涓撅細鈴冲緟鍚姩 / 馃敤鐮斿彂涓?/ 馃攣杩斿伐k / 鈴哥啍鏂?/ 鉁呭凡鍙戠増銆?
-## 鍗遍櫓鍖哄彴璐?
-> 瀹硶绗簲鏉★細鍗遍櫓鍖哄姩浣滈渶 lead 瀹℃壒骞惰褰曘€傛湰鍙拌处 r50 閲岀▼纰戝瀹¤ˉ榻?r1~r49 鍏ㄩ儴 lead 鍔ㄤ綔锛堟鍓嶄粎 r3 鐣欎竴琛屻€岀┖銆嶏紝灞炵己璁帮紝r50 淇锛夈€?
-| 杞 | 鍗遍櫓鍖哄姩浣?| 绫诲埆 | lead 瀹℃壒/鎵ц | 缁撴灉 |
+附加交付（r2 内 lead 直做，已入库 8e4fb9b）：
+- 一键启动：start.cmd 双击 / scripts\start.ps1 start|stop|status（三轮全链路验证；期间排掉「僵尸 api 抢 8787」环境坑，非脚本缺陷）
+- 打包命令：pnpm run pack（免安装目录）/ pnpm run dist（setup zip）——对齐 IKanBot pack/dist 语义；portable 目录实测 boot：api 200 + web 200 @8080；绕开 Node 24.14 cpSync 目录复制崩溃（0xC0000409），Windows 走 robocopy
+
+### 2026-11-15 · r2 复验、返工与发版全记录
+- 初验：waizhuan VERDICT 打回（P1 shot.ps1 分离启动 3 冷启 1 存活 / P3 vite 代理 500 错位 / P5 标题无上限）+ ui-reviewer UI-VERDICT 打回（U1×2：tab 激活零证据、三形态缺图；U2：包路径进 UI）
+- lead 修 P1（非 watch + HTTP 200 判定，3/3 验证过）；yanfa-r2c 返工 A~G 全清（5b0422c）：断言 e2e 69 / audit 52，截图矩阵 10 张
+- 复审：waizhuan VERDICT 通过（独立 3/3 复验）+ ui-reviewer UI-VERDICT 通过（四张新图全补实图，抓到研发加分项）→ 观察员升级门槛进度 1/2
+- 发版历程：v0.0.3 CI 红（pwsh 7 只读变量 `$isWindows` 赋值炸，本机 PS5.1 不报）→ v0.0.4 CI 红（Unix pwsh 不支持 Start-Process -WindowStyle）→ **v0.0.5 三平台全绿 + Release 资产核对通过（xieflow-v0.0.5.tar.gz）**
+- 宪法新增（owner 指令）：自测全程 headless/隐藏窗口，不弹任何可见窗口
+- 教训沉淀：PowerShell 平台差异两连坑（自动变量名 / Windows 专属参数）→ 跨平台 ps1 必须在 pwsh 7 + PS 5.1 双环境验证；本地绿 ≠ CI 绿，tag 前 CI 实证不可省
+
+### 2026-11-15 · r3 研发（yanfa · M1 收官轮）
+- 交付：schema v2→v3 迁移（schedules 表：id/title/date/start_time/end_time/todo_id 可空外键 + repeat CHECK none-daily-weekly-monthly）· api 日程路由（CRUD + 区间查询 + 待办↔日程双向联动）· web 日程页（月视图网格 + 点日期建日程 + 关联待办状态徽标）+ 工作台「今日日程」卡
+- 规则集中：循环实例化只在 `packages/shared` 的 `computeRepeatInstances`（月末收敛 1-31→2-28、不丢锚日、实例数封顶）；日程守卫（标题/日期/HH:mm/起止倒挂/repeat）同层，api 只做 400/404 映射
+- 双向闭环断言：待办改期→日程变（audit「待办改期同步日程 date」）与日程改期→待办 dueDate 回写（audit「日程改期回写待办 dueDate」）各有独立断言，另 e2e 覆盖清空 dueDate 删日程 / 待办删除级联删日程
+- 断言规模：e2e 69 → **155**（离线 154）· audit-http 52 → **113**（只涨未缩）；typecheck 4 包全绿；`pnpm run test:all` exit 0（返工 #1 后为 e2e 167 / audit 138，见返工记录）
+- 截图矩阵：docs/ui/r3/ 共 10 张（月视图空态/有日程/建弹窗/联动徽标/改期同步后/窄屏 + 工作台今日日程卡/加载态/错误态/真实链路），逐张 read_image 目验
+- 已知遗留：① data/xieflow.db 有一条既有待办「22」（非本轮产生，未删用户数据，待 lead/waizhuan 判定）② 工作台「今日日程」卡在钉态下不带待办列表，故卡片条目不显示状态徽标（徽标形态以 04-schedule-badge 为准）③ 版本号 0.0.4→0.0.5 的补正见 yanfa r3 报告自曝节（版本号与发版动作仍属 lead）
+
+状态枚举：⏳待启动 / 🔨研发中 / 🔁返工k / ⏸熔断 / ✅已发版。
+
+## 危险区台账
+
+> 宪法第五条：危险区动作需 lead 审批并记录。本台账 r50 里程碑复审补齐 r1~r49 全部 lead 动作（此前仅 r3 留一行「空」，属缺记，r50 修复）。
+
+| 轮次 | 危险区动作 | 类别 | lead 审批/执行 | 结果 |
 |---|---|---|---|---|
-| r3 | 鐗堟湰鍙?0.0.4鈫?.0.5 琛ユ | 鍙戠増淇 | lead 纭灞炶ˉ鍙戦潪鎸棫 tag | 宸插彂鐗?|
-| r15~r21 | 澶氭 `git push` / tag / Release | git push锛坙ead 涓撶敤锛?| lead 浜茶嚜鎵ц锛圓PI 閫氶亾 `push-via-api.mjs`锛?| 鍏ㄩ儴涓夊钩鍙扮豢 |
-| r16 | CI 鎷?`verify-core`(ubuntu/windows 闂ㄧ) + `verify-macos`(continue-on-error)锛坈ommit `cc11340`锛?| **淇敼 CI 鍙戝竷閰嶇疆** | lead 浜茶嚜鏀瑰苟璁拌处锛歮acOS runner 琚?cancelled 鏇捐浼?release gate | 鍚庣画 CI 绋冲畾 |
-| r16~r20 | backlog v0.0.15~v0.0.20 鍏釜 tag Release 璧勪骇琛ュ彂锛坓it archive tar.gz锛屾湭鎸棫 tag锛岃鏈枃浠?CI 瀹归敊娈碉級 | 瀵瑰鍙戝竷锛圧elease锛?| lead 缁?GitHub API 琛ュ缓 Release + 涓婁紶璧勪骇 | 璧勪骇榻愩€佹棫 tag 鏈姩 |
-| r20 | `tar --exclude release` 淇嚜鍖呭惈鎵撳寘澶辫触锛坈ommit `73f02bb`锛?| CI 鍙戝竷閰嶇疆閰嶅 | lead 浜茶嚜鏀?| 鍚庣画 release job 绋冲畾 |
-| r34~r49 | 姣忚疆 `pnpm version patch` + tag + push锛堝叡 20+ 娆★級 | git push锛坙ead 涓撶敤锛?| lead 浜茶嚜鎵ц锛孉PI 閫氶亾 tree sha 鏍￠獙 | 鍏ㄩ儴鎴愬姛 |
-| r48 | 鏀跺噣 8787/5173 閬楃暀 api/vite 杩涚▼锛堝楠岄仐鐣欑殑涓や釜 node 杩涚▼锛涘叿浣?PID 灞炵灛鏃剁姸鎬佷笉鍙簨鍚庡楠岋紝宸叉牳瀵瑰懡浠よ纭睘鏈粨搴撳悗 Stop-Process锛?| 杩涚▼绠＄悊锛堥潪鐢ㄦ埛鏁版嵁锛?| lead 浜茶嚜鎵ц | 绔彛褰掗浂銆佹湭鍒犱换浣曟暟鎹?|
-| r49 | 澶囦唤鎭㈠鐧藉悕鍗曟帓闄?users/sessions/change_log/entity_versions | **鍗遍櫓鍖虹孩绾匡細涓嶅垹鐢ㄦ埛鏁版嵁** | lead 瑁佸喅鎺掗櫎鎴愮珛锛堣璇佽韩浠?浼氳瘽/鍚屾娓告爣涓嶅叆蹇収锛?| waizhuan raw 鏍稿璇佸疄鍥涜〃涓嶈鏇挎崲 |
+| r3 | 版本号 0.0.4→0.0.5 补正 | 发版修正 | lead 确认属补发非挪旧 tag | 已发版 |
+| r15~r21 | 多次 `git push` / tag / Release | git push（lead 专用） | lead 亲自执行（API 通道 `push-via-api.mjs`） | 全部三平台绿 |
+| r16 | CI 拆 `verify-core`(ubuntu/windows 门禁) + `verify-macos`(continue-on-error)（commit `cc11340`） | **修改 CI 发布配置** | lead 亲自改并记账：macOS runner 被 cancelled 曾误伤 release gate | 后续 CI 稳定 |
+| r16~r20 | backlog v0.0.15~v0.0.20 六个 tag Release 资产补发（git archive tar.gz，未挪旧 tag，见本文件 CI 容错段） | 对外发布（Release） | lead 经 GitHub API 补建 Release + 上传资产 | 资产齐、旧 tag 未动 |
+| r20 | `tar --exclude release` 修自包含打包失败（commit `73f02bb`） | CI 发布配置配套 | lead 亲自改 | 后续 release job 稳定 |
+| r34~r49 | 每轮 `pnpm version patch` + tag + push（共 20+ 次） | git push（lead 专用） | lead 亲自执行，API 通道 tree sha 校验 | 全部成功 |
+| r48 | 收净 8787/5173 遗留 api/vite 进程（复验遗留的两个 node 进程；具体 PID 属瞬时状态不可事后复验，已核对命令行确属本仓库后 Stop-Process） | 进程管理（非用户数据） | lead 亲自执行 | 端口归零、未删任何数据 |
+| r49 | 备份恢复白名单排除 users/sessions/change_log/entity_versions | **危险区红线：不删用户数据** | lead 裁决排除成立（认证身份/会话/同步游标不入快照） | waizhuan raw 核对证实四表不被替换 |
+| r55 | v0.0.58 CI ubuntu verify-core 红：r53 重启探针在 Linux 上 tsx 子进程持端口导致收净误判（windows 绿） | **测试 harness 跨平台修复**（非 CI 配置变更） | lead 亲自修：spawn detached + Linux 进程组整组 kill；不挪旧 tag，发 v0.0.59/v0.0.60 补发 | v0.0.58 tag 保留，修复版另发 |
 
-**鏈Е鍙戝尯纭**锛氬叏绋嬫棤瀵嗛挜/token 鏂囦欢鍐欏叆锛坱oken 浠呯粡 Windows Credential Manager 璇诲彇锛屼笉钀界洏锛夛紱鏃犲彂閭欢/IM/寤哄叕寮€浠撳簱/鍙戝笘锛堝紑婧愪粨搴撶敱 owner 鏈汉浜庢棭鏈熺‘璁わ紝闈?agent 鍒涘缓锛夛紱鏃?data/ 搴撴枃浠跺垹闄わ紙鎵€鏈夋祴璇曡蛋 scratch 搴擄級锛涙棤 major 鍗囩骇銆佹棤鍗曟 >10 渚濊禆寮曞叆锛堟牴渚濊禆闆讹級锛涙棤鐢熶骇/杩滅鐜璁块棶锛堜粎 GitHub API 鍙戝竷娴佺▼锛夈€?
-## 浠诲姟鍗?
-### r3锛堣繘琛屼腑锛壜?M1 绗?2 鐗囷細鏃ョ▼涓庡緟鍔炲弻鍚戣仈鍔?- 鐩爣锛氭棩绋嬭〃钀藉簱 + 寰呭姙鎺掓湡鍒版棩绋?+ 鍙屽悜鑱斿姩锛堟敼鏈熶簰鍚屾锛夆€斺€擬1 鏀跺畼杞?- 浜や粯娓呭崟锛?  1. schema v2鈫抳3 杩佺Щ锛歴chedules 琛紙id / title / date YYYY-MM-DD / start HH:mm / end HH:mm / todo_id 鍙┖澶栭敭 / repeat none-daily-weekly-monthly锛?  2. api 璺敱锛欳RUD + 鎸夋棩鏈熷尯闂存煡璇?+ 寰呭姙鑱斿姩锛堝緟鍔炶鍒版湡鏃ヨ嚜鍔ㄧ敓鎴愬叧鑱旀棩绋嬶紱鏃ョ▼鏀规湡鍥炲啓寰呭姙 due_date锛?  3. web 鏃ョ▼椤碉細鏈堣鍥剧綉鏍?+ 鏃ユ湡鐐瑰嚮寤烘棩绋?+ 鍏宠仈寰呭姙鐨勬棩绋嬫樉绀哄緟鍔炵姸鎬佸窘鏍囷紱宸ヤ綔鍙板姞銆屼粖鏃ユ棩绋嬨€嶅崱
-  4. 鏂█锛歟2e 鈮?15锛堣縼绉?鑱斿姩/寰幆瀹炰緥鍖栵級銆乤udit-http 鈮?15锛堝惈 4xx锛氶潪娉曟棩鏈?闈炴硶 repeat/瓒婃潈澶栭敭锛?  5. 鎴浘锛氭湀瑙嗗浘绌烘€?/ 鏈堣鍥炬湁鏃ョ▼ / 寤烘棩绋嬪脊绐?/ 鑱斿姩寰芥爣 / 寰呭姙鏀规湡鈫掓棩绋嬪悓姝ュ悗 / 绐勫睆 鈮? 寮?- 楠屾敹鏍囧噯锛?  1. 鍏ㄩ噺娴嬭瘯缁匡細e2e 鈮?4銆乤udit 鈮?7锛孯EADME 鍙岃妯″悓姝?  2. 鑱斿姩鍙屽悜闂幆鏈夋柇瑷€閿佸畾锛堝緟鍔炴敼鏈熲啋鏃ョ▼鍙?& 鏃ョ▼鏀规湡鈫掑緟鍔炲彉锛?  3. 寰幆鏃ョ▼瀹炰緥鍖栬鍒欓泦涓畾涔夊湪 shared锛堢姝㈡暎钀?if-else锛?  4. 鎴浘鐭╅樀 + 绱㈠紩 + README 鍚屼竴鎻愪氦
-- 鍓嶇疆锛歳2 宸插彂鐗堬紙v0.0.5锛夆渽
-- 鐗瑰埆椤癸細ui-reviewer 鑻ユ湰杞啀鎶撳埌 waizhuan 婕忔帀鐨?U1锛屾寜 org.md 闂ㄦ鍗囩骇涓洪樆鏂矖锛堝弻 VERDICT 骞惰瑁佸喅浠庢湰杞敓鏁堬級
+**未触发区确认**：全程无密钥/token 文件写入（token 仅经 Windows Credential Manager 读取，不落盘）；无发邮件/IM/建公开仓库/发帖（开源仓库由 owner 本人于早期确认，非 agent 创建）；无 data/ 库文件删除（所有测试走 scratch 库）；无 major 升级、无单次 >10 依赖引入（根依赖零）；无生产/远端环境访问（仅 GitHub API 发布流程）。
 
-### r4 路 M2 绗?1 鐗囷細椤圭洰 + 鐪嬫澘鏁版嵁灞備笌鏈€灏?UI
-- 鐩爣锛氶」鐩紙project锛夎惤搴?+ 鐪嬫澘锛坆oard锛氬垪/鍗＄墖锛夋暟鎹眰 + 鏈€灏忕湅鏉?UI鈥斺€擬2 璧锋杞?- 浜や粯娓呭崟锛?  1. schema v3鈫抳4锛歱rojects 琛紙id/name/description/created_at锛夈€乥oard_columns锛坕d/project_id/name/position锛夈€乧ards锛坕d/project_id/column_id/title/description/position/todo_id 鍙┖鍏宠仈寰呭姙锛?  2. api锛歱rojects CRUD銆乧olumns CRUD + 鎺掑簭銆乧ards CRUD + 璺ㄥ垪绉诲姩锛坧osition 閲嶆帓瑙勫垯闆嗕腑 shared锛?  3. web锛氶」鐩〉锛堝垪琛?+ 寤洪」鐩級鈫?鐪嬫澘瑙嗗浘锛堝垪 + 鍗＄墖 + 璺ㄥ垪鎷栨嫿/鎸夐挳绉诲姩锛? 鍗＄墖鍏宠仈寰呭姙寰芥爣
-  4. 鏂█锛歟2e 鈮?20锛堣縼绉?鎺掑簭瑙勫垯/绉诲姩闂幆锛夈€乤udit 鈮?20锛堝惈 4xx锛氳秺鏉冨閿?闈炴硶 position/绌哄悕锛?  5. 鎴浘 鈮?锛氶」鐩┖鎬?椤圭洰鍒楄〃/寤洪」鐩脊绐?鐪嬫澘鏈夊崱/绉诲姩鍚?绐勫睆
-- 楠屾敹鏍囧噯锛?  1. 鍏ㄩ噺缁匡細e2e 鈮?87銆乤udit 鈮?58锛孯EADME 鍚屾
-  2. 鍗＄墖绉诲姩鍚庝袱渚у垪 position 閲嶆帓鏈夋柇瑷€閿佸畾锛沺osition 瑙勫垯闆嗕腑 shared
-  3. todo_id 鍏宠仈澶嶇敤 r3 鑱斿姩妯″紡锛堝窘鏍囷級
-  4. 鍙?VERDICT锛坵aizhuan + ui 闃绘柇宀楋級閫氳繃
-- 鍓嶇疆锛歳3 宸插彂鐗堬紙v0.0.7锛夆渽
+## 任务单
 
-### r5 路 M2 绗?2 鐗囷細鐪嬫澘缁熻涓?Excel 瀵煎嚭锛圡2 鏀跺畼锛?- 鐩爣锛氱湅鏉跨粺璁★紙鍒楀垎甯?瀹屾垚鐜囷級+ 鍙拌处瀵煎嚭锛圕SV UTF-8 BOM锛夆€斺€擬2 鏀跺畼杞?- 浜や粯娓呭崟锛?  1. api 缁熻绔偣锛欸ET /api/projects/:id/stats锛堝悇鍒楀崱鐗囨暟/瀹屾垚鐜?寰呭姙鍏宠仈鏁扳€斺€斿彛寰勯泦涓?shared 绾嚱鏁?computeBoardStats锛?  2. 瀵煎嚭绔偣锛欸ET /api/projects/:id/export.csv锛圲TF-8 BOM锛孍xcel 鐩村紑锛氬垪/鍗＄墖/鍏宠仈寰呭姙鍏ㄩ噺鍙拌处锛?  3. web锛氱湅鏉块〉缁熻鍗★紙鍚勫垪璁℃暟 + 瀹屾垚鐜囨潯锛? 瀵煎嚭鎸夐挳锛堜笅杞?CSV锛?  4. 鏂█锛歟2e 鈮?15锛堢粺璁″彛寰?绌洪」鐩?鍚緟鍔炲叧鑱旓級銆乤udit 鈮?15锛堢粺璁?4xx銆佸鍑?BOM 澶?鍒楁暟/杞箟锛?  5. 鎴浘 鈮?锛氱粺璁″崱鏈夋暟鎹?绌洪」鐩粺璁?瀵煎嚭鎸夐挳鎬?CSV 钀界洏鍐呭浣愯瘉/绐勫睆
-- 楠屾敹鏍囧噯锛?  1. 鍏ㄩ噺缁匡細e2e 鈮?32銆乤udit 鈮?48锛孯EADME 鍚屾
-  2. CSV 鐢?Excel 瀹炲紑楠岃瘉 BOM 涓庡垪瀵归綈锛坵aizhuan 浼氱湡寮€锛?  3. 缁熻鍙ｅ緞涓庡崱鐗囩Щ鍔ㄨ仈鍔紙绉诲姩鍚庣粺璁″嵆鏃跺彉鍖栨湁鏂█锛?  4. 鍙?VERDICT锛坵aizhuan + ui 闃绘柇宀楋級閫氳繃
-- 鍓嶇疆锛歳4 宸插彂鐗堬紙v0.0.8锛夆渽
+### r3（进行中）· M1 第 2 片：日程与待办双向联动
+- 目标：日程表落库 + 待办排期到日程 + 双向联动（改期互同步）——M1 收官轮
+- 交付清单：
+  1. schema v2→v3 迁移：schedules 表（id / title / date YYYY-MM-DD / start HH:mm / end HH:mm / todo_id 可空外键 / repeat none-daily-weekly-monthly）
+  2. api 路由：CRUD + 按日期区间查询 + 待办联动（待办设到期日自动生成关联日程；日程改期回写待办 due_date）
+  3. web 日程页：月视图网格 + 日期点击建日程 + 关联待办的日程显示待办状态徽标；工作台加「今日日程」卡
+  4. 断言：e2e ≥+15（迁移/联动/循环实例化）、audit-http ≥+15（含 4xx：非法日期/非法 repeat/越权外键）
+  5. 截图：月视图空态 / 月视图有日程 / 建日程弹窗 / 联动徽标 / 待办改期→日程同步后 / 窄屏 ≥6 张
+- 验收标准：
+  1. 全量测试绿：e2e ≥84、audit ≥67，README 双规模同步
+  2. 联动双向闭环有断言锁定（待办改期→日程变 & 日程改期→待办变）
+  3. 循环日程实例化规则集中定义在 shared（禁止散落 if-else）
+  4. 截图矩阵 + 索引 + README 同一提交
+- 前置：r2 已发版（v0.0.5）✅
+- 特别项：ui-reviewer 若本轮再抓到 waizhuan 漏掉的 U1，按 org.md 门槛升级为阻断岗（双 VERDICT 并行裁决从本轮生效）
 
-### r6 路 M3 绗?1 鐗囷細澶氱淮琛ㄦ牸瀛楁寮曟搸涓庣綉鏍艰鍥撅紙M3 璧锋锛?- 鐩爣锛氬缁磋〃鏍硷紙bases/tables锛夎惤搴?+ 瀛楁绫诲瀷寮曟搸 + 缃戞牸瑙嗗浘鈥斺€擬3 璧锋杞紝瀛楁寮曟搸鏄?M3 鎶€鏈噸蹇?- 浜や粯娓呭崟锛?  1. schema v4鈫抳5锛歵ables锛坕d/name/description锛夈€乫ields锛坕d/table_id/name/type/position/options JSON锛夈€乺ecords锛坕d/table_id/data JSON/position锛?  2. 瀛楁绫诲瀷寮曟搸锛堝叏閮ㄩ泦涓?shared锛岀鏁ｈ惤 if-else锛夛細type = text / number / date / select / multi-select / checkbox / url
-     - validateFieldValue(type, value) 鈥斺€?绫诲瀷鏍￠獙锛坣umber 鏁板€煎瀷銆乨ate ISO 鏃ユ湡銆乻elect 蹇呴』鍦?options 鍐呫€乵ulti-select 瀛愰泦銆乧heckbox 甯冨皵锛?     - coerceFieldValue 鈥斺€?鍐欏叆鍓嶅綊涓€锛坣umber 瀛楃涓测啋鏁板瓧銆佹棩鏈熻ˉ榻愶級
-     - compareValues(type, a, b) 鈥斺€?鎺掑簭姣旇緝鍣紙null 鎭掓渶鍚庛€佹暟鍊兼寜鍊笺€佹棩鏈熸寜鏃堕棿銆乻elect 鎸?options 椤哄簭锛?  3. api锛歵ables/fields/records CRUD + 鏌ヨ锛堟寜瀛楁绛涢€?+ 鎸夊瓧娈垫帓搴?+ 鍒嗛〉锛?  4. web锛氬缁磋〃鏍奸〉鈥斺€旂綉鏍艰鍥撅紙琛ㄥご=瀛楁鍒椼€佽=璁板綍銆佸崟鍏冩牸鎸夌被鍨嬫覆鏌撲笌缂栬緫銆佸瓧娈电鐞嗛潰鏉垮鍒犳敼瀛楁锛?  5. 鏂█锛歟2e 鈮?40锛堟瘡绉嶅瓧娈电被鍨?鈮?锛氭牎楠?褰掍竴/姣旇緝鍣級銆乤udit 鈮?25锛堝惈 4xx锛氶潪娉曠被鍨?鏈煡瀛楁/绛涢€夊€肩被鍨嬩笉绗︼級
-  6. 鎴浘 鈮?锛氱┖琛ㄦ€?澶氱被鍨嬬綉鏍?瀛楁绠＄悊闈㈡澘/绛涢€夋帓搴忓悗/绐勫睆/閿欒鎬?- 楠屾敹鏍囧噯锛?  1. 鍏ㄩ噺缁匡細e2e 鈮?28銆乤udit 鈮?38锛孯EADME 鍚屾
-  2. 瀛楁绫诲瀷寮曟搸涓変釜鍑芥暟鍏ㄥ湪 shared 涓斿悇鏈夋柇瑷€锛沘pi 灞備笉鍑虹幇绫诲瀷鍒嗘敮
-  3. 缃戞牸鐨勭瓫閫?鎺掑簭缁撴灉涓庢墜绠椾竴鑷达紙waizhuan 浼氱湡鎵嬬畻锛?  4. 鍙?VERDICT锛坵aizhuan + ui 闃绘柇宀楋級閫氳繃
-- 鍓嶇疆锛歳5 宸插彂鐗?鉁?- 鐗瑰埆椤癸細r5 閬楃暀 U2-1锛堝垪绾с€屽畬鎴愮巼銆嶄笌鍒楀悕銆屽凡瀹屾垚銆嶈涔夊啿绐侊級鏈疆涓€骞朵慨
+### r4 · M2 第 1 片：项目 + 看板数据层与最小 UI
+- 目标：项目（project）落库 + 看板（board：列/卡片）数据层 + 最小看板 UI——M2 起步轮
+- 交付清单：
+  1. schema v3→v4：projects 表（id/name/description/created_at）、board_columns（id/project_id/name/position）、cards（id/project_id/column_id/title/description/position/todo_id 可空关联待办）
+  2. api：projects CRUD、columns CRUD + 排序、cards CRUD + 跨列移动（position 重排规则集中 shared）
+  3. web：项目页（列表 + 建项目）→ 看板视图（列 + 卡片 + 跨列拖拽/按钮移动）+ 卡片关联待办徽标
+  4. 断言：e2e ≥+20（迁移/排序规则/移动闭环）、audit ≥+20（含 4xx：越权外键/非法 position/空名）
+  5. 截图 ≥6：项目空态/项目列表/建项目弹窗/看板有卡/移动后/窄屏
+- 验收标准：
+  1. 全量绿：e2e ≥187、audit ≥158，README 同步
+  2. 卡片移动后两侧列 position 重排有断言锁定；position 规则集中 shared
+  3. todo_id 关联复用 r3 联动模式（徽标）
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r3 已发版（v0.0.7）✅
 
-### r7 路 M3 绗?2 鐗囷細瑙嗗浘鎸佷箙鍖栦笌 CSV 瀵煎叆锛圡3 鏀跺畼锛?- 鐩爣锛氬缁磋〃鏍艰鍥撅紙绛涢€?鎺掑簭/瀛楁鍙鎬у彲淇濆瓨銆佸彲鍒囨崲锛? CSV 鎵归噺瀵煎叆鈥斺€擬3 鏀跺畼杞?- 浜や粯娓呭崟锛?  1. schema v5鈫抳6锛歷iews 琛紙id/table_id/name/filter_spec JSON/sort_spec JSON/visible_fields JSON/position锛?  2. api锛歷iews CRUD + 鎸夎鍥炬煡璇㈣褰曪紙澶嶇敤 shared `queryRecords`锛岃鍥?spec 鍙槸绛涢€?鎺掑簭/鎶曞奖鍙傛暟锛? CSV 瀵煎叆绔偣锛坢ultipart 鎴?JSON 琛屾暟缁勶紱閫愯璧?`normalizeRecordData`锛岄敊璇甯﹁鍙蜂笌鍘熷洜杩斿洖锛屾垚鍔熻鍘熷瓙钀藉簱鎴栧叏浜嬪姟鍥炴粴鈥斺€斿彛寰勯泦涓?shared锛?  3. web锛氥€岃〃鏍笺€峵ab 鍔犺鍥惧垏鎹㈡爮 + 瑙嗗浘缂栬緫闈㈡澘锛堝嬀閫夌瓫閫?鎺掑簭/闅愯棌鍒楋級+ CSV 瀵煎叆瀵硅瘽妗嗭紙棰勮鍓?5 琛?+ 閿欒琛屾竻鍗?+ 纭瀵煎叆锛?  4. 鏂█锛歟2e 鈮?35锛堣鍥?spec 鏍￠獙/鎸佷箙鍖?鎸夎鍥炬煡璇㈠彛寰?瀵煎叆閫愯閿欒鑱氬悎锛夈€乤udit 鈮?25锛坴iews 4xx銆佸鍏?4xx锛氶潪娉?CSV/绫诲瀷涓嶇/閮ㄥ垎澶辫触涓嶅崐鎬侊級
-  5. 鎴浘 鈮?锛氳鍥惧垏鎹㈡爮澶氳鍥?瑙嗗浘缂栬緫闈㈡澘/闅愯棌鍒楀悗缃戞牸/瀵煎叆棰勮/瀵煎叆閿欒琛屾彁绀?瀵煎叆鎴愬姛鍚?- 楠屾敹鏍囧噯锛?  1. 鍏ㄩ噺缁匡細e2e 鈮?84銆乤udit 鈮?28锛孯EADME 鍙岃妭鍚屾
-  2. 瑙嗗浘鎸佷箙鍖栭噸鍚笉涓紱鎸夎鍥炬煡璇㈢粨鏋滀笌鎵嬬畻涓€鑷达紙waizhuan 浼氱湡鎵嬬畻锛?  3. 瀵煎叆閮ㄥ垎澶辫触鏃堕浂鍗婃€侊紙瑕佷箞鍏ㄦ垚鍔熻涔堝叏涓嶈惤搴擄紝鏈夋柇瑷€閿佸畾锛?  4. 鍙?VERDICT锛坵aizhuan + ui 闃绘柇宀楋級閫氳繃
-- 鍓嶇疆锛歳6 宸插彂鐗堬紙寰呭弻 VERDICT锛?- 鐗瑰埆椤癸細r6 閬楃暀 鈶?澶氬瓧娈?AND 绛涢€夋湭鍋氾紙鏈疆瑙嗗浘 spec 涓€骞舵敮鎸侊級鈶?r6 UI 璁拌处 U2-1 缂栬緫鎬佸垪瀹借烦鍙樸€乁2-2 绛涢€夋彁浜ゆ棤鍙嶉 鈥斺€?鏈疆椤烘墜淇?
-### r8 路 M4 绗?1 鐗囷細鏂囨。鍧楃紪杈戝櫒锛堝崟浜虹増锛?- 鐩爣锛氬潡绾ф枃妗ｇ紪杈戝櫒钀藉湴鈥斺€旀枃妗?鍧楄惤搴?+ 鍧楁搷浣滐紙鎷?鍚?绉诲姩/绫诲瀷鍒囨崲锛? 鎵撳嵃 PDF 閾捐矾鈥斺€擬4 璧锋杞紙澶氫汉瀹炴椂鍗忓悓 CRDT 鎺ㄨ繜鍒?M9锛?- 浜や粯娓呭崟锛?  1. schema v6鈫抳7锛歞ocuments 琛紙id/title/created_at/updated_at锛夈€乥locks 琛紙id/document_id/type/position/content JSON/parent_id 鍙┖锛?  2. 鍧楃被鍨嬪紩鎿庨泦涓?shared锛歱aragraph / heading1-3 / bullet / numbered / todo / quote / code / divider锛沗normalizeBlockContent(type, content)` 涓?`canConvertBlockType(from, to)` 鏍￠獙
-  3. api锛歞ocuments CRUD銆乥locks CRUD锛堟壒绉诲姩閲嶆帓澶嶇敤 shared 鎺掑簭鎬濊矾锛夈€佹枃妗ｅ叏鏂囪锛堟寜 position 鎷艰锛?  4. web锛氥€屾枃妗ｃ€峵ab鈥斺€旀枃妗ｅ垪琛?+ 缂栬緫鍣紙鍧楃骇娓叉煋 + 鍥炶溅鎷嗗潡 / 閫€鏍煎悎鍧?/ 涓婄Щ涓嬬Щ / 绫诲瀷鍒囨崲涓嬫媺锛? 鎵撳嵃棰勮鎸夐挳锛圚TML/CSS 璧?printToPDF 鍚屾鎬濊矾锛歚window.print()` + 鎵撳嵃鏍峰紡琛級
-  5. 鏂█锛歟2e 鈮?35锛堝潡褰掍竴/绫诲瀷杞崲/鎷嗗悎绉诲姩/鏂囨。瑁呴厤锛夈€乤udit 鈮?25锛堝惈 4xx锛氶潪娉曞潡绫诲瀷/瓒婃潈 document_id/闈炴硶 position锛?  6. 鎴浘 鈮?锛氭枃妗ｇ┖鎬?鏂囨。鍒楄〃/缂栬緫鍣ㄥ绫诲瀷鍧?鍧楃被鍨嬪垏鎹?鎵撳嵃棰勮/绐勫睆
-- 楠屾敹鏍囧噯锛?  1. 鍏ㄩ噺缁匡細e2e 鈮?22銆乤udit 鈮?47锛孯EADME 鍙岃妭鍚屾
-  2. 鍧楅『搴忓湪鎷?鍚?绉诲姩鍚庢寔涔呭寲涓旈噸寮€涓嶄涪锛堟湁鏂█锛?  3. 鎵撳嵃棰勮鏈夌嫭绔嬫埅鍥捐瘉鎹紱鍧楃被鍨嬪紩鎿庡叏闆嗕腑 shared锛宎pi 灞傞浂绫诲瀷鍒嗘敮
-  4. 鍙?VERDICT锛坵aizhuan + ui 闃绘柇宀楋級閫氳繃
-- 鍓嶇疆锛歳7 宸插彂鐗堬紙v0.0.11锛夆渽
-- 鐗瑰埆椤癸細r7 UI 璁拌处 U2锛堥敊璇鍙峰彛寰?纭鎸夐挳鍚庢灉鎻愮ず/褰撳墠瑙嗗浘鎸囩ず閿欎綅锛夋嫨浣庢垚鏈」椤烘墜淇紝鍏朵綑鐣?M4 瑙嗗浘杞?
-### r9 路 M4 绗?2 鐗囷細鏂囨。瀵煎叆瀵煎嚭涓?AI 鍧楃骇淇锛圡4 鏀跺畼锛?- 鐩爣锛歁arkdown 瀵煎叆瀵煎嚭 + AI 鍧楃骇淇锛?*mock 妯″瀷锛岄浂 token 鎴愭湰**锛夆€斺€擬4 鏀跺畼杞紝涓?M5 AI 宸ヤ綔鍙伴摵宸ュ叿璋冪敤妗嗘灦
-- 浜や粯娓呭崟锛?  1. 杞崲寮曟搸闆嗕腑 shared锛歚markdownToBlocks(md)` / `blocksToMarkdown(blocks)`锛?0 绉嶅潡绫诲瀷鍙屽悜锛屾湭鐭ヨ娉曢檷绾т负 paragraph 涓嶄涪鍐呭锛?  2. api锛歚POST /api/documents/:id/import.md`锛圡arkdown 鏂囨湰鈫掑潡鎵归噺钀藉簱锛屽崟浜嬪姟闆跺崐鎬佲€斺€斿鐢?r7 鎬濊矾锛夈€乣GET /api/documents/:id/export.md`銆?*`POST /api/documents/:id/blocks/:blockId/revise`**锛圓I 淇锛氬叆鍙?instruction + 鍧楀唴瀹癸紝璧?mock provider 杩斿洖淇寤鸿锛涢噰绾虫墠鏇挎崲鍧楀唴瀹光€斺€?*鎺ュ彛 provider 鏃犲叧锛屼负 M5 鎺ョ湡瀹炴ā鍨嬬暀浣?*锛?  3. web锛氭枃妗ｇ紪杈戝櫒鍔犮€屽鍏?Markdown銆嶆寜閽紙棰勮+纭锛夈€併€屽鍑?.md銆嶆寜閽€佸潡绾с€孉I 淇銆嶉潰鏉匡紙寤鸿 diff 瀵圭収 + 閲囩撼/鏀惧純锛?  4. mock 妯″瀷锛歱ackages/agent/mock-provider.ts锛堝浐瀹氳剼鏈寲鍥炲锛岄浂 token锛夛紱**璇勬祴闆?* packages/agent/evals/ 褰曞埗鍥炴斁鏍峰紡鍏堢珛楠ㄦ灦锛堝娉曞洓鏉★細M5 璧烽攣宸ュ叿璋冪敤琛屼负锛?  5. 鏂█锛歟2e 鈮?40锛圡arkdown 鍙屽悜寰€杩?鏈煡璇硶闄嶇骇/瀵煎叆闆跺崐鎬?淇閲囩撼涓庢斁寮冭涔夛級銆乤udit 鈮?30锛堝惈 4xx锛氶潪娉?Markdown/鍧椾笉瀛樺湪/绌?instruction锛?  6. 鎴浘 鈮?锛氬鍏ラ瑙?瀵煎叆鎴愬姛鍚?瀵煎嚭钀界洏浣愯瘉/AI 淇寤鸿 diff/閲囩撼鍚?鏀惧純鍚?绐勫睆
-- 楠屾敹鏍囧噯锛?  1. 鍏ㄩ噺缁匡細e2e 鈮?56銆乤udit 鈮?69锛孯EADME 鍙岃妭鍚屾
-  2. Markdown 寰€杩旓細blocks 鈫?md 鈫?blocks 鍐呭涓嶄涪锛堟湁鏂█锛?  3. AI 淇銆屾湭閲囩撼涓嶆敼搴撱€嶆湁鏂█閿佸畾锛沵ock provider 鍙垏鎹负鐪熷疄妯″瀷鐨勬帴鍙ｇ暀浣?  4. 鍙?VERDICT锛坵aizhuan + ui 闃绘柇宀楋級閫氳繃
-- 鍓嶇疆锛歳8 宸插彂鐗堬紙寰呭弻 VERDICT 缁堝锛?- 鐗瑰埆椤癸細r8 UI 璁拌处 U2锛?6 绐勫睆闀挎枃鏈?1px 瑁佸垏娓ｃ€佺紪杈戞€佸垪琛ㄥ潡缂?marker銆佺焊闈㈡湁搴忓垪琛ㄩ兘鏄剧ず銆?.銆嶏級鏈疆蹇呬慨鍓嶄袱鏉?
-### r10 路 M5 绗?1 鐗囷細AI 宸ヤ綔鍙板璇濅笌宸ュ叿璋冪敤妗嗘灦锛圡5 璧锋锛?- 鐩爣锛欰I 宸ヤ綔鍙帮紙瀵硅瘽 + 宸ュ叿璋冪敤锛夎惤鍦扳€斺€斿璇濇寔涔呭寲 + 宸ュ叿娉ㄥ唽琛?+ mock 妯″瀷瑙勫垝鎵ц + 浜х墿棰勮妗嗘灦鈥斺€擬5 璧锋杞紙鐪熷疄妯″瀷鐣欐帴鍙ｏ紝寮€鍙戝叏鐢?mock 闆?token锛?- 浜や粯娓呭崟锛?  1. schema v7鈫抳8锛歝onversations 琛紙id/title/created_at锛夈€乵essages 琛紙id/conversation_id/role/content_json/tool_calls_json/created_at锛夈€乤rtifacts 琛紙id/conversation_id/type/title/content/created_at锛?  2. 宸ュ叿娉ㄥ唽琛ㄩ泦涓?packages/agent/锛歍oolRegistry锛坣ame/description/parameters schema/handler锛夛紝棣栨壒宸ュ叿 鈮?锛歭ist_todos / create_todo / list_documents / create_document / list_projects / list_cards / list_tables / search_knowledge锛圡6 鍓嶈繑鍥炵┖缁撴灉鍗犱綅锛?  3. agent 瑙勫垝鍣細mock-planner.ts锛堣剼鏈寲锛氳瘑鍒剰鍥锯啋杈撳嚭宸ュ叿璋冪敤搴忓垪鈫掓墽琛屸啋姹囨€伙級锛?*璁板綍鍥炴斁璇勬祴闆?* packages/agent/evals/ 鎵╁厖 鈮?5 鐢ㄤ緥锛堝娉曞洓鏉★細宸ュ叿璋冪敤琛屼负褰曞埗鍥炴斁閿佸畾锛?  4. api锛歝onversations CRUD銆丳OST /api/conversations/:id/chat锛坢ock 瑙勫垝鎵ц锛岄€愭潯 tool_call 钀藉簱锛夈€乤rtifacts 璇诲彇
-  5. web锛氥€孉I 宸ヤ綔鍙般€峵ab鈥斺€斾細璇濆垪琛?+ 涓棿瀵硅瘽娴侊紙鐢ㄦ埛/AI/tool-call 姘旀场锛? 鍙充晶浜х墿棰勮闈㈡澘
-  6. 鏂█锛歟2e 鈮?40锛堝伐鍏锋敞鍐?瑙勫垝鎵ц/娑堟伅钀藉簱/浜х墿锛夈€乤udit 鈮?30锛堝惈 4xx锛氭湭鐭ュ伐鍏?闈炴硶鍙傛暟/绌烘秷鎭級
-  7. 鎴浘 鈮?锛氬伐浣滃彴绌烘€?浼氳瘽鍒楄〃/瀵硅瘽娴?宸ュ叿璋冪敤姘旀场/浜х墿棰勮/绐勫睆/閿欒鎬?- 楠屾敹鏍囧噯锛?  1. 鍏ㄩ噺缁匡細e2e 鈮?49銆乤udit 鈮?36锛孯EADME 鍙岃妭鍚屾
-  2. 涓€娆″璇濊兘鐪熷疄瑙﹀彂 鈮? 涓伐鍏疯皟鐢ㄤ笖缁撴灉钀藉簱锛?waizhuan 浼氭煡搴撻獙璇侊級锛屽伐鍏疯皟鐢ㄨ涓虹敱鍥炴斁璇勬祴闆嗛攣瀹?  3. 宸ュ叿娉ㄥ唽琛?handler 鍏ㄤ负鐪熷疄鏈嶅姟灞傝皟鐢紙闈?mock 鏁版嵁锛夛紝鐘舵€佸彉鏇寸被宸ュ叿锛坈reate_todo 绛夛級鏈夈€屽疄闄呭垱寤恒€嶆柇瑷€
-  4. 鍙?VERDICT锛坵aizhuan + ui 闃绘柇宀楋級閫氳繃
-- 鍓嶇疆锛歳9 宸插彂鐗堬紙v0.0.13锛夆渽
-- 鐗瑰埆椤癸細r9 UI 璁拌处 U2锛坉iff 鏃犺鍐呴珮浜級璁板叆 r11
+### r5 · M2 第 2 片：看板统计与 Excel 导出（M2 收官）
+- 目标：看板统计（列分布/完成率）+ 台账导出（CSV UTF-8 BOM）——M2 收官轮
+- 交付清单：
+  1. api 统计端点：GET /api/projects/:id/stats（各列卡片数/完成率/待办关联数——口径集中 shared 纯函数 computeBoardStats）
+  2. 导出端点：GET /api/projects/:id/export.csv（UTF-8 BOM，Excel 直开：列/卡片/关联待办全量台账）
+  3. web：看板页统计卡（各列计数 + 完成率条）+ 导出按钮（下载 CSV）
+  4. 断言：e2e ≥+15（统计口径/空项目/含待办关联）、audit ≥+15（统计 4xx、导出 BOM 头/列数/转义）
+  5. 截图 ≥5：统计卡有数据/空项目统计/导出按钮态/CSV 落盘内容佐证/窄屏
+- 验收标准：
+  1. 全量绿：e2e ≥232、audit ≥248，README 同步
+  2. CSV 用 Excel 实开验证 BOM 与列对齐（waizhuan 会真开）
+  3. 统计口径与卡片移动联动（移动后统计即时变化有断言）
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r4 已发版（v0.0.8）✅
 
-### r11 路 M5 绗?2 鐗囷細澶氳疆涓婁笅鏂囦笌浜х墿鐢熸垚锛圡5 鏀跺畼锛?- 鐩爣锛氬杞璇濅笂涓嬫枃 + 浜х墿鐢熸垚钀藉湴鈥斺€斿巻鍙叉秷鎭敞鍏ヨ鍒?+ 鏂囦欢鍒嗘瀽/HTML/琛ㄦ牸浜х墿 + 宸ュ叿閾炬墿灞曗€斺€擬5 鏀跺畼杞?- 浜や粯娓呭崟锛?  1. 澶氳疆涓婁笅鏂囷細mock-planner 璇诲彇浼氳瘽鏈€杩?N 鏉℃秷鎭綔涓轰笂涓嬫枃锛圢 鍙厤锛岄粯璁?8锛夛紝璺ㄨ疆鎸囦唬娑堣В锛?鍐嶅缓涓€涓?/"鎶婂畠鏀规垚..."锛夆€斺€斿洖鏀捐瘎娴嬮泦鎵╁厖 鈮?0 鐢ㄤ緥
-  2. 浜х墿鐢熸垚鍣ㄩ泦涓?packages/agent/锛歛rtifact-generators.ts锛圚TML 鎶ュ憡 / Markdown 琛ㄦ牸 / JSON 鏁版嵁涓夌被锛夛紝浜х墿钀?artifacts 琛ㄥ苟鍦?UI 鍙充晶棰勮
-  3. 宸ュ叿閾炬墿鍒?鈮?2锛氬湪 r10 鐨?8 宸ュ叿鍩虹涓婂姞 summarize_document / export_document_md / list_schedules / create_schedule锛堝叏鎺ョ湡瀹炴湇鍔″眰锛?  4. api锛歝hat 璇锋眰甯?context_window 鍙傛暟锛涗骇鐗?GET /api/artifacts/:id/content锛堟寜 type 杩斿洖鍙瑙堝唴瀹癸級
-  5. web锛氬璇濇祦鏀寔澶氳疆杩炵画锛堝彂閫佸悗淇濈暀涓婁笅鏂囨彁绀猴級銆佷骇鐗╅瑙堟敮鎸?HTML/Markdown/JSON 涓夌被鍨嬪垏鎹?  6. 鏂█锛歟2e 鈮?35锛堝杞笂涓嬫枃/浜х墿鐢熸垚/宸ュ叿鎵╁睍锛夈€乤udit 鈮?25锛堝惈 4xx锛氫笂涓嬫枃瓒呴檺/浜х墿涓嶅瓨鍦?闈炴硶绫诲瀷锛?  7. 鎴浘 鈮?锛氬杞璇?浜х墿 HTML 棰勮/浜х墿琛ㄦ牸棰勮/宸ュ叿閾剧 2 椤?绐勫睆/閿欒鎬?涓婁笅鏂囨彁绀?- 楠屾敹鏍囧噯锛?  1. 鍏ㄩ噺缁匡細e2e 鈮?59銆乤udit 鈮?11锛孯EADME 鍙岃妭鍚屾
-  2. 澶氳疆涓婁笅鏂囨湁鍥炴斁鏂█閿佸畾锛堢 2 杞兘寮曠敤绗?1 杞骇鐗?瀹炰綋锛?  3. 涓夌被浜х墿鐪熷疄鐢熸垚涓斿彲棰勮锛坵aizhuan 浼氱湡鎵撳紑 HTML 鐪嬪唴瀹癸紝闈炲崰浣嶏級
-  4. 鍙?VERDICT锛坵aizhuan + ui 闃绘柇宀楋級閫氳繃
-- 鍓嶇疆锛歳10 宸插彂鐗堬紙v0.0.14锛夆渽
-- 鐗瑰埆椤癸細r9 UI 璁拌处 U2锛坉iff 鏃犺鍐呭鍒犳敼楂樹寒锛夋湰杞繀淇紱r10 U2锛堜細璇濇祦/浜х墿闈㈡澘閿欎竴杞€佺獎瀹瑰櫒澹?8 鑽父鎶樿锛夋湰杞繀淇?
-### r12 路 M6 绗?1 鐗囷細鐭ヨ瘑搴撳叆搴撲笌妫€绱紙M6 璧锋锛?- 鐩爣锛氱煡璇嗗簱鏂囨。鍏ュ簱 + 妫€绱紙鏈湴鍏抽敭璇?TF-IDF 妫€绱紝鍚戦噺鍖栫暀 v2 鎺ュ彛锛夆€斺€擬6 璧锋杞紝涓?M6 鏀跺畼 RAG 閾鸿矾
-- 浜や粯娓呭崟锛?  1. schema v8鈫抳9锛歬nowledge_docs 琛紙id/title/source_type/source_id/content/chunk_count/created_at锛夈€乲nowledge_chunks 琛紙id/doc_id/position/content/token_count锛?  2. 鍒嗗潡涓庢绱㈠紩鎿庨泦涓?packages/agent/锛歝hunkText(text)锛堟寜娈佃惤/瀛楁暟鍒囧垎锛岄噸鍙犵獥鍙ｏ級銆乻earchChunks(query, chunks)锛圱F-IDF 浣欏鸡鐩镐技搴︼紝绾?TS 闆朵緷璧栵級鈥斺€?*妫€绱㈠疄鐜板叏闆嗕腑锛宎pi 灞傞浂绠楁硶鍒嗘敮**锛沞mbedding 鎺ュ彛鐣欎綅锛坴ector 鍒楀彲绌猴級
-  3. api锛氱煡璇嗗簱 CRUD銆丳OST /api/knowledge/ingest锛堜粠 documents 鎴栫函鏂囨湰鍏ュ簱锛岃嚜鍔ㄥ垎鍧楋級銆丟ET /api/knowledge/search?q=&limit=锛堣繑鍥炲甫鏉ユ簮寮曠敤鐨勫懡涓級
-  4. 宸ュ叿閾炬墿锛歴earch_knowledge 浠?r10 绌哄崰浣嶆敼涓?*鐪熸绱?*锛堣繑鍥炲甫 doc_id/chunk_id 鏉ユ簮鐨勫紩鐢級
-  5. web锛氥€岀煡璇嗗簱銆峵ab鈥斺€旀枃妗ｅ垪琛?+ 鍏ュ簱鎸夐挳锛堥€夋簮锛? 鎼滅储妗嗭紙缁撴灉甯︽潵婧愰珮浜級
-  6. 鏂█锛歟2e 鈮?35锛堝垎鍧楄竟鐣?閲嶅彔/TF-IDF 鎺掑簭/绌烘煡璇級銆乤udit 鈮?25锛堝惈 4xx锛氱┖鍐呭/瓒呴暱鍐呭/闈炴硶 source_type锛?  7. 鎴浘 鈮?锛氱煡璇嗗簱绌烘€?鍏ュ簱瀵硅瘽妗?鍏ュ簱鎴愬姛鍚?鎼滅储缁撴灉/鏉ユ簮寮曠敤楂樹寒/绐勫睆/閿欒鎬?- 楠屾敹鏍囧噯锛?  1. 鍏ㄩ噺缁匡細e2e 鈮?055銆乤udit 鈮?92锛孯EADME 鍙岃妭鍚屾
-  2. 妫€绱㈢粨鏋滅浉鍏虫€т笌鎵嬬畻涓€鑷达紙waizhuan 浼氶€?3 绡囨枃妗ｉ獙璇?TF-IDF 鎺掑簭锛夛紝鏉ユ簮寮曠敤鍙函婧愬埌鍏蜂綋 chunk
-  3. 鍒嗗潡鏈夐噸鍙犵獥鍙ｄ笖杈圭晫涓嶄涪瀛楋紙鏈夋柇瑷€锛夛紱search_knowledge 宸ュ叿鐪熸绱㈤潪绌?  4. 鍙?VERDICT锛坵aizhuan + ui 闃绘柇宀楋級閫氳繃
-- 鍓嶇疆锛歳11 宸插彂鐗堬紙寰?CI锛夆渽
-- 鐗瑰埆椤癸細r10 UI 璁拌处銆岀獎瀹瑰櫒澹虫姌琛屻€嶅湪 r11 宸蹭慨锛屾湰杞繚鎸?
-### r13 路 M6 绗?2 鐗囷細RAG 瀵硅瘽涓庡紩鐢ㄦ函婧愶紙M6 鏀跺畼锛?- 鐩爣锛氭绱㈠寮哄璇濃€斺€擜I 鍥炵瓟鏃跺厛妫€绱㈢煡璇嗗簱鍐嶆妸寮曠敤娉ㄥ叆涓婁笅鏂囷紝鍥炵瓟闄勬潵婧愭函婧愨€斺€擬6 鏀跺畼杞?- 浜や粯娓呭崟锛?  1. RAG 缂栨帓闆嗕腑 packages/agent/rag.ts锛歳etrieve(query, limit) 鈫?buildAugmentedPrompt(question, chunks) 鈫?浜х墿甯?citations: [{docId, chunkId, snippet, score}]
-  2. mock-planner 鎵╋細璇嗗埆銆屾牴鎹煡璇嗗簱/鏌ヨ祫鏂?鏂囨。閲屻€嶇被鎰忓浘 鈫?鍏堣皟 search_knowledge 鈫?鍐嶇敓鎴愬洖绛?鈫?闄勫紩鐢ㄥ垪琛紙鍥炴斁璇勬祴闆?鈮?0 鐢ㄤ緥锛?  3. api锛歝hat 鍝嶅簲甯?citations 瀛楁锛汫ET /api/knowledge/docs/:id 婧簮鍥炵湅
-  4. web锛氬璇濇祦涓?AI 姘旀场涓嬫柟鏄剧ず鏉ユ簮寮曠敤鍗★紙鍙偣璺宠浆鍒扮煡璇嗗簱瀵瑰簲鏂囨。锛夛紝浜х墿棰勮鍚紩鐢ㄦ竻鍗?  5. 鏂█锛歟2e 鈮?35锛圧AG 缂栨帓/寮曠敤娉ㄥ叆/寮曠敤婧簮锛夈€乤udit 鈮?25锛堝惈 4xx锛氭棤鍛戒腑妫€绱?寮曠敤 id 涓嶅瓨鍦級
-  6. 鎴浘 鈮?锛歊AG 瀵硅瘽娴?鏉ユ簮寮曠敤鍗?寮曠敤璺宠浆/浜х墿寮曠敤娓呭崟/鏃犲懡涓€?绐勫睆/閿欒鎬?- 楠屾敹鏍囧噯锛?  1. 鍏ㄩ噺缁匡細e2e 鈮?122銆乤udit 鈮?48锛孯EADME 鍙岃妭鍚屾
-  2. 鍥炵瓟甯︾湡瀹炲紩鐢紙docId/chunkId 鍙函婧愶級锛寃aizhuan 浼氱偣寮曠敤鍗￠獙璇佽烦杞?  3. 鏃犲懡涓椂濡傚疄璇淬€岀煡璇嗗簱娌℃湁鐩稿叧鍐呭銆嶄笉缂栭€狅紙鏈夋柇瑷€锛?  4. 鍙?VERDICT锛坵aizhuan + ui 闃绘柇宀楋級閫氳繃
-- 鍓嶇疆锛歳12 宸插彂鐗?鉁?
-### r14 路 M7 绗?1 鐗囷細鎬濈淮瀵煎浘锛圡arkdown 鍙岃鍥撅級鈥斺€?宸插彂鐗?v0.0.18
-- 浜や粯锛歴chema v10 mindmaps 琛紱shared 闆嗕腑 parseMarkdownToTree / treeToMarkdown / 鎶樺彔鎬佺函鍑芥暟锛坢d鈫抰ree鈫抦d 閫愬瓧鑺傚線杩斻€佹湭鐭ヨ娉曢檷绾т笉涓級锛沘pi 涓冭矾鐢憋紱web 绗崄 tab銆屽鍥俱€嶅弻鏍忓疄鏃跺悓姝?+ 鎶樺彔
-- 鏂█锛歟2e 1161鈫?221 / audit 966鈫?020锛宼ypecheck 5 鍖咃紱鍙樺紓绾㈢浉 1 缁勭嫭绔嬪鐜帮紱鍙?VERDICT 閫氳繃
+### r6 · M3 第 1 片：多维表格字段引擎与网格视图（M3 起步）
+- 目标：多维表格（bases/tables）落库 + 字段类型引擎 + 网格视图——M3 起步轮，字段引擎是 M3 技术重心
+- 交付清单：
+  1. schema v4→v5：tables（id/name/description）、fields（id/table_id/name/type/position/options JSON）、records（id/table_id/data JSON/position）
+  2. 字段类型引擎（全部集中 shared，禁散落 if-else）：type = text / number / date / select / multi-select / checkbox / url
+     - validateFieldValue(type, value) —— 类型校验（number 数值型、date ISO 日期、select 必须在 options 内、multi-select 子集、checkbox 布尔）
+     - coerceFieldValue —— 写入前归一（number 字符串→数字、日期补齐）
+     - compareValues(type, a, b) —— 排序比较器（null 恒最后、数值按值、日期按时间、select 按 options 顺序）
+  3. api：tables/fields/records CRUD + 查询（按字段筛选 + 按字段排序 + 分页）
+  4. web：多维表格页——网格视图（表头=字段列、行=记录、单元格按类型渲染与编辑、字段管理面板增删改字段）
+  5. 断言：e2e ≥+40（每种字段类型 ≥6：校验/归一/比较器）、audit ≥+25（含 4xx：非法类型/未知字段/筛选值类型不符）
+  6. 截图 ≥6：空表态/多类型网格/字段管理面板/筛选排序后/窄屏/错误态
+- 验收标准：
+  1. 全量绿：e2e ≥328、audit ≥338，README 同步
+  2. 字段类型引擎三个函数全在 shared 且各有断言；api 层不出现类型分支
+  3. 网格的筛选/排序结果与手算一致（waizhuan 会真手算）
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r5 已发版 ✅
+- 特别项：r5 遗留 U2-1（列级「完成率」与列名「已完成」语义冲突）本轮一并修
 
-### r15 路 M7 绗?2 鐗囷細鐧芥澘鐢诲竷涓?AI 寤烘澘锛圡7 鏀跺畼锛?- 鐩爣锛氭棤闄愮敾甯冪櫧鏉匡紙鍗＄墖/渚跨/杩炵嚎锛? Markdown 瀵煎嚭 + AI 寤烘澘锛坢ock锛夆€斺€擬7 鏀跺畼杞?- 浜や粯娓呭崟锛?  1. schema v10鈫抳11锛歸hiteboards 琛紙id/title/created_at锛夈€亀hiteboard_items 琛紙id/board_id/type:note|text|shape|x/y/w/h/content/color锛?  2. 甯冨眬瑙勫垯闆嗕腑 packages/shared锛歯ormalizeWhiteboardItem(type, props)銆乧ollisionResolve(items)锛堥噸鍙犳椂鑷姩閬胯鎴栨姤閿欙紝瑙勫垯鍞竴锛?  3. api锛歸hiteboards CRUD銆乮tems CRUD + 鎵归噺绉诲姩锛坸/y 鍙樻洿瀹¤锛夈€丳OST /api/whiteboards/:id/ai-create锛坢ock 寤烘澘锛氭牴鎹富棰樼敓鎴?5-8 涓究绛惧竷灞€锛岄浂 token锛?  4. web锛氭柊澧炪€岀櫧鏉裤€峵ab鈥斺€旀棤闄愮敾甯冿紙鎷栨嫿骞崇Щ/缂╂斁锛夈€佷究绛惧垱寤?缂栬緫/鍒犻櫎銆丄I 寤烘澘鎸夐挳銆佸鍑?Markdown
-  5. 鏂█锛歟2e 鈮?35锛堝竷灞€瑙勫垯/鎵归噺绉诲姩/AI 寤烘澘/瀵煎嚭锛夈€乤udit 鈮?25锛堝惈 4xx锛氳秺鏉?board_id/闈炴硶 item 绫诲瀷/瓒婄晫鍧愭爣锛?  6. 鎴浘 鈮?锛氱櫧鏉跨┖鎬?鐢诲竷鏈変究绛?鎷栨嫿鍚?AI 寤烘澘缁撴灉/瀵煎嚭浣愯瘉/绐勫睆/閿欒鎬?- 楠屾敹鏍囧噯锛?  1. 鍏ㄩ噺缁匡細e2e 鈮?256銆乤udit 鈮?045锛孯EADME 鍙岃妭鍚屾
-  2. 鐢诲竷骞崇Щ/缂╂斁鍚庡潗鏍囨崲绠楁纭紙waizhuan 浼氱湡鎷栭獙璇侊級锛汚I 寤烘澘鐪熺敓鎴?鈮? 渚跨涓斿竷灞€涓嶉噸鍙?  3. **鏂板銆岀櫧鏉裤€峵ab 琛ヨ tab 婵€娲绘€佸浘**锛堝崄涓€ tab 澹冲熀绾匡級
-  4. 鍙?VERDICT锛坵aizhuan + ui 闃绘柇宀楋級閫氳繃
-- 鍓嶇疆锛歳14 宸插彂鐗堬紙v0.0.18锛夆渽
-- **宸插彂鐗?v0.0.19**锛堝垵楠?P1 鎵撳洖鈫掕繑宸ュ叏鐢诲竷闆堕噸鍙犫啋澶嶅鍙岄€氳繃锛?
-### r16 路 M8 绗?1 鐗囷細瀹℃壒娴佸紩鎿庯紙M8 璧锋锛?- 鐩爣锛歄A 瀹℃壒娴侊紙鍙戣捣/瀹℃壒/鎶勯€?杞氦/鎾ゅ洖锛夎惤搴?+ 鏈€灏?UI鈥斺€擬8 璧锋杞?- 浜や粯娓呭崟锛?  1. schema v11鈫抳12锛歛pprovals 琛紙id/title/type/applicant_id/status/current_assignee/created_at/updated_at锛夈€乤pproval_steps 琛紙id/approval_id/order/assignee/action/comment/acted_at锛夈€乤pproval_cc 琛紙鎶勯€佷汉锛?  2. 瀹℃壒鐘舵€佹満闆嗕腑 packages/shared锛欰PPROVAL_TRANSITIONS锛坉raft鈫抪ending鈫抋pproved/rejected/withdrawn锛涜浆浜や笉鏀圭姸鎬佸彧鎹?assignee锛夈€乧anTransitionApproval(from, to)銆乤ssertValidApprovalAction
-  3. api锛歛pprovals CRUD銆丳OST /:id/submit銆丳OST /:id/approve|reject|delegate|withdraw銆丟ET 鎴戠殑寰呭姙/鎴戝彂璧风殑/鎶勯€佹垜鐨?  4. web锛氭柊澧炪€屽鎵广€峵ab鈥斺€斿彂璧峰鎵硅〃鍗?+ 寰呭姙瀹℃壒鍒楄〃 + 瀹℃壒璇︽儏锛堟楠ゆ椂闂寸嚎 + 鎿嶄綔鎸夐挳锛? 鎶勯€佹彁绀?  5. 鏂█锛歟2e 鈮?40锛堢姸鎬佹満/姝ラ娴佽浆/涓夌瑙嗚鏌ヨ锛夈€乤udit 鈮?30锛堝惈 4xx锛氶潪娉曟祦杞?闈炲綋鍓?assignee 鎿嶄綔/宸茬粨鍗曞啀瀹℃壒锛?  6. 鎴浘 鈮?锛氬鎵圭┖鎬?鍙戣捣琛ㄥ崟/寰呭姙鍒楄〃/璇︽儏鏃堕棿绾?瀹℃壒閫氳繃鎬?绐勫睆/閿欒鎬?- 楠屾敹鏍囧噯锛?  1. 鍏ㄩ噺缁匡細e2e 鈮?371銆乤udit 鈮?141锛孯EADME 鍙岃妭鍚屾
-  2. 鐘舵€佹満鍏ㄩ泦涓?shared锛宎pi 闆舵祦杞垎鏀紱闈?assignee 鎿嶄綔琚嫆鏈夋柇瑷€
-  3. **鏂板銆屽鎵广€峵ab 琛ヨ tab 婵€娲绘€佸浘**锛堝崄浜?tab 澹冲熀绾匡級
-  4. 鍙?VERDICT锛坵aizhuan + ui 闃绘柇宀楋級閫氳繃
-- 鍓嶇疆锛歳15 宸插彂鐗堬紙v0.0.19锛夆渽
+### r7 · M3 第 2 片：视图持久化与 CSV 导入（M3 收官）
+- 目标：多维表格视图（筛选/排序/字段可见性可保存、可切换）+ CSV 批量导入——M3 收官轮
+- 交付清单：
+  1. schema v5→v6：views 表（id/table_id/name/filter_spec JSON/sort_spec JSON/visible_fields JSON/position）
+  2. api：views CRUD + 按视图查询记录（复用 shared `queryRecords`，视图 spec 只是筛选/排序/投影参数）+ CSV 导入端点（multipart 或 JSON 行数组；逐行走 `normalizeRecordData`，错误行带行号与原因返回，成功行原子落库或全事务回滚——口径集中 shared）
+  3. web：「表格」tab 加视图切换栏 + 视图编辑面板（勾选筛选/排序/隐藏列）+ CSV 导入对话框（预览前 5 行 + 错误行清单 + 确认导入）
+  4. 断言：e2e ≥+35（视图 spec 校验/持久化/按视图查询口径/导入逐行错误聚合）、audit ≥+25（views 4xx、导入 4xx：非法 CSV/类型不符/部分失败不半态）
+  5. 截图 ≥6：视图切换栏多视图/视图编辑面板/隐藏列后网格/导入预览/导入错误行提示/导入成功后
+- 验收标准：
+  1. 全量绿：e2e ≥484、audit ≥428，README 双节同步
+  2. 视图持久化重启不丢；按视图查询结果与手算一致（waizhuan 会真手算）
+  3. 导入部分失败时零半态（要么全成功要么全不落库，有断言锁定）
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r6 已发版（待双 VERDICT）
+- 特别项：r6 遗留 ① 多字段 AND 筛选未做（本轮视图 spec 一并支持）② r6 UI 记账 U2-1 编辑态列宽跳变、U2-2 筛选提交无反馈 —— 本轮顺手修
 
-### r17 路 M8 绗?2 鐗囷細鐗╄祫鍙拌处涓庡崟浣嶄换鍔℃祦杞紙M8 鏀跺畼锛夆€斺€?宸插彂鐗?v0.0.22
-- 浜や粯锛歴chema v13 涓夎〃锛泂hared 涓変欢濂楋紙applyAssetTransaction 璐熷簱鎷掔粷/canTransitionUnitTask 浜旀€?buildTaskTree 灞傜骇+鐜矾锛夛紱api 15 璺敱鍗曚簨鍔￠浂鍗婃€侊紱web 鐗╄祫/鍗曚綅浠诲姟涓?tab锛堝崄鍥?tab 澹筹級锛況16 U2 涓夐」椤烘墜淇?- 鏂█锛歟2e 1464鈫?552 / audit 1214鈫?302锛涘彉寮傜孩鐩?2 缁勶紱鍙?VERDICT 閫氳繃
+### r8 · M4 第 1 片：文档块编辑器（单人版）
+- 目标：块级文档编辑器落地——文档/块落库 + 块操作（拆/合/移动/类型切换）+ 打印 PDF 链路——M4 起步轮（多人实时协同 CRDT 推迟到 M9）
+- 交付清单：
+  1. schema v6→v7：documents 表（id/title/created_at/updated_at）、blocks 表（id/document_id/type/position/content JSON/parent_id 可空）
+  2. 块类型引擎集中 shared：paragraph / heading1-3 / bullet / numbered / todo / quote / code / divider；`normalizeBlockContent(type, content)` 与 `canConvertBlockType(from, to)` 校验
+  3. api：documents CRUD、blocks CRUD（批移动重排复用 shared 排序思路）、文档全文读（按 position 拼装）
+  4. web：「文档」tab——文档列表 + 编辑器（块级渲染 + 回车拆块 / 退格合块 / 上移下移 / 类型切换下拉）+ 打印预览按钮（HTML/CSS 走 printToPDF 同款思路：`window.print()` + 打印样式表）
+  5. 断言：e2e ≥+35（块归一/类型转换/拆合移动/文档装配）、audit ≥+25（含 4xx：非法块类型/越权 document_id/非法 position）
+  6. 截图 ≥6：文档空态/文档列表/编辑器多类型块/块类型切换/打印预览/窄屏
+- 验收标准：
+  1. 全量绿：e2e ≥622、audit ≥547，README 双节同步
+  2. 块顺序在拆/合/移动后持久化且重开不丢（有断言）
+  3. 打印预览有独立截图证据；块类型引擎全集中 shared，api 层零类型分支
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r7 已发版（v0.0.11）✅
+- 特别项：r7 UI 记账 U2（错误行号口径/确认按钮后果提示/当前视图指示错位）择低成本项顺手修，其余留 M4 视图轮
 
-### r18 路 M9 绗?1 鐗囷細璐﹀彿涓庣綉缁滅増鏈嶅姟锛圡9 璧锋锛?- 鐩爣锛氫粠鏈湴鍗曟満璧板悜缃戠粶鐗堚€斺€旂敤鎴?浼氳瘽璁よ瘉 + server 杩滅妯″紡 + 鍓嶇妯″紡鍒囨崲鈥斺€擬9 璧锋杞紙CRDT 鍗忓悓缂栬緫鎺ㄨ繜鍒?M10 鍓嶏級
-- 浜や粯娓呭崟锛?  1. schema v13鈫抳14锛歶sers 琛紙id/username/password_hash/created_at锛夈€乻essions 琛紙id/user_id/token/expires_at锛?  2. 璁よ瘉瑙勫垯闆嗕腑 packages/shared锛歨ashPassword(password)锛坰crypt/ pbkdf2 绾?Node 瀹炵幇锛岄浂鏂颁緷璧栵級銆乿erifyPassword銆乿alidateSession锛堣繃鏈熷垽瀹氾級銆丄UTH_PERMISSIONS锛堣鑹测啋鏉冮檺鏄犲皠锛?  3. api锛歅OST /api/auth/register|login|logout銆丟ET /api/auth/me銆乤uth middleware锛堝彈淇濇姢璺敱 401 娓呭亣鐧诲綍鎬佲€斺€攔1 鏁欒澶嶇敤锛?  4. server 妯″紡锛歑IEFLOW_MODE=local|remote锛宺emote 鏃?api 鎻愪緵鍏ㄩ噺涓氬姟璺敱锛堢幇鏈夛級/local 鏃跺墠绔洿杩?db锛堢幇鏈夛級锛涘墠绔姞銆屾湰鏈?杩滅銆嶅垏鎹㈠崱锛堣缃〉锛夛紝401 鏃惰烦鐧诲綍椤?  5. 鏂█锛歟2e 鈮?40锛堝搱甯?鏍￠獙/浼氳瘽杩囨湡/鏉冮檺锛夈€乤udit 鈮?30锛堝惈 4xx锛氬急瀵嗙爜/閲嶅鐢ㄦ埛鍚?鏃犳晥 token/杩囨湡浼氳瘽/鏈巿鏉?401锛?  6. 鎴浘 鈮?锛氱櫥褰曢〉/娉ㄥ唽椤?鐧诲嚭鍚?401 璺崇櫥褰?璁剧疆椤垫ā寮忓垏鎹?绐勫睆/閿欒鎬?- 楠屾敹鏍囧噯锛?  1. 鍏ㄩ噺缁匡細e2e 鈮?592銆乤udit 鈮?332锛孯EADME 鍙岃妭鍚屾
-  2. 鐪熷疄娉ㄥ唽鈫掔櫥褰曗啋甯?token 璁块棶鍙椾繚鎶よ矾鐢扁啋鐧诲嚭鈫?01 鍏ㄩ摼璺湁鏂█锛涘瘑鐮佷笉鏄庢枃钀藉簱锛堥獙 hash锛?  3. **401 娓呭亣鐧诲綍鎬?*鏈夋柇瑷€锛坮1 r61 鏁欒锛夛紱妯″紡鍒囨崲鍚?UI 鐘舵€佹纭?  4. **鑻ユ柊澧?tab 琛ヨ tab 婵€娲绘€佸浘**锛涘弻 VERDICT锛坵aizhuan + ui 闃绘柇宀楋級閫氳繃
-- 鍓嶇疆锛歳17 宸插彂鐗堬紙v0.0.22锛夆渽
-- 鍗遍櫓鍖烘敞鎰忥細璁よ瘉瀹炵幇涓嶅緱寮曞叆鐪熷疄澶栭儴 IdP/瀵嗛挜锛堝嵄闄╁尯锛夛紱token 浠呮湰鍦伴殢鏈虹敓鎴愶紝涓嶅啓浠讳綍瀵嗛挜鏂囦欢
+### r9 · M4 第 2 片：文档导入导出与 AI 块级修订（M4 收官）
+- 目标：Markdown 导入导出 + AI 块级修订（**mock 模型，零 token 成本**）——M4 收官轮，为 M5 AI 工作台铺工具调用框架
+- 交付清单：
+  1. 转换引擎集中 shared：`markdownToBlocks(md)` / `blocksToMarkdown(blocks)`（10 种块类型双向，未知语法降级为 paragraph 不丢内容）
+  2. api：`POST /api/documents/:id/import.md`（Markdown 文本→块批量落库，单事务零半态——复用 r7 思路）、`GET /api/documents/:id/export.md`、**`POST /api/documents/:id/blocks/:blockId/revise`**（AI 修订：入参 instruction + 块内容，走 mock provider 返回修订建议；采纳才替换块内容——**接口 provider 无关，为 M5 接真实模型留位**）
+  3. web：文档编辑器加「导入 Markdown」按钮（预览+确认）、「导出 .md」按钮、块级「AI 修订」面板（建议 diff 对照 + 采纳/放弃）
+  4. mock 模型：packages/agent/mock-provider.ts（固定脚本化回复，零 token）；**评测集** packages/agent/evals/ 录制回放样式先立骨架（宪法四条：M5 起锁工具调用行为）
+  5. 断言：e2e ≥+40（Markdown 双向往返/未知语法降级/导入零半态/修订采纳与放弃语义）、audit ≥+30（含 4xx：非法 Markdown/块不存在/空 instruction）
+  6. 截图 ≥7：导入预览/导入成功后/导出落盘佐证/AI 修订建议 diff/采纳后/放弃后/窄屏
+- 验收标准：
+  1. 全量绿：e2e ≥756、audit ≥669，README 双节同步
+  2. Markdown 往返：blocks → md → blocks 内容不丢（有断言）
+  3. AI 修订「未采纳不改库」有断言锁定；mock provider 可切换为真实模型的接口留位
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r8 已发版（待双 VERDICT 终审）
+- 特别项：r8 UI 记账 U2（06 窄屏长文本 1px 裁切渣、编辑态列表块缺 marker、纸面有序列表都显示「1.」）本轮必修前两条
 
-### r19 路 M9 绗?2 鐗囷細澶氱鍚屾涓庡啿绐佸鐞嗭紙M9 鏀跺畼锛?- 鐩爣锛氱綉缁滅増澶氱鏁版嵁鍚屾鈥斺€斿彉鏇存棩蹇?+ 澧為噺鎷夊彇 + 涔愯閿佸啿绐佹娴嬧€斺€擬9 鏀跺畼杞紙CRDT 瀹炴椂鍗忓悓鐣?M10 鍓嶈瘎浼帮紝鏈疆鍋氥€屾渶鍚庡啓鍏?wins + 鍐茬獊鎻愮ず銆嶏級
-- 浜や粯娓呭崟锛?  1. schema v14鈫抳15锛歝hange_log 琛紙id/entity_type/entity_id/operation/payload/user_id/created_at/version锛夈€乪ntity_versions 琛紙entity_type/entity_id/version 涔愯閿侊級
-  2. 鍚屾瑙勫垯闆嗕腑 packages/shared锛歛pplyChangeSet(local, remote)锛堝閲忓悎骞讹紝鍐茬獊鏍囪锛夈€乨etectConflict(base, local, remote)锛堜笁鏂规瘮杈冿紝杩斿洖鍐茬獊瀛楁鍒楄〃锛夈€乶extVersion(current)
-  3. api锛欸ET /api/sync/changes?since=&limit=锛堝閲忓彉鏇存棩蹇楋級銆丳OST /api/sync/apply锛堝甫鏈熸湜 version 鐨勪箰瑙傞攣鍐欏叆锛?09 鍐茬獊锛夈€丟ET /api/sync/status锛堝悇瀹炰綋鐗堟湰鎽樿锛?  4. web锛氳缃〉鍔犮€屽绔悓姝ャ€嶅崱锛堟渶杩戝悓姝ユ椂闂?鏈悓姝ュ彉鏇存暟/鍐茬獊鍒楄〃 + 鎵嬪姩鍚屾鎸夐挳锛夛紱鍐茬獊鏃跺脊绐楀睍绀烘湰鍦?vs 杩滅宸紓渚涚敤鎴烽€夎竟
-  5. 鏂█锛歟2e 鈮?35锛堜笁鏂瑰悎骞?鍐茬獊妫€娴?鐗堟湰閫掑/骞傜瓑搴旂敤锛夈€乤udit 鈮?30锛堝惈 409 鍐茬獊/闈炴硶 since/瓒婃潈 change锛?  6. 鎴浘 鈮?锛氬悓姝ュ崱绌洪棽/鏈夋湭鍚屾/鍐茬獊鍒楄〃/鍐茬獊寮圭獥/鍚屾鎴愬姛鍚?绐勫睆/閿欒鎬?- 楠屾敹鏍囧噯锛?  1. 鍏ㄩ噺缁匡細e2e 鈮?673銆乤udit 鈮?406锛孯EADME 鍙岃妭鍚屾
-  2. 鐪熼€犮€屾湰鍦版敼 A + 杩滅鏀?B銆嶅啿绐佸満鏅?鈫?409 + 鍐茬獊瀛楁鍒楄〃鍑嗙‘锛坵aizhuan 浼氭墜绠楋級锛涢€夋嫨涓€杈瑰悗鐗堟湰閫掑涓斿啀鍚屾鏃犲啿绐?  3. 澧為噺鎷夊彇骞傜瓑锛堝悓涓€ since 閲嶅鎷夌粨鏋滀竴鑷达級
-  4. 鍙?VERDICT锛坵aizhuan + ui 闃绘柇宀楋級閫氳繃
-- 鍓嶇疆锛歳18 宸插彂鐗堬紙v0.0.23锛夆渽
+### r10 · M5 第 1 片：AI 工作台对话与工具调用框架（M5 起步）
+- 目标：AI 工作台（对话 + 工具调用）落地——对话持久化 + 工具注册表 + mock 模型规划执行 + 产物预览框架——M5 起步轮（真实模型留接口，开发全用 mock 零 token）
+- 交付清单：
+  1. schema v7→v8：conversations 表（id/title/created_at）、messages 表（id/conversation_id/role/content_json/tool_calls_json/created_at）、artifacts 表（id/conversation_id/type/title/content/created_at）
+  2. 工具注册表集中 packages/agent/：ToolRegistry（name/description/parameters schema/handler），首批工具 ≥8：list_todos / create_todo / list_documents / create_document / list_projects / list_cards / list_tables / search_knowledge（M6 前返回空结果占位）
+  3. agent 规划器：mock-planner.ts（脚本化：识别意图→输出工具调用序列→执行→汇总），**记录回放评测集** packages/agent/evals/ 扩充 ≥15 用例（宪法四条：工具调用行为录制回放锁定）
+  4. api：conversations CRUD、POST /api/conversations/:id/chat（mock 规划执行，逐条 tool_call 落库）、artifacts 读取
+  5. web：「AI 工作台」tab——会话列表 + 中间对话流（用户/AI/tool-call 气泡）+ 右侧产物预览面板
+  6. 断言：e2e ≥+40（工具注册/规划执行/消息落库/产物）、audit ≥+30（含 4xx：未知工具/非法参数/空消息）
+  7. 截图 ≥7：工作台空态/会话列表/对话流/工具调用气泡/产物预览/窄屏/错误态
+- 验收标准：
+  1. 全量绿：e2e ≥849、audit ≥736，README 双节同步
+  2. 一次对话能真实触发 ≥2 个工具调用且结果落库（ waizhuan 会查库验证），工具调用行为由回放评测集锁定
+  3. 工具注册表 handler 全为真实服务层调用（非 mock 数据），状态变更类工具（create_todo 等）有「实际创建」断言
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r9 已发版（v0.0.13）✅
+- 特别项：r9 UI 记账 U2（diff 无行内高亮）记入 r11
 
-### r20 路 M10 绗?1 鐗囷細绂荤嚎妯″紡涓?PWA 绉诲姩閫傞厤锛圡10 璧锋锛?- 鐩爣锛氱绾垮彲鐢?+ 绉诲姩绔€傞厤鈥斺€擲ervice Worker 缂撳瓨 + 绂荤嚎闃熷垪 + PWA manifest + 鍝嶅簲寮忕Щ鍔ㄥ竷灞€鈥斺€擬10 璧锋杞?- 浜や粯娓呭崟锛?  1. PWA 鍩虹璁炬柦锛歱ublic/manifest.json锛坣ame/icons/start_url/display:standalone锛夈€乸ublic/sw.js锛坈ache-first 闈欐€佽祫婧?+ network-first API + 绂荤嚎 fallback锛夈€乮ndex.html link manifest + 娉ㄥ唽 SW
-  2. 绂荤嚎闃熷垪闆嗕腑 packages/shared锛歰fflineQueue 鐨?enqueue/dequeue/replay锛坙ocalStorage 鎸佷箙鍖栵紝replay 鎸夊簭閲嶅彂锛夛紝apiFetch 妫€娴嬬绾挎椂鏀瑰叆闃熷苟杩斿洖璇箟鍖栫绾垮搷搴?  3. 鍦ㄧ嚎/绂荤嚎鐘舵€佹寚绀猴細web 椤舵爮鍦ㄧ嚎鍦嗙偣 + 绂荤嚎鏃?queue 寰芥爣锛堝緟閲嶆斁鏉℃暟锛? 銆岀珛鍗冲悓姝ャ€嶆寜閽紙replay 闃熷垪锛?  4. 绉诲姩绔€傞厤锛氣墹600px 鏂偣涓?tab 鏍忔敼搴曢儴瀵艰埅/姹夊牎鑿滃崟銆佸崱鐗囧崟鍒椼€佽Е鎽哥洰鏍?鈮?4px銆佺姝㈡í鍚戞孩鍑?  5. 鏂█锛歟2e 鈮?35锛堥槦鍒楀叆鍑洪噸鏀?绂荤嚎璇箟/鐘舵€佸垽瀹氾級銆乤udit 鈮?25锛堝惈 4xx锛氶槦鍒楅潪娉曟潯鐩?閲嶆斁鍐茬獊锛?  6. 鎴浘 鈮?锛歮anifest 瀹夎鎻愮ず/SW 娉ㄥ唽鎴愬姛/鍦ㄧ嚎鎬?绂荤嚎鎬?闃熷垪寰芥爣/閲嶆斁鎴愬姛/绉诲姩绐勫睆 390px/閿欒鎬?- 楠屾敹鏍囧噯锛?  1. 鍏ㄩ噺缁匡細e2e 鈮?756銆乤udit 鈮?467锛孯EADME 鍙岃妭鍚屾
-  2. 鐪熸柇缃戯紙CDP offline emulation锛夊悗鎿嶄綔鍏ラ槦鈫掓仮澶嶅湪绾库啋replay 鎴愬姛锛坵aizhuan 浼氱湡妯℃嫙鏂綉锛?  3. 390px 绉诲姩瑙嗗彛鏃犳í鍚戞孩鍑恒€佽Е鎽哥洰鏍囪揪鏍囷紱SW 鍦?CI/鏈湴涓嶅共鎵版祴璇曪紙娴嬭瘯鐜绂佺敤 SW锛?  4. 鍙?VERDICT锛坵aizhuan + ui 闃绘柇宀楋級閫氳繃
-- 鍓嶇疆锛歳19 宸插彂鐗堬紙v0.0.24锛夆渽
-- 鍗遍櫓鍖烘敞鎰忥細涓嶅紩澶栭儴 CDN/鍥炬爣渚濊禆锛宮anifest 鍥炬爣鐢ㄦ湰鍦?SVG/PNG
+### r11 · M5 第 2 片：多轮上下文与产物生成（M5 收官）
+- 目标：多轮对话上下文 + 产物生成落地——历史消息注入规划 + 文件分析/HTML/表格产物 + 工具链扩展——M5 收官轮
+- 交付清单：
+  1. 多轮上下文：mock-planner 读取会话最近 N 条消息作为上下文（N 可配，默认 8），跨轮指代消解（"再建一个"/"把它改成..."）——回放评测集扩充 ≥10 用例
+  2. 产物生成器集中 packages/agent/：artifact-generators.ts（HTML 报告 / Markdown 表格 / JSON 数据三类），产物落 artifacts 表并在 UI 右侧预览
+  3. 工具链扩到 ≥12：在 r10 的 8 工具基础上加 summarize_document / export_document_md / list_schedules / create_schedule（全接真实服务层）
+  4. api：chat 请求带 context_window 参数；产物 GET /api/artifacts/:id/content（按 type 返回可预览内容）
+  5. web：对话流支持多轮连续（发送后保留上下文提示）、产物预览支持 HTML/Markdown/JSON 三类型切换
+  6. 断言：e2e ≥+35（多轮上下文/产物生成/工具扩展）、audit ≥+25（含 4xx：上下文超限/产物不存在/非法类型）
+  7. 截图 ≥7：多轮对话/产物 HTML 预览/产物表格预览/工具链第 2 页/窄屏/错误态/上下文提示
+- 验收标准：
+  1. 全量绿：e2e ≥959、audit ≥811，README 双节同步
+  2. 多轮上下文有回放断言锁定（第 2 轮能引用第 1 轮产物/实体）
+  3. 三类产物真实生成且可预览（waizhuan 会真打开 HTML 看内容，非占位）
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r10 已发版（v0.0.14）✅
+- 特别项：r9 UI 记账 U2（diff 无行内增删改高亮）本轮必修；r10 U2（会话流/产物面板错一轮、窄容器壳 8 药丸折行）本轮必修
 
-### r21 路 M10 绗?2 鐗囷細绉佹湁鍖栭儴缃蹭笌涓€浣撳寲鍗曟満鐗堬紙M10 鏀跺畼锛?- 鐩爣锛氫竴閿儴缃?+ 瀹屽叏绂荤嚎鍙敤鐨勫崟鏈虹増鈥斺€攄ocker-compose 绉佹湁鍖?+ portable 澧炲己 + 閮ㄧ讲鏂囨。鈥斺€旈」鐩渶缁堥噷绋嬬
-- 浜や粯娓呭崟锛?  1. docker/锛欴ockerfile锛堝闃舵鏋勫缓锛歂ode 20 鏋勫缓 web 鈫?绮剧畝杩愯闀滃儚锛屽唴缃?SQLite 鏁版嵁鍗凤級銆乨ocker-compose.yml锛坅pp + 鏁版嵁鍗?+ 鐜鍙橀噺 XIEFLOW_MODE=remote锛夈€?dockerignore
-  2. portable 澧炲己锛坰cripts/pack.js锛夛細鍐呯疆 start.cmd锛堝凡楠?boot锛? 鏂板 start.sh锛圠inux/macOS锛? 棣栨杩愯寮曞锛圧EADME.txt 鍐欐竻妤氥€屽弻鍑?start.cmd 鈫?鎵撳紑 8080銆嶏級+ 鏁版嵁鐩綍鑷
-  3. docs/DEPLOY.md锛氫笁绉嶉儴缃茶矾寰勶紙缃戠粶鐗?cloud 宸蹭笂绾裤€佺鏈夊寲 docker-compose銆佸崟鏈?portable 鐩綍锛? 澶囦唤/鎭㈠/鎼縼鍥涙 + 甯歌闂
-  4. 閮ㄧ讲鑷鑴氭湰 scripts/verify-deploy.ps1锛氳捣鏈嶅姟 鈫?health 200 鈫?鍏抽敭璺敱 200 鈫?鍋滄湇鍔★紝鍏ㄧ▼ headless锛堣璇侀〉 401 灞為鏈燂級
-  5. 鏂█锛歟2e 鈮?20锛堥儴缃插绾?鏁版嵁鐩綍/寮曞鏂囨锛夈€乤udit 鈮?15锛坔ealth/mode/閮ㄧ讲璺敱锛?  6. 鎴浘 鈮?锛欴ocker 閮ㄧ讲鎷撴墤鍥撅紙鍙敤鏂囨湰娴佺▼鍥?PNG 鎴?compose up 瀹炴媿锛?start.cmd 棣栧惎/portable 鐩綍缁撴瀯/README 寮曞/8080 棣栭〉/绐勫睆
-- 楠屾敹鏍囧噯锛?  1. 鍏ㄩ噺缁匡細e2e 鈮?823銆乤udit 鈮?499锛孯EADME 鍙岃妭鍚屾
-  2. **portable 鐩綍瀹炴祴 boot**锛歱ack 鍚?start.cmd 鈫?8080 web+api 200锛堟湰鍦板疄璺戣繃锛屾湰杞楠屼竴娆＄‘淇濇湭鍥炲綊锛?  3. docker-compose 閰嶇疆璇硶姝ｇ‘锛堟湰鏈烘棤 docker 鏃惰嚦灏?`docker compose config` 绛変环闈欐€佹牎楠屾垨鐢?compose-spec 瑙ｆ瀽鏂█锛?  4. 鍙?VERDICT锛坵aizhuan + ui 闃绘柇宀楋級閫氳繃
-- 鍓嶇疆锛歳20 宸插彂鐗堬紙v0.0.26锛夆渽
-- M10 鏀跺畼鍚庯細椤圭洰杈惧埌璁捐鎬荤翰鍏ㄩ儴 11 涓噷绋嬬鈥斺€旀洿鏂?README 璺嚎鍥句负鍏ㄧ豢銆乨irector 灞ュ巻鎬昏处銆佸悜 owner 浜や粯鏈€缁堟€荤粨
+### r12 · M6 第 1 片：知识库入库与检索（M6 起步）
+- 目标：知识库文档入库 + 检索（本地关键词/TF-IDF 检索，向量化留 v2 接口）——M6 起步轮，为 M6 收官 RAG 铺路
+- 交付清单：
+  1. schema v8→v9：knowledge_docs 表（id/title/source_type/source_id/content/chunk_count/created_at）、knowledge_chunks 表（id/doc_id/position/content/token_count）
+  2. 分块与检索引擎集中 packages/agent/：chunkText(text)（按段落/字数切分，重叠窗口）、searchChunks(query, chunks)（TF-IDF 余弦相似度，纯 TS 零依赖）——**检索实现全集中，api 层零算法分支**；embedding 接口留位（vector 列可空）
+  3. api：知识库 CRUD、POST /api/knowledge/ingest（从 documents 或纯文本入库，自动分块）、GET /api/knowledge/search?q=&limit=（返回带来源引用的命中）
+  4. 工具链扩：search_knowledge 从 r10 空占位改为**真检索**（返回带 doc_id/chunk_id 来源的引用）
+  5. web：「知识库」tab——文档列表 + 入库按钮（选源）+ 搜索框（结果带来源高亮）
+  6. 断言：e2e ≥+35（分块边界/重叠/TF-IDF 排序/空查询）、audit ≥+25（含 4xx：空内容/超长内容/非法 source_type）
+  7. 截图 ≥7：知识库空态/入库对话框/入库成功后/搜索结果/来源引用高亮/窄屏/错误态
+- 验收标准：
+  1. 全量绿：e2e ≥1055、audit ≥892，README 双节同步
+  2. 检索结果相关性与手算一致（waizhuan 会造 3 篇文档验证 TF-IDF 排序），来源引用可溯源到具体 chunk
+  3. 分块有重叠窗口且边界不丢字（有断言）；search_knowledge 工具真检索非空
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r11 已发版（待 CI）✅
+- 特别项：r10 UI 记账「窄容器壳折行」在 r11 已修，本轮保持
 
-### r22 路 M10 鍚?閬楃暀娓呯悊涓庤川閲忔敹鏁涜疆锛堜笉鏂板鍔熻兘锛屽彧娓呮寕璐︼級
-- 鐩爣锛氭妸 r18~r21 澶嶉獙鎶ュ憡閲屽弽澶嶆寕璐︺€佷笉褰卞搷鍔熻兘鐨?U2 椤逛竴娆℃竻骞插噣锛屾仮澶嶈瘉鎹摼鑷唇锛岃鍚庣画浠讳綍璇昏€呬笉琚棫绱㈠紩璇
-- 浜や粯娓呭崟锛? 椤?U2 + 1 椤归獙璇侊級锛?  1. **`docs/ui/shell/README.md` 鏁存鎺ㄨ繘鍒?r22 鍙ｅ緞**锛坮20/r21 杩炵画鎸傝处锛夛細鏍囬/婕旇繘/14 琛屽舰鎬佽鏄?鍝堝笇鑷煡/鍏ㄥ簱璁℃暟鍏ㄩ儴鏇存柊涓哄綋鍓嶅疄闄呭瓧鑺傦紙r21 娌跨敤 r20 澹冲浘锛岃嫢鏈疆閲嶆媿鍒欑敤鏂板搱甯岋紝骞跺湪 README 閲屼繚鐣?r19/r20 鍘嗗彶鍝堝笇浣滃鐓ц锛?  2. **绉诲姩搴曟爮銆屾洿澶氥€嶅彲鍙戠幇鎬?*锛坮20 U2-2 鈫?r21 U3-3锛夛細鈮?00px 搴曟爮鍙充晶鍔犳笎闅愰伄缃?+ 灏忕澶存垨銆屾洿澶氥€嶆寜閽紝鐐瑰紑 鈽?鑿滃崟鍙鍓╀綑 tab锛涜ˉ 390px 搴曟爮銆屾洿澶氥€嶆€?+ 鈽?灞曞紑鎬佷袱寮犳埅鍥撅紝璇佹槑鍚?6~7 鏋?tab 鏈夌浜屾潯鍙璺緞
-  3. **`docs/DEPLOY.md` 涓夊鏂囨。琛ュ己**锛坮21 U2-3/U2-4锛夛細璺緞 C 琛?Releases zip 涓嬭浇鍏ュ彛锛堟寚鍚?https://github.com/sun13-AI/xieflow/releases锛夈€佽矾寰?B 琛ュ涓?IP 璁块棶鎻愮ず锛堝悓缃戞璁惧鐢?`http://<瀹夸富IP>:8080`锛夈€佸浠芥仮澶嶆惉杩佺 4 姝ヨˉ docker 鍗疯縼绉诲懡浠ょず渚?  4. **child 绱㈠紩涓€鑷存€?*锛歳18 杩斿伐鑴氭湰 `shot-r18-rework.ps1` 琛ヨ繘鏍?README 鑴氭湰娓呭崟锛坮18 U3-2 璁拌处锛?  5. **鍙樺紓绾㈢浉鐣欑棔 鈮? 缁?*锛氬鏈疆鏀逛簡娓叉煋灞傦紙绗?2 椤癸級锛屽銆屾洿澶氥€嶆寜閽殑鏄鹃殣鏉′欢鍋氬彉寮傜孩鐩革紙鏉′欢鏀规亽 false 鈫?鎴浘 seam 鏂█鍙樼孩 鈫?杩樺師鍏ㄧ豢锛夛紱濡傜函鏂囨。杞垯瀵广€屾枃妗ｅ绾︽柇瑷€銆嶅仛绛変环鍙樺紓
-- 鏂█锛歟2e 鈮?8锛堢Щ鍔ㄥ鑸€屾洿澶氥€嶆€?鏂囨。濂戠害锛夈€乤udit 鈮?5锛堥儴缃茶矾鐢卞绾︼級锛屽彧娑ㄤ笉缂?- 鎴浘锛氭湰杞敼娓叉煋灞?鈫?鎸夊娉曠涓€鏉?*鍗佸洓 tab 澹冲熀绾垮悓鎵归噸鎷?*锛堣В鍐?r21 U2-1 鍙ｅ緞鍋忓樊锛? 鍙楀奖鍝嶉〉闈㈢煩闃碉紙390px 搴曟爮/鈽?灞曞紑锛?- 楠屾敹鏍囧噯锛?  1. 鍏ㄩ噺缁匡細e2e 鈮?850銆乤udit 鈮?508锛孯EADME 鍙岃妭鍚屾
-  2. shell README 鍝堝笇涓庡疄闄呮枃浠堕€愬瓧涓€鑷达紙waizhuan 浼氫翰绠?14 寮?SHA 鏍稿锛?  3. 390px 涓嬨€屾洿澶氥€嶅叆鍙?+ 鈽?灞曞紑鍙揪鍚?6 鏋?tab锛坲i 浼氱湡鐐规牳锛?  4. 鍙?VERDICT锛坵aizhuan + ui 闃绘柇宀楋級閫氳繃
-- 鍓嶇疆锛歳21 宸插彂鐗堬紙v0.0.27锛夆渽
+### r13 · M6 第 2 片：RAG 对话与引用溯源（M6 收官）
+- 目标：检索增强对话——AI 回答时先检索知识库再把引用注入上下文，回答附来源溯源——M6 收官轮
+- 交付清单：
+  1. RAG 编排集中 packages/agent/rag.ts：retrieve(query, limit) → buildAugmentedPrompt(question, chunks) → 产物带 citations: [{docId, chunkId, snippet, score}]
+  2. mock-planner 扩：识别「根据知识库/查资料/文档里」类意图 → 先调 search_knowledge → 再生成回答 → 附引用列表（回放评测集 ≥10 用例）
+  3. api：chat 响应带 citations 字段；GET /api/knowledge/docs/:id 溯源回看
+  4. web：对话流中 AI 气泡下方显示来源引用卡（可点跳转到知识库对应文档），产物预览含引用清单
+  5. 断言：e2e ≥+35（RAG 编排/引用注入/引用溯源）、audit ≥+25（含 4xx：无命中检索/引用 id 不存在）
+  6. 截图 ≥7：RAG 对话流/来源引用卡/引用跳转/产物引用清单/无命中态/窄屏/错误态
+- 验收标准：
+  1. 全量绿：e2e ≥1122、audit ≥948，README 双节同步
+  2. 回答带真实引用（docId/chunkId 可溯源），waizhuan 会点引用卡验证跳转
+  3. 无命中时如实说「知识库没有相关内容」不编造（有断言）
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r12 已发版 ✅
 
-### r23 路 缁勭粐鏋舵瀯涓庨€氳褰曪紙M10 鍚庡姛鑳借ˉ寮猴紱瀵规爣 duobaoyu 鍏ㄥ姛鑳藉崗鍚屽姙鍏鏋讹級
-- 鐩爣锛氳ˉ涓婂叏鍔熻兘鍗忓悓鍔炲叕缂虹殑鍩虹楠ㄦ灦鈥斺€旈儴闂ㄦ爲 + 浜哄憳鐩綍锛堝鎵?assignee / 鐗╄祫 custodian 鐩墠鏄嚜鐢辨枃鏈紝鏈疆鍙缓鐩綍涓庨€夋嫨鍣紝涓嶇牬鍧忔棦鏈夋ā鍧楋級
-- 浜や粯娓呭崟锛?  1. schema v15鈫抳16锛歞epartments 琛紙id/name/parent_id 鍙┖/sort_order/created_at锛夈€乵embers 琛紙id/name/department_id/role/email/phone/title/status/user_id 鍙┖鍏宠仈鐧诲綍璐﹀彿锛?  2. 缁勭粐瑙勫垯闆嗕腑 packages/shared锛歜uildDepartmentTree(depts)锛堝眰绾?鐜娴?瀛ゅ効澶勭悊锛夈€乶ormalizeMember(input)锛堝瓧娈垫牎楠?閭鏍煎紡锛夈€乿alidateDepartmentMove(id, parentId, tree)锛堥槻鑷寕/闃茬幆锛夆€斺€攁pi/web 闆剁畻娉曞垎鏀?  3. api锛歞epartments CRUD + move銆乵embers CRUD + 鎸夐儴闂ㄦ煡璇?+ 鎼滅储锛堝鍚?閭/鑱屼綅妯＄硦锛夈€丟ET /api/org/tree锛堥儴闂ㄥ甫浜哄憳锛?  4. web锛氭柊澧炪€岀粍缁囥€峵ab鈥斺€斿乏渚ч儴闂ㄦ爲锛堝睍寮€/鎶樺彔锛? 鍙充晶浜哄憳鍒楄〃 + 鏂板缓/缂栬緫琛ㄥ崟 + 鎼滅储妗嗭紱鏈疆鍙仛鐩綍锛屼笉鏀瑰鎵?鐗╄祫瀛楁锛堥伩鍏嶅洖褰掞級
-  5. 鏂█锛歟2e 鈮?35锛堟爲灞傜骇/鐜娴?CRUD/鎼滅储/瑙勮寖鍖栵級銆乤udit 鈮?25锛堝惈 4xx锛氳嚜鎸?鎴愮幆/閲嶅閮ㄩ棬鍚?闈炴硶閭/瓒婃潈 id锛?  6. 鎴浘 鈮?锛氱粍缁囩┖鎬?閮ㄩ棬鏍戝睍寮€/浜哄憳鍒楄〃/鏂板缓浜哄憳琛ㄥ崟/鎼滅储缁撴灉/绐勫睆/閿欒鎬?- 楠屾敹鏍囧噯锛?  1. 鍏ㄩ噺缁匡細e2e 鈮?891銆乤udit 鈮?539锛孯EADME 鍙岃妭鍚屾
-  2. 閮ㄩ棬鏍戜笁绾х湡瀹炶閰?+ 鐜娴嬫柇瑷€锛坵aizhuan 浼氶€?A鈫払鈫扐 楠岃瘉鎷掔粷锛夛紱浜哄憳鎼滅储澶у皬鍐欎笉鏁忔劅
-  3. **鏂板銆岀粍缁囥€峵ab 琛ヨ tab 婵€娲绘€佸浘**锛堝崄浜?tab 澹冲熀绾匡級
-  4. 鍙?VERDICT锛坵aizhuan + ui 闃绘柇宀楋級閫氳繃
-- 鍓嶇疆锛歳22 宸插彂鐗堬紙v0.0.28锛夆渽
-- 鏄庣‘杈圭晫锛氭湰杞?*涓?*鎶?members 鎺ュ叆瀹℃壒/鐗╄祫锛堥偅鏄?r24 鍙兘鐨勭嫭绔嬪垏鐗囷級锛岄伩鍏嶆棦鏈夋柇瑷€澶ц妯℃敼鍔?
-### r24 路 缁勭粐鎴愬憳鎺ュ叆瀹℃壒涓庣墿璧勶紙鍚戝悗鍏煎锛孧10 鍚庡姛鑳借ˉ寮猴級
-- 鐩爣锛氳 r23 寤虹殑閫氳褰曚笉鍐嶆槸瀛ゅ矝鈥斺€斿鎵瑰鎵逛汉/鍙戣捣浜轰笌鐗╄祫淇濈鍛樺彲浠庨€氳褰曢€変汉锛屼絾**涓ユ牸鍚戝悗鍏煎**锛堝師鑷敱鏂囨湰瀛楁涓嶅姩锛?- 浜や粯娓呭崟锛?  1. schema v16鈫抳17锛氫粎鍔?*鍙┖** member_id 鍒椻€斺€攁pprovals.applicant_member_id銆乤pproval_steps.assignee_member_id銆乤pproval_cc.cc_member_id銆乤ssets.custodian_member_id锛堝叏閮ㄥ彲绌猴紝鍘?TEXT 鍒椾繚鎸?NOT NULL 涓嶅彉锛夛紱杩佺Щ璧?user_version 闃熷垪锛岃€佹暟鎹?member_id=NULL 鐓у父宸ヤ綔
-  2. 瑙ｆ瀽瑙勫垯闆嗕腑 packages/shared/org.ts锛歳esolveAssignee(text, memberId, members)锛堟湁 member_id 浼樺厛鐢ㄩ€氳褰曞鍚嶏紝鍚﹀垯鍥炶惤鑷敱鏂囨湰锛夈€乵emberDisplayName(member)鈥斺€攁pi/web 闆剁畻娉曞垎鏀?  3. api锛氬鎵瑰彂璧?杞氦/鐗╄祫鍑哄叆搴撴帴鍙楀彲閫?member_id 鍙傛暟锛堟牎楠屽瓨鍦ㄤ笖 active锛夛紝鍝嶅簲鍥炲甫 member 鎽樿锛堝鍚?閮ㄩ棬锛夛紱GET /api/org/members/:id/usage锛堣浜鸿鎸囨淳瀹℃壒/淇濈鐗╄祫鏁帮級
-  4. web锛氬鎵瑰彂璧疯〃鍗曠殑鐢宠浜?瀹℃壒浜恒€佺墿璧勮〃鍗曠殑淇濈鍛樻梺鍔犮€屼粠閫氳褰曢€変汉銆嶆寜閽紙寮瑰嚭鎴愬憳鎼滅储閫夋嫨鍣紝閫変腑濉?member_id + 鏄剧ず濮撳悕锛夛紝**淇濈暀鍘熻嚜鐢辨枃鏈緭鍏ユ**锛涘鎵规椂闂寸嚎涓庣墿璧勫崱鐗囨樉绀洪儴闂ㄥ窘鏍囷紙鑻ユ湁 member_id锛?  5. 鏂█锛歟2e 鈮?30锛堟垚鍛樻帴鍏?鍥炶惤鑷敱鏂囨湰/usage 璁℃暟锛夈€乤udit 鈮?20锛?xx锛歮ember_id 涓嶅瓨鍦?宸插仠鐢?瓒婃潈锛?  6. 鎴浘 鈮?锛氬鎵硅〃鍗曢€変汉寮圭獥/閫変腑鍚?鏃堕棿绾块儴闂ㄥ窘鏍?鐗╄祫琛ㄥ崟閫変汉/鐗╄祫鍗＄墖寰芥爣/绐勫睆/閿欒鎬?- 楠屾敹鏍囧噯锛?  1. 鍏ㄩ噺缁匡細e2e 鈮?982銆乤udit 鈮?602锛孯EADME 鍙岃妭鍚屾
-  2. **鍚戝悗鍏煎纭柇瑷€**锛氳€佽矾寰勶紙涓嶄紶 member_id锛岀函鑷敱鏂囨湰锛夊叏閮ㄦ棦鏈夋柇瑷€淇濇寔閫氳繃锛屾棤涓€鏉″垹鏀癸紙waizhuan 浜查獙锛夛紱鏂拌矾寰?member_id 鐪熷叧鑱旈€氳褰?  3. 閫夋垚鍛樺悗瀹℃壒/鐗╄祫鏄剧ず閮ㄩ棬寰芥爣涓?usage 璁℃暟姝ｇ‘锛涘仠鐢ㄦ垚鍛樿鎷?  4. 鍙?VERDICT锛坵aizhuan + ui 闃绘柇宀楋級閫氳繃
-- 鍓嶇疆锛歳23 宸插彂鐗堬紙v0.0.29锛夆渽
-- 鍗遍櫓杈圭晫锛氫笉鍔ㄧ敤鎴锋暟鎹紱member_id 鍏ㄥ彲绌猴紝NULL 琛屼负涓?r16/r17 瀹屽叏涓€鑷达紱鑻ユ棦鏈夋柇瑷€鍥?schema 杩佺Щ鍙樺寲鍙厑璁告洿鏂版湡鏈涘€硷紝涓嶈鍒?
-### r25 路 绗笁杞仐鐣欐竻鐞嗭紙瀹℃壒 actorMemberId 鐪熶慨 + shell 鍝堝笇鍧?+ 鏂囨。鍙ｅ緞锛?- 鐩爣锛氭竻 r24 澶嶉獙鐨勭湡瀹炵己鍙ｄ笌 UI 璁拌处锛屼笉鏂板鍔熻兘
-- 浜や粯娓呭崟锛?  1. **P3 鐪熶慨锛坵aizhuan r24锛?*锛氬鎵?UI 鐨勩€岄€氳繃/椹冲洖銆嶆彁浜ゆ楠ゆ湭浼?`actorMemberId` 鈫?鏃堕棿绾胯姝ユ棤閮ㄩ棬寰芥爣銆佽鎴愬憳 usage 灏戣 1銆備慨娉曪細web 瀹℃壒鎿嶄綔鐨勫綋鍓嶇敤鎴疯嫢鍏宠仈 member锛堢櫥褰曡处鍙?user_id 鍏宠仈 members.user_id锛夛紝鎻愪氦鍔ㄤ綔鏃跺甫 actorMemberId锛沘pi 钀?approval_steps.actor_member_id锛堟柊澧炲彲绌哄垪锛寁17鈫抳18锛? 鍥炲甫鎽樿 + usage 璁℃暟鍖呭惈瀹℃壒鍔ㄤ綔
-  2. **shell README 鍝堝笇鍧楄鐩栵紙UI U2-1锛?*锛歳24 鐩存帴瑕嗙洊銆宺23 鍝堝笇鍧椼€嶏紝鏈繚鐣欏巻鍙插鐓р€斺€旀寜 r22 鍏堜緥鏀逛负銆孯25 褰撳墠鍧?+ R23/R24 鍘嗗彶瀵圭収琛屻€嶏紱鍏ㄥ簱璁℃暟鍚屾 250 PNG
-  3. **绱㈠紩鍙ｅ緞锛圲I U2-2/3锛?*锛氱墿璧勫３涓?r23 鍚屽瓧鑺傜殑浜嬪疄鍐欒繘 shell README锛堜笉浼€犲樊寮傦級锛況24/05 绱㈠紩銆岃鎯呭窘鏍囥€嶈ˉ鍥炬垨鏀规枃妗堜负濡傚疄
-  4. **U3 浣庢垚鏈」**锛氶€変汉寮圭獥鍔犻儴闂ㄧ瓫閫夈€佸窘鏍囧幓 member_id 瑁稿彿鏀瑰鍚?閮ㄩ棬銆佸洖濉悗鎵嬫敼鐨勮涔夋彁绀?  5. 鍙樺紓绾㈢浉 鈮? 缁勶細actorMemberId 閫忎紶鏀瑰潖 鈫?鏂█鍙樼孩 鈫?杩樺師鍏ㄧ豢
-- 鏂█锛歟2e 鈮?12銆乤udit 鈮?8锛堝鎵瑰姩浣?member 鍏宠仈/usage 璁℃暟锛夛紝鍙定涓嶇缉
-- 鎴浘锛氭敼娓叉煋灞?鉁?鈫?瀹℃壒璇︽儏寰芥爣/閫変汉寮圭獥绛涢€?寰芥爣鏀圭増 + 鍗佷簲 tab 澹冲熀绾垮悓鎵归噸鎷?- 楠屾敹鏍囧噯锛?  1. 鍏ㄩ噺缁匡細e2e 鈮?053銆乤udit 鈮?675锛孯EADME 鍙岃妭鍚屾
-  2. 瀹℃壒銆岄€氳繃銆嶅悗鏃堕棿绾挎樉绀烘搷浣滀汉閮ㄩ棬寰芥爣 + usage 璁℃暟鍑嗙‘锛坵aizhuan 浜查獙锛?  3. shell README 鍝堝笇涓庡疄闄呴€愬瓧涓€鑷达紱鍙?VERDICT 閫氳繃
-- 鍓嶇疆锛歳24 宸插彂鐗堬紙v0.0.30锛夆渽
+### r14 · M7 第 1 片：思维导图（Markdown 双视图）—— 已发版 v0.0.18
+- 交付：schema v10 mindmaps 表；shared 集中 parseMarkdownToTree / treeToMarkdown / 折叠态纯函数（md→tree→md 逐字节往返、未知语法降级不丢）；api 七路由；web 第十 tab「导图」双栏实时同步 + 折叠
+- 断言：e2e 1161→1221 / audit 966→1020，typecheck 5 包；变异红相 1 组独立复现；双 VERDICT 通过
 
-### r26 路 閫氱煡涓績锛堢珯鍐呮秷鎭仛鍚堬紝M10 鍚庡姛鑳借ˉ寮猴級
-- 鐩爣锛氬崗鍚屽姙鍏爣閰嶁€斺€旀妸鏁ｈ惤鍦ㄦ棩绋?瀹℃壒/鐗╄祫/鍚屾鐨勪簨浠惰仛鍚堟垚涓€涓€岄€氱煡銆峵ab锛岀粺涓€鏈绠＄悊涓庤烦杞?- 浜や粯娓呭崟锛?  1. schema v18鈫抳19锛歯otifications 琛紙id/type:schedule_due|approval_pending|asset_low|sync_conflict|system/title/body/ref_type/ref_id/read_at/created_at锛? 绱㈠紩
-  2. 閫氱煡瑙勫垯闆嗕腑 packages/shared/notifications.ts锛歜uildNotification(type, ctx)锛堟ā鏉?鏍囬/姝ｆ枃鐢熸垚锛夈€乻houldNotify(type, ctx)锛堥槇鍊煎垽瀹氾細瀹℃壒寰呭姙鈮?銆佺墿璧勫簱瀛樷墹闃堝€笺€佸悓姝ュ啿绐?0銆佹棩绋嬪綋澶╋級銆乶otificationSummary(list)锛堟湭璇昏鏁版寜 type 鍒嗙粍锛夆€斺€攁pi/web 闆剁畻娉曞垎鏀?  3. api锛歯otifications CRUD锛堝垪琛ㄥ甫鏈杩囨护/鍒嗛〉锛夈€丳OST /:id/read銆丳OST /read-all銆丳OST /api/notifications/refresh锛堟寜褰撳墠搴撶姸鎬侀噸绠楃敓鎴愶紝骞傜瓑涓嶉噸澶嶏級銆丟ET /api/notifications/summary
-  4. web锛氭柊澧炪€岄€氱煡銆峵ab鈥斺€斿乏渚х被鍨嬬瓫閫夛紙鍏ㄩ儴/鏃ョ▼/瀹℃壒/鐗╄祫/鍚屾/绯荤粺锛? 鍙充晶娑堟伅鍒楄〃锛堟湭璇诲姞绮?+ 鏃堕棿 + 鍒嗙被鍥炬爣锛? 鐐规潯璺宠浆瀵瑰簲妯″潡锛坮ef_type鈫抰ab锛? 椤舵爮鍏ㄥ眬鏈寰芥爣
-  5. 鏂█锛歟2e 鈮?40锛堟ā鏉?闃堝€?骞傜瓑/宸茶/鍒嗛〉/璺宠浆濂戠害锛夈€乤udit 鈮?30锛堝惈 4xx锛氶潪娉?type/瓒婃潈 id/鏃犳晥 ref锛?  6. 鎴浘 鈮?锛氶€氱煡绌烘€?鏈夋湭璇?绫诲瀷绛涢€?宸茶鍚?refresh 鍚?绐勫睆/閿欒鎬?- 楠屾敹鏍囧噯锛?  1. 鍏ㄩ噺缁匡細e2e 鈮?136銆乤udit 鈮?753锛孯EADME 鍙岃妭鍚屾
-  2. **鐪熷疄浜嬩欢鑱氬悎**锛歸aizhuan 閫犮€屽鎵瑰緟鍔?+ 搴撳瓨浣?+ 鍚屾鍐茬獊銆嶁啋 refresh 鐢熸垚 3 绫婚€氱煡鍚?1 鈫?閲嶅 refresh 骞傜瓑涓嶉噸澶?鈫?鐐瑰鎵归€氱煡璺冲鎵?tab 骞跺畾浣嶈鍗?  3. **鏂板銆岄€氱煡銆峵ab 琛ヨ tab 婵€娲绘€佸浘**锛堝崄鍏?tab 澹冲熀绾匡級+ 椤舵爮鏈寰芥爣
-  4. 鍙?VERDICT锛坵aizhuan + ui 闃绘柇宀楋級閫氳繃
-- 鍓嶇疆锛歳25 宸插彂鐗堬紙v0.0.31锛夆渽
-- 鏄庣‘杈圭晫锛氱珯鍐呴€氱煡涓嶆帴澶栭儴 IM/閭欢锛堥偅鏄娉曘€屾槑纭笉鍋氥€嶇殑绗笁鏂?IM 闆嗘垚锛夛紝闆?token
+### r15 · M7 第 2 片：白板画布与 AI 建板（M7 收官）
+- 目标：无限画布白板（卡片/便签/连线）+ Markdown 导出 + AI 建板（mock）——M7 收官轮
+- 交付清单：
+  1. schema v10→v11：whiteboards 表（id/title/created_at）、whiteboard_items 表（id/board_id/type:note|text|shape|x/y/w/h/content/color）
+  2. 布局规则集中 packages/shared：normalizeWhiteboardItem(type, props)、collisionResolve(items)（重叠时自动避让或报错，规则唯一）
+  3. api：whiteboards CRUD、items CRUD + 批量移动（x/y 变更审计）、POST /api/whiteboards/:id/ai-create（mock 建板：根据主题生成 5-8 个便签布局，零 token）
+  4. web：新增「白板」tab——无限画布（拖拽平移/缩放）、便签创建/编辑/删除、AI 建板按钮、导出 Markdown
+  5. 断言：e2e ≥+35（布局规则/批量移动/AI 建板/导出）、audit ≥+25（含 4xx：越权 board_id/非法 item 类型/越界坐标）
+  6. 截图 ≥7：白板空态/画布有便签/拖拽后/AI 建板结果/导出佐证/窄屏/错误态
+- 验收标准：
+  1. 全量绿：e2e ≥1256、audit ≥1045，README 双节同步
+  2. 画布平移/缩放后坐标换算正确（waizhuan 会真拖验证）；AI 建板真生成 ≥5 便签且布局不重叠
+  3. **新增「白板」tab 补该 tab 激活态图**（十一 tab 壳基线）
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r14 已发版（v0.0.18）✅
+- **已发版 v0.0.19**（初验 P1 打回→返工全画布零重叠→复审双通过）
 
-### r27 路 鎶ヨ〃涓績锛堣法妯″潡鏁版嵁鐪嬫澘锛孧10 鍚庡姛鑳借ˉ寮猴級
-- 鐩爣锛氭妸鏁ｅ湪鍚勬ā鍧楃殑鏁版嵁姹囨垚缁熶竴鎶ヨ〃鈥斺€斿緟鍔炲畬鎴愮巼/鏃ョ▼鍒嗗竷/鐪嬫澘鍚炲悙/瀹℃壒鏃舵晥/搴撳瓨鍛ㄨ浆/鏂囨。浜у嚭锛屼竴灞忔€昏 + 鏃堕棿鑼冨洿绛涢€?- 浜や粯娓呭崟锛?  1. 鎶ヨ〃瑙勫垯闆嗕腑 packages/shared/reports.ts锛歝omputeTodoCompletion(todos, range)銆乧omputeScheduleLoad(schedules, range)銆乧omputeApprovalSla(approvals, steps)銆乧omputeAssetTurnover(transactions)銆乧omputeDocOutput(documents, range)銆乤ssembleReport(all, range)锛堢函鍑芥暟锛屾棤鏂颁緷璧栵級鈥斺€攁pi/web 闆剁畻娉曞垎鏀?  2. api锛欸ET /api/reports/overview?from=&to=锛堝叚绫绘寚鏍囦竴娆¤繑鍥烇級銆丟ET /api/reports/:metric?from=&to=锛堝崟椤规槑缁嗭紝渚涗笅閽伙級
-  3. web锛氭柊澧炪€屾姤琛ㄣ€峵ab鈥斺€旂涓€琛?6 寮?KPI 鍗★紙鏁板€?鐜瘮+杩蜂綘鏉★級+ 涓嬫柟鍚勬寚鏍囨槑缁嗚〃锛堢偣 KPI 鍗″垏鎹級+ 鏃堕棿鑼冨洿閫夋嫨锛堣繎 7/30/90 澶?+ 鑷畾涔夛級
-  4. 鏂█锛歟2e 鈮?35锛堝叚鎸囨爣绠楁硶/鏃堕棿鑼冨洿/绌烘暟鎹?鐜瘮锛夈€乤udit 鈮?25锛堝惈 4xx锛氶潪娉曡寖鍥?鏈煡鍚?metric/瓒婃潈 id锛?  5. 鎴浘 鈮?锛氭姤琛ㄦ€昏鏈夋暟鎹?绌烘€?鏃堕棿鑼冨洿鍒囨崲/KPI 涓嬮捇鏄庣粏/鍏崱榻?绐勫睆/閿欒鎬?- 楠屾敹鏍囧噯锛?  1. 鍏ㄩ噺缁匡細e2e 鈮?272銆乤udit 鈮?834锛孯EADME 鍙岃妭鍚屾
-  2. 鍏寚鏍囨墜绠楁牳瀵癸紙waizhuan 浼氶€犲凡鐭ユ暟鎹獙瀹屾垚鐜?鍚炲悙/SLA锛夛紝绌烘暟鎹笉宕╄繑鍥?0
-  3. **鏂板銆屾姤琛ㄣ€峵ab 琛ヨ tab 婵€娲绘€佸浘**锛堝崄涓?tab 澹冲熀绾匡級
-  4. 鍙?VERDICT锛坵aizhuan + ui 闃绘柇宀楋級閫氳繃
-- 鍓嶇疆锛歳26 宸插彂鐗堬紙v0.0.32锛夆渽
-- 鏄庣‘杈圭晫锛氭湰杞彧璇讳笉鏀逛换浣曚笟鍔℃暟鎹紱涓嶅紩澶栭儴鍥捐〃搴擄紙鐢?CSS/绾?SVG 杩蜂綘鏉★級锛岄浂鏂颁緷璧栥€侀浂 token
+### r16 · M8 第 1 片：审批流引擎（M8 起步）
+- 目标：OA 审批流（发起/审批/抄送/转交/撤回）落库 + 最小 UI——M8 起步轮
+- 交付清单：
+  1. schema v11→v12：approvals 表（id/title/type/applicant_id/status/current_assignee/created_at/updated_at）、approval_steps 表（id/approval_id/order/assignee/action/comment/acted_at）、approval_cc 表（抄送人）
+  2. 审批状态机集中 packages/shared：APPROVAL_TRANSITIONS（draft→pending→approved/rejected/withdrawn；转交不改状态只换 assignee）、canTransitionApproval(from, to)、assertValidApprovalAction
+  3. api：approvals CRUD、POST /:id/submit、POST /:id/approve|reject|delegate|withdraw、GET 我的待办/我发起的/抄送我的
+  4. web：新增「审批」tab——发起审批表单 + 待办审批列表 + 审批详情（步骤时间线 + 操作按钮）+ 抄送提示
+  5. 断言：e2e ≥+40（状态机/步骤流转/三种视角查询）、audit ≥+30（含 4xx：非法流转/非当前 assignee 操作/已结单再审批）
+  6. 截图 ≥7：审批空态/发起表单/待办列表/详情时间线/审批通过态/窄屏/错误态
+- 验收标准：
+  1. 全量绿：e2e ≥1371、audit ≥1141，README 双节同步
+  2. 状态机全集中 shared，api 零流转分支；非 assignee 操作被拒有断言
+  3. **新增「审批」tab 补该 tab 激活态图**（十二 tab 壳基线）
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r15 已发版（v0.0.19）✅
 
-### r28 路 浼氳绠＄悊涓庝細璁锛堥绾?/ 鍐茬獊妫€娴嬶紝M10 鍚庡姛鑳借ˉ寮猴級
-- 鐩爣锛氬崗鍚屽姙鍏爣閰嶇殑浼氳棰勭害鈥斺€斾細璁鍙拌处 + 鏃舵棰勭害 + 鍐茬獊妫€娴?+ 鍙備細浜猴紙鏉ヨ嚜 r23 閫氳褰曪級鈥斺€旀湰杞彧鍋氭湰鍦伴绾︾鐞嗭紝**涓嶇瑙嗛浼氳**锛堝娉曘€屾槑纭笉鍋氥€嶏級
-- 浜や粯娓呭崟锛?  1. schema v19鈫抳20锛歳ooms 琛紙id/name/capacity/location/equipment/floor锛夈€乵eetings 琛紙id/title/room_id/start_at/end_at/organizer_member_id/agenda/status:booked|cancelled/created_at锛夈€乵eeting_attendees 琛紙meeting_id/member_id锛屽彲绌哄叧鑱旈€氳褰曪級
-  2. 浼氳瑙勫垯闆嗕腑 packages/shared/meetings.ts锛歞etectTimeConflict(newMeeting, existing)锛堝悓浼氳瀹ゆ椂娈甸噸鍙犲垽瀹氾紝杈圭晫鐩告帴涓嶅啿绐侊級銆乿alidateMeetingWindow(start, end)锛堢粨鏉熷繀椤绘櫄浜庡紑濮?鏈€闀?8 灏忔椂锛夈€乶ormalizeAttendees(ids)锛堝幓閲?鏍￠獙锛夆€斺€攁pi/web 闆剁畻娉曞垎鏀?  3. api锛歳ooms CRUD銆乵eetings CRUD + 棰勭害锛堝啿绐佽繑鍥?409 + 鍐茬獊浼氳 id锛夈€佹寜鏃ユ湡/浼氳瀹ゆ煡璇㈡棩绋嬨€乤ttendees 绠＄悊锛汫ET /api/rooms/:id/availability?date=锛堟椂娈靛崰鐢ㄨ〃锛?  4. web锛氭柊澧炪€屼細璁€峵ab鈥斺€斿乏浼氳瀹ゅ垪琛紙瀹归噺/璁惧锛? 涓懆/鏃ヨ鍥炬椂娈电綉鏍?+ 鍙抽绾﹁〃鍗曪紙鏍囬/鏃舵/鍙備細浜轰粠閫氳褰曢€夛級锛涘啿绐佹椂绾㈡潯鎻愮ず鍐茬獊浼氳
-  5. 鏂█锛歟2e 鈮?35锛堝啿绐佹娴?杈圭晫鐩告帴/绐楀彛鏍￠獙/棰勭害 CRUD/鍙敤鎬ф煡璇級銆乤udit 鈮?25锛堝惈 409 鍐茬獊/4xx锛氭椂娈靛€掓寕/瓒呴暱/瓒婃潈 room_id/鍋滅敤鍙備細浜猴級
-  6. 鎴浘 鈮?锛氫細璁┖鎬?浼氳瀹ゅ垪琛?鏃舵缃戞牸/棰勭害琛ㄥ崟/鍐茬獊鎻愮ず/绐勫睆/閿欒鎬?- 楠屾敹鏍囧噯锛?  1. 鍏ㄩ噺缁匡細e2e 鈮?370銆乤udit 鈮?929锛孯EADME 鍙岃妭鍚屾
-  2. **鍐茬獊妫€娴嬬湡瀹炴€?*锛歸aizhuan 閫犲悓浼氳瀹ら噸鍙犳椂娈碘啋409+鍐茬獊 id锛涜竟鐣岀浉鎺ワ紙9:00-10:00 涓?10:00-11:00锛変笉鍐茬獊锛涜法浼氳瀹ゅ悓鏃舵涓嶅啿绐?  3. **鏂板銆屼細璁€峵ab 琛ヨ tab 婵€娲绘€佸浘**锛堝崄鍏?tab 澹冲熀绾匡級
-  4. 鍙?VERDICT锛坵aizhuan + ui 闃绘柇宀楋級閫氳繃
-- 鍓嶇疆锛歳27 宸插彂鐗堬紙v0.0.33锛夆渽
-- 鏄庣‘杈圭晫锛氬彧鍋氭湰鍦伴绾﹀彴璐︼紝**涓嶆帴瑙嗛浼氳/澶栭儴鏃ュ巻**锛堝娉曟槑纭笉鍋氾級锛岄浂 token
+### r17 · M8 第 2 片：物资台账与单位任务流转（M8 收官）—— 已发版 v0.0.22
+- 交付：schema v13 三表；shared 三件套（applyAssetTransaction 负库拒绝/canTransitionUnitTask 五态/buildTaskTree 层级+环路）；api 15 路由单事务零半态；web 物资/单位任务两 tab（十四 tab 壳）；r16 U2 三项顺手修
+- 断言：e2e 1464→1552 / audit 1214→1302；变异红相 2 组；双 VERDICT 通过
 
-### r29 路 鏂囨。鐗堟湰鍘嗗彶涓庡洖鏀剁珯锛圡10 鍚庡姛鑳借ˉ寮猴級
-- 鐩爣锛氱粰 r8/r9 鐨勫崟浜哄潡缂栬緫鍣ㄨˉ鐗堟湰鍘嗗彶涓庤鍒犳仮澶嶁€斺€旀枃妗ｅ揩鐓х増鏈?+ 杞垹闄ゅ洖鏀剁珯 + 涓€閿仮澶嶏紝**涓嶆帴瀹炴椂鍗忓悓**锛堥偅闇€ CRDT锛岃秴褰撳墠鑼冨洿锛?- 浜や粯娓呭崟锛?  1. schema v20鈫抳21锛歞ocument_versions 琛紙id/document_id/version/title/content_markdown/created_at/note锛夈€乨ocuments 鍔?deleted_at 鍙┖鍒楋紙杞垹闄わ紝鍥炴敹绔欙級
-  2. 鐗堟湰瑙勫垯闆嗕腑 packages/shared/docHistory.ts锛歯extDocVersion(current)銆乥uildVersionNote(oldContent, newContent)锛堝彉鏇存憳瑕侊細澧?鍒犺鏁帮級銆乧anRestoreVersion(version, current)锛堥槻鎭㈠鍒板凡杞垹鏂囨。锛夆€斺€攁pi/web 闆剁畻娉曞垎鏀?  3. api锛欸ET /api/documents/:id/versions銆丳OST /:id/versions锛堟墜鍔ㄥ瓨蹇収锛夈€丳OST /:id/versions/:v/restore锛堟仮澶嶅埌鎸囧畾鐗堟湰锛岀敓鎴愭柊鐗堟湰鑰岄潪瑕嗙洊锛夈€丏ELETE /api/documents/:id锛堣蒋鍒狅級銆丟ET /api/documents/trash锛堝洖鏀剁珯鍒楄〃锛夈€丳OST /trash/:id/restore锛堣繕鍘熸枃妗ｏ級
-  4. web锛氭枃妗ｇ紪杈戦〉鍔犮€岀増鏈巻鍙层€嶄晶鏍忥紙鐗堟湰鍒楄〃 + 鍙樻洿鎽樿 + 棰勮 + 鎭㈠鎸夐挳锛? 鏂囨。鍒楄〃鍔犮€屽洖鏀剁珯銆嶅叆鍙ｏ紙杞垹鍒楄〃 + 杩樺師/姘镐箙鍒犻櫎锛?  5. 鏂█锛歟2e 鈮?35锛堢増鏈€掑/鎽樿/鎭㈠鐢熸垚鏂扮増鏈?杞垹闄?鍥炴敹绔欙級銆乤udit 鈮?25锛堝惈 4xx锛氱増鏈笉瀛樺湪/鎭㈠宸插垹鏂囨。/瓒婃潈 id/姘镐箙鍒犻櫎纭锛?  6. 鎴浘 鈮?锛氱増鏈巻鍙茬┖鎬?澶氱増鏈垪琛?鍙樻洿鎽樿/棰勮瀵规瘮/鎭㈠鍚?鍥炴敹绔?绐勫睆
-- 楠屾敹鏍囧噯锛?  1. 鍏ㄩ噺缁匡細e2e 鈮?495銆乤udit 鈮?029锛孯EADME 鍙岃妭鍚屾
-  2. **鎭㈠鐪熷疄鎬?*锛歸aizhuan 閫?v1鈫掓敼鈫抳2鈫掓敼鈫抳3锛屾仮澶嶅埌 v1 鍚庣敓鎴?v4锛堜笉瑕嗙洊鍘嗗彶锛夛紝鍏ㄦ枃閫愬瓧绛変簬 v1锛涜蒋鍒犫啋鍥炴敹绔欌啋杩樺師鈫掓枃妗ｄ粛鍦?  3. **鏂板鑳藉姏涓嶆敼鏃㈡湁 tab**锛堝湪鏂囨。椤靛唴鍔犱晶鏍?鍏ュ彛锛?8 tab 鏁伴噺涓嶅彉锛屼絾澹冲熀绾垮洜鏂囨。椤靛彉鍖栧悓鎵归噸鎷嶏級
-  4. 鍙?VERDICT锛坵aizhuan + ui 闃绘柇宀楋級閫氳繃
-- 鍓嶇疆锛歳28 宸插彂鐗堬紙v0.0.34锛夆渽
-- 鏄庣‘杈圭晫锛氫笉鎺ュ疄鏃跺崗鍚岀紪杈戯紙CRDT 瓒呰寖鍥达級锛涙案涔呭垹闄ら渶浜屾纭涓斿彧鍒犳湰杞帰閽堟暟鎹紝涓嶅姩鐢ㄦ埛鏁版嵁
+### r18 · M9 第 1 片：账号与网络版服务（M9 起步）
+- 目标：从本地单机走向网络版——用户/会话认证 + server 远端模式 + 前端模式切换——M9 起步轮（CRDT 协同编辑推迟到 M10 前）
+- 交付清单：
+  1. schema v13→v14：users 表（id/username/password_hash/created_at）、sessions 表（id/user_id/token/expires_at）
+  2. 认证规则集中 packages/shared：hashPassword(password)（scrypt/ pbkdf2 纯 Node 实现，零新依赖）、verifyPassword、validateSession（过期判定）、AUTH_PERMISSIONS（角色→权限映射）
+  3. api：POST /api/auth/register|login|logout、GET /api/auth/me、auth middleware（受保护路由 401 清假登录态——r1 教训复用）
+  4. server 模式：XIEFLOW_MODE=local|remote，remote 时 api 提供全量业务路由（现有）/local 时前端直连 db（现有）；前端加「本机/远端」切换卡（设置页），401 时跳登录页
+  5. 断言：e2e ≥+40（哈希/校验/会话过期/权限）、audit ≥+30（含 4xx：弱密码/重复用户名/无效 token/过期会话/未授权 401）
+  6. 截图 ≥7：登录页/注册页/登出后/401 跳登录/设置页模式切换/窄屏/错误态
+- 验收标准：
+  1. 全量绿：e2e ≥1592、audit ≥1332，README 双节同步
+  2. 真实注册→登录→带 token 访问受保护路由→登出→401 全链路有断言；密码不明文落库（验 hash）
+  3. **401 清假登录态**有断言（r1 r61 教训）；模式切换后 UI 状态正确
+  4. **若新增 tab 补该 tab 激活态图**；双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r17 已发版（v0.0.22）✅
+- 危险区注意：认证实现不得引入真实外部 IdP/密钥（危险区）；token 仅本地随机生成，不写任何密钥文件
 
-### r30 路 澶氱淮琛ㄦ牸鍏紡瀛楁锛堢函鏈湴琛ㄨ揪寮忔眰鍊硷紝M10 鍚庡姛鑳借ˉ寮猴級
-- 鐩爣锛氱粰 r6 瀛楁寮曟搸琛ュ叕寮忓瓧娈碘€斺€旀敮鎸佸紩鐢ㄥ悓琛ㄥ瓧娈电殑鍥涘垯/姣旇緝/鏉′欢杩愮畻锛岃嚜鍔ㄩ噸绠楋紝闆跺閮ㄤ緷璧?- 浜や粯娓呭崟锛?  1. schema v21鈫抳22锛氭棤鏂拌〃鈥斺€攆ields.type 鎵?`formula`锛宖ields.options JSON 鍐呭姞 `expression` 瀛楃涓诧紙鏃㈡湁瀛楁闆舵敼鍔紝浠呮柊瀛楁鍙敤锛?  2. 鍏紡寮曟搸闆嗕腑 packages/shared/formula.ts锛堢函 TS tokenizer + parser + evaluator锛?*闆?eval銆侀浂 new Function銆侀浂渚濊禆**锛夛細
-     - parseFormula(expr) 鈫?AST锛堝瓧娈靛紩鐢?`{瀛楁鍚峿`銆佹暟瀛?瀛楃涓插瓧闈㈤噺銆? - * /銆佹瘮杈冦€両F(cond,a,b)銆丷OUND(x,n)锛?     - evaluateFormula(ast, record) 鈫?鍊硷紱compileFormula(expr, fields) 鈫?鏍￠獙瀛楁寮曠敤瀛樺湪 + 绫诲瀷鍚堟硶鎬э紙闈炴硶瀛楁/璇硶閿欒杩斿洖缁撴瀯鍖栭敊璇級
-     - recomputeFormulas(table, records) 鈫?鎵归噺閲嶇畻锛屾娴嬪惊鐜紩鐢紙A 寮曠敤 B銆丅 寮曠敤 A 鎶ラ敊锛?  3. api锛氭柊澧?缂栬緫 formula 瀛楁鏃舵牎楠岃〃杈惧紡锛堥潪娉?400锛夈€丟ET 璁板綍鏃跺洖甯﹁绠楀€硷紙涓嶈惤搴擄紝璇绘椂璁＄畻锛夈€佸瓧娈靛紩鐢ㄥ彉鏇村悗閲嶇畻棰勮
-  4. web锛氬瓧娈电被鍨嬩笅鎷夊姞銆屽叕寮忋€嶏紱鏂板鍏紡瀛楁鏃惰〃杈惧紡杈撳叆妗?+ 瀹炴椂棰勮锛堝鐜版湁璁板綍璇曠畻锛夛紱缃戞牸涓叕寮忓垪鍙鏄剧ず璁＄畻鍊硷紝閿欒鏄剧ず绾㈡爣
-  5. 鏂█锛歟2e 鈮?40锛坱okenize/parse/姹傚€?寰幆寮曠敤/瀛楁鍙樻洿閲嶇畻/閿欒鎻愮ず锛夈€乤udit 鈮?30锛?xx锛氶潪娉曡〃杈惧紡/鏈煡瀛楁/寰幆寮曠敤/瓒婃潈琛?id锛?  6. 鎴浘 鈮?锛氬叕寮忓瓧娈电┖鎬?琛ㄨ揪寮忕紪杈?瀹炴椂棰勮/缃戞牸璁＄畻鍊?閿欒绾㈡爣/绐勫睆/寰幆寮曠敤閿欒
-- 楠屾敹鏍囧噯锛?  1. 鍏ㄩ噺缁匡細e2e 鈮?582銆乤udit 鈮?090锛孯EADME 鍙岃妭鍚屾
-  2. **鍏紡鐪熷疄鎬?*锛歸aizhuan 閫犲瓧娈点€屽崟浠?number / 鏁伴噺 number / 灏忚 formula={鍗曚环}*{鏁伴噺}銆嶁啋 鏂拌褰曡嚜鍔ㄧ畻灏忚锛涙敼鍗曚环鍚庨噸绠楋紱寰幆寮曠敤 A鈫擝 琚嫆骞剁粰鏄庣‘閿欒
-  3. **瀹夊叏**锛氬叏搴?grep 纭鏃?eval / new Function锛堣〃杈惧紡瑙ｆ瀽绾墜鍐欙級鈥斺€斿彉寮傛帰閽堥獙璇?  4. 鍙?VERDICT锛坵aizhuan + ui 闃绘柇宀楋級閫氳繃
-- 鍓嶇疆锛歳29 宸插彂鐗堬紙v0.0.35锛夆渽
-- 鏄庣‘杈圭晫锛氳〃杈惧紡鍙紩鐢ㄦ湰琛ㄥ瓧娈点€佸彧璇昏绠椾笉钀藉簱銆侀浂 eval/闆朵緷璧栵紱涓嶅紩澶栭儴鍏紡搴?
-### r31 路 杞婚噺娓呯悊锛氬瓧娈电被鍨嬫枃妗堝洖褰?+ 鍏紡娴偣灞曠ず锛圡10 鍚庯級
-- 鐩爣锛氭竻 r30 涓ゅ矖璁拌处鐨勪綆鎴愭湰鐪熼棶棰橈紝涓嶆柊澧炲姛鑳?- 浜や粯娓呭崟锛?  1. **瀛楁绫诲瀷鏁版枃妗堝洖褰掞紙UI U2-1锛?*锛歚BasesPage.tsx:921` 绌烘€佹枃妗堛€? 绉嶅瓧娈电被鍨嬮綈澶囥€嶁啋 鏀广€? 绉嶅瓧娈电被鍨嬮綈澶囷紙鍚叕寮忥級銆嶏紱鍚屾 `docs/ui/shell/README.md` 瀵瑰簲璇存槑锛涘洜鏀规覆鏌撳眰鈫?*閲嶆媿 shell/bases 鍗曞紶 + 鍗佸叓 tab 澹冲悓鎵?*锛堟垨鏁存壒锛屾寜瀹硶绗竴鏉★級
-  2. **鍏紡娴偣灞曠ず锛坵aizhuan P5锛?*锛氶摼寮忛瑙堝嚭鐜?`84.80000000000001` 鈫?灞曠ず灞傛牸寮忓寲锛坱oFixed 鍘诲熬闆舵垨 round 鍒板悎鐞嗙簿搴︼級锛?*涓嶆敼姹傚€艰涔?*锛坅udit 鎵嬬畻鏂█淇濇寔锛?  3. 鍙樺紓绾㈢浉 鈮? 缁勶細鏍煎紡鍖栨敼鍧忥紙鍘绘帀 toFixed锛夆啋 灞曠ず灞傛柇瑷€鍙樼孩 鈫?杩樺師鍏ㄧ豢
-- 鏂█锛歟2e 鈮?8锛堟枃妗?灞曠ず鏍煎紡鍖栵級銆乤udit 鈮?5锛屽彧娑ㄤ笉缂?- 鎴浘锛? 寮?shell/bases 閲嶆媿 + 鍗佸叓澹冲悓鎵?+ r31 鐭╅樀锛堝叕寮忓睍绀烘牸寮忓寲鎬侊級
-- 楠屾敹锛氬叏閲忕豢锛坋2e 鈮?672銆乤udit 鈮?127锛夛紝README 鍙岃妭鍚屾锛涘弻 VERDICT 閫氳繃
-- 鍓嶇疆锛歳30 宸插彂鐗堬紙v0.0.36锛夆渽
+### r19 · M9 第 2 片：多端同步与冲突处理（M9 收官）
+- 目标：网络版多端数据同步——变更日志 + 增量拉取 + 乐观锁冲突检测——M9 收官轮（CRDT 实时协同留 M10 前评估，本轮做「最后写入 wins + 冲突提示」）
+- 交付清单：
+  1. schema v14→v15：change_log 表（id/entity_type/entity_id/operation/payload/user_id/created_at/version）、entity_versions 表（entity_type/entity_id/version 乐观锁）
+  2. 同步规则集中 packages/shared：applyChangeSet(local, remote)（增量合并，冲突标记）、detectConflict(base, local, remote)（三方比较，返回冲突字段列表）、nextVersion(current)
+  3. api：GET /api/sync/changes?since=&limit=（增量变更日志）、POST /api/sync/apply（带期望 version 的乐观锁写入，409 冲突）、GET /api/sync/status（各实体版本摘要）
+  4. web：设置页加「多端同步」卡（最近同步时间/未同步变更数/冲突列表 + 手动同步按钮）；冲突时弹窗展示本地 vs 远端差异供用户选边
+  5. 断言：e2e ≥+35（三方合并/冲突检测/版本递增/幂等应用）、audit ≥+30（含 409 冲突/非法 since/越权 change）
+  6. 截图 ≥7：同步卡空闲/有未同步/冲突列表/冲突弹窗/同步成功后/窄屏/错误态
+- 验收标准：
+  1. 全量绿：e2e ≥1673、audit ≥1406，README 双节同步
+  2. 真造「本地改 A + 远端改 B」冲突场景 → 409 + 冲突字段列表准确（waizhuan 会手算）；选择一边后版本递增且再同步无冲突
+  3. 增量拉取幂等（同一 since 重复拉结果一致）
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r18 已发版（v0.0.23）✅
 
-### r32 路 鏂囨。鎵撳嵃瀵煎嚭澧炲己锛圚TML 鎵撳嵃鐗?+ Word 鍏煎锛孧10 鍚庡姛鑳借ˉ寮猴級
-- 鐩爣锛氬姙鍏垰闇€鐨勩€屾墦鍗?鍙﹀瓨涓?PDF/Word銆嶁€斺€旈浂鏂颁緷璧栵紙瀹硶鍗遍櫓鍖猴細涓嶅紩 pdf/docx 搴擄級锛岀敤绾?HTML + @media print + Word 鍙墦寮€鐨?HTML-in-doc 鏂规
-- 浜や粯娓呭崟锛?  1. 瀵煎嚭寮曟搸闆嗕腑 packages/shared/docExport.ts锛歜locksToPrintHtml(blocks, title, meta)锛堣涔夊寲 HTML + @media print 鏍峰紡鍐呭祵 + 椤电爜椤电湁锛夈€乥locksToWordHtml(blocks, title)锛圵ord 鍏煎 MHTML/HTML锛宐ase64 UTF-8锛夈€乻anitizeExportHtml锛堝潡鍐呭杞箟闃叉敞鍏ワ級鈥斺€攁pi/web 闆剁畻娉曞垎鏀?  2. api锛欸ET /api/documents/:id/export.html锛堟祻瑙堝櫒鍙墦鍗颁负 PDF锛夈€丟ET /api/documents/:id/export.doc锛圵ord 鎵撳紑锛夈€丟ET /api/documents/:id/print-preview锛堣繑鍥?HTML + 鍏冧俊鎭級
-  3. web锛氭枃妗ｇ紪杈戦〉瀵煎嚭鑿滃崟鍔犮€屾墦鍗?/ 鍙﹀瓨 PDF銆嶃€屼笅杞?Word(.doc)銆嶏紱鐐规墦鍗版柊寮€闅愯棌 iframe 璋?window.print()锛坔eadless 鐢?spy seam 楠岃瘉锛?  4. 鏂█锛歟2e 鈮?30锛圚TML 缁撴瀯/杞箟/鎵撳嵃鏍峰紡/Word 鍏煎澶达級銆乤udit 鈮?20锛?xx锛氳秺鏉?id/绌烘枃妗?闈炴硶鍧楋級
-  5. 鎴浘 鈮?锛氬鍑鸿彍鍗?鎵撳嵃棰勮/HTML 钀界洏浣愯瘉/Word 钀界洏浣愯瘉/绐勫睆/閿欒鎬?- 楠屾敹鏍囧噯锛?  1. 鍏ㄩ噺缁匡細e2e 鈮?715銆乤udit 鈮?158锛孯EADME 鍙岃妭鍚屾
-  2. **瀵煎嚭鐪熷疄鎬?*锛歸aizhuan 閫犲惈 10 绉嶅潡鐨勬枃妗ｂ啋瀵煎嚭 HTML 鐢ㄦ祻瑙堝櫒鐪熸墦寮€锛堟爣棰?鍧楀簭/鏍峰紡姝ｇ‘锛夆啋Word .doc 鐢?Excel/Word COM 鎴栨枃鏈В鏋愰獙璇佸彲鎵撳紑涓斿唴瀹逛笉涓紱XSS 娉ㄥ叆鍧楀唴瀹硅杞箟
-  3. **闆舵柊渚濊禆**锛歱ackage.json 闆跺彉鍔紙grep 楠岃瘉锛夛紱涓嶅紩澶栭儴 CDN
-  4. 鍙?VERDICT锛坵aizhuan + ui 闃绘柇宀楋級閫氳繃
-- 鍓嶇疆锛歳31 宸插彂鐗堬紙v0.0.37锛夆渽
-- 鏄庣‘杈圭晫锛氫笉寮?pdf/docx 绗笁鏂瑰簱锛堝嵄闄╁尯锛夛紝闆?token锛涙墦鍗板湪 headless 涓嬬敤 spy/seam 涓嶅脊绯荤粺瀵硅瘽妗嗭紙r8 鏁欒锛?
-### r33 路 鍏ㄥ眬鎼滅储锛堣法妯″潡缁熶竴妫€绱紝M10 鍚庡姛鑳借ˉ寮猴級
-- 鐩爣锛氭暟鎹暎钀?16 涓ā鍧楋紝鐢ㄦ埛鎵句竴鏉″緟鍔?鏂囨。/浼氳瑕佸垏 tab鈥斺€旂粺涓€鎼滅储妗?+ 璺ㄦā鍧楃粨鏋?+ 鐐圭粨鏋滅洿杈撅紙澶嶇敤 r26 deep-link 鏈哄埗锛?- 浜や粯娓呭崟锛?  1. 鎼滅储瑙勫垯闆嗕腑 packages/shared/globalSearch.ts锛歯ormalizeQuery锛坱rim/灏忓啓/鍒嗚瘝锛夈€乻coreMatch(query, text)锛堟爣棰樻潈閲?姝ｆ枃銆佸墠缂€鍛戒腑>鍖呭惈锛夈€乤ssembleSearchResults(query, sources)锛堣法婧愯仛鍚?鎸夊垎鏁版帓搴?姣忔簮涓婇檺/鍘婚噸锛夆€斺€攁pi/web 闆剁畻娉曞垎鏀?  2. api锛欸ET /api/search?q=&limit=&types= 涓€娆℃绱?8 绫绘簮鈥斺€攖odos / schedules / projects / cards / documents / knowledge_docs / members / meetings锛堝叏璇绘棦鏈夎〃锛屽彧璇讳笉鍐欙級锛涙瘡鏉＄粨鏋滃甫 {type, id, title, snippet, score, tab, deepLink}
-  3. web锛氶《鏍忓叏灞€鎼滅储妗嗭紙蹇嵎閿?Ctrl/Cmd+K锛? 涓嬫媺缁撴灉闈㈡澘锛堟寜绫诲瀷鍒嗙粍鍥炬爣 + 鍒嗘暟楂樹寒 + 閿洏涓婁笅閫夛級+ 鐐圭粨鏋滆烦瀵瑰簲 tab 骞跺畾浣嶏紙澶嶇敤 r26 deep-link锛?  4. 鏂█锛歟2e 鈮?35锛堝垎璇?鏉冮噸/鎺掑簭/鍘婚噸/绌烘煡璇?璺ㄦ簮锛夈€乤udit 鈮?25锛?xx锛氱┖ q/瓒呴暱 q/闈炴硶 types/瓒婃潈婧愶級
-  5. 鎴浘 鈮?锛氭悳绱㈢┖鎬?杈撳叆涓?鍗曠被鍨嬬粨鏋?澶氱被鍨嬬粨鏋?閿洏閫変腑/绐勫睆/閿欒鎬?- 楠屾敹鏍囧噯锛?  1. 鍏ㄩ噺缁匡細e2e 鈮?801銆乤udit 鈮?210锛孯EADME 鍙岃妭鍚屾
-  2. **璺ㄦ簮鐪熷疄鎬?*锛歸aizhuan 鍦?4 涓ā鍧楀悇閫犱竴鏉″惈鍚屽叧閿瘝鐨勬暟鎹啋鎼滅储涓€娆¤繑鍥?4 鏉′笖鎺掑簭鍚堢悊锛堟爣棰樺懡涓紭鍏堬級鈫掔偣鍏朵腑浼氳缁撴灉鐩磋揪璇ヤ細璁紙澶嶇敤 deep-link锛?  3. **鍙**锛氬叏閾捐矾闆朵笟鍔¤〃鍐欏叆锛坵aizhuan raw 搴撳揩鐓ф牳瀵癸級
-  4. 鍙?VERDICT锛坵aizhuan + ui 闃绘柇宀楋級閫氳繃
-- 鍓嶇疆锛歳32 宸插彂鐗堬紙v0.0.38锛夆渽
-- 鏄庣‘杈圭晫锛氬彧璇绘绱笉鏀逛笟鍔℃暟鎹紱闆跺閮ㄦ悳绱㈡湇鍔?闆?token锛涗笉鏂板 tab锛堥《鏍忔悳绱㈡锛?8 tab 鏁伴噺涓嶅彉锛屽３鍩虹嚎鍥犻《鏍忓彉鍖栧悓鎵归噸鎷嶏級
+### r20 · M10 第 1 片：离线模式与 PWA 移动适配（M10 起步）
+- 目标：离线可用 + 移动端适配——Service Worker 缓存 + 离线队列 + PWA manifest + 响应式移动布局——M10 起步轮
+- 交付清单：
+  1. PWA 基础设施：public/manifest.json（name/icons/start_url/display:standalone）、public/sw.js（cache-first 静态资源 + network-first API + 离线 fallback）、index.html link manifest + 注册 SW
+  2. 离线队列集中 packages/shared：offlineQueue 的 enqueue/dequeue/replay（localStorage 持久化，replay 按序重发），apiFetch 检测离线时改入队并返回语义化离线响应
+  3. 在线/离线状态指示：web 顶栏在线圆点 + 离线时 queue 徽标（待重放条数）+ 「立即同步」按钮（replay 队列）
+  4. 移动端适配：≤600px 断点下 tab 栏改底部导航/汉堡菜单、卡片单列、触摸目标 ≥44px、禁止横向溢出
+  5. 断言：e2e ≥+35（队列入出重放/离线语义/状态判定）、audit ≥+25（含 4xx：队列非法条目/重放冲突）
+  6. 截图 ≥7：manifest 安装提示/SW 注册成功/在线态/离线态+队列徽标/重放成功/移动窄屏 390px/错误态
+- 验收标准：
+  1. 全量绿：e2e ≥1756、audit ≥1467，README 双节同步
+  2. 真断网（CDP offline emulation）后操作入队→恢复在线→replay 成功（waizhuan 会真模拟断网）
+  3. 390px 移动视口无横向溢出、触摸目标达标；SW 在 CI/本地不干扰测试（测试环境禁用 SW）
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r19 已发版（v0.0.24）✅
+- 危险区注意：不引外部 CDN/图标依赖，manifest 图标用本地 SVG/PNG
 
-### r34 路 浠诲姟渚濊禆涓庨樆濉炲叧绯伙紙M10 鍚庡姛鑳借ˉ寮猴級
-- 鐩爣锛氬緟鍔炴湁鐘舵€佹満浣嗘棤渚濊禆鈥斺€旇ˉ鍓嶇疆浠诲姟锛坒inish-to-start锛夛細渚濊禆鏈畬鎴愬垯鏈换鍔′笉鍙紑濮嬶紝寰幆渚濊禆妫€娴嬶紝鐪嬫澘/寰呭姙椤靛彲瑙嗗寲闃诲閾?- 浜や粯娓呭崟锛?  1. schema v22鈫抳23锛歵odo_dependencies 琛紙todo_id/depends_on_todo_id锛孶NIQUE 瀵癸紝FK CASCADE锛?  2. 渚濊禆瑙勫垯闆嗕腑 packages/shared/todoDeps.ts锛歝anStartTodo(todo, deps, todos)锛堟墍鏈夊墠缃?done 鎵嶈兘寮€濮嬶級銆乨etectDependencyCycle(deps)锛圖FS 鐜娴嬶級銆乥uildDependencyGraph(todos, deps)锛堟嫇鎵戝簭/闃诲閾撅級鈥斺€攁pi/web 闆剁畻娉曞垎鏀?  3. api锛氫緷璧?CRUD锛圥OST/DELETE /api/todos/:id/dependencies锛夈€丟ET /:id/dependencies锛堝惈鍓嶇疆鐘舵€侊級銆丟ET /api/todos/blocked锛堣闃诲浠诲姟鍒楄〃锛夈€佺姸鎬佹満鎺ュ叆锛坥pen鈫抎one 鏃跺繀椤绘棤鏈畬鎴愬墠缃紝鍚﹀垯 409锛?  4. web锛氬緟鍔炶鎯呴〉鍔犮€屽墠缃换鍔°€嶅尯锛堟坊鍔?绉婚櫎 + 鐘舵€佸窘鏍囷級銆佸垪琛ㄩ〉闃诲鎬佸浘鏍?+ 銆岃 N 椤归樆濉炪€嶆彁绀恒€佸惊鐜緷璧栭敊璇孩鏉?  5. 鏂█锛歟2e 鈮?35锛堜緷璧栧垽瀹?鐜娴?鎷撴墤/鐘舵€佹満鎺ュ叆/闃诲鍒楄〃锛夈€乤udit 鈮?25锛?09 闃诲/4xx锛氳嚜渚濊禆/鐜?瓒婃潈/閲嶅渚濊禆锛?  6. 鎴浘 鈮?锛氬緟鍔炰緷璧栫┖鎬?娣诲姞鍓嶇疆/闃诲鎬佸垪琛?渚濊禆婊¤冻鍚?寰幆閿欒/绐勫睆/閿欒鎬?- 楠屾敹鏍囧噯锛?  1. 鍏ㄩ噺缁匡細e2e 鈮?884銆乤udit 鈮?287锛孯EADME 鍙岃妭鍚屾锛堢簿绠€鐗堬細閫熸煡琛?+ 涓よ妭褰撳墠 r34 鏉＄洰锛屽巻鍙蹭粛鎸囧悜褰掓。锛?  2. **渚濊禆鐪熷疄鎬?*锛歸aizhuan 閫?A鈫払鈫扖 閾撅紝A 鏈畬鎴愭椂 B/C 杞?done 蹇呴』 409锛汚 done 鍚?B 鍙?done锛涜嚜渚濊禆/鐜?A鈫払鈫扐 琚嫆
-  3. **鏃㈡湁鐘舵€佹満闆跺洖褰?*锛坮1 鐨?todo 鐘舵€佹満鏂█鍏ㄧ豢锛屽彧鍔犲畧鍗笉鏀硅涔夛級
-  4. 鍙?VERDICT锛坵aizhuan + ui 闃绘柇宀楋級閫氳繃
-- 鍓嶇疆锛歳33 宸插彂鐗堬紙v0.0.39锛夆渽
-- 鏄庣‘杈圭晫锛氬彧鍋?finish-to-start 渚濊禆锛屼笉鍋氱敇鐗瑰浘/鏃堕棿绾︽潫锛堣秴鑼冨洿锛夛紱闆舵柊渚濊禆銆侀浂 token
+### r21 · M10 第 2 片：私有化部署与一体化单机版（M10 收官）
+- 目标：一键部署 + 完全离线可用的单机版——docker-compose 私有化 + portable 增强 + 部署文档——项目最终里程碑
+- 交付清单：
+  1. docker/：Dockerfile（多阶段构建：Node 20 构建 web → 精简运行镜像，内置 SQLite 数据卷）、docker-compose.yml（app + 数据卷 + 环境变量 XIEFLOW_MODE=remote）、.dockerignore
+  2. portable 增强（scripts/pack.js）：内置 start.cmd（已验 boot）+ 新增 start.sh（Linux/macOS）+ 首次运行引导（README.txt 写清楚「双击 start.cmd → 打开 8080」）+ 数据目录自检
+  3. docs/DEPLOY.md：三种部署路径（网络版/cloud 已上线、私有化 docker-compose、单机 portable 目录）+ 备份/恢复/搬迁四步 + 常见问题
+  4. 部署自检脚本 scripts/verify-deploy.ps1：起服务 → health 200 → 关键路由 200 → 停服务，全程 headless（认证页 401 属预期）
+  5. 断言：e2e ≥+20（部署契约/数据目录/引导文案）、audit ≥+15（health/mode/部署路由）
+  6. 截图 ≥6：Docker 部署拓扑图（可用文本流程图 PNG 或 compose up 实拍）/start.cmd 首启/portable 目录结构/README 引导/8080 首页/窄屏
+- 验收标准：
+  1. 全量绿：e2e ≥1823、audit ≥1499，README 双节同步
+  2. **portable 目录实测 boot**：pack 后 start.cmd → 8080 web+api 200（本地实跑过，本轮复验一次确保未回归）
+  3. docker-compose 配置语法正确（本机无 docker 时至少 `docker compose config` 等价静态校验或用 compose-spec 解析断言）
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r20 已发版（v0.0.26）✅
+- M10 收官后：项目达到设计总纲全部 11 个里程碑——更新 README 路线图为全绿、director 履历总账、向 owner 交付最终总结
 
-### r35 路 鏃ュ巻 ICS 瀵煎嚭涓庤闃咃紙鏍囧噯 iCalendar锛孧10 鍚庡姛鑳借ˉ寮猴級
-- 鐩爣锛氭棩绋嬮〉鏁版嵁鍙鍑轰负鏍囧噯 .ics锛圤utlook/Google Calendar/Apple 鏃ュ巻鍙鍏ワ級+ 鎻愪緵璁㈤槄 URL锛堝彧璇?token-free 鐨勬湰鍦?feeds锛?- 浜や粯娓呭崟锛?  1. ICS 寮曟搸闆嗕腑 packages/shared/ics.ts锛歟scapeIcsText锛堟枃鏈浆涔?, ; \ 鎹㈣锛夈€乫ormatIcsDate锛圲TC `YYYYMMDDTHHMMSSZ`锛夈€乥uildIcsCalendar(schedules, meta)锛圴CALENDAR/VEVENT 瀹屾暣澶淬€乁ID 绋冲畾銆丏TSTART/DTEND/SUMMARY/DESCRIPTION/LOCATION锛夈€乸arseIcsCalendar(ics)锛堝洖璇昏В鏋愶紝楠岃瘉寰€杩旓級鈥斺€攁pi/web 闆剁畻娉曞垎鏀?  2. api锛欸ET /api/schedules/export.ics?from=&to=锛堟椂闂磋寖鍥磋繃婊わ紝content-type text/calendar锛夈€丟ET /api/todos/due.ics锛堝緟鍔炴埅姝㈡棩浣滀负 VEVENT锛夈€丟ET /api/feeds/:key.ics锛堣闃?key=鐢ㄦ埛鏈湴闅忔満涓诧紝瀛?settings锛岄潪瀵嗛挜鏂囦欢锛?  3. web锛氭棩绋嬮〉鍔犮€屽鍑?.ics銆嶆寜閽?+ 璁㈤槄璁剧疆鍗★紙鐢熸垚/澶嶅埗璁㈤槄 URL锛? 瀵煎叆 .ics 棰勮锛堣В鏋愬悗纭鍐欏叆锛?  4. 鏂█锛歟2e 鈮?35锛堣浆涔?鏃ユ湡鏍煎紡/寰€杩?VEVENT 瀛楁/鑼冨洿杩囨护/瀵煎叆棰勮锛夈€乤udit 鈮?25锛?xx锛氶潪娉曡寖鍥?瓒婃潈 key/鍧?ICS锛?  5. 鎴浘 鈮?锛欼CS 瀵煎嚭鑿滃崟/钀界洏浣愯瘉/璁㈤槄鍗?瀵煎叆棰勮/瀵煎叆鎴愬姛/绐勫睆/閿欒鎬?- 楠屾敹鏍囧噯锛?  1. 鍏ㄩ噺缁匡細e2e 鈮?996銆乤udit 鈮?349锛孯EADME 鍙岃妭鍚屾锛堢簿绠€鐗堜笁澶勶級
-  2. **鏍囧噯鍏煎**锛歸aizhuan 閫犲惈涓枃/閫楀彿/鎹㈣/寮曞彿鐨勬棩绋嬧啋瀵煎嚭 .ics鈫掔敤鐙珛瑙ｆ瀽鍣紙鎴?Outlook/Excel COM 绛変环锛夌湡鎵撳紑楠岃瘉涓嶄贡鐮佷笉涓㈠瓧娈碉紱瀵煎嚭鈫掑鍏ュ線杩旈€愬瓧娈电浉绛?  3. **闆舵柊渚濊禆**锛氭墜鍐?ICS 缂栬В鐮侊紝package.json 闆跺彉鍔?  4. 鍙?VERDICT锛坵aizhuan + ui 闃绘柇宀楋級閫氳繃
-- 鍓嶇疆锛歳34 宸插彂鐗堬紙v0.0.40锛夆渽
-- 鏄庣‘杈圭晫锛氳闃?key 鏄湰鍦伴殢鏈轰覆锛堝瓨 settings锛夛紝涓嶆槸瀵嗛挜/token锛堝娉曞嵄闄╁尯锛氫笉鍐欏瘑閽ユ枃浠讹級锛涗笉鎺ュ閮ㄦ棩鍘嗘湇鍔★紱闆?token
+### r22 · M10 后 遗留清理与质量收敛轮（不新增功能，只清挂账）
+- 目标：把 r18~r21 复验报告里反复挂账、不影响功能的 U2 项一次清干净，恢复证据链自洽，让后续任何读者不被旧索引误导
+- 交付清单（4 项 U2 + 1 项验证）：
+  1. **`docs/ui/shell/README.md` 整段推进到 r22 口径**（r20/r21 连续挂账）：标题/演进/14 行形态说明/哈希自查/全库计数全部更新为当前实际字节（r21 沿用 r20 壳图，若本轮重拍则用新哈希，并在 README 里保留 r19/r20 历史哈希作对照行）
+  2. **移动底栏「更多」可发现性**（r20 U2-2 → r21 U3-3）：≤600px 底栏右侧加渐隐遮罩 + 小箭头或「更多」按钮，点开 ☰ 菜单可见剩余 tab；补 390px 底栏「更多」态 + ☰ 展开态两张截图，证明后 6~7 枚 tab 有第二条可见路径
+  3. **`docs/DEPLOY.md` 三处文档补强**（r21 U2-3/U2-4）：路径 C 补 Releases zip 下载入口（指向 https://github.com/sun13-AI/xieflow/releases）、路径 B 补宿主 IP 访问提示（同网段设备用 `http://<宿主IP>:8080`）、备份恢复搬迁第 4 步补 docker 卷迁移命令示例
+  4. **child 索引一致性**：r18 返工脚本 `shot-r18-rework.ps1` 补进根 README 脚本清单（r18 U3-2 记账）
+  5. **变异红相留痕 ≥1 组**：如本轮改了渲染层（第 2 项），对「更多」按钮的显隐条件做变异红相（条件改恒 false → 截图 seam 断言变红 → 还原全绿）；如纯文档轮则对「文档契约断言」做等价变异
+- 断言：e2e ≥+8（移动导航「更多」态/文档契约）、audit ≥+5（部署路由契约），只涨不缩
+- 截图：本轮改渲染层 → 按宪法第一条**十四 tab 壳基线同批重拍**（解决 r21 U2-1 口径偏差）+ 受影响页面矩阵（390px 底栏/☰ 展开）
+- 验收标准：
+  1. 全量绿：e2e ≥1850、audit ≥1508，README 双节同步
+  2. shell README 哈希与实际文件逐字一致（waizhuan 会亲算 14 张 SHA 核对）
+  3. 390px 下「更多」入口 + ☰ 展开可达后 6 枚 tab（ui 会真点核）
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r21 已发版（v0.0.27）✅
 
-### r36 路 鏃ユ姤涓庡懆鎶ヨ嚜鍔ㄧ敓鎴愶紙M10 鍚庡姛鑳借ˉ寮猴級
-- 鐩爣锛欼KanBot/澶氬疂楸兼爣閰嶁€斺€斾粠鐪熷疄涓氬姟鏁版嵁鑷姩姹囨€绘棩鎶?鍛ㄦ姤锛堝畬鎴愰」/杩涜涓?闃诲/鏃ョ▼/浜у嚭锛夛紝鍙紪杈戝悗瀛樹负鏂囨。锛岄浂 token
-- 浜や粯娓呭崟锛?  1. 鎶ュ憡瑙勫垯闆嗕腑 packages/shared/workReports.ts锛歝ollectReportData(db 鏌ヨ缁撴灉, period)锛堟寜鏃堕棿绐楄繃婊ゅ凡瀹屾垚/鏂板缓/闃诲椤癸級銆乥uildReportMarkdown(data, type: daily|weekly)锛堟爣棰?瀹屾垚/杩涜涓?闃诲/鏃ョ▼/鏄庢棩璁″垝娈佃惤锛夈€乥uildReportHtml锛堟墦鍗扮増锛夈€乺eportSummary(data)锛堣鏁版憳瑕侊級鈥斺€攁pi/web 闆剁畻娉曞垎鏀?  2. api锛欸ET /api/reports/daily?date=銆丟ET /api/reports/weekly?week=锛堣繑鍥?Markdown + 缁撴瀯鍖栨暟鎹級銆丳OST /api/reports/save锛堟妸鎶ュ憡瀛樹负 documents + blocks锛屽彲缂栬緫锛?  3. web锛氭柊澧炪€屾姤鍛娿€峵ab鈥斺€旀棩鎶?鍛ㄦ姤鍒囨崲 + 鏃ユ湡/鍛ㄩ€夋嫨 + Markdown 棰勮锛堝彲缂栬緫 textarea锛? 銆屽瓨涓烘枃妗ｃ€嶆寜閽?+ 鎵撳嵃瀵煎嚭
-  4. 鏂█锛歟2e 鈮?35锛堟椂闂寸獥杩囨护/娈佃惤瑁呴厤/绌烘暟鎹?淇濆瓨涓烘枃妗?缂栬緫锛夈€乤udit 鈮?25锛?xx锛氶潪娉曟棩鏈?瓒婃潈 id/绌哄唴瀹癸級
-  5. 鎴浘 鈮?锛氭姤鍛婄┖鎬?鏃ユ姤鏈夋暟鎹?鍛ㄦ姤鏈夋暟鎹?缂栬緫鎬?瀛樹负鏂囨。鍚?绐勫睆/閿欒鎬?- 楠屾敹鏍囧噯锛?  1. 鍏ㄩ噺缁匡細e2e 鈮?104銆乤udit 鈮?421锛孯EADME 鍙岃妭鍚屾锛堢簿绠€鐗堜笁澶勶級
-  2. **鐪熷疄鎬?*锛歸aizhuan 閫犲凡鐭ユ暟鎹紙浠婃棩瀹屾垚 2銆佽繘琛屼腑 3銆侀樆濉?1锛夆啋鏃ユ姤 Markdown 閫愭鎵嬬畻鏍稿锛涘懆鎶ヨ仛鍚?7 澶╂暟鎹纭紱瀛樹负鏂囨。鍚庡彲鍦ㄦ枃妗ｉ〉鎵撳紑缂栬緫
-  3. **鏂板銆屾姤鍛娿€峵ab 琛ヨ tab 婵€娲绘€佸浘**锛堝崄涔?tab 澹冲熀绾匡級
-  4. 鍙?VERDICT锛坵aizhuan + ui 闃绘柇宀楋級閫氳繃
-- 鍓嶇疆锛歳35 宸插彂鐗堬紙v0.0.41锛夆渽
-- 鏄庣‘杈圭晫锛氫笉鎺ュ閮?LLM 鐢熸垚鏂囨锛堟ā鏉垮寲姹囨€伙紝闆?token锛夛紱鎶ュ憡鏁版嵁鍙鏃㈡湁涓氬姟琛?
-### r37 路 琛ㄦ牸鍒嗙粍瑙嗗浘涓庢眹鎬昏锛圡10 鍚庡姛鑳借ˉ寮猴級
-- 鐩爣锛氬缁磋〃鏍?r6/r7 鏈夌瓫閫夋帓搴忚鍥句絾鏃犲垎缁勨€斺€旇ˉ鎸夊瓧娈靛垎缁?+ 姣忕粍姹囨€昏锛堣鏁?姹傚拰/鍧囧€硷級锛屼笌鏃㈡湁瑙嗗浘鎸佷箙鍖栨満鍒跺鐢?- 浜や粯娓呭崟锛?  1. 鍒嗙粍瑙勫垯闆嗕腑 packages/shared/tableGroups.ts锛歡roupRecords(records, fieldId)锛堟寜瀛楁鍊煎垎妗躲€乶ull 鐙珛缁勩€佺粍搴忕‘瀹氭€э級銆乤ggregateGroup(records, fieldId, aggregator: count|sum|avg)锛堢函鍑芥暟锛岃烦杩囬潪鏁板€硷級銆乥uildGroupView(records, groupField, sortSpec)锛堝垎缁?缁勫唴鎺掑簭+姹囨€昏瑁呴厤锛夆€斺€攁pi/web 闆剁畻娉曞垎鏀?  2. schema v23鈫抳24锛歷iews 琛ㄥ姞 group_spec JSON 鍙┖鍒楋紙澶嶇敤 r7 瑙嗗浘鎸佷箙鍖栵紝涓嶆敼鏃ц锛?  3. api锛氳鍥?CRUD 鎵?groupSpec 瀛楁銆丟ET /api/views/:id/grouped锛堣繑鍥炲垎缁?姹囨€伙級銆?xx 鏍￠獙锛堥潪娉曞瓧娈?闈炴硶 aggregator/瓒婃潈 view锛?  4. web锛氳〃鏍奸〉瑙嗗浘鏍忓姞銆屽垎缁勩€嶄笅鎷夛紙閫夊瓧娈?鑱氬悎鏂瑰紡锛? 鍒嗙粍鎶樺彔澶?+ 姣忕粍姹囨€昏锛堝彧璇伙級
-  5. 鏂█锛歟2e 鈮?35锛堝垎妗?null 缁?鑱氬悎/缁勫唴鎺掑簭/鎸佷箙鍖栵級銆乤udit 鈮?25锛?xx锛氶潪娉曞瓧娈?鑱氬悎/瓒婃潈 view锛?  6. 鎴浘 鈮?锛氬垎缁勭┖鎬?鍒嗙粍涓嬫媺/鏁板€煎瓧娈靛垎缁?姹囨€昏/鎶樺彔鍚?绐勫睆/閿欒鎬?- 楠屾敹鏍囧噯锛?  1. 鍏ㄩ噺缁匡細e2e 鈮?202銆乤udit 鈮?496锛孯EADME 鍙岃妭鍚屾锛堢簿绠€鐗堜笁澶勶級
-  2. **鍒嗙粍鐪熷疄鎬?*锛歸aizhuan 閫犲凡鐭ユ暟鎹紙閲戦瀛楁 10/20/30锛屾寜鐘舵€佸垎缁勶級鈫?姣忕粍 count/sum/avg 鎵嬬畻鏍稿锛沶ull 鍊肩嫭绔嬫垚缁勶紱鍒嗙粍閰嶇疆淇濆瓨鍚?reload 淇濇寔
-  3. 鏃㈡湁瑙嗗浘锛坮7锛夐浂鍥炲綊锛堢瓫閫?鎺掑簭/鎶曞奖鏂█鍏ㄧ豢锛?  4. 鍙?VERDICT锛坵aizhuan + ui 闃绘柇宀楋級閫氳繃
-- 鍓嶇疆锛歳36 宸插彂鐗堬紙v0.0.42锛夆渽
-- 鏄庣‘杈圭晫锛氳仛鍚堝彧璇讳笉钀藉簱锛涗笉鍋氬浘琛紙r27 鎶ヨ〃宸叉湁锛夛紱闆舵柊渚濊禆銆侀浂 token
+### r23 · 组织架构与通讯录（M10 后功能补强；对标 duobaoyu 全功能协同办公骨架）
+- 目标：补上全功能协同办公缺的基础骨架——部门树 + 人员目录（审批 assignee / 物资 custodian 目前是自由文本，本轮只建目录与选择器，不破坏既有模块）
+- 交付清单：
+  1. schema v15→v16：departments 表（id/name/parent_id 可空/sort_order/created_at）、members 表（id/name/department_id/role/email/phone/title/status/user_id 可空关联登录账号）
+  2. 组织规则集中 packages/shared：buildDepartmentTree(depts)（层级/环检测/孤儿处理）、normalizeMember(input)（字段校验/邮箱格式）、validateDepartmentMove(id, parentId, tree)（防自挂/防环）——api/web 零算法分支
+  3. api：departments CRUD + move、members CRUD + 按部门查询 + 搜索（姓名/邮箱/职位模糊）、GET /api/org/tree（部门带人员）
+  4. web：新增「组织」tab——左侧部门树（展开/折叠）+ 右侧人员列表 + 新建/编辑表单 + 搜索框；本轮只做目录，不改审批/物资字段（避免回归）
+  5. 断言：e2e ≥+35（树层级/环检测/CRUD/搜索/规范化）、audit ≥+25（含 4xx：自挂/成环/重复部门名/非法邮箱/越权 id）
+  6. 截图 ≥7：组织空态/部门树展开/人员列表/新建人员表单/搜索结果/窄屏/错误态
+- 验收标准：
+  1. 全量绿：e2e ≥1891、audit ≥1539，README 双节同步
+  2. 部门树三级真实装配 + 环检测断言（waizhuan 会造 A→B→A 验证拒绝）；人员搜索大小写不敏感
+  3. **新增「组织」tab 补该 tab 激活态图**（十五 tab 壳基线）
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r22 已发版（v0.0.28）✅
+- 明确边界：本轮**不**把 members 接入审批/物资（那是 r24 可能的独立切片），避免既有断言大规模改动
 
-### r38 路 鐪嬫澘鍗＄墖鍏冩暟鎹紙鏍囩/璐熻矗浜?鎴鏃ワ紝鍚戝悗鍏煎锛?- 鐩爣锛氬崱鐗囧彧鏈?title/description/position/todo_id鈥斺€旇ˉ鏍囩锛堝閫夛級銆佽礋璐ｄ汉锛堝叧鑱?r23 鎴愬憳锛屽彲绌猴級銆佹埅姝㈡棩锛堝惈閫炬湡鍒ゅ畾锛夛紝涓庢棦鏈夌湅鏉块浂鍥炲綊
-- 浜や粯娓呭崟锛?  1. schema v24鈫抳25锛歝ards 鍔?assignee_member_id 鍙┖鍒?+ due_date 鍙┖鍒楋紱鏂板缓 card_labels 琛紙card_id/label TEXT锛孶NIQUE 瀵癸紝FK CASCADE锛夆€斺€?*鍘熷垪涓嶅姩锛岃€佹暟鎹浂褰卞搷**
-  2. 鍏冩暟鎹鍒欓泦涓?packages/shared/cardMeta.ts锛歯ormalizeCardLabels(labels)锛坱rim/鍘婚噸/涓婇檺/绂佺┖锛夈€乮sOverdue(dueDate, now)锛堟埅姝㈡棩宸茶繃涓旈潪瀹屾垚鍒楋級銆乧ardMetaSummary(card)锛堟爣绛炬暟/閫炬湡鎬?璐熻矗浜烘憳瑕侊級鈥斺€攁pi/web 闆剁畻娉曞垎鏀?  3. api锛氬崱鐗?CRUD 鎵?labels/assigneeMemberId/dueDate銆丟ET /api/boards/:id/overdue锛堥€炬湡鍗″垪琛級銆佹爣绛捐繃婊?GET /api/boards/:id/cards?label=锛?xx 鏍￠獙锛堥潪娉曟爣绛?鍋滅敤鎴愬憳/闈炴硶鏃ユ湡/瓒婃潈 id锛?  4. web锛氬崱鐗囩紪杈戦潰鏉垮姞鏍囩杈撳叆锛坈hip 灞曠ず锛夈€佽礋璐ｄ汉浠庨€氳褰曢€夛紙澶嶇敤 r24 閫夋嫨鍣級銆佹埅姝㈡棩 date 杈撳叆锛涘崱鐗囨闈㈡樉绀烘爣绛?chip + 璐熻矗浜?+ 閫炬湡绾㈡爣锛涚湅鏉跨瓫閫夋爮鍔犳爣绛句笅鎷?  5. 鏂█锛歟2e 鈮?35锛堟爣绛惧綊涓€/閫炬湡鍒ゅ畾/鍏冩暟鎹閰?绛涢€?鍚戝悗鍏煎锛夈€乤udit 鈮?25锛?xx锛氶潪娉曟爣绛?鍋滅敤鎴愬憳/瓒婃潈/闈炴硶鏃ユ湡锛?  6. 鎴浘 鈮?锛氬崱鐗囧厓鏁版嵁绌烘€?鏍囩娣诲姞/璐熻矗浜洪€夋嫨/鎴鏃ヨ缃?閫炬湡绾㈡爣/绐勫睆/閿欒鎬?- 楠屾敹鏍囧噯锛?  1. 鍏ㄩ噺缁匡細e2e 鈮?312銆乤udit 鈮?561锛孯EADME 鍙岃妭鍚屾锛堢簿绠€鐗堜笁澶勶級
-  2. **鍚戝悗鍏煎纭柇瑷€**锛歳4/r5/r7 鏃㈡湁鐪嬫澘鏂█锛堝缓鍒?绉诲崱/缁熻/瀵煎嚭/瑙嗗浘锛夊叏缁挎棤鍒犳敼锛涜€佸崱鐗囨棤鏍囩/璐熻矗浜?鎴鏃ョ収甯稿伐浣?  3. **鍏冩暟鎹湡瀹炴€?*锛歸aizhuan 閫犲凡鐭ュ崱鐗団啋鍔犳爣绛?璐熻矗浜?鎴鏃モ啋閫炬湡鍒ゅ畾鎵嬬畻鏍稿鈫掓寜鏍囩绛涢€夆啋reload 涓嶄涪
-  4. 鍙?VERDICT锛坵aizhuan + ui 闃绘柇宀楋級閫氳繃
-- 鍓嶇疆锛歳37 宸插彂鐗堬紙v0.0.43锛夆渽
-- 鏄庣‘杈圭晫锛氳礋璐ｄ汉鍏宠仈 r23 閫氳褰曚絾涓嶆敼瀹℃壒/鐗╄祫锛坮24 杈圭晫寤剁画锛夛紱闆舵柊渚濊禆銆侀浂 token
+### r24 · 组织成员接入审批与物资（向后兼容，M10 后功能补强）
+- 目标：让 r23 建的通讯录不再是孤岛——审批审批人/发起人与物资保管员可从通讯录选人，但**严格向后兼容**（原自由文本字段不动）
+- 交付清单：
+  1. schema v16→v17：仅加**可空** member_id 列——approvals.applicant_member_id、approval_steps.assignee_member_id、approval_cc.cc_member_id、assets.custodian_member_id（全部可空，原 TEXT 列保持 NOT NULL 不变）；迁移走 user_version 队列，老数据 member_id=NULL 照常工作
+  2. 解析规则集中 packages/shared/org.ts：resolveAssignee(text, memberId, members)（有 member_id 优先用通讯录姓名，否则回落自由文本）、memberDisplayName(member)——api/web 零算法分支
+  3. api：审批发起/转交/物资出入库接受可选 member_id 参数（校验存在且 active），响应回带 member 摘要（姓名/部门）；GET /api/org/members/:id/usage（该人被指派审批/保管物资数）
+  4. web：审批发起表单的申请人/审批人、物资表单的保管员旁加「从通讯录选人」按钮（弹出成员搜索选择器，选中填 member_id + 显示姓名），**保留原自由文本输入框**；审批时间线与物资卡片显示部门徽标（若有 member_id）
+  5. 断言：e2e ≥+30（成员接入/回落自由文本/usage 计数）、audit ≥+20（4xx：member_id 不存在/已停用/越权）
+  6. 截图 ≥7：审批表单选人弹窗/选中后/时间线部门徽标/物资表单选人/物资卡片徽标/窄屏/错误态
+- 验收标准：
+  1. 全量绿：e2e ≥1982、audit ≥1602，README 双节同步
+  2. **向后兼容硬断言**：老路径（不传 member_id，纯自由文本）全部既有断言保持通过，无一条删改（waizhuan 亲验）；新路径 member_id 真关联通讯录
+  3. 选成员后审批/物资显示部门徽标且 usage 计数正确；停用成员被拒
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r23 已发版（v0.0.29）✅
+- 危险边界：不动用户数据；member_id 全可空，NULL 行为与 r16/r17 完全一致；若既有断言因 schema 迁移变化只允许更新期望值，不许删
 
-### r39 路 鐢ㄦ埛鍙鏂囨娓呯悊锛堥敊璇潯鍐呴儴鏈锛岃繛缁?4 杞寕璐﹀繀淇級
-- 鐩爣锛歎I 瀹℃煡瀹樺湪 r35/r36/r37/r38 杩炵画鍥涜疆璁?U2鈥斺€旈敊璇潯/鎻愮ず閲屽す甯?`鎴浘閽夋€乣銆乣audit`銆乣锛堟埅鍥鹃拤鎬佸搴?audit 4xx 鈥︼級` 绛夊唴閮ㄦ祴璇曟湳璇紙濡?`BoardPage.tsx:312`锛夛紝缁堢鐢ㄦ埛鍙鈥斺€旀湰杞交搴曟竻鐞嗗苟鍔犳満鍒堕槻澶嶅彂
-- 浜や粯娓呭崟锛?  1. 鍏ㄥ簱鎵弿 `apps/web/src` 涓?*鐢ㄦ埛鍙瀛楃涓?*锛圝SX 鏂囨湰 / setState 鐨?message / placeholder / title 灞炴€э級閲岀殑鍐呴儴鏈锛堟埅鍥鹃拤鎬?/ audit / e2e / 4xx / seam / shot= / `rNN` 杞鍙凤級鈥斺€旈€愪釜鏀逛负绾敤鎴锋枃妗堬紱**浠ｇ爜娉ㄩ噴涓?`if (shot===)` 鍒嗘敮閲岀殑 seam 鏍囪淇濈暀**锛堥偅鏄埅鍥捐瘹瀹炴€ф墍闇€锛屼笉鏄敤鎴峰彲瑙侊級
-  2. 鏈哄埗闃插鍙戯細鏂板 `scripts/check-user-facing-text.ts` 鎵弿鏂█鈥斺€斿 `apps/web/src/**/*.tsx` 鎻愬彇瀛楃涓插瓧闈㈤噺锛岃嫢鍚屾椂鍚唴閮ㄦ湳璇笖涓嶅湪娉ㄩ噴/`shot ===` 瀹堝崼鍐呭垯绾紱鎺ュ叆 `pnpm run test:all`
-  3. 鍙樺紓绾㈢浉 鈮? 缁勶細鏁呮剰鎶婁竴鍙ョ敤鎴锋枃妗堝姞鍥炪€屾埅鍥鹃拤鎬併€嶁啋 鎵弿鏂█鍙樼孩 鈫?杩樺師鍏ㄧ豢
-  4. 鎴浘锛氬彈褰卞搷椤甸潰閿欒鎬侀噸鎷嶏紙board/bases/schedules 绛夊彲瑙侀敊璇潯澶勶級+ 19 tab 澹冲熀绾垮悓鎵归噸鎷?- 楠屾敹鏍囧噯锛?  1. 鍏ㄩ噺缁匡細e2e 鈮?390銆乤udit 鈮?620锛孯EADME 鍙岃妭鍚屾锛堢簿绠€鐗堜笁澶勶級
-  2. 鍏ㄥ簱鐢ㄦ埛鍙瀛楃涓插唴閮ㄦ湳璇浂鍛戒腑锛堟柊鎵弿鏂█鑳屼功锛夛紱鎴浘璇佹嵁浠嶈瘹瀹炴爣娉?seam锛堟敞閲?瀹堝崼淇濈暀锛?  3. 鏃㈡湁鏂█闆跺洖褰?  4. 鍙?VERDICT锛坵aizhuan + ui 闃绘柇宀楋級閫氳繃
-- 鍓嶇疆锛歳38 宸插彂鐗堬紙v0.0.44锛夆渽
-- 鏄庣‘杈圭晫锛氬彧鏀规枃妗堜笌鍔犳壂鎻忔柇瑷€锛屼笉鍔ㄤ笟鍔￠€昏緫锛涗笉鍒犳埅鍥?seam 鏍囪锛堝娉曠涓€鏉¤瘹瀹炴€э級
+### r25 · 第三轮遗留清理（审批 actorMemberId 真修 + shell 哈希块 + 文档口径）
+- 目标：清 r24 复验的真实缺口与 UI 记账，不新增功能
+- 交付清单：
+  1. **P3 真修（waizhuan r24）**：审批 UI 的「通过/驳回」提交步骤未传 `actorMemberId` → 时间线该步无部门徽标、该成员 usage 少计 1。修法：web 审批操作的当前用户若关联 member（登录账号 user_id 关联 members.user_id），提交动作时带 actorMemberId；api 落 approval_steps.actor_member_id（新增可空列，v17→v18）+ 回带摘要 + usage 计数包含审批动作
+  2. **shell README 哈希块覆盖（UI U2-1）**：r24 直接覆盖「r23 哈希块」，未保留历史对照——按 r22 先例改为「R25 当前块 + R23/R24 历史对照行」；全库计数同步 250 PNG
+  3. **索引口径（UI U2-2/3）**：物资壳与 r23 同字节的事实写进 shell README（不伪造差异）；r24/05 索引「详情徽标」补图或改文案为如实
+  4. **U3 低成本项**：选人弹窗加部门筛选、徽标去 member_id 裸号改姓名+部门、回填后手改的语义提示
+  5. 变异红相 ≥1 组：actorMemberId 透传改坏 → 断言变红 → 还原全绿
+- 断言：e2e ≥+12、audit ≥+8（审批动作 member 关联/usage 计数），只涨不缩
+- 截图：改渲染层 ✓ → 审批详情徽标/选人弹窗筛选/徽标改版 + 十五 tab 壳基线同批重拍
+- 验收标准：
+  1. 全量绿：e2e ≥2053、audit ≥1675，README 双节同步
+  2. 审批「通过」后时间线显示操作人部门徽标 + usage 计数准确（waizhuan 亲验）
+  3. shell README 哈希与实际逐字一致；双 VERDICT 通过
+- 前置：r24 已发版（v0.0.30）✅
 
-### r40 路 鍙ｅ緞娓呯悊涓庢壂鎻忓櫒鍔犲浐锛圡10 鍚庤交閲忚疆锛?- 鐩爣锛氭竻 r39 涓ゅ矖 P5鈥斺€旂櫥褰曢〉鐢ㄦ埛鍙銆屼笉鍗犱富鐣岄潰 14 涓?tab銆嶈繃鏈燂紙瀹為檯 19锛? 鏂囨鎵弿鍣ㄦ鍒欏彧鍖归厤涓や綅 `rNN` 婕忔帀鍗曚綅鏁?`rN`
-- 浜や粯娓呭崟锛?  1. AuthPages.tsx:133 鐢ㄦ埛鍙鏂囨銆?4 涓?tab銆嶁啋銆?9 涓?tab銆嶏紙鎴栨敼涓轰笉鍚暟瀛楃殑銆屼笉鍗犱富鐣岄潰 tab 鏁伴噺銆嶄互鍏嶅悗缁疆娆″啀杩囨湡锛?*浼樺厛鍚庤€?*锛夛紱App.tsx:415 娉ㄩ噴鍚屾涓€骞舵牎姝ｏ紙娉ㄩ噴涓嶈鎵弿浣嗕繚鍙ｅ緞涓€鑷达級
-  2. scripts/check-user-facing-text.ts 杞鍙锋鍒欎粠 `\br\d{2}\b` 鎵╀负 `\br\d{1,3}\b`锛屽苟琛ユ柇瑷€锛氬崟浣嶆暟 `r2 澶嶉獙鏉愭枡` 绫?placeholder 琚鍑猴紙r39 waizhuan P5锛?  3. 鎵弿鍣ㄨ嚜韬浂璇姤澶嶆牳锛?265 literals / 24 tsx 浠?0 鍛戒腑锛堟敼姝ｅ垯鍚庝笉璇激鐪熷疄涓氬姟璇嶏級
-  4. 鍙樺紓绾㈢浉 鈮? 缁勶細鍗曚綅鏁?rN 鏂囨鍔犲洖鈫掓壂鎻忕孩鈫掕繕鍘熷叏缁?  5. 鎴浘锛氱櫥褰曢〉骞插噣鎬侀噸鎷?+ 19 tab 澹冲熀绾垮悓鎵癸紙鍥犵櫥褰曢〉鏂囨鍙樺寲锛?- 楠屾敹鏍囧噯锛氬叏閲忕豢锛坋2e 鈮?420銆乤udit 鈮?630锛夛紝README 鍙岃妭鍚屾锛堢簿绠€鐗堜笁澶勶級锛涘弻 VERDICT 閫氳繃
-- 鍓嶇疆锛歳39 宸插彂鐗堬紙v0.0.45锛夆渽
-- 鏄庣‘杈圭晫锛氬彧鏀规枃妗?姝ｅ垯/鎴浘锛屼笉鍔ㄤ笟鍔￠€昏緫锛涗笉鍒?seam 鏍囪
+### r26 · 通知中心（站内消息聚合，M10 后功能补强）
+- 目标：协同办公标配——把散落在日程/审批/物资/同步的事件聚合成一个「通知」tab，统一未读管理与跳转
+- 交付清单：
+  1. schema v18→v19：notifications 表（id/type:schedule_due|approval_pending|asset_low|sync_conflict|system/title/body/ref_type/ref_id/read_at/created_at）+ 索引
+  2. 通知规则集中 packages/shared/notifications.ts：buildNotification(type, ctx)（模板/标题/正文生成）、shouldNotify(type, ctx)（阈值判定：审批待办≥1、物资库存≤阈值、同步冲突>0、日程当天）、notificationSummary(list)（未读计数按 type 分组）——api/web 零算法分支
+  3. api：notifications CRUD（列表带未读过滤/分页）、POST /:id/read、POST /read-all、POST /api/notifications/refresh（按当前库状态重算生成，幂等不重复）、GET /api/notifications/summary
+  4. web：新增「通知」tab——左侧类型筛选（全部/日程/审批/物资/同步/系统）+ 右侧消息列表（未读加粗 + 时间 + 分类图标）+ 点条跳转对应模块（ref_type→tab）+ 顶栏全局未读徽标
+  5. 断言：e2e ≥+40（模板/阈值/幂等/已读/分页/跳转契约）、audit ≥+30（含 4xx：非法 type/越权 id/无效 ref）
+  6. 截图 ≥7：通知空态/有未读/类型筛选/已读后/refresh 后/窄屏/错误态
+- 验收标准：
+  1. 全量绿：e2e ≥2136、audit ≥1753，README 双节同步
+  2. **真实事件聚合**：waizhuan 造「审批待办 + 库存低 + 同步冲突」→ refresh 生成 3 类通知各 1 → 重复 refresh 幂等不重复 → 点审批通知跳审批 tab 并定位该单
+  3. **新增「通知」tab 补该 tab 激活态图**（十六 tab 壳基线）+ 顶栏未读徽标
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r25 已发版（v0.0.31）✅
+- 明确边界：站内通知不接外部 IM/邮件（那是宪法「明确不做」的第三方 IM 集成），零 token
 
-### r41 路 杞婚噺琛ㄥ崟鏀堕泦锛堝垱寤?/ 濉啓 / 姹囨€伙紝M10 鍚庡姛鑳借ˉ寮猴級
-- 鐩爣锛氬鏍囧瀹濋奔銆岃〃鍗曟敹闆嗐€嶁€斺€旀棤浠ｇ爜琛ㄥ崟锛堟爣棰?+ 鑻ュ共闂锛夆啋 鍒嗕韩濉啓 鈫?绛斿嵎姹囨€伙紝涓庡缁磋〃鏍间簰琛?- 浜や粯娓呭崟锛?  1. schema v25鈫抳26锛歠orms 琛紙id/title/description/created_at/closed_at锛夈€乫orm_questions 琛紙id/form_id/type:text|number|select|checkbox/label/required/options_json/position锛夈€乫orm_responses 琛紙id/form_id/answers_json/created_at锛?  2. 琛ㄥ崟瑙勫垯闆嗕腑 packages/shared/forms.ts锛歯ormalizeFormDefinition锛堥棶棰樼被鍨嬬櫧鍚嶅崟/蹇呭～/閫夐」锛夈€乿alidateFormAnswers(answers, questions)锛堝繀濉己澶?绫诲瀷涓嶇/鏈煡棰樺彿锛夈€乻ummarizeResponses(responses, questions)锛堟瘡棰樼粺璁★細鏂囨湰鍒椾妇/鏁板€兼€诲拰鍧囧€?閫夐」鍒嗗竷/鍕鹃€夌巼锛夆€斺€攁pi/web 闆剁畻娉曞垎鏀?  3. api锛歠orms CRUD銆丟ET /api/forms/:id/fill锛堝叕寮€濉啓瑙嗗浘锛夈€丳OST /api/forms/:id/responses锛堟彁浜わ紝鏍￠獙涓嶉€氳繃 400锛夈€丟ET /api/forms/:id/summary锛堟眹鎬伙級
-  4. web锛氭柊澧炪€岃〃鍗曘€峵ab鈥斺€旀垜鐨勮〃鍗曞垪琛?+ 鍒涘缓琛ㄥ崟锛堝姞闂/缂栬緫锛? 濉啓瑙嗗浘锛堝惈鎻愪氦锛? 姹囨€昏鍥撅紙缁熻鍗★級
-  5. 鏂█锛歟2e 鈮?35锛堝畾涔夊綊涓€/绛斿嵎鏍￠獙/缁熻/绌虹瓟鍗?鍏抽棴琛ㄥ崟锛夈€乤udit 鈮?25锛?xx锛氬繀濉己澶?绫诲瀷涓嶇/鏈煡棰?瓒婃潈 id/宸插叧闂彁浜わ級
-  6. 鎴浘 鈮?锛氳〃鍗曠┖鎬?鍒涘缓琛ㄥ崟/闂缂栬緫/濉啓瑙嗗浘/鎻愪氦鎴愬姛/姹囨€荤粺璁?绐勫睆
-- 楠屾敹鏍囧噯锛?  1. 鍏ㄩ噺缁匡細e2e 鈮?465銆乤udit 鈮?666锛孯EADME 鍙岃妭鍚屾锛堢簿绠€鐗堜笁澶勶級
-  2. **姹囨€荤湡瀹炴€?*锛歸aizhuan 閫?3 浠界瓟鍗凤紙鍚暟鍊?閫夐」/鍕鹃€夛級鈫?姹囨€绘墜绠楁牳瀵癸紙鎬诲拰/鍧囧€?鍒嗗竷/鍕鹃€夌巼锛夛紱蹇呭～缂哄け涓庣被鍨嬩笉绗﹁鎷?  3. **鏂板銆岃〃鍗曘€峵ab 琛ヨ tab 婵€娲绘€佸浘**锛堜簩鍗?tab 澹冲熀绾匡級
-  4. 鍙?VERDICT锛坵aizhuan + ui 闃绘柇宀楋級閫氳繃
-- 鍓嶇疆锛歳40 宸插彂鐗堬紙v0.0.46锛夆渽
-- 鏄庣‘杈圭晫锛氫笉鎺ュ閮ㄨ〃鍗曟湇鍔?鍖垮悕鍏綉锛堟湰鍦?鐧诲綍鐢ㄦ埛濉啓锛夛紱闆舵柊渚濊禆銆侀浂 token
+### r27 · 报表中心（跨模块数据看板，M10 后功能补强）
+- 目标：把散在各模块的数据汇成统一报表——待办完成率/日程分布/看板吞吐/审批时效/库存周转/文档产出，一屏总览 + 时间范围筛选
+- 交付清单：
+  1. 报表规则集中 packages/shared/reports.ts：computeTodoCompletion(todos, range)、computeScheduleLoad(schedules, range)、computeApprovalSla(approvals, steps)、computeAssetTurnover(transactions)、computeDocOutput(documents, range)、assembleReport(all, range)（纯函数，无新依赖）——api/web 零算法分支
+  2. api：GET /api/reports/overview?from=&to=（六类指标一次返回）、GET /api/reports/:metric?from=&to=（单项明细，供下钻）
+  3. web：新增「报表」tab——第一行 6 张 KPI 卡（数值+环比+迷你条）+ 下方各指标明细表（点 KPI 卡切换）+ 时间范围选择（近 7/30/90 天 + 自定义）
+  4. 断言：e2e ≥+35（六指标算法/时间范围/空数据/环比）、audit ≥+25（含 4xx：非法范围/未知名 metric/越权 id）
+  5. 截图 ≥7：报表总览有数据/空态/时间范围切换/KPI 下钻明细/六卡齐/窄屏/错误态
+- 验收标准：
+  1. 全量绿：e2e ≥2272、audit ≥1834，README 双节同步
+  2. 六指标手算核对（waizhuan 会造已知数据验完成率/吞吐/SLA），空数据不崩返回 0
+  3. **新增「报表」tab 补该 tab 激活态图**（十七 tab 壳基线）
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r26 已发版（v0.0.32）✅
+- 明确边界：本轮只读不改任何业务数据；不引外部图表库（用 CSS/纯 SVG 迷你条），零新依赖、零 token
 
-### r42 路 README 鐗堟湰鍙疯嚜鍔ㄦ牎楠?watchdog锛堟秷闄ゆ瘡杞墜宸ユ紡鏀癸級
-- 鐩爣锛歳33/r34/r36/r37/r38/r41 澶嶉獙鍙嶅鎶撳埌 README銆孋I smoke 姝ｅ垯鍚屾鑷?vN銆嶃€宻chema user_version 褰撳墠 vN銆嶆粸鍚庘€斺€旀墜宸ユ敼涓ゅ鎬绘紡銆傚姞鏈哄埗闃插鍙?- 浜や粯娓呭崟锛?  1. 鏂板 scripts/check-doc-contract.ts锛氫粠鏉冨▉婧愯褰撳墠 schema 鐗堟湰锛坧ackages/shared SCHEMA_VERSION锛変笌 CI 姝ｅ垯锛?github/workflows/ci.yml锛夆啋 鏍稿 README 涓ゅ鏂囨锛坴N锛夈€侀€熸煡琛屾暟瀛楋紙e2e/audit 瀹炴祴鍊硷級涓庢牴 README 涓よ妭褰撳墠杞瓨鍦ㄦ€р€斺€斾换涓€涓嶇鍗崇孩
-  2. 鎺ュ叆 pnpm run test:all锛堜笌 check:text 骞跺垪锛?  3. 鍙樺紓绾㈢浉 鈮? 缁勶細鏁呮剰鎶?README 鐨?vN 鏀瑰皬 1 鈫?watchdog 绾?鈫?杩樺師鍏ㄧ豢
-  4. 鎴浘锛氭湰杞棤娓叉煋灞傛敼鍔紝浠呰剼鏈?鏂囨。 鈫?娌跨敤 r41 澹冲熀绾匡紙鍦ㄤ袱澶勭储寮曢€忔槑澹版槑銆屾湰杞棤娓叉煋灞傛敼鍔紝娌跨敤 r41 澹冲浘銆嶏紝鎸?r21 U2-1 鍏堜緥锛?- 楠屾敹鏍囧噯锛氬叏閲忕豢锛孯EADME 鍙岃妭鍚屾锛堢簿绠€鐗堜笁澶勶級锛涘弻 VERDICT 閫氳繃
-- 鍓嶇疆锛歳41 宸插彂鐗堬紙v0.0.47锛夆渽
-- 鏄庣‘杈圭晫锛氬彧鍔犳牎楠岋紝涓嶆敼浜у搧閫昏緫锛泈atchdog 鑷韩闇€鑳借鍙樺紓绾㈢浉璇佹槑闈炴亽鐪?
-### r43 路 浼氳瀹よ澶囦笌鏅鸿兘鎺ㄨ崘锛圡10 鍚庡姛鑳借ˉ寮猴級
-- 鐩爣锛氫細璁鍙湁 capacity/location銆佹棤璁惧瀛楁锛岄绾︽椂闇€鎵嬪伐鎸戞椂娈碘€斺€旇ˉ璁惧鍙拌处 + 鎸変汉鏁?璁惧/鏃舵鑷姩鎺ㄨ崘鍙敤浼氳瀹?- 浜や粯娓呭崟锛?  1. schema v26鈫抳27锛歳ooms 鍔?equipment TEXT 鍙┖鍒楋紙JSON 鏁扮粍瀛楃涓诧紝瀛橀噺琛?NULL 瑙嗕负绌鸿澶囷級鈥斺€斿師鍒椾笉鍔?  2. 鎺ㄨ崘瑙勫垯闆嗕腑 packages/shared/roomRecommend.ts锛歯ormalizeEquipment(input)锛堢櫧鍚嶅崟:鎶曞奖/鐧芥澘/瑙嗛浼氳/鐢佃瘽浼氳锛屽幓閲嶆帓搴忥級銆乺oomMatchesNeed(room, need{attendees,equipment,start,end}, meetings)锛堝閲忊墺浜烘暟 + 璁惧鍏ㄥ惈 + 鏃舵涓嶅啿绐?+ active锛夈€乺ecommendRooms(rooms, need, meetings)锛堟寜瀹归噺鏈€鎺ヨ繎鍗囧簭锛岀函鍑芥暟锛夆€斺€攁pi/web 闆剁畻娉曞垎鏀?  3. api锛歳ooms CRUD 鎵?equipment銆丟ET /api/rooms/recommend?attendees=&equipment=&start=&end=锛堝彲鐢ㄤ細璁 + 鍐茬獊鍘熷洜锛夛紝4xx 鏍￠獙锛堥潪娉曡澶?鏃舵鍊掓寕/闈炴暟瀛椾汉鏁帮級
-  4. web锛氫細璁鍗＄墖鏄剧ず璁惧寰芥爣锛涢绾﹁〃鍗曞姞銆屽府鎴戞帹鑽愩€嶆寜閽紙濉汉鏁?璁惧/鏃舵鈫掑垪鍑哄彲鐢ㄤ細璁+鍐茬獊鍘熷洜锛岀偣閫夊洖濉?roomId锛?  5. 鏂█锛歟2e 鈮?35锛堣澶囧綊涓€/鎺ㄨ崘鍙ｅ緞/鍐茬獊鍘熷洜/瀹归噺杈圭晫/鍚戝悗鍏煎锛夈€乤udit 鈮?25锛?xx锛氶潪娉曡澶?鏃舵鍊掓寕/瓒婃潈锛?  6. 鎴浘 鈮?锛氫細璁璁惧绌烘€?璁惧寰芥爣/鎺ㄨ崘闈㈡澘/鎺ㄨ崘缁撴灉/鍐茬獊鍘熷洜/绐勫睆/閿欒鎬?- 楠屾敹鏍囧噯锛?  1. 鍏ㄩ噺缁匡細e2e 鈮?586銆乤udit 鈮?728锛孯EADME 鍙岃妭鍚屾锛堢簿绠€鐗堜笁澶勶級
-  2. **鎺ㄨ崘鐪熷疄鎬?*锛歸aizhuan 閫?3 浼氳瀹わ紙涓嶅悓瀹归噺/璁惧锛? 宸叉湁棰勭害鈫掓寜 8 浜?鎶曞奖+鏌愭椂娈垫帹鑽愨啋鎵嬬畻鍙猺eturn绗﹀悎鏉′欢鐨勬埧闂翠笖鎸夊閲忔渶鎺ヨ繎鎺掑簭锛涘啿绐佹埧闂寸粰鏄庣‘鍘熷洜
-  3. **r28 浼氳闆跺洖褰?*锛堥绾?鍐茬獊/杈圭晫鐩告帴/availability 鏂█鍏ㄧ豢锛屽彧鍔?equipment 鍙┖鍒楋級
-  4. 鍙?VERDICT锛坵aizhuan + ui 闃绘柇宀楋級閫氳繃
-- 鍓嶇疆锛歳42 宸插彂鐗堬紙v0.0.48锛夆渽
-- 鏄庣‘杈圭晫锛氳澶囨槸鏈湴鏋氫妇涓嶆帴澶栭儴鐩綍锛涙帹鑽愬彧璇讳笉鏀归绾︽暟鎹紱闆舵柊渚濊禆銆侀浂 token
+### r28 · 会议管理与会议室（预约 / 冲突检测，M10 后功能补强）
+- 目标：协同办公标配的会议预约——会议室台账 + 时段预约 + 冲突检测 + 参会人（来自 r23 通讯录）——本轮只做本地预约管理，**不碰视频会议**（宪法「明确不做」）
+- 交付清单：
+  1. schema v19→v20：rooms 表（id/name/capacity/location/equipment/floor）、meetings 表（id/title/room_id/start_at/end_at/organizer_member_id/agenda/status:booked|cancelled/created_at）、meeting_attendees 表（meeting_id/member_id，可空关联通讯录）
+  2. 会议规则集中 packages/shared/meetings.ts：detectTimeConflict(newMeeting, existing)（同会议室时段重叠判定，边界相接不冲突）、validateMeetingWindow(start, end)（结束必须晚于开始/最长 8 小时）、normalizeAttendees(ids)（去重/校验）——api/web 零算法分支
+  3. api：rooms CRUD、meetings CRUD + 预约（冲突返回 409 + 冲突会议 id）、按日期/会议室查询日程、attendees 管理；GET /api/rooms/:id/availability?date=（时段占用表）
+  4. web：新增「会议」tab——左会议室列表（容量/设备）+ 中周/日视图时段网格 + 右预约表单（标题/时段/参会人从通讯录选）；冲突时红条提示冲突会议
+  5. 断言：e2e ≥+35（冲突检测/边界相接/窗口校验/预约 CRUD/可用性查询）、audit ≥+25（含 409 冲突/4xx：时段倒挂/超长/越权 room_id/停用参会人）
+  6. 截图 ≥7：会议空态/会议室列表/时段网格/预约表单/冲突提示/窄屏/错误态
+- 验收标准：
+  1. 全量绿：e2e ≥2370、audit ≥1929，README 双节同步
+  2. **冲突检测真实性**：waizhuan 造同会议室重叠时段→409+冲突 id；边界相接（9:00-10:00 与 10:00-11:00）不冲突；跨会议室同时段不冲突
+  3. **新增「会议」tab 补该 tab 激活态图**（十八 tab 壳基线）
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r27 已发版（v0.0.33）✅
+- 明确边界：只做本地预约台账，**不接视频会议/外部日历**（宪法明确不做），零 token
 
-### r44 路 鍥捐瘉涓庢枃妗ｅ彛寰勪慨姝ｏ紙r43 U2-1 鏃舵涓嶈嚜娲界瓑锛岃交閲忚疆锛?- 鐩爣锛氭竻 r43 UI 璁拌处鐨勫浘璇佷笉鑷唇涓庢枃妗ｅ彛寰勬粸鍚庯紝涓嶆柊澧炲姛鑳?- 浜や粯娓呭崟锛?  1. **r43 U2-1**锛?5-recommend-conflicts.png 鐢婚潰鏃舵 09:00鈥?0:00 涓庣储寮曘€?4:30鈥?5:00銆嶅強 #21 鍐茬獊鏂囨涓嶈嚜娲解€斺€旈噸閽夐噸鎷嶏紙鐢婚潰涓?index 缁熶竴涓哄悓涓€鏃舵锛夋垨鏀圭储寮曚负濡傚疄锛屼簩閫変竴骞跺彲澶嶆媿
-  2. **r43 U2-2**锛?7-recommend-error.png 鎶?400 鏍￠獙閿欒濂楄繘銆岃繛鎺ュけ璐?/ pnpm dev:api銆嶆鏋垛€斺€旀敼涓恒€岃緭鍏ユ湁璇紝璇锋鏌ヤ汉鏁?璁惧/鏃舵銆嶇函鐢ㄦ埛鏂囨锛堢敤鎴峰彲瑙佸瓧绗︿覆锛屾壂鎻忓櫒浼氭牎楠屾棤鍐呴儴鏈锛?  3. **r43 U3**锛歴hell README changed=8/same=12 涓庡疄闄?6/14 鐭涚浘銆佸叏搴撹鏁?372/370 涓蹭綅銆佸浘娉ㄣ€宺37 寰界珷銆嶉檲鏃р€斺€旈€愰」淇涓?r43 瀹炴祴
-  4. 鍙樺紓绾㈢浉 鈮? 缁勶細鍥炬敞鍙ｅ緞鎴栨椂娈?seam 鏀瑰潖鈫掓柇瑷€绾⑩啋杩樺師鍏ㄧ豢锛堣嫢绾枃妗ｅ垯鐢?DOC-CONTRACT/watchdog 浣愯瘉锛?- 楠屾敹鏍囧噯锛氬叏閲忕豢锛堣妯″彧娑ㄤ笉缂╋級锛孯EADME 鍙岃妭鍚屾锛涘弻 VERDICT 閫氳繃锛涙埅鍥捐嫢閲嶆媿鍒?20 澹冲悓鎵癸紙鏃犳覆鏌撳眰鏀瑰姩鍒欐部鐢ㄥ苟澹版槑锛?- 鍓嶇疆锛歳43 宸插彂鐗堬紙v0.0.49锛夆渽
-- 鏄庣‘杈圭晫锛氬彧鏀瑰浘璇?鏂囨。/鐢ㄦ埛鍙鏂囨锛屼笉鍔ㄤ笟鍔￠€昏緫
+### r29 · 文档版本历史与回收站（M10 后功能补强）
+- 目标：给 r8/r9 的单人块编辑器补版本历史与误删恢复——文档快照版本 + 软删除回收站 + 一键恢复，**不接实时协同**（那需 CRDT，超当前范围）
+- 交付清单：
+  1. schema v20→v21：document_versions 表（id/document_id/version/title/content_markdown/created_at/note）、documents 加 deleted_at 可空列（软删除，回收站）
+  2. 版本规则集中 packages/shared/docHistory.ts：nextDocVersion(current)、buildVersionNote(oldContent, newContent)（变更摘要：增/删行数）、canRestoreVersion(version, current)（防恢复到已软删文档）——api/web 零算法分支
+  3. api：GET /api/documents/:id/versions、POST /:id/versions（手动存快照）、POST /:id/versions/:v/restore（恢复到指定版本，生成新版本而非覆盖）、DELETE /api/documents/:id（软删）、GET /api/documents/trash（回收站列表）、POST /trash/:id/restore（还原文档）
+  4. web：文档编辑页加「版本历史」侧栏（版本列表 + 变更摘要 + 预览 + 恢复按钮）+ 文档列表加「回收站」入口（软删列表 + 还原/永久删除）
+  5. 断言：e2e ≥+35（版本递增/摘要/恢复生成新版本/软删除/回收站）、audit ≥+25（含 4xx：版本不存在/恢复已删文档/越权 id/永久删除确认）
+  6. 截图 ≥7：版本历史空态/多版本列表/变更摘要/预览对比/恢复后/回收站/窄屏
+- 验收标准：
+  1. 全量绿：e2e ≥2495、audit ≥2029，README 双节同步
+  2. **恢复真实性**：waizhuan 造 v1→改→v2→改→v3，恢复到 v1 后生成 v4（不覆盖历史），全文逐字等于 v1；软删→回收站→还原→文档仍在
+  3. **新增能力不改既有 tab**（在文档页内加侧栏/入口，18 tab 数量不变，但壳基线因文档页变化同批重拍）
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r28 已发版（v0.0.34）✅
+- 明确边界：不接实时协同编辑（CRDT 超范围）；永久删除需二次确认且只删本轮探针数据，不动用户数据
 
-### r45 路 鏂囨。鍧楁嫋鎷芥帓搴忥紙HTML5 DnD + 瑙﹀睆鎸夐挳锛孧10 鍚庡姛鑳借ˉ寮猴級
-- 鐩爣锛氬潡缂栬緫鍣ㄧ洰鍓嶅彧鏈変笂绉?涓嬬Щ鎸夐挳鈥斺€旇ˉ鎷栨嫿鎵嬫焺锛堟闈?HTML5 DnD + 瑙﹀睆澶嶇敤鐜版湁涓?涓嬬Щ鎸夐挳浣滀负鏃犻殰纰嶈矾寰勶級锛屽鐢ㄥ凡鏈?`POST /api/blocks/:id/move`锛坮8锛夛紝涓嶆敼 API 璇箟
-- 浜や粯娓呭崟锛?  1. 鎷栨嫿瑙勫垯闆嗕腑 packages/shared/blockDnd.ts锛歱lanBlockDrop(fromIndex, toIndex, count)锛堣竟鐣岄挸鍒?鍚屽簭杩斿洖 null/鐩爣 position 鎹㈢畻锛夈€乿alidateDropTarget(fromId, toId)锛堢姝㈡嫋鍒拌嚜韬?瀛愬潡锛夆€斺€旂函鍑芥暟锛宎pi/web 闆剁畻娉曞垎鏀?  2. web DocsPage锛氭瘡涓潡鍔犳嫋鎷芥墜鏌勶紙鉅匡級鈫?dragstart 璁板綍婧愬潡 鈫?dragover 鏄剧ず鎻掑叆绾匡紙瑙嗚鍙嶉锛夆啋 drop 璋?planBlockDrop 寰楃洰鏍?position 鈫?鐪熷彂 `POST /api/blocks/:id/move` 鈫?鏈湴鍒楄〃鍚屾锛涜Е灞忎粛鍙敤涓?涓嬬Щ鎸夐挳锛堟棤闅滅淇濈暀锛?  3. 鏂█锛歟2e 鈮?30锛堟嫋鏀捐鍒?杈圭晫閽冲埗/鍚屽簭 null/HTTP move 钀藉簱/鎸佷箙鍖栵級銆乤udit 鈮?20锛堝鐢?move 绔偣 4xx锛氳秺鏉?闈炴硶 position锛?  4. 鎴浘 鈮?锛氬潡鍒楄〃鏈夋墜鏌?鎷栨嫿涓彃鍏ョ嚎/鏀句笅鍚庨『搴?璺ㄧ被鍨嬫嫋鎷?瑙﹀睆鎸夐挳鎬?绐勫睆/閿欒鎬?- 楠屾敹鏍囧噯锛?  1. 鍏ㄩ噺缁匡細e2e 鈮?707銆乤udit 鈮?822锛孯EADME 鍙岃妭鍚屾锛堢簿绠€鐗堜笁澶勶級
-  2. **鎷栨嫿鐪熷疄鎬?*锛歸aizhuan headless CDP 鐪熸嫋绗?3 鍧楀埌绗?1 浣嶁啋HTTP 鍥炶 position 杩炲彿涓旈『搴忔纭啋reload 涓嶄涪锛涙嫋鍒拌竟鐣岄挸鍒朵笉瓒婄晫
-  3. **r8/r9 鍧楀紩鎿庨浂鍥炲綊**锛堟媶鍚?杞崲/绉诲姩/鍏ㄦ枃瑁呴厤鏂█鍏ㄧ豢锛屽彧鍔?UI 鎷栨嫿鍏ュ彛锛?  4. 鍙?VERDICT锛坵aizhuan + ui 闃绘柇宀楋級閫氳繃
-- 鍓嶇疆锛歳44 宸插彂鐗堬紙v0.0.50锛夆渽
-- 鏄庣‘杈圭晫锛氫笉鏀?schema锛堟棤鏂扮増鏈級銆佷笉鏀?API 璇箟锛堝鐢?move 绔偣锛夈€侀浂鏂颁緷璧栥€侀浂 token锛涙棤鏂?tab锛?0 tab 鏁伴噺涓嶅彉锛屽３鍩虹嚎鍥犳枃妗ｉ〉鍙樺寲鍚屾壒閲嶆媿锛?
-### r46 路 绱㈠紩鍙ｅ緞淇锛坮45 U2 鍥捐瘉/鏂囨锛岃交閲忚疆锛?- 鐩爣锛氭竻 r45 UI 璁拌处鐨勭储寮曚笌鐢婚潰涓嶈嚜娲斤紝涓嶆柊澧炲姛鑳?- 浜や粯娓呭崟锛?  1. r45 U2-1锛?4 璺ㄧ被鍨嬪浘绱㈠紩鎵€寮?audit銆屾爣棰樺潡钀芥湯浣嶃€嶄笌鐢婚潰銆屾鏂囧潡钀芥湯浣嶃€嶉潪鍚屼竴鍦烘櫙锛屼袱澶勭储寮曞紩鐨勬柇瑷€杩樹笉涓€鑷粹€斺€旀敼涓哄瀹烇紙鐢婚潰鍦烘櫙瀵瑰簲鐨勭湡瀹炴柇瑷€鍚嶏級
-  2. r45 U2-2锛?5 瑙﹀睆鍥剧储寮曠О銆屸啈/鈫?钃濇寮鸿皟銆嶄笉瀹烇紙Pillow 閫愬儚绱犱笌 01 鍚屽尯闆跺樊寮傦紝鎸夐挳涓烘祬鐏版弿杈癸級鈥斺€旀敼鏂囨涓哄瀹炴弿杩?  3. r45 U2-3锛?7 绱㈠紩绉般€屽叡 5 鍧椼€嶏紝鐢婚潰鏀惧ぇ瀹炰负銆屽叡 5 寮犲崱銆嶏紙鐪嬫澘璇嶆眹娣风敤锛夆€斺€旂粺涓€涓哄潡缂栬緫鍣ㄥ彛寰?  4. 鍙樺紓绾㈢浉 鈮? 缁勶細绱㈠紩鍙ｅ緞鏀瑰潖鈫扗OC-CONTRACT/watchdog 绾⑩啋杩樺師鍏ㄧ豢
-- 楠屾敹鏍囧噯锛氬叏閲忕豢锛堣妯″彧娑ㄤ笉缂╋級锛孯EADME 鍙岃妭鍚屾锛涘弻 VERDICT 閫氳繃锛涙湰杞棤娓叉煋灞傛敼鍔ㄢ啋娌跨敤 r45 澹冲浘锛堜袱澶勯€忔槑澹版槑锛?- 鍓嶇疆锛歳45 宸插彂鐗堬紙v0.0.51锛夆渽
-- 鏄庣‘杈圭晫锛氬彧鏀圭储寮?鏂囨。锛屼笉鍔ㄤ唬鐮?鎴浘/涓氬姟閫昏緫
+### r30 · 多维表格公式字段（纯本地表达式求值，M10 后功能补强）
+- 目标：给 r6 字段引擎补公式字段——支持引用同表字段的四则/比较/条件运算，自动重算，零外部依赖
+- 交付清单：
+  1. schema v21→v22：无新表——fields.type 扩 `formula`，fields.options JSON 内加 `expression` 字符串（既有字段零改动，仅新字段可用）
+  2. 公式引擎集中 packages/shared/formula.ts（纯 TS tokenizer + parser + evaluator，**零 eval、零 new Function、零依赖**）：
+     - parseFormula(expr) → AST（字段引用 `{字段名}`、数字/字符串字面量、+ - * /、比较、IF(cond,a,b)、ROUND(x,n)）
+     - evaluateFormula(ast, record) → 值；compileFormula(expr, fields) → 校验字段引用存在 + 类型合法性（非法字段/语法错误返回结构化错误）
+     - recomputeFormulas(table, records) → 批量重算，检测循环引用（A 引用 B、B 引用 A 报错）
+  3. api：新增/编辑 formula 字段时校验表达式（非法 400）、GET 记录时回带计算值（不落库，读时计算）、字段引用变更后重算预览
+  4. web：字段类型下拉加「公式」；新增公式字段时表达式输入框 + 实时预览（对现有记录试算）；网格中公式列只读显示计算值，错误显示红标
+  5. 断言：e2e ≥+40（tokenize/parse/求值/循环引用/字段变更重算/错误提示）、audit ≥+30（4xx：非法表达式/未知字段/循环引用/越权表 id）
+  6. 截图 ≥7：公式字段空态/表达式编辑/实时预览/网格计算值/错误红标/窄屏/循环引用错误
+- 验收标准：
+  1. 全量绿：e2e ≥2582、audit ≥2090，README 双节同步
+  2. **公式真实性**：waizhuan 造字段「单价 number / 数量 number / 小计 formula={单价}*{数量}」→ 新记录自动算小计；改单价后重算；循环引用 A↔B 被拒并给明确错误
+  3. **安全**：全库 grep 确认无 eval / new Function（表达式解析纯手写）——变异探针验证
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r29 已发版（v0.0.35）✅
+- 明确边界：表达式只引用本表字段、只读计算不落库、零 eval/零依赖；不引外部公式库
 
-### r47 路 AI 宸ュ叿璋冪敤纭闂搁棬锛堝嵄闄╂搷浣滃厛棰勮鍚庢墽琛岋紝M10 鍚庡姛鑳借ˉ寮猴級
-- 鐩爣锛欰I 宸ヤ綔鍙板伐鍏疯皟鐢ㄧ洰鍓嶇洿鎺ユ墽琛岋紙create_todo/create_document/create_schedule 绛夌姸鎬佸彉鏇寸被锛夛紝缂虹敤鎴风‘璁ょ幆鑺傗€斺€旇ˉ銆岄瑙堚啋纭鈫掓墽琛屻€嶉椄闂紝閬垮厤璇搷浣滃彂鏁?- 浜や粯娓呭崟锛?  1. 闂搁棬瑙勫垯闆嗕腑 packages/agent/toolGate.ts锛歯eedsConfirmation(toolName)锛圫TATE_CHANGING_TOOLS + 鏂板宸ュ叿鐧藉悕鍗曪級銆乥uildToolPreview(toolCall, toolResult?)锛堜汉绫诲彲璇荤殑鎿嶄綔鎽樿锛夈€乸lanToolExecution(calls, confirmedIds)锛堟湭纭鐨勭姸鎬佸彉鏇磋皟鐢ㄦ嫤鎴负 pending锛屽彧璇昏皟鐢ㄧ洿鎺ユ墽琛岋級鈥斺€旂函鍑芥暟锛宎pi/web 闆剁畻娉曞垎鏀?  2. api锛歅OST /api/conversations/:id/chat 鎵?`autoExecute` 鍙傛暟锛堥粯璁?false锛夆€斺€旂姸鎬佸彉鏇寸被宸ュ叿杩斿洖 `pending` + preview 涓嶆墽琛岋紱POST /api/conversations/:id/confirm锛堝甫 callIds锛夌湡鎵ц宸茬‘璁よ皟鐢紱鏃㈡湁 autoExecute=true 琛屼负瀹屽叏淇濈暀锛堝悜鍚庡吋瀹癸級
-  3. web锛欰I 宸ヤ綔鍙板璇濇祦涓?pending 宸ュ叿璋冪敤鏄剧ず涓恒€屽緟纭鍗°€嶏紙棰勮鎽樿 + 纭/鏀惧純鎸夐挳锛夛紱纭鍚庣湡鎵ц骞惰惤搴擄紱鏀惧純鍒欐爣 discarded锛涜缃噷鍙垏銆岃嚜鍔ㄦ墽琛屻€嶆ā寮?  4. 鏂█锛歟2e 鈮?35锛堥椄闂ㄥ垽瀹?棰勮鎽樿/寰呯‘璁ゆ嫤鎴?纭鎵ц/鏀惧純闆跺啓/鍚戝悗鍏煎锛夈€乤udit 鈮?25锛?xx锛氶潪娉?callId/閲嶅纭/瓒婃潈 conversation锛?  5. 鎴浘 鈮?锛氬緟纭鍗?棰勮鎽樿/纭鍚庣粨鏋?鏀惧純鍚?娣峰悎璋冪敤锛堝彧璇荤洿鎺ユ墽琛?鍐欏緟纭锛?绐勫睆/閿欒鎬?- 楠屾敹鏍囧噯锛?  1. 鍏ㄩ噺缁匡細e2e 鈮?766銆乤udit 鈮?863锛孯EADME 鍙岃妭鍚屾锛堢簿绠€鐗堜笁澶勶級
-  2. **闂搁棬鐪熷疄鎬?*锛歸aizhuan 閫犮€屽缓寰呭姙锛堝啓锛?鍒楀緟鍔烇紙璇伙級銆嶆贩鍚堟剰鍥锯啋鍙鐩存帴鍑虹粨鏋溿€佸啓鎿嶄綔 pending 闆惰惤搴撯啋纭鍚庣湡寤哄緟鍔炩啋鏀惧純鍒欓浂鍐欙紱autoExecute=true 鑰佽矾寰勫叏缁挎棤鍥炲綊
-  3. **r10/r11 宸ュ叿閾鹃浂鍥炲綊**锛?7 鏉″洖鏀捐瘎娴嬮泦銆佸杞笂涓嬫枃銆佷骇鐗╃敓鎴愭柇瑷€鍏ㄧ豢锛?  4. 鍙?VERDICT锛坵aizhuan + ui 闃绘柇宀楋級閫氳繃
-- 鍓嶇疆锛歳46 宸插彂鐗堬紙v0.0.52锛夆渽
-- 鏄庣‘杈圭晫锛氶浂澶栭儴 LLM锛坢ock planner锛夛紱纭闂搁棬鍙鐘舵€佸彉鏇寸被锛屽彧璇诲伐鍏蜂笉鍙楀奖鍝嶏紱闆舵柊渚濊禆銆侀浂 token锛涙棤鏂?tab锛?0 tab 鏁伴噺涓嶅彉锛屽３鍩虹嚎鍥?chat 椤靛彉鍖栧悓鎵归噸鎷嶏級
+### r31 · 轻量清理：字段类型文案回归 + 公式浮点展示（M10 后）
+- 目标：清 r30 两岗记账的低成本真问题，不新增功能
+- 交付清单：
+  1. **字段类型数文案回归（UI U2-1）**：`BasesPage.tsx:921` 空态文案「7 种字段类型齐备」→ 改「8 种字段类型齐备（含公式）」；同步 `docs/ui/shell/README.md` 对应说明；因改渲染层→**重拍 shell/bases 单张 + 十八 tab 壳同批**（或整批，按宪法第一条）
+  2. **公式浮点展示（waizhuan P5）**：链式预览出现 `84.80000000000001` → 展示层格式化（toFixed 去尾零或 round 到合理精度），**不改求值语义**（audit 手算断言保持）
+  3. 变异红相 ≥1 组：格式化改坏（去掉 toFixed）→ 展示层断言变红 → 还原全绿
+- 断言：e2e ≥+8（文案/展示格式化）、audit ≥+5，只涨不缩
+- 截图：1 张 shell/bases 重拍 + 十八壳同批 + r31 矩阵（公式展示格式化态）
+- 验收：全量绿（e2e ≥2672、audit ≥2127），README 双节同步；双 VERDICT 通过
+- 前置：r30 已发版（v0.0.36）✅
 
-### r48 路 缁ф壙鎬ч仐鐣欑洏鐐逛笌鍒嗙被锛堟敹鏁涜疆锛屼笉鏂板鍔熻兘锛?- 鐩爣锛?6 杞Н绱簡澶氭潯銆岀户鎵?U2銆嶏紙绐勫鍣ㄥ３鍙崇紭鑽父瑁佸垏銆佹湇鍔￠敊璇彁绀?pnpm dev:api銆丄I 鎽樿鍙ｅ緞銆乻hell README 鍥炬敞闄堟棫绛夛級鈥斺€旀湰杞€愭潯鍒嗙被锛氱湡缂洪櫡蹇呬慨 / 宸叉姭闇插彛寰勫彲鎺ュ彈 / 璁捐鍙栬垗淇濈暀锛屽苟缁欏嚭澶勭悊璁″垝锛岄伩鍏嶅€哄姟鏃犻檺婊?- 浜や粯娓呭崟锛?  1. 鐩樼偣 docs/feedback 鏈€杩?15 浠芥姤鍛婄殑 U2/U3 涓?P5 鏉＄洰锛屽綊绫讳负涓夌被锛堝繀淇?/ 鎺ュ彈 / 鍙栬垗锛夛紝姣忕被缁欏嚭鐞嗙敱
-  2. **鐪熺己闄峰繀淇」**锛堣嫢鏈夛級锛氬绐勫鍣ㄥ３鏈灇鑽父瑁佸垏瀵艰嚧鐢ㄦ埛鏃犳硶鍙戠幇鏈€鍚庡嚑涓?tab鈥斺€旇嫢鏈夊彲澶嶆媿鐨勪綆鎴愭湰淇硶锛堝澹虫埅鍥?seam 鐢?`?narrow=1` 鏄惧紡婊氬姩浣嶆垨琛ャ€屾洿澶氥€嶆彁绀猴級锛屾湰杞慨鎺?  3. 鎶婂垎绫荤粨璁哄啓杩?docs/plan.md銆岄仐鐣欐€昏处銆嶈妭锛孯EADME 濡傛秹鍙婂垯鍚屾锛涙妸銆屾帴鍙?鍙栬垗銆嶇被鏄庣‘鏍囨敞涓轰綍涓嶄慨
-  4. 鍙樺紓绾㈢浉 鈮? 缁勶紙鑻ユ敼浜?seam/鏂█锛夛紝鎴?watchdog 浣愯瘉锛堢函鏂囨。鍒嗙被锛?- 楠屾敹鏍囧噯锛氬叏閲忕豢锛堣妯″彧娑ㄤ笉缂╋級锛孯EADME 鍙岃妭鍚屾锛涘弻 VERDICT 閫氳繃锛涘垎绫荤粨璁哄彲杩芥函
-- 鍓嶇疆锛歳47 宸插彂鐗堬紙v0.0.53锛夆渽
-- 鏄庣‘杈圭晫锛氭湰杞笉鏂板涓氬姟鍔熻兘锛涘彧鐩樼偣鍒嗙被 + 淇渶澶?1 椤圭湡缂洪櫡锛涜嫢鐩樼偣缁撹鏄€屽叏閮ㄥ凡鎶湶鍙帴鍙椼€嶅垯绾枃妗ｈ疆锛堟部鐢ㄥ３鍥惧苟澹版槑锛?
-## 閬楃暀鎬昏处锛坮48 鏀舵暃杞?路 缁ф壙 U2/U3/P5 涓夊垎绫伙級
+### r32 · 文档打印导出增强（HTML 打印版 + Word 兼容，M10 后功能补强）
+- 目标：办公刚需的「打印/另存为 PDF/Word」——零新依赖（宪法危险区：不引 pdf/docx 库），用纯 HTML + @media print + Word 可打开的 HTML-in-doc 方案
+- 交付清单：
+  1. 导出引擎集中 packages/shared/docExport.ts：blocksToPrintHtml(blocks, title, meta)（语义化 HTML + @media print 样式内嵌 + 页码页眉）、blocksToWordHtml(blocks, title)（Word 兼容 MHTML/HTML，base64 UTF-8）、sanitizeExportHtml（块内容转义防注入）——api/web 零算法分支
+  2. api：GET /api/documents/:id/export.html（浏览器可打印为 PDF）、GET /api/documents/:id/export.doc（Word 打开）、GET /api/documents/:id/print-preview（返回 HTML + 元信息）
+  3. web：文档编辑页导出菜单加「打印 / 另存 PDF」「下载 Word(.doc)」；点打印新开隐藏 iframe 调 window.print()（headless 用 spy seam 验证）
+  4. 断言：e2e ≥+30（HTML 结构/转义/打印样式/Word 兼容头）、audit ≥+20（4xx：越权 id/空文档/非法块）
+  5. 截图 ≥6：导出菜单/打印预览/HTML 落盘佐证/Word 落盘佐证/窄屏/错误态
+- 验收标准：
+  1. 全量绿：e2e ≥2715、audit ≥2158，README 双节同步
+  2. **导出真实性**：waizhuan 造含 10 种块的文档→导出 HTML 用浏览器真打开（标题/块序/样式正确）→Word .doc 用 Excel/Word COM 或文本解析验证可打开且内容不丢；XSS 注入块内容被转义
+  3. **零新依赖**：package.json 零变动（grep 验证）；不引外部 CDN
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r31 已发版（v0.0.37）✅
+- 明确边界：不引 pdf/docx 第三方库（危险区），零 token；打印在 headless 下用 spy/seam 不弹系统对话框（r8 教训）
 
-> **鐩樼偣鑼冨洿**锛歚docs/feedback/` 鏈€杩?15 杞紙r33~r47锛変笁宀楋紙ui / verify / yanfa锛夋姤鍛婇€愭潯鎻愬彇 U2/U3/P5锛涘彟鍥炴函 r29~r32 纭缁ф壙閾捐捣鐐广€傚幓閲嶅悗 **28 鏉＄嫭绔嬫潯鐩?*锛氱湡缂洪櫡蹇呬慨 0 / 宸叉姭闇插彲鎺ュ彈 16 / 璁捐鍙栬垗淇濈暀 12锛屽彟 11 鏉″凡闂幆閾惧崟鍒楋紙涓嶈鍏ユ寕璐︼級銆?> **涓夊垎绫诲彛寰?*锛氥€岀湡缂洪櫡蹇呬慨銆嶏紳浠嶈鐢ㄦ埛璧颁笉閫氭垨鏁版嵁澶辩湡銆佷笖鏃犲凡鎶湶鏇夸唬璺緞锛涖€屽凡鎶湶鍙帴鍙椼€嶏紳宸插啓杩涙姤鍛?绱㈠紩銆佹湁鏇夸唬璺緞鎴栦粎閽夋€佽瘉鎹簿搴﹀亸宸紝涓嶉樆鏂紱銆岃璁″彇鑸嶄繚鐣欍€嶏紳鎸変换鍔″崟/瀹硶鍒绘剰閫夋嫨銆佹湰韬纭€?> **绾緥**锛氭湰杞彧鍒嗙被涓嶆柊澧炲姛鑳斤紱缁撹鍙拷婧埌鎶ュ憡杞/缂栧彿锛汢/C 绫荤粰鍑恒€屼綍鏃堕噸鏂版墦寮€銆嶇殑瑙﹀彂鏉′欢锛岄伩鍏嶅€哄姟鏃犻檺婊氥€?
-### A 路 鐪熺己闄峰繀淇細0 鏉★紙鍊欓€?C1 璇勪及鍚庤浆 B 绫伙級
+### r33 · 全局搜索（跨模块统一检索，M10 后功能补强）
+- 目标：数据散落 16 个模块，用户找一条待办/文档/会议要切 tab——统一搜索框 + 跨模块结果 + 点结果直达（复用 r26 deep-link 机制）
+- 交付清单：
+  1. 搜索规则集中 packages/shared/globalSearch.ts：normalizeQuery（trim/小写/分词）、scoreMatch(query, text)（标题权重>正文、前缀命中>包含）、assembleSearchResults(query, sources)（跨源聚合/按分数排序/每源上限/去重）——api/web 零算法分支
+  2. api：GET /api/search?q=&limit=&types= 一次检索 8 类源——todos / schedules / projects / cards / documents / knowledge_docs / members / meetings（全读既有表，只读不写）；每条结果带 {type, id, title, snippet, score, tab, deepLink}
+  3. web：顶栏全局搜索框（快捷键 Ctrl/Cmd+K）+ 下拉结果面板（按类型分组图标 + 分数高亮 + 键盘上下选）+ 点结果跳对应 tab 并定位（复用 r26 deep-link）
+  4. 断言：e2e ≥+35（分词/权重/排序/去重/空查询/跨源）、audit ≥+25（4xx：空 q/超长 q/非法 types/越权源）
+  5. 截图 ≥7：搜索空态/输入中/单类型结果/多类型结果/键盘选中/窄屏/错误态
+- 验收标准：
+  1. 全量绿：e2e ≥2801、audit ≥2210，README 双节同步
+  2. **跨源真实性**：waizhuan 在 4 个模块各造一条含同关键词的数据→搜索一次返回 4 条且排序合理（标题命中优先）→点其中会议结果直达该会议（复用 deep-link）
+  3. **只读**：全链路零业务表写入（waizhuan raw 库快照核对）
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r32 已发版（v0.0.38）✅
+- 明确边界：只读检索不改业务数据；零外部搜索服务/零 token；不新增 tab（顶栏搜索框，18 tab 数量不变，壳基线因顶栏变化同批重拍）
 
-| 鍊欓€?| 鏉ユ簮 | 璇勪及 | 缁撹 |
+### r34 · 任务依赖与阻塞关系（M10 后功能补强）
+- 目标：待办有状态机但无依赖——补前置任务（finish-to-start）：依赖未完成则本任务不可开始，循环依赖检测，看板/待办页可视化阻塞链
+- 交付清单：
+  1. schema v22→v23：todo_dependencies 表（todo_id/depends_on_todo_id，UNIQUE 对，FK CASCADE）
+  2. 依赖规则集中 packages/shared/todoDeps.ts：canStartTodo(todo, deps, todos)（所有前置 done 才能开始）、detectDependencyCycle(deps)（DFS 环检测）、buildDependencyGraph(todos, deps)（拓扑序/阻塞链）——api/web 零算法分支
+  3. api：依赖 CRUD（POST/DELETE /api/todos/:id/dependencies）、GET /:id/dependencies（含前置状态）、GET /api/todos/blocked（被阻塞任务列表）、状态机接入（open→done 时必须无未完成前置，否则 409）
+  4. web：待办详情页加「前置任务」区（添加/移除 + 状态徽标）、列表页阻塞态图标 + 「被 N 项阻塞」提示、循环依赖错误红条
+  5. 断言：e2e ≥+35（依赖判定/环检测/拓扑/状态机接入/阻塞列表）、audit ≥+25（409 阻塞/4xx：自依赖/环/越权/重复依赖）
+  6. 截图 ≥7：待办依赖空态/添加前置/阻塞态列表/依赖满足后/循环错误/窄屏/错误态
+- 验收标准：
+  1. 全量绿：e2e ≥2884、audit ≥2287，README 双节同步（精简版：速查行 + 两节当前 r34 条目，历史仍指向归档）
+  2. **依赖真实性**：waizhuan 造 A→B→C 链，A 未完成时 B/C 转 done 必须 409；A done 后 B 可 done；自依赖/环 A→B→A 被拒
+  3. **既有状态机零回归**（r1 的 todo 状态机断言全绿，只加守卫不改语义）
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r33 已发版（v0.0.39）✅
+- 明确边界：只做 finish-to-start 依赖，不做甘特图/时间约束（超范围）；零新依赖、零 token
+
+### r35 · 日历 ICS 导出与订阅（标准 iCalendar，M10 后功能补强）
+- 目标：日程页数据可导出为标准 .ics（Outlook/Google Calendar/Apple 日历可导入）+ 提供订阅 URL（只读 token-free 的本地 feeds）
+- 交付清单：
+  1. ICS 引擎集中 packages/shared/ics.ts：escapeIcsText（文本转义 , ; \ 换行）、formatIcsDate（UTC `YYYYMMDDTHHMMSSZ`）、buildIcsCalendar(schedules, meta)（VCALENDAR/VEVENT 完整头、UID 稳定、DTSTART/DTEND/SUMMARY/DESCRIPTION/LOCATION）、parseIcsCalendar(ics)（回读解析，验证往返）——api/web 零算法分支
+  2. api：GET /api/schedules/export.ics?from=&to=（时间范围过滤，content-type text/calendar）、GET /api/todos/due.ics（待办截止日作为 VEVENT）、GET /api/feeds/:key.ics（订阅 key=用户本地随机串，存 settings，非密钥文件）
+  3. web：日程页加「导出 .ics」按钮 + 订阅设置卡（生成/复制订阅 URL）+ 导入 .ics 预览（解析后确认写入）
+  4. 断言：e2e ≥+35（转义/日期格式/往返/VEVENT 字段/范围过滤/导入预览）、audit ≥+25（4xx：非法范围/越权 key/坏 ICS）
+  5. 截图 ≥7：ICS 导出菜单/落盘佐证/订阅卡/导入预览/导入成功/窄屏/错误态
+- 验收标准：
+  1. 全量绿：e2e ≥2996、audit ≥2349，README 双节同步（精简版三处）
+  2. **标准兼容**：waizhuan 造含中文/逗号/换行/引号的日程→导出 .ics→用独立解析器（或 Outlook/Excel COM 等价）真打开验证不乱码不丢字段；导出→导入往返逐字段相等
+  3. **零新依赖**：手写 ICS 编解码，package.json 零变动
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r34 已发版（v0.0.40）✅
+- 明确边界：订阅 key 是本地随机串（存 settings），不是密钥/token（宪法危险区：不写密钥文件）；不接外部日历服务；零 token
+
+### r36 · 日报与周报自动生成（M10 后功能补强）
+- 目标：IKanBot/多宝鱼标配——从真实业务数据自动汇总日报/周报（完成项/进行中/阻塞/日程/产出），可编辑后存为文档，零 token
+- 交付清单：
+  1. 报告规则集中 packages/shared/workReports.ts：collectReportData(db 查询结果, period)（按时间窗过滤已完成/新建/阻塞项）、buildReportMarkdown(data, type: daily|weekly)（标题/完成/进行中/阻塞/日程/明日计划段落）、buildReportHtml（打印版）、reportSummary(data)（计数摘要）——api/web 零算法分支
+  2. api：GET /api/reports/daily?date=、GET /api/reports/weekly?week=（返回 Markdown + 结构化数据）、POST /api/reports/save（把报告存为 documents + blocks，可编辑）
+  3. web：新增「报告」tab——日报/周报切换 + 日期/周选择 + Markdown 预览（可编辑 textarea）+ 「存为文档」按钮 + 打印导出
+  4. 断言：e2e ≥+35（时间窗过滤/段落装配/空数据/保存为文档/编辑）、audit ≥+25（4xx：非法日期/越权 id/空内容）
+  5. 截图 ≥7：报告空态/日报有数据/周报有数据/编辑态/存为文档后/窄屏/错误态
+- 验收标准：
+  1. 全量绿：e2e ≥3104、audit ≥2421，README 双节同步（精简版三处）
+  2. **真实性**：waizhuan 造已知数据（今日完成 2、进行中 3、阻塞 1）→日报 Markdown 逐段手算核对；周报聚合 7 天数据正确；存为文档后可在文档页打开编辑
+  3. **新增「报告」tab 补该 tab 激活态图**（十九 tab 壳基线）
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r35 已发版（v0.0.41）✅
+- 明确边界：不接外部 LLM 生成文案（模板化汇总，零 token）；报告数据只读既有业务表
+
+### r37 · 表格分组视图与汇总行（M10 后功能补强）
+- 目标：多维表格 r6/r7 有筛选排序视图但无分组——补按字段分组 + 每组汇总行（计数/求和/均值），与既有视图持久化机制复用
+- 交付清单：
+  1. 分组规则集中 packages/shared/tableGroups.ts：groupRecords(records, fieldId)（按字段值分桶、null 独立组、组序确定性）、aggregateGroup(records, fieldId, aggregator: count|sum|avg)（纯函数，跳过非数值）、buildGroupView(records, groupField, sortSpec)（分组+组内排序+汇总行装配）——api/web 零算法分支
+  2. schema v23→v24：views 表加 group_spec JSON 可空列（复用 r7 视图持久化，不改旧行）
+  3. api：视图 CRUD 扩 groupSpec 字段、GET /api/views/:id/grouped（返回分组+汇总）、4xx 校验（非法字段/非法 aggregator/越权 view）
+  4. web：表格页视图栏加「分组」下拉（选字段+聚合方式）+ 分组折叠头 + 每组汇总行（只读）
+  5. 断言：e2e ≥+35（分桶/null 组/聚合/组内排序/持久化）、audit ≥+25（4xx：非法字段/聚合/越权 view）
+  6. 截图 ≥7：分组空态/分组下拉/数值字段分组/汇总行/折叠后/窄屏/错误态
+- 验收标准：
+  1. 全量绿：e2e ≥3202、audit ≥2496，README 双节同步（精简版三处）
+  2. **分组真实性**：waizhuan 造已知数据（金额字段 10/20/30，按状态分组）→ 每组 count/sum/avg 手算核对；null 值独立成组；分组配置保存后 reload 保持
+  3. 既有视图（r7）零回归（筛选/排序/投影断言全绿）
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r36 已发版（v0.0.42）✅
+- 明确边界：聚合只读不落库；不做图表（r27 报表已有）；零新依赖、零 token
+
+### r38 · 看板卡片元数据（标签/负责人/截止日，向后兼容）
+- 目标：卡片只有 title/description/position/todo_id——补标签（多选）、负责人（关联 r23 成员，可空）、截止日（含逾期判定），与既有看板零回归
+- 交付清单：
+  1. schema v24→v25：cards 加 assignee_member_id 可空列 + due_date 可空列；新建 card_labels 表（card_id/label TEXT，UNIQUE 对，FK CASCADE）——**原列不动，老数据零影响**
+  2. 元数据规则集中 packages/shared/cardMeta.ts：normalizeCardLabels(labels)（trim/去重/上限/禁空）、isOverdue(dueDate, now)（截止日已过且非完成列）、cardMetaSummary(card)（标签数/逾期态/负责人摘要）——api/web 零算法分支
+  3. api：卡片 CRUD 扩 labels/assigneeMemberId/dueDate、GET /api/boards/:id/overdue（逾期卡列表）、标签过滤 GET /api/boards/:id/cards?label=；4xx 校验（非法标签/停用成员/非法日期/越权 id）
+  4. web：卡片编辑面板加标签输入（chip 展示）、负责人从通讯录选（复用 r24 选择器）、截止日 date 输入；卡片正面显示标签 chip + 负责人 + 逾期红标；看板筛选栏加标签下拉
+  5. 断言：e2e ≥+35（标签归一/逾期判定/元数据装配/筛选/向后兼容）、audit ≥+25（4xx：非法标签/停用成员/越权/非法日期）
+  6. 截图 ≥7：卡片元数据空态/标签添加/负责人选择/截止日设置/逾期红标/窄屏/错误态
+- 验收标准：
+  1. 全量绿：e2e ≥3312、audit ≥2561，README 双节同步（精简版三处）
+  2. **向后兼容硬断言**：r4/r5/r7 既有看板断言（建列/移卡/统计/导出/视图）全绿无删改；老卡片无标签/负责人/截止日照常工作
+  3. **元数据真实性**：waizhuan 造已知卡片→加标签/负责人/截止日→逾期判定手算核对→按标签筛选→reload 不丢
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r37 已发版（v0.0.43）✅
+- 明确边界：负责人关联 r23 通讯录但不改审批/物资（r24 边界延续）；零新依赖、零 token
+
+### r39 · 用户可见文案清理（错误条内部术语，连续 4 轮挂账必修）
+- 目标：UI 审查官在 r35/r36/r37/r38 连续四轮记 U2——错误条/提示里夹带 `截图钉态`、`audit`、`（截图钉态对应 audit 4xx …）` 等内部测试术语（如 `BoardPage.tsx:312`），终端用户可见——本轮彻底清理并加机制防复发
+- 交付清单：
+  1. 全库扫描 `apps/web/src` 中**用户可见字符串**（JSX 文本 / setState 的 message / placeholder / title 属性）里的内部术语（截图钉态 / audit / e2e / 4xx / seam / shot= / `rNN` 轮次号）——逐个改为纯用户文案；**代码注释与 `if (shot===)` 分支里的 seam 标记保留**（那是截图诚实性所需，不是用户可见）
+  2. 机制防复发：新增 `scripts/check-user-facing-text.ts` 扫描断言——对 `apps/web/src/**/*.tsx` 提取字符串字面量，若同时含内部术语且不在注释/`shot ===` 守卫内则红；接入 `pnpm run test:all`
+  3. 变异红相 ≥1 组：故意把一句用户文案加回「截图钉态」→ 扫描断言变红 → 还原全绿
+  4. 截图：受影响页面错误态重拍（board/bases/schedules 等可见错误条处）+ 19 tab 壳基线同批重拍
+- 验收标准：
+  1. 全量绿：e2e ≥3390、audit ≥2620，README 双节同步（精简版三处）
+  2. 全库用户可见字符串内部术语零命中（新扫描断言背书）；截图证据仍诚实标注 seam（注释/守卫保留）
+  3. 既有断言零回归
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r38 已发版（v0.0.44）✅
+- 明确边界：只改文案与加扫描断言，不动业务逻辑；不删截图 seam 标记（宪法第一条诚实性）
+
+### r40 · 口径清理与扫描器加固（M10 后轻量轮）
+- 目标：清 r39 两岗 P5——登录页用户可见「不占主界面 14 个 tab」过期（实际 19）+ 文案扫描器正则只匹配两位 `rNN` 漏掉单位数 `rN`
+- 交付清单：
+  1. AuthPages.tsx:133 用户可见文案「14 个 tab」→「19 个 tab」（或改为不含数字的「不占主界面 tab 数量」以免后续轮次再过期，**优先后者**）；App.tsx:415 注释同款一并校正（注释不计扫描但保口径一致）
+  2. scripts/check-user-facing-text.ts 轮次号正则从 `\br\d{2}\b` 扩为 `\br\d{1,3}\b`，并补断言：单位数 `r2 复验材料` 类 placeholder 被检出（r39 waizhuan P5）
+  3. 扫描器自身零误报复核：6265 literals / 24 tsx 仍 0 命中（改正则后不误伤真实业务词）
+  4. 变异红相 ≥1 组：单位数 rN 文案加回→扫描红→还原全绿
+  5. 截图：登录页干净态重拍 + 19 tab 壳基线同批（因登录页文案变化）
+- 验收标准：全量绿（e2e ≥3420、audit ≥2630），README 双节同步（精简版三处）；双 VERDICT 通过
+- 前置：r39 已发版（v0.0.45）✅
+- 明确边界：只改文案/正则/截图，不动业务逻辑；不删 seam 标记
+
+### r41 · 轻量表单收集（创建 / 填写 / 汇总，M10 后功能补强）
+- 目标：对标多宝鱼「表单收集」——无代码表单（标题 + 若干问题）→ 分享填写 → 答卷汇总，与多维表格互补
+- 交付清单：
+  1. schema v25→v26：forms 表（id/title/description/created_at/closed_at）、form_questions 表（id/form_id/type:text|number|select|checkbox/label/required/options_json/position）、form_responses 表（id/form_id/answers_json/created_at）
+  2. 表单规则集中 packages/shared/forms.ts：normalizeFormDefinition（问题类型白名单/必填/选项）、validateFormAnswers(answers, questions)（必填缺失/类型不符/未知题号）、summarizeResponses(responses, questions)（每题统计：文本列举/数值总和均值/选项分布/勾选率）——api/web 零算法分支
+  3. api：forms CRUD、GET /api/forms/:id/fill（公开填写视图）、POST /api/forms/:id/responses（提交，校验不通过 400）、GET /api/forms/:id/summary（汇总）
+  4. web：新增「表单」tab——我的表单列表 + 创建表单（加问题/编辑）+ 填写视图（含提交）+ 汇总视图（统计卡）
+  5. 断言：e2e ≥+35（定义归一/答卷校验/统计/空答卷/关闭表单）、audit ≥+25（4xx：必填缺失/类型不符/未知题/越权 id/已关闭提交）
+  6. 截图 ≥7：表单空态/创建表单/问题编辑/填写视图/提交成功/汇总统计/窄屏
+- 验收标准：
+  1. 全量绿：e2e ≥3465、audit ≥2666，README 双节同步（精简版三处）
+  2. **汇总真实性**：waizhuan 造 3 份答卷（含数值/选项/勾选）→ 汇总手算核对（总和/均值/分布/勾选率）；必填缺失与类型不符被拒
+  3. **新增「表单」tab 补该 tab 激活态图**（二十 tab 壳基线）
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r40 已发版（v0.0.46）✅
+- 明确边界：不接外部表单服务/匿名公网（本地/登录用户填写）；零新依赖、零 token
+
+### r42 · README 版本号自动校验 watchdog（消除每轮手工漏改）
+- 目标：r33/r34/r36/r37/r38/r41 复验反复抓到 README「CI smoke 正则同步至 vN」「schema user_version 当前 vN」滞后——手工改两处总漏。加机制防复发
+- 交付清单：
+  1. 新增 scripts/check-doc-contract.ts：从权威源读当前 schema 版本（packages/shared SCHEMA_VERSION）与 CI 正则（.github/workflows/ci.yml）→ 核对 README 两处文案（vN）、速查行数字（e2e/audit 实测值）与根 README 两节当前轮存在性——任一不符即红
+  2. 接入 pnpm run test:all（与 check:text 并列）
+  3. 变异红相 ≥1 组：故意把 README 的 vN 改小 1 → watchdog 红 → 还原全绿
+  4. 截图：本轮无渲染层改动，仅脚本/文档 → 沿用 r41 壳基线（在两处索引透明声明「本轮无渲染层改动，沿用 r41 壳图」，按 r21 U2-1 先例）
+- 验收标准：全量绿，README 双节同步（精简版三处）；双 VERDICT 通过
+- 前置：r41 已发版（v0.0.47）✅
+- 明确边界：只加校验，不改产品逻辑；watchdog 自身需能被变异红相证明非恒真
+
+### r43 · 会议室设备与智能推荐（M10 后功能补强）
+- 目标：会议室只有 capacity/location、无设备字段，预约时需手工挑时段——补设备台账 + 按人数/设备/时段自动推荐可用会议室
+- 交付清单：
+  1. schema v26→v27：rooms 加 equipment TEXT 可空列（JSON 数组字符串，存量行 NULL 视为空设备）——原列不动
+  2. 推荐规则集中 packages/shared/roomRecommend.ts：normalizeEquipment(input)（白名单:投影/白板/视频会议/电话会议，去重排序）、roomMatchesNeed(room, need{attendees,equipment,start,end}, meetings)（容量≥人数 + 设备全含 + 时段不冲突 + active）、recommendRooms(rooms, need, meetings)（按容量最接近升序，纯函数）——api/web 零算法分支
+  3. api：rooms CRUD 扩 equipment、GET /api/rooms/recommend?attendees=&equipment=&start=&end=（可用会议室 + 冲突原因），4xx 校验（非法设备/时段倒挂/非数字人数）
+  4. web：会议室卡片显示设备徽标；预约表单加「帮我推荐」按钮（填人数/设备/时段→列出可用会议室+冲突原因，点选回填 roomId）
+  5. 断言：e2e ≥+35（设备归一/推荐口径/冲突原因/容量边界/向后兼容）、audit ≥+25（4xx：非法设备/时段倒挂/越权）
+  6. 截图 ≥7：会议室设备空态/设备徽标/推荐面板/推荐结果/冲突原因/窄屏/错误态
+- 验收标准：
+  1. 全量绿：e2e ≥3586、audit ≥2728，README 双节同步（精简版三处）
+  2. **推荐真实性**：waizhuan 造 3 会议室（不同容量/设备）+ 已有预约→按 8 人+投影+某时段推荐→手算只return符合条件的房间且按容量最接近排序；冲突房间给明确原因
+  3. **r28 会议零回归**（预约/冲突/边界相接/availability 断言全绿，只加 equipment 可空列）
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r42 已发版（v0.0.48）✅
+- 明确边界：设备是本地枚举不接外部目录；推荐只读不改预约数据；零新依赖、零 token
+
+### r44 · 图证与文档口径修正（r43 U2-1 时段不自洽等，轻量轮）
+- 目标：清 r43 UI 记账的图证不自洽与文档口径滞后，不新增功能
+- 交付清单：
+  1. **r43 U2-1**：05-recommend-conflicts.png 画面时段 09:00–10:00 与索引「14:30–15:00」及 #21 冲突文案不自洽——重钉重拍（画面与 index 统一为同一时段）或改索引为如实，二选一并可复拍
+  2. **r43 U2-2**：07-recommend-error.png 把 400 校验错误套进「连接失败 / pnpm dev:api」框架——改为「输入有误，请检查人数/设备/时段」纯用户文案（用户可见字符串，扫描器会校验无内部术语）
+  3. **r43 U3**：shell README changed=8/same=12 与实际 6/14 矛盾、全库计数 372/370 串位、图注「r37 徽章」陈旧——逐项修正为 r43 实测
+  4. 变异红相 ≥1 组：图注口径或时段 seam 改坏→断言红→还原全绿（若纯文档则用 DOC-CONTRACT/watchdog 佐证）
+- 验收标准：全量绿（规模只涨不缩），README 双节同步；双 VERDICT 通过；截图若重拍则 20 壳同批（无渲染层改动则沿用并声明）
+- 前置：r43 已发版（v0.0.49）✅
+- 明确边界：只改图证/文档/用户可见文案，不动业务逻辑
+
+### r45 · 文档块拖拽排序（HTML5 DnD + 触屏按钮，M10 后功能补强）
+- 目标：块编辑器目前只有上移/下移按钮——补拖拽手柄（桌面 HTML5 DnD + 触屏复用现有上/下移按钮作为无障碍路径），复用已有 `POST /api/blocks/:id/move`（r8），不改 API 语义
+- 交付清单：
+  1. 拖拽规则集中 packages/shared/blockDnd.ts：planBlockDrop(fromIndex, toIndex, count)（边界钳制/同序返回 null/目标 position 换算）、validateDropTarget(fromId, toId)（禁止拖到自身/子块）——纯函数，api/web 零算法分支
+  2. web DocsPage：每个块加拖拽手柄（⠿）→ dragstart 记录源块 → dragover 显示插入线（视觉反馈）→ drop 调 planBlockDrop 得目标 position → 真发 `POST /api/blocks/:id/move` → 本地列表同步；触屏仍可用上/下移按钮（无障碍保留）
+  3. 断言：e2e ≥+30（拖放计划/边界钳制/同序 null/HTTP move 落库/持久化）、audit ≥+20（复用 move 端点 4xx：越权/非法 position）
+  4. 截图 ≥7：块列表有手柄/拖拽中插入线/放下后顺序/跨类型拖拽/触屏按钮态/窄屏/错误态
+- 验收标准：
+  1. 全量绿：e2e ≥3707、audit ≥2822，README 双节同步（精简版三处）
+  2. **拖拽真实性**：waizhuan headless CDP 真拖第 3 块到第 1 位→HTTP 回读 position 连号且顺序正确→reload 不丢；拖到边界钳制不越界
+  3. **r8/r9 块引擎零回归**（拆合/转换/移动/全文装配断言全绿，只加 UI 拖拽入口）
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r44 已发版（v0.0.50）✅
+- 明确边界：不改 schema（无新版本）、不改 API 语义（复用 move 端点）、零新依赖、零 token；无新 tab（20 tab 数量不变，壳基线因文档页变化同批重拍）
+
+### r46 · 索引口径修正（r45 U2 图证/文案，轻量轮）
+- 目标：清 r45 UI 记账的索引与画面不自洽，不新增功能
+- 交付清单：
+  1. r45 U2-1：04 跨类型图索引所引 audit「标题块落末位」与画面「正文块落末位」非同一场景，两处索引引的断言还不一致——改为如实（画面场景对应的真实断言名）
+  2. r45 U2-2：05 触屏图索引称「↑/↓ 蓝框强调」不实（Pillow 逐像素与 01 同区零差异，按钮为浅灰描边）——改文案为如实描述
+  3. r45 U2-3：07 索引称「共 5 块」，画面放大实为「共 5 张卡」（看板词汇混用）——统一为块编辑器口径
+  4. 变异红相 ≥1 组：索引口径改坏→DOC-CONTRACT/watchdog 红→还原全绿
+- 验收标准：全量绿（规模只涨不缩），README 双节同步；双 VERDICT 通过；本轮无渲染层改动→沿用 r45 壳图（两处透明声明）
+- 前置：r45 已发版（v0.0.51）✅
+- 明确边界：只改索引/文档，不动代码/截图/业务逻辑
+
+### r47 · AI 工具调用确认闸门（危险操作先预览后执行，M10 后功能补强）
+- 目标：AI 工作台工具调用目前直接执行（create_todo/create_document/create_schedule 等状态变更类），缺用户确认环节——补「预览→确认→执行」闸门，避免误操作发散
+- 交付清单：
+  1. 闸门规则集中 packages/agent/toolGate.ts：needsConfirmation(toolName)（STATE_CHANGING_TOOLS + 新增工具白名单）、buildToolPreview(toolCall, toolResult?)（人类可读的操作摘要）、planToolExecution(calls, confirmedIds)（未确认的状态变更调用拦截为 pending，只读调用直接执行）——纯函数，api/web 零算法分支
+  2. api：POST /api/conversations/:id/chat 扩 `autoExecute` 参数（默认 false）——状态变更类工具返回 `pending` + preview 不执行；POST /api/conversations/:id/confirm（带 callIds）真执行已确认调用；既有 autoExecute=true 行为完全保留（向后兼容）
+  3. web：AI 工作台对话流中 pending 工具调用显示为「待确认卡」（预览摘要 + 确认/放弃按钮）；确认后真执行并落库；放弃则标 discarded；设置里可切「自动执行」模式
+  4. 断言：e2e ≥+35（闸门判定/预览摘要/待确认拦截/确认执行/放弃零写/向后兼容）、audit ≥+25（4xx：非法 callId/重复确认/越权 conversation）
+  5. 截图 ≥7：待确认卡/预览摘要/确认后结果/放弃后/混合调用（只读直接执行+写待确认）/窄屏/错误态
+- 验收标准：
+  1. 全量绿：e2e ≥3766、audit ≥2863，README 双节同步（精简版三处）
+  2. **闸门真实性**：waizhuan 造「建待办（写）+列待办（读）」混合意图→只读直接出结果、写操作 pending 零落库→确认后真建待办→放弃则零写；autoExecute=true 老路径全绿无回归
+  3. **r10/r11 工具链零回归**（17 条回放评测集、多轮上下文、产物生成断言全绿）
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r46 已发版（v0.0.52）✅
+- 明确边界：零外部 LLM（mock planner）；确认闸门只管状态变更类，只读工具不受影响；零新依赖、零 token；无新 tab（20 tab 数量不变，壳基线因 chat 页变化同批重拍）
+
+### r48 · 继承性遗留盘点与分类（收敛轮，不新增功能）
+- 目标：26 轮积累了多条「继承 U2」（窄容器壳右缘药丸裁切、服务错误提示 pnpm dev:api、AI 摘要口径、shell README 图注陈旧等）——本轮逐条分类：真缺陷必修 / 已披露口径可接受 / 设计取舍保留，并给出处理计划，避免债务无限滚
+- 交付清单：
+  1. 盘点 docs/feedback 最近 15 份报告的 U2/U3 与 P5 条目，归类为三类（必修 / 接受 / 取舍），每类给出理由
+  2. **真缺陷必修项**（若有）：如窄容器壳末枚药丸裁切导致用户无法发现最后几个 tab——若有可复拍的低成本修法（如壳截图 seam 用 `?narrow=1` 显式滚动位或补「更多」提示），本轮修掉
+  3. 把分类结论写进 docs/plan.md「遗留总账」节，README 如涉及则同步；把「接受/取舍」类明确标注为何不修
+  4. 变异红相 ≥1 组（若改了 seam/断言），或 watchdog 佐证（纯文档分类）
+- 验收标准：全量绿（规模只涨不缩），README 双节同步；双 VERDICT 通过；分类结论可追溯
+- 前置：r47 已发版（v0.0.53）✅
+- 明确边界：本轮不新增业务功能；只盘点分类 + 修最多 1 项真缺陷；若盘点结论是「全部已披露可接受」则纯文档轮（沿用壳图并声明）
+
+## 遗留总账（r48 收敛轮 · 继承 U2/U3/P5 三分类）
+
+> **盘点范围**：`docs/feedback/` 最近 15 轮（r33~r47）三岗（ui / verify / yanfa）报告逐条提取 U2/U3/P5；另回溯 r29~r32 确认继承链起点。去重后 **28 条独立条目**：真缺陷必修 0 / 已披露可接受 16 / 设计取舍保留 12，另 11 条已闭环链单列（不计入挂账）。
+> **三分类口径**：「真缺陷必修」＝仍让用户走不通或数据失真、且无已披露替代路径；「已披露可接受」＝已写进报告/索引、有替代路径或仅钉态证据精度偏差，不阻断；「设计取舍保留」＝按任务单/宪法刻意选择、本身正确。
+> **纪律**：本轮只分类不新增功能；结论可追溯到报告轮次/编号；B/C 类给出「何时重新打开」的触发条件，避免债务无限滚。
+
+### A · 真缺陷必修：0 条（候选 C1 评估后转 B 类）
+
+| 候选 | 来源 | 评估 | 结论 |
 |---|---|---|---|
-| C1 绐勫鍣ㄥ３鏈灇鑽父鍙崇紭瑁佸垏 | r31 U2-1 璧凤紝r32/r33/r34/r35/r36/r37/r38/r39/r40/r41/r43/r45/r47 閫愯疆缁ф壙璁拌处锛坮42/r46 绾枃妗ｈ疆鏃犳柊鍥撅級 | UI 闃绘柇宀楄繛缁?10+ 杞垽 U2銆岃璐︿笉鎵撳洖銆嶃€?*浠庢湭鍒?U1**锛?0 鏋?tab 鍏ㄥ湪 DOM锛屸墹600px 涓?`?narrow=1` 鏈夈€屾洿澶?鈥恒€? 鈽?鍙屽垪缃戞牸绗簩鍙璺緞锛?280px 宸﹂敋澹宠鍒囧彧鍑虹幇鍦ㄦ埅鍥鹃拤鎬佷笌閮ㄥ垎椤甸潰锛?3~17 寮犲瀹瑰櫒澹充笌 7 鎬佺煩闃?20 鏋氬畬鏁淬€傜湡瑕佷慨椤绘敼妗岄潰 `.tabs` 鏄鹃殣/婊氬姩骞堕噸鎷?20 澹?+ 鍏ㄧ煩闃?+ 涓夊绱㈠紩锛岃秴鍑轰换鍔″崟銆屽彲澶嶆媿鐨勪綆鎴愭湰 seam 淇硶銆嶉棬妲?| **杞?B1**锛岄檮澶嶈瘎瑙﹀彂鏉′欢涓庝慨娉曢厤鏂癸紙瑙?E 鑺傦級 |
-| 鍏朵綑 U1 / P1~P3 | r35 U1-1锛?2鈫?4 闈炲悓涓€ ICS锛夊凡鍦?r35 杩斿伐 #1 闂幆锛況33~r47 鍚勮疆 U1=0銆佹棤鏈棴鍚?P1~P3 | 鏃犲瓨閲忓繀淇己闄?| 宸查棴鐜紙D10锛?|
+| C1 窄容器壳末枚药丸右缘裁切 | r31 U2-1 起，r32/r33/r34/r35/r36/r37/r38/r39/r40/r41/r43/r45/r47 逐轮继承记账（r42/r46 纯文档轮无新图） | UI 阻断岗连续 10+ 轮判 U2「记账不打回」、**从未判 U1**；20 枚 tab 全在 DOM，≤600px 与 `?narrow=1` 有「更多 ›」+ ☰ 双列网格第二可见路径；1280px 左锚壳裁切只出现在截图钉态与部分页面，13~17 张宽容器壳与 7 态矩阵 20 枚完整。真要修须改桌面 `.tabs` 显隐/滚动并重拍 20 壳 + 全矩阵 + 三处索引，超出任务单「可复拍的低成本 seam 修法」门槛 | **转 B1**，附复评触发条件与修法配方（见 E 节） |
+| 其余 U1 / P1~P3 | r35 U1-1（02↔04 非同一 ICS）已在 r35 返工 #1 闭环；r33~r47 各轮 U1=0、无未闭合 P1~P3 | 无存量必修缺陷 | 已闭环（D10） |
 
-### B 路 宸叉姭闇插彲鎺ュ彈锛?6 鏉★紙閫愭潯鐞嗙敱锛?
-| id | 鏉＄洰锛堟潵婧愯疆/缂栧彿锛?| 褰掔被鐞嗙敱 |
+### B · 已披露可接受：16 条（逐条理由）
+
+| id | 条目（来源轮/编号） | 归类理由 |
 |---|---|---|
-| B1 | 绐勫鍣ㄥ３鏈灇鑽父鍙崇紭瑁佸垏锛坮31 U2-1 鈫?r47 U2-3 缁ф壙锛?| 瑙?A 鑺傚€欓€夎瘎浼帮紱鏈夈€屾洿澶?鈥恒€?鈽?绗簩璺緞銆佸瀹瑰櫒澹充笌鐭╅樀瀹屾暣锛孶I 鍗佽疆鍒?U2 涓嶆墦鍥烇紱宸查€愯疆鎶湶锛屼笉鍐掑厖宸蹭慨銆侲 鑺傜粰澶嶈瘎鏉′欢銆?|
-| B2 | AI 鎽樿琛屻€屽叡 1 娆″伐鍏疯皟鐢ㄣ€嶄笌 header 脳2 鍙ｅ緞鎵撴灦锛坮47 U2-1锛?| 浠?`?shot=` 閽夋€佺瀛愭枃妗堬紱鐢熶骇鎽樿鐢?planner 鐪熷疄 toolCalls 瑁呴厤銆傜敤鎴烽潬榛勫崱寰芥爣 + 钃濇潯鐞嗚В鐘舵€侊紝鍔熻兘涓嶅彈褰卞搷锛況47 UI 宸叉姭闇层€?|
-| B3 | 04 缂栬緫鎬?鈫?05 瀛樹负鏂囨。鍚庨潪杩炵画锛?85鈫?69 瀛楋紝r36 U2-2锛?| 绱㈠紩宸插０鏄?05 涓虹嫭绔嬮拤鎬併€佺湡閾捐矾 audit/CDP 鑳屼功锛坮35 鍏堜緥锛夛紱鏈€浣庢姭闇茬嚎婊¤冻锛岄『璇绘涔夊睘鎺緸灞傘€?|
-| B4 | `?shot=wr-error` 鍐呭祵銆岋紙r36 鎶ュ憡閾捐矾閿欒鎬侊級銆嶏紙r36 U2-3 / P5-1锛?| `?shot=` 瀹堝崼鍐呮埅鍥捐嚜閲婃敞璁帮紝瀹硶绗竴鏉¤姹備繚鐣?seam锛涚湡瀹為敊璇矾寰勬枃妗堜负 `SERVICE_DOWN_MESSAGE` 绾敤鎴疯瘽鏈€?|
-| B5 | 绐勫睆姹囨€绘暟鍊间笉鍙鲸 / 搴曟爮閬〃鏍间笅鍗婃锛坮37 U2-2銆乺37 P5-3銆乺38 P5-4锛?| 鈮?00px 鏃㈡湁搴曟爮甯冨眬锛屾粴鍔ㄥ彲杈撅紱README 宸叉姭闇诧紱鏁板€间互 02~05 瀹藉睆鎬佷负鍑嗐€?|
-| B6 | 02 绛涢€夋€佺粺璁￠潰鏉夸粛涓哄叏灞€鍙ｅ緞锛坮38 U3-2锛?| 鍔熻兘姝ｇ‘锛堢粺璁℃湰灏卞叏灞€锛夛紝椤鸿鏄撶敓鐤戯紱鍔犲皬瀛楀嵆鍙紝闈炵己闄枫€?|
-| B7 | 涓ゅ闈為〉鑴氱煭璇惈銆宼oken銆嶅瓧鏍凤紙r40 U3-1锛?| 銆屼細璇?token 宸叉竻闄ゃ€嶈涔夊噯纭紱鎵弿鍣ㄨ瘝琛ㄥ埢鎰忎笉鏀?`token`锛堜繚鐣欐湇鍔′笉鍙揪鎺掗殰鍦烘櫙锛岃 C5锛夛紱r40 宸叉姭闇层€?|
-| B8 | 03鈫?4/05 seam 璇存槑涓庡繀濉爣涓嶅悓甯э紙r41 U3-1锛?| 7 寮犱负鐙珛 `?shot=` 閽夋€併€乺41 README 鏄庣ず闈炶繛缁抚锛涜瘉鎹摼閫愬抚鑷唇灞為敠涓婃坊鑺便€?|
-| B9 | 绐勫睆璁惧鍕鹃€変笌鏍囩閰嶅鍋忔澗锛坮43 U2-3 鈫?r44 U2-1锛?| 488px 鍕鹃€変粛鍙偣銆佹闈㈡€佹棤闂锛沀X 寰皟锛屼笉鍧忓姛鑳姐€?|
-| B10 | 鍚屽抚銆屽叡 5 寮犲崱 / 鍏?5 鍧椼€嶇敤璇嶄笉涓€锛坮45 U2-3 鈫?r46 P5-4锛?| 涓ゅ绱㈠紩宸查€愬瓧寮曠敤鐢婚潰鍘熸枃骞舵敞鏄庣湅鏉胯瘝姹囨贩鐢紱閫氱敤鏍￠獙鏂囨缁熶竴灞炲悗缁?UX 椤广€?|
-| B11 | 绐勫睆闀挎爣棰樻埅鏂棤鐪佺暐鍙凤紙r45 U3-1锛?| 绉嶅瓙鍚嶅亸闀挎墍鑷达紝鎵嬫焺涓?鈫?鈫?绾垫帓瀹屾暣銆佹嫋鎷戒笉鍧忥紱鍙€冭檻 `text-overflow: ellipsis`銆?|
-| B12 | 绐勫睆搴曢儴婵€娲昏嵂涓稿熬瀛楄銆屾洿澶?鈥恒€嶅帇浣忥紙r47 U3-1锛?| 搴曢儴瀵艰埅鍥哄畾銆屾洿澶氥€? 妯悜婊氬姩鑽父鐨勭户鎵垮竷灞€锛岄潪 r47 鍥炲綊锛涢〉闈㈠唴瀹逛笌銆屾洿澶?鈥恒€嶄粛鍙垽鏂墍鍦ㄩ〉銆?|
-| B13 | 02 涓?05 鐢婚潰鍚屾瀯銆佸尯鍒嗗害寮憋紙r47 U3-2锛?| 涓ゆ€佸潎涓轰换鍔″崟鏄庣‘瑕佹眰銆佺储寮曟弿杩板悇鑷垚绔嬶紱Pillow diff 璇佸疄浠呰摑鏉″樊寮傦紝璇佹嵁鏈夋晥銆?|
-| B14 | 绱㈠紩銆岀 2 鏉°€嶆帾杈炵簿搴?+ 鍒嗘暟瑙掓爣鍒嗙粍闈炲叏灞€闄嶅簭锛坮33 verify P5 / U3-3锛?| CDP 鐪熺偣宸茬嫭绔嬮獙璇侀敭鐩橀€変腑涓?deep-link锛沀I 鎸夌被鍨嬪垎缁勫憟鐜帮紝shared 灞傞檷搴忔纭紝灞炶鏄庣簿搴﹀蹇樸€?|
-| B15 | 绐勫睆鎼滅储缁撴灉闈㈡澘娴眰閬綇鏈嶅姟妯″紡鍗★紙r33 verify P5锛?| 涓嬫媺闈㈡澘棰勬湡灞傚彔锛寁erify 鍒ゅ畾鍙帴鍙椼€?|
-| B16 | unix pwsh 鎴浘鍒嗘敮鏈疄璺戯紙r40/r41 verify 缁ф壙椤癸級 | 鏈満 PS5.1 鍏?ASCII + Parser 0 閿欒锛沀nix 鍒嗘敮灞炵幆澧冮檺鍒讹紝宸茶繛缁杞姭闇层€?|
+| B1 | 窄容器壳末枚药丸右缘裁切（r31 U2-1 → r47 U2-3 继承） | 见 A 节候选评估；有「更多 ›」/☰ 第二路径、宽容器壳与矩阵完整，UI 十轮判 U2 不打回；已逐轮披露，不冒充已修。E 节给复评条件。 |
+| B2 | AI 摘要行「共 1 次工具调用」与 header ×2 口径打架（r47 U2-1） | 仅 `?shot=` 钉态种子文案；生产摘要由 planner 真实 toolCalls 装配。用户靠黄卡徽标 + 蓝条理解状态，功能不受影响；r47 UI 已披露。 |
+| B3 | 04 编辑态 ↔ 05 存为文档后非连续（285→269 字，r36 U2-2） | 索引已声明 05 为独立钉态、真链路 audit/CDP 背书（r35 先例）；最低披露线满足，顺读歧义属措辞层。 |
+| B4 | `?shot=wr-error` 内嵌「（r36 报告链路错误态）」（r36 U2-3 / P5-1） | `?shot=` 守卫内截图自释注记，宪法第一条要求保留 seam；真实错误路径文案为 `SERVICE_DOWN_MESSAGE` 纯用户话术。 |
+| B5 | 窄屏汇总数值不可辨 / 底栏遮表格下半段（r37 U2-2、r37 P5-3、r38 P5-4） | ≤600px 既有底栏布局，滚动可达；README 已披露；数值以 02~05 宽屏态为准。 |
+| B6 | 02 筛选态统计面板仍为全局口径（r38 U3-2） | 功能正确（统计本就全局），顺读易生疑；加小字即可，非缺陷。 |
+| B7 | 两处非页脚短语含「token」字样（r40 U3-1） | 「会话 token 已清除」语义准确；扫描器词表刻意不收 `token`（保留服务不可达排障场景，见 C5）；r40 已披露。 |
+| B8 | 03↔04/05 seam 说明与必填标不同帧（r41 U3-1） | 7 张为独立 `?shot=` 钉态、r41 README 明示非连续帧；证据链逐帧自洽属锦上添花。 |
+| B9 | 窄屏设备勾选与标签配对偏松（r43 U2-3 → r44 U2-1） | 488px 勾选仍可点、桌面态无问题；UX 微调，不坏功能。 |
+| B10 | 同帧「共 5 张卡 / 共 5 块」用词不一（r45 U2-3 → r46 P5-4） | 两处索引已逐字引用画面原文并注明看板词汇混用；通用校验文案统一属后续 UX 项。 |
+| B11 | 窄屏长标题截断无省略号（r45 U3-1） | 种子名偏长所致，手柄与 ↑/↓ 纵排完整、拖拽不坏；可考虑 `text-overflow: ellipsis`。 |
+| B12 | 窄屏底部激活药丸尾字被「更多 ›」压住（r47 U3-1） | 底部导航固定「更多」+ 横向滚动药丸的继承布局，非 r47 回归；页面内容与「更多 ›」仍可判断所在页。 |
+| B13 | 02 与 05 画面同构、区分度弱（r47 U3-2） | 两态均为任务单明确要求、索引描述各自成立；Pillow diff 证实仅蓝条差异，证据有效。 |
+| B14 | 索引「第 2 条」措辞精度 + 分数角标分组非全局降序（r33 verify P5 / U3-3） | CDP 真点已独立验证键盘选中与 deep-link；UI 按类型分组呈现，shared 层降序正确，属说明精度备忘。 |
+| B15 | 窄屏搜索结果面板浮层遮住服务模式卡（r33 verify P5） | 下拉面板预期层叠，verify 判定可接受。 |
+| B16 | unix pwsh 截图分支未实跑（r40/r41 verify 继承项） | 本机 PS5.1 全 ASCII + Parser 0 错误；Unix 分支属环境限制，已连续多轮披露。 |
 
-### C 路 璁捐鍙栬垗淇濈暀锛?2 鏉★紙閫愭潯鐞嗙敱锛?
-| id | 鏉＄洰锛堟潵婧愯疆/缂栧彿锛?| 褰掔被鐞嗙敱 |
+### C · 设计取舍保留：12 条（逐条理由）
+
+| id | 条目（来源轮/编号） | 归类理由 |
 |---|---|---|
-| C1 | 鍏紡鑳藉姏杈圭晫锛氬洓鍒?姣旇緝/IF/ROUND銆佸彧寮曟湰琛ㄣ€佸叕寮忓垪涓嶅弬涓庣瓫閫夋帓搴忋€佹棤鐙珛鍏紡鏍忥紙r30 P5-3锛?| r30 浠诲姟鍗曟槑纭竟鐣岋紝闈炵己闄凤紱鎵╁睍灞炴柊鍔熻兘銆?|
-| C2 | 灞曠ず绮惧害 `toPrecision(12)` 鏀舵暃灏炬暟锛坮31 U3-3锛?| 姹傚€艰涔夐浂鏀癸紝褰撳墠璇佹嵁 84.8 鏃犳崯锛涢珮绮惧害涓氬姟鍊间笉鍦ㄥ綋鍓嶈瘉鎹腑锛屽彟杞寜闇€銆?|
-| C3 | 鏈湴鍗曠敤鎴锋ā鍨嬨€岃秺鏉?id銆嶄互涓嶅瓨鍦?id 鈫?404 瑕嗙洊锛坮34 verify P5锛?| 鏃犳寜鐢ㄦ埛鎵€鏈夋潈瀛楁锛岃涔夊悎鐞嗭紱鏈潵澶氱敤鎴峰啀琛ョ湡瀹?ownership 鏂█銆?|
-| C4 | 鍙栨秷鍗充笉鐐广€岀‘璁ゅ啓鍏ャ€嶃€佹棤鐙珛鍙栨秷鎸夐挳锛坮35 verify P5锛?| HTTP 涓?CDP 鍙屼晶璇佹槑闆跺啓鍏ワ紝绛変环璇箟锛涘姞鏄惧紡鍙栨秷閿睘 UX 澧炲己銆?|
-| C5 | 鎵弿鍣ㄤ笉鏀?`api/pnpm`锛屾湇鍔′笉鍙揪鍒嗘敮淇濈暀銆岃繛鎺ュけ璐?/ pnpm dev:api銆嶏紙r39 verify P4銆乺44 P5-4 / U3-1锛?| 鑷墭绠＄敤鎴锋帓闅滈渶瑕侊紱r44 宸叉妸鏍￠獙閿欒甯у垎娴佷负绾敤鎴锋枃妗堬紝鏈嶅姟閿欒鍒嗘敮璇箟姝ｇ‘銆?|
-| C6 | 宸插叧闂〃鍗曟彁浜?409 `FORM_CLOSED` 鑰岄潪 400锛坮41 verify P5-1锛?| 409 璇箟涓虹姸鎬佸啿绐侊紝浠诲姟鍗曞啓銆?xx銆嶏紝绗﹀悎锛涢潪缂洪櫡銆?|
-| C7 | watchdog 鐨?e2e/audit 鏁板瓧鍙?scripts 鍐呭祵鍙ｅ緞鑰岄潪閲嶈窇锛坮42 P5-1锛?| 闆堕噸澶嶈繍琛屻€侀浂鏂颁緷璧栫殑鍙栬垗锛涚湡瀹炲€肩敱 `test:all` 瀹炶窇鍏滃簳锛岀悊璁烘畫浣欓闄╁凡鎶湶銆?|
-| C8 | 浠撳簱鑷甫 `data/xieflow.db` 鎸夐渶杩佺Щ锛坮43 P5-2锛?| `user_version` 鎸夐渶瑙﹀彂鏄璁¤涔夛紱鍓湰楠岃瘉鍙啓鍚姩鍗?v26鈫抳27 涓旀暟鎹棤鎹熴€?|
-| C9 | `autoExecute` 榛樿 false銆佽€佽矾寰?true 鍏ㄤ繚鐣欙紙r47 P5-1锛?| r47 鏈疆闇€姹傦紙鍗遍櫓鎿嶄綔鍏堢‘璁わ級锛屾樉寮忓悜鍚庡吋瀹瑰紑鍏筹紝闈炲洖褰掋€?|
-| C10 | `needsConfirmation` 鍙嫤 shared `STATE_CHANGING_TOOLS` 鐧藉悕鍗?3 宸ュ叿锛坮47 P5-6锛?| 鍙ｅ緞闆嗕腑鍦?shared锛屾柊澧炲伐鍏峰彧闇€杩涚櫧鍚嶅崟锛屾棤闇€鏀?toolGate/api/web锛沞2e 閿佸畾鐧藉悕鍗曢€愪綅鐩哥瓑銆?|
-| C11 | 妗岄潰 1280px 椤舵爮 20 鑽父鍗曡涓嶆姌琛岋紙r31 U2-1 淇寤剁画锛?| 涓烘秷闄?r10 鎶樿鑰岄噰鍙栫殑 nowrap + flex-shrink:0 鍙栬垗锛汢1 鐨勮鍒囨槸瀹冪殑鍓綔鐢紝淇?B1 涓嶅緱鍥為€€涓嶆姌琛屻€?|
-| C12 | `<nav class="tabs">` 涓嶅惈鐧诲綍/娉ㄥ唽椤碉紙r18 璧凤紝r22/r41 澶嶈堪锛?| 鐧诲綍/娉ㄥ唽涓虹嫭绔嬭矾鐢憋紱tab 鏁板彛寰勭ǔ瀹氾紝閬垮厤璁よ瘉椤垫薄鏌撲富鐣岄潰瀵艰埅銆?|
+| C1 | 公式能力边界：四则/比较/IF/ROUND、只引本表、公式列不参与筛选排序、无独立公式栏（r30 P5-3） | r30 任务单明确边界，非缺陷；扩展属新功能。 |
+| C2 | 展示精度 `toPrecision(12)` 收敛尾数（r31 U3-3） | 求值语义零改，当前证据 84.8 无损；高精度业务值不在当前证据中，另轮按需。 |
+| C3 | 本地单用户模型「越权 id」以不存在 id → 404 覆盖（r34 verify P5） | 无按用户所有权字段，语义合理；未来多用户再补真实 ownership 断言。 |
+| C4 | 取消即不点「确认写入」、无独立取消按钮（r35 verify P5） | HTTP 与 CDP 双侧证明零写入，等价语义；加显式取消键属 UX 增强。 |
+| C5 | 扫描器不收 `api/pnpm`，服务不可达分支保留「连接失败 / pnpm dev:api」（r39 verify P4、r44 P5-4 / U3-1） | 自托管用户排障需要；r44 已把校验错误帧分流为纯用户文案，服务错误分支语义正确。 |
+| C6 | 已关闭表单提交 409 `FORM_CLOSED` 而非 400（r41 verify P5-1） | 409 语义为状态冲突，任务单写「4xx」，符合；非缺陷。 |
+| C7 | watchdog 的 e2e/audit 数字取 scripts 内嵌口径而非重跑（r42 P5-1） | 零重复运行、零新依赖的取舍；真实值由 `test:all` 实跑兜底，理论残余风险已披露。 |
+| C8 | 仓库自带 `data/xieflow.db` 按需迁移（r43 P5-2） | `user_version` 按需触发是设计语义；副本验证可写启动即 v26→v27 且数据无损。 |
+| C9 | `autoExecute` 默认 false、老路径 true 全保留（r47 P5-1） | r47 本轮需求（危险操作先确认），显式向后兼容开关，非回归。 |
+| C10 | `needsConfirmation` 只拦 shared `STATE_CHANGING_TOOLS` 白名单 3 工具（r47 P5-6） | 口径集中在 shared，新增工具只需进白名单，无需改 toolGate/api/web；e2e 锁定白名单逐位相等。 |
+| C11 | 桌面 1280px 顶栏 20 药丸单行不折行（r31 U2-1 修复延续） | 为消除 r10 折行而采取的 nowrap + flex-shrink:0 取舍；B1 的裁切是它的副作用，修 B1 不得回退不折行。 |
+| C12 | `<nav class="tabs">` 不含登录/注册页（r18 起，r22/r41 复述） | 登录/注册为独立路由；tab 数口径稳定，避免认证页污染主界面导航。 |
 
-### D 路 宸查棴鐜摼锛?1 鏉★紝涓嶈鍏ユ寕璐︼級
+### D · 已闭环链（11 条，不计入挂账）
 
-- D1 閿欒鏉″唴閮ㄦ湳璇紙r35 U2-2 鈫?r36 U2-3 鈫?r37 U2-1 鈫?r38 U2-1锛夆啋 r39 鍏ㄥ簱鐢ㄦ埛鍙鏈娓呴浂 + r40 鎵弿鍣ㄥ姞鍥猴紙`\br\d{1,3}\b` + 鑷柇瑷€锛夛紝r40 UI 鑲夌溂纭闂悎銆?- D2 鍗曚綅鏁?rN 鍗犱綅鏂囨锛坮39 verify P5锛夆啋 r40 11 澶勬竻闆讹紙鎵弿鍣ㄤ繚鎸佸己绾︽潫锛屼笉璞佸厤锛夈€?- D3 鐧诲綍椤佃剼銆?4 涓?tab / token 浠呭瓨鏈湴銆嶏紙r39 U2-2 / P5锛夆啋 r40 鏀逛笉鍚暟瀛楃殑绾敤鎴疯瘽鏈紝3脳 鏀惧ぇ纭銆?- D4 README vN 鎵嬪伐婕忔敼锛坮34 P4銆乺37/r38/r41 P5锛岃繛缁簲杞級鈫?r42 DOC-CONTRACT watchdog 涓婄嚎锛屾潈濞佹簮閿佸畾銆?- D5 r43 U2-1 05 鏃舵涓嶈嚜娲?+ U2-2 07 閿欒妗嗘灦璇 鈫?r44 閲嶉拤 14:30鈥?5:00 + 鏍￠獙閿欒鏂囨鍒嗘祦銆?- D6 r43 U3 shell changed=8/same=12 涓蹭綅銆佸叏搴?372/370 涓蹭綅銆侀檲鏃?r37 寰界珷 鈫?r44 閫愰」褰掍綅銆?- D7 r45 U2-1/2/3 绱㈠紩涓庣敾闈?鏂█涓嶇 鈫?r46 涓夊鏀瑰紩鐪熷疄鏂█ + watchdog 鍙屽悜閿佸畾锛?9 checks锛夈€?- D8 shell/bases 绌烘€併€? 绉嶅瓧娈电被鍨嬮綈澶囥€嶏紙r30 U2-1锛夆啋 r31 鏀瑰叓绫绘枃妗?+ 鍗曞紶/鍚屾壒閲嶆媿銆?- D9 娴偣灏炬暟 `84.80000000000001`锛坮30 P5-2锛夆啋 r31 `formatFormulaDisplay` 灞曠ず灞傛敹鏁涳紝姹傚€间笉鏀广€?- D10 r35 U1-1 02鈫?4 闈炲悓涓€ ICS 鈫?r35 杩斿伐 #1 鍚屼竴 ICS 寰€杩?+ 鍥炬敞闂悎锛圲I 缁堝閫氳繃锛夈€?- D11 r47 闂搁棬婕忔锛圥5-2锛変笌 callId 鍚屼細璇濆杞鎾烇紙P5-3锛夆啋 r47 鍚岃疆 `validateCall` 鍓嶇疆 + 杞搴忓彿淇銆?
-### E 路 閲嶆柊鎵撳紑瑙﹀彂鏉′欢锛堥伩鍏嶅€哄姟鏃犻檺婊氾級
+- D1 错误条内部术语（r35 U2-2 → r36 U2-3 → r37 U2-1 → r38 U2-1）→ r39 全库用户可见术语清零 + r40 扫描器加固（`\br\d{1,3}\b` + 自断言），r40 UI 肉眼确认闭合。
+- D2 单位数 rN 占位文案（r39 verify P5）→ r40 11 处清零（扫描器保持强约束，不豁免）。
+- D3 登录页脚「14 个 tab / token 仅存本地」（r39 U2-2 / P5）→ r40 改不含数字的纯用户话术，3× 放大确认。
+- D4 README vN 手工漏改（r34 P4、r37/r38/r41 P5，连续五轮）→ r42 DOC-CONTRACT watchdog 上线，权威源锁定。
+- D5 r43 U2-1 05 时段不自洽 + U2-2 07 错误框架误导 → r44 重钉 14:30–15:00 + 校验错误文案分流。
+- D6 r43 U3 shell changed=8/same=12 串位、全库 372/370 串位、陈旧 r37 徽章 → r44 逐项归位。
+- D7 r45 U2-1/2/3 索引与画面/断言不符 → r46 三处改引真实断言 + watchdog 双向锁定（59 checks）。
+- D8 shell/bases 空态「7 种字段类型齐备」（r30 U2-1）→ r31 改八类文案 + 单张/同批重拍。
+- D9 浮点尾数 `84.80000000000001`（r30 P5-2）→ r31 `formatFormulaDisplay` 展示层收敛，求值不改。
+- D10 r35 U1-1 02↔04 非同一 ICS → r35 返工 #1 同一 ICS 往返 + 图注闭合（UI 终审通过）。
+- D11 r47 闸门漏检（P5-2）与 callId 同会话多轮碰撞（P5-3）→ r47 同轮 `validateCall` 前置 + 轮次序号修复。
 
-1. **B1 澶嶈瘎瑙﹀彂**锛氣憼 鈮?00px / `?narrow=1` 鐨勩€屾洿澶?鈥恒€嶆垨 鈽?缃戞牸璺緞琚Щ闄わ紱鈶?UI 闃绘柇宀楁煇杞妸鏈灇瑁佸垏鍗囩骇 U1锛涒憿 鏂板 tab 浣垮瀹瑰櫒澹充篃鏀句笉涓嬨€備换涓€鍛戒腑 鈫?杞?A 蹇呬慨銆?2. **B1 淇硶閰嶆柟**锛堝眾鏃朵竴杞唴鍋氬畬锛夛細妗岄潰 `.tabs` 鍔?`overflow-x: auto` + 澶嶇敤 `.tabs-more-wrap` 妗岄潰鏄鹃殣锛坰hared `shouldShowTabsMore` 鎵╂闈㈠垎鏀€佸彧鐣欎竴涓彛寰勶級锛岄殢鍚?20 澹?+ 鍙楀奖鍝嶇煩闃靛悓鎵归噸鎷嶃€佷笁澶勭储寮曞悓涓€鎻愪氦锛汿DD 鍏堢孩 + 鍙樺紓绾㈢浉銆?3. **C 绫诲璇勮Е鍙?*锛氫换鍔″崟杈圭晫鏀瑰彉锛堝紩鍏ュ鐢ㄦ埛 / 澶栭儴 LLM / 鐪熷疄澶栭儴鏃ュ巻 / 楂樼簿搴︿笟鍔￠噾棰濓級鏃讹紝C3/C4/C5/C7/C9 瀵瑰簲椤硅浆 A 閲嶆柊璇勪及銆?4. **鏈疆缁撹**锛欰=0 鈫?r48 涓?*绾枃妗ｅ垎绫昏疆**锛屼笉鏀规覆鏌撳眰銆佹部鐢?r47 澹冲浘骞朵笁澶勯€忔槑澹版槑锛泈atchdog 鎵╂閿佸畾鎬昏处涓夊垎绫昏鏁帮紙鍙樺紓绾㈢浉瑙佹姤鍛婏級銆?
-### r49 路 宸ヤ綔鍖烘暟鎹浠戒笌鎭㈠锛堟€诲叆鍙ｏ紝M10 鍚庡姛鑳借ˉ寮猴級
-- 鐩爣锛氬悇妯″潡鏈夊崟鐙鍑猴紙CSV/MD/ICS锛夛紝浣嗘病鏈夈€屼竴閿鍑哄叏閮ㄤ笟鍔℃暟鎹?/ 瀵煎叆鎭㈠銆嶁€斺€旇ˉ宸ヤ綔鍖虹骇澶囦唤锛圝SON 蹇収锛屽惈鎵€鏈変笟鍔¤〃锛? 鎭㈠锛堜簩娆＄‘璁わ紝闆跺崐鎬侊級
-- 浜や粯娓呭崟锛?  1. 澶囦唤瑙勫垯闆嗕腑 packages/shared/backup.ts锛欱ACKUP_TABLES 鐧藉悕鍗曪紙鎺掗櫎 sessions/change_log 绛夎繍琛屾椂琛級銆乥uildBackupManifest(snapshot)锛堢増鏈?鏃堕棿/琛ㄨ鏁帮級銆乿alidateBackupFile(json)锛堢粨鏋?鐗堟湰鍏煎/琛ㄧ櫧鍚嶅崟鏍￠獙锛屾嫆缁濇湭鐭ヨ〃锛夈€乸lanRestore(backup, tables)锛堝厛鍏ㄩ噺鏍￠獙鍐嶇敓鎴愭仮澶嶈鍒掞紝闆跺崐鎬侊級
-  2. api锛欸ET /api/backup/export锛堝叏閲忎笟鍔¤〃 JSON 蹇収锛宑ontent-disposition 闄勪欢锛夈€丳OST /api/backup/validate锛堥瑙堟牎楠屼笉鍐欏叆锛夈€丳OST /api/backup/restore锛堝甫 confirm=RESTORE_WORKSPACE 浜屾纭锛屽崟浜嬪姟鏇挎崲鐧藉悕鍗曡〃锛?  3. web锛氳缃〉鍔犮€屾暟鎹浠戒笌鎭㈠銆嶅崱鈥斺€斿鍑哄浠芥寜閽紙钀界洏 JSON锛? 閫夋嫨鏂囦欢棰勮鏍￠獙锛堣〃璁℃暟/鐗堟湰锛? 浜屾纭鎭㈠锛涙仮澶嶅悗鎻愮ず閲嶈浇
-  4. 鏂█锛歟2e 鈮?35锛坢anifest/鐧藉悕鍗?鏍￠獙/鎭㈠璁″垝/闆跺崐鎬?浜屾纭锛夈€乤udit 鈮?25锛?xx锛氭棤 confirm/鍧?JSON/鏈煡琛?鐗堟湰涓嶅吋瀹癸級
-  5. 鎴浘 鈮?锛氬浠藉崱/瀵煎嚭钀界洏/閫夋嫨鏂囦欢/鏍￠獙棰勮/纭鎭㈠瀵硅瘽妗?绐勫睆/閿欒鎬?- 楠屾敹鏍囧噯锛?  1. 鍏ㄩ噺缁匡細e2e 鈮?865銆乤udit 鈮?916锛孯EADME 鍙岃妭鍚屾锛堢簿绠€鐗堜笁澶勶級
-  2. **澶囦唤鎭㈠鐪熷疄鎬?*锛歸aizhuan 閫犲凡鐭ユ暟鎹啋瀵煎嚭 JSON鈫掑垹/鏀光啋鎭㈠鈫掗€愯〃閫愬瓧娈靛洖璇荤浉绛夛紱鍧?JSON/鏈煡琛?鏃犱簩娆＄‘璁ゅ叏閮ㄦ嫆缁濅笖闆跺崐鎬?  3. **鍗遍櫓鍖虹孩绾?*锛氫笉鍔?sessions/change_log锛涙仮澶嶅彧鏇挎崲鐧藉悕鍗曚笟鍔¤〃锛涙棦鏈夌敤鎴锋暟鎹笉琚鍒狅紙鎭㈠鍓嶉瑙堟竻鏅帮級锛泈aizhuan raw 搴撳揩鐓ф牳瀵?  4. 鍙?VERDICT锛坵aizhuan + ui 闃绘柇宀楋級閫氳繃
-- 鍓嶇疆锛歳48 宸插彂鐗堬紙v0.0.54锛夆渽
-- 鏄庣‘杈圭晫锛氬浠藉彧鍦ㄦ湰鍦?鐧诲綍鐢ㄦ埛锛屼笉鎺ュ閮ㄥ瓨鍌紱闆舵柊渚濊禆銆侀浂 token锛涙棤鏂?tab锛?0 tab 鏁伴噺涓嶅彉锛岃缃〉鍐呭崱鐗囷紱鑻ユ覆鏌撳眰鍙樺寲鍒欏３鍩虹嚎鍚屾壒閲嶆媿锛?
-### r50 路 绗?50 杞噷绋嬬浣撶郴澶嶅锛坙ead 涓诲锛屼笉鏂板鍔熻兘锛?- 鐩爣锛氭寜瀹硶绗叚鏉°€屾瘡瀹屾垚涓€涓ぇ閲岀▼纰戯紝lead 澶嶅涓€娆°€庝笉鍋氭竻鍗曘€忋€? 鎬荤洃鑱岃矗锛屽 28 杞凯浠ｅ悗鐨勪綋绯诲仛涓€娆″叏闈綋妫€锛岃緭鍑哄彲杩芥函鐨勫瀹＄粨璁?- 浜や粯娓呭崟锛?  1. **涓嶅仛娓呭崟澶嶅**锛氶€愰」鏍稿瀹硶鍏潯锛堝疄鏃舵眹鐜?澶栭儴琛屾儏銆佽棰戜細璁€佺涓夋柟 IM銆佹彃浠跺競鍦恒€丼aaS 澶氱鎴疯璐癸級鍦?28 杞腑鏄惁鏈夎秺鐣屸€斺€旀煡浠ｇ爜/渚濊禆/tab 娓呭崟
-  2. **鍗遍櫓鍖哄彴璐﹀瀹?*锛氭牳瀵?docs/plan.md銆屽嵄闄╁尯鍙拌处銆嶆槸鍚﹁褰曞叏閮?lead 瀹℃壒鍔ㄤ綔锛圕I 淇銆丷elease 琛ュ彂銆乸ush 閫氶亾銆佽繘绋嬫敹鍑€绛夛級
-  3. **鏂█绾緥澶嶅**锛氳妯″彧娑紙1842鈫?922 / 1503鈫?957 鍏ㄧ▼鏃犲垹锛夈€佸彉寮傜孩鐩歌鐩栵紙鎶芥煡 5 杞殑绾㈢浉璇佹嵁锛夈€佹棤鑷唇鍗犱綅
-  4. **README 绮剧畝鐘舵€佸瀹?*锛歰wner 鏄庣‘瑕佹眰绮剧畝鈥斺€旀牳瀵瑰綋鍓嶈鏁颁笌鍘嗗彶澶栫Щ瀹屾暣鎬?  5. **涓ら亾鎶ゆ爮鏈夋晥鎬?*锛歝heck:text锛堢敤鎴锋枃妗堬級+ DOC-CONTRACT锛堟枃妗ｅ绾︼級鍚勮嚜鍙樺紓绾㈢浉鍦ㄦ渶杩?3 杞槸鍚︾湡鐢熸晥
-  6. 鑻ュ瀹″彂鐜扮湡闂锛堝涓嶅仛娓呭崟瓒婄晫銆佸彴璐︾己璁帮級锛屾湰杞慨锛涘惁鍒欑函鏂囨。杞部鐢?r49 澹冲浘骞朵笁澶勫０鏄?- 楠屾敹鏍囧噯锛氬瀹℃姤鍛婇€愭潯鏈夎瘉鎹紙鏂囦欢+琛屽彿/鏂█鍚嶏級锛涘叏閲忕豢锛涘弻 VERDICT 閫氳繃
-- 鍓嶇疆锛歳49 宸插彂鐗堬紙v0.0.55锛夆渽
-- 鏄庣‘杈圭晫锛氭湰杞笉鏂板涓氬姟鍔熻兘锛涘彧澶嶅 + 淇湡闂
+### E · 重新打开触发条件（避免债务无限滚）
 
-### r52 路 璐ㄩ噺瀹¤ #1锛氭敞鍏ヤ笌瓒婃潈锛堝畨鍏ㄧ淮搴︼紝owner 閫夊畾鐨勫璁℃柟鍚戦杞級
-- 鐩爣锛氬 30 杞Н绱殑鍏ㄦ爤浠ｇ爜鍋氱郴缁熸€у畨鍏ㄥ璁★紝鑱氱劍鍥涚被鐪熷疄椋庨櫓锛歋QL 娉ㄥ叆 / XSS / 瓒婃潈 id / 璁よ瘉缁曡繃锛涘彂鐜扮湡闂鍗充慨骞惰ˉ鏂█
-- 浜や粯娓呭崟锛?  1. **SQL 娉ㄥ叆瀹¤**锛氬叏搴撴壂鎻?raw SQL 鎷兼帴锛坄db.prepare(\`...\$\{`銆佸瓧绗︿覆鎷兼帴 WHERE/ORDER BY锛夛紝鏍稿鏄惁鍏ㄩ儴鍙傛暟鍖栨垨鐧藉悕鍗曪紱鍔ㄦ€佹帓搴忓瓧娈垫槸鍚︽灇涓炬牎楠?  2. **XSS 瀹¤**锛歸eb 灞?`dangerouslySetInnerHTML` / `innerHTML` / 妯℃澘瀛楃涓叉覆鏌撶敤鎴疯緭鍏ョ殑鍦版柟锛坮32 HTML 瀵煎嚭宸茬煡鐢?escaping锛屾牳瀵规槸鍚﹀畬鏁达級锛汳arkdown 娓叉煋鏄惁杞箟 script/onerror
-  3. **瓒婃潈 id 瀹¤**锛欰PI 璺敱涓?`:id` 鏄惁閮界粡 owner 鏍￠獙锛堟娊鏌?10 鏉′笉鍚岃祫婧愮殑 GET/PUT/DELETE锛夛紱澶囦唤鎭㈠/ICS 璁㈤槄 key 绛夋晱鎰熻矾鐢辨湁鏃犺秺鏉?  4. **璁よ瘉缁曡繃瀹¤**锛歳emote 妯″紡涓?auth middleware 瑕嗙洊闈紱401 澶勭悊鏄惁娓?token 璺崇櫥褰曪紱`autoExecute` 绛夊紑鍏宠兘鍚︾粫杩囩‘璁ら椄闂?  5. 鍙戠幇鐪熼棶棰橈細鎸変弗閲嶅害 P0/P1/P2 鍒嗙骇锛孭0/P1 蹇呬慨骞跺甫鍙樺紓绾㈢浉鏂█锛汸2 璁拌处
-  6. 鑻ラ浂鐪熼棶棰橈細杈撳嚭銆岄浂闂璇佹槑銆嶏紙鎵弿鍛戒护 + 鍛戒腑閫愭潯鍒ゅ畾涓鸿鎶ョ殑鐞嗙敱锛?- 楠屾敹鏍囧噯锛氬璁℃姤鍛?docs/feedback/2026-11-21-r52-audit.md 閫愭潯鏈夋枃浠?琛屽彿璇佹嵁锛涜嫢淇鍒欏叏閲忕豢涓旀柇瑷€鍙定锛涘弻 VERDICT 閫氳繃
-- 鍓嶇疆锛歳51 宸插彂鐗堬紙v0.0.57锛夆渽
-- 鏄庣‘杈圭晫锛氭湰杞笉鏂板涓氬姟鍔熻兘锛涘彧瀹¤ + 淇湡瀹夊叏闂锛涢浂 token銆侀浂鏂颁緷璧栵紱鍗遍櫓鍖猴紙瀵嗛挜/鍙戝竷/鍒犵敤鎴锋暟鎹級浜?lead
+1. **B1 复评触发**：① ≤600px / `?narrow=1` 的「更多 ›」或 ☰ 网格路径被移除；② UI 阻断岗某轮把末枚裁切升级 U1；③ 新增 tab 使宽容器壳也放不下。任一命中 → 转 A 必修。
+2. **B1 修法配方**（届时一轮内做完）：桌面 `.tabs` 加 `overflow-x: auto` + 复用 `.tabs-more-wrap` 桌面显隐（shared `shouldShowTabsMore` 扩桌面分支、只留一个口径），随后 20 壳 + 受影响矩阵同批重拍、三处索引同一提交；TDD 先红 + 变异红相。
+3. **C 类复评触发**：任务单边界改变（引入多用户 / 外部 LLM / 真实外部日历 / 高精度业务金额）时，C3/C4/C5/C7/C9 对应项转 A 重新评估。
+4. **本轮结论**：A=0 → r48 为**纯文档分类轮**，不改渲染层、沿用 r47 壳图并三处透明声明；watchdog 扩检锁定总账三分类计数（变异红相见报告）。
 
-### r53 路 r52 瀹夊叏婕忔礊淇锛圥0脳2 / P1脳2 / P2脳3锛宭ead 瀹氭柟妗堬級
-- 鐩爣锛氫慨澶?r52 瀹¤鍙戠幇鐨勭湡瀹炲畨鍏ㄦ紡娲炪€?*浜у搧璇箟鍓嶆彁**锛氭湰椤圭洰鏄崟宸ヤ綔鍖?鏈湴浼樺厛锛圓GENTS.md 鏄庣‘涓嶅仛 SaaS 澶氱鎴凤級锛屼笉鍋氳祫婧愬綊灞炶〃鈥斺€斾慨澶嶈仛鐒︺€屽叧闂秺鏉冨叆鍙ｃ€嶈€岄潪寮曞叆澶氱鎴?- lead 瀹氭柟妗堬紙閫愰」锛夛細
-  1. **P0-1 寮€鏀炬敞鍐?*锛歳emote 妯″紡鍏抽棴鍏紑 `/api/auth/register`锛堣繑鍥?403/409锛夛紝鏀圭敱 admin 缁?`user:manage` 寤鸿处鍙凤紱local 妯″紡淇濈暀鍏紑娉ㄥ唽锛堝崟鏈鸿涔夛級锛涜ˉ HTTP 鏂█
-  2. **P0-2 鎭㈠绡℃敼 mode**锛氣憼 `server.mode` 浠庡彲鎭㈠ `settings` 鐧藉悕鍗曟帓闄わ紙涓?users/sessions 鍚岀骇杩愯鏃朵繚鎶わ級锛涒憽 `POST /api/backup/restore` 鍔?admin 闂搁棬锛涒憿 鍚姩鏃?`ENV_MODE` 浼樺厛绾ч珮浜?DB锛堟垨鎭㈠鍚庡埛鏂板唴瀛樺苟寮哄埗閲嶈璇侊級锛涜ˉ鏂█锛氱鏀?mode 鐨勫浠?422 + 閲嶅惎 remote 涓嶉檷绾?  3. **P1-1 瀹℃壒鍐掑厖**锛歛ctor/actorMemberId 浠?`req.auth.user` 娲剧敓锛屽拷鐣?body 澹版槑锛泂hared 鍐崇瓥鏍￠獙 session user 鈫?assignee锛涜ˉ鏂█锛氫吉閫?actor 鐨?user 403
-  4. **P1-2 澶囦唤闂搁棬**锛歟xport/validate/restore 涓夎矾鐢辩粺涓€ admin锛堟垨 backup:read/write 鏉冮檺锛夛紱纭浠ょ墝鍗囩骇涓轰細璇濈粦瀹氫竴娆℃€?nonce锛堣嫢鎴愭湰楂樺垯璁拌处涓嬭疆锛屼絾 admin 闂搁棬鏈疆蹇呭仛锛?  5. **P2-2 淇℃伅娉勬紡**锛氬叕寮€ `/api/settings`銆乣/api/health` 鍙繑鍥炵櫧鍚嶅崟閿紙server.mode 绛夛級锛屼笉鍥炴樉 `calendar_feed_key`
-  6. **P2-3 鐗╄祫 operator**锛氫粠浼氳瘽娲剧敓锛屽拷鐣?body.operator
-  7. P2-1锛坅utoExecute 鏄庣ず缁曡繃锛夋寜 C9 宸叉姭闇插彛寰勮璐︿笉鏀?- 宸ョ▼绾緥锛歍DD 鍏堢孩鈥斺€旀瘡鏉′慨澶嶅厛鍐欏鐜版柇瑷€锛坮ed锛夊啀鏀瑰疄鐜帮紙green锛夛紱**鍙樺紓绾㈢浉**锛氳嚦灏?2 缁勶紙鍥炴粴娉ㄥ唽闂搁棬 / 鍥炴粴 mode 淇濇姢锛夛紱瀹¤澶嶇幇姝ラ閫愭潯杞负鍥炲綊鏂█锛涢潪骞傜瓑淇锛堟敞鍐?鏉冮檺锛夐渶淇濊瘉鏃㈡湁 3922 鏂█闆跺洖褰?- 楠屾敹鏍囧噯锛?  1. 瀹¤ P0/P1 鍏ㄩ儴鍏抽棴锛孭2-2/P2-3 鍏抽棴锛圥2-1 璁拌处锛夛紱闄勫姞 鈮?5 鏉″畨鍏ㄦ柇瑷€锛涘叏閲忕豢
-  2. r52 瀹¤鍛橈紙鎴?waizhuan锛夌敤鍘熷鐜版楠ら噸鏀撅細鍏ㄩ儴澶辫触 = 淇鏈夋晥
-  3. 鍙?VERDICT锛坵aizhuan + ui 闃绘柇宀楋級閫氳繃锛涙棤娓叉煋灞傛敼鍔ㄥ垯娌跨敤澹冲浘澹版槑
-- 鍓嶇疆锛歳52 瀹¤鎶ュ憡宸插嚭锛坴0.0.57锛夆渽
-- 鏄庣‘杈圭晫锛氬彧淇畨鍏ㄦ紡娲炰笉鏀逛骇鍝佸姛鑳斤紱闆舵柊渚濊禆銆侀浂 token銆侀浂瀵嗛挜鏂囦欢锛涘嵄闄╁尯浜?lead
+### r49 · 工作区数据备份与恢复（总入口，M10 后功能补强）
+- 目标：各模块有单独导出（CSV/MD/ICS），但没有「一键导出全部业务数据 / 导入恢复」——补工作区级备份（JSON 快照，含所有业务表）+ 恢复（二次确认，零半态）
+- 交付清单：
+  1. 备份规则集中 packages/shared/backup.ts：BACKUP_TABLES 白名单（排除 sessions/change_log 等运行时表）、buildBackupManifest(snapshot)（版本/时间/表计数）、validateBackupFile(json)（结构/版本兼容/表白名单校验，拒绝未知表）、planRestore(backup, tables)（先全量校验再生成恢复计划，零半态）
+  2. api：GET /api/backup/export（全量业务表 JSON 快照，content-disposition 附件）、POST /api/backup/validate（预览校验不写入）、POST /api/backup/restore（带 confirm=RESTORE_WORKSPACE 二次确认，单事务替换白名单表）
+  3. web：设置页加「数据备份与恢复」卡——导出备份按钮（落盘 JSON）+ 选择文件预览校验（表计数/版本）+ 二次确认恢复；恢复后提示重载
+  4. 断言：e2e ≥+35（manifest/白名单/校验/恢复计划/零半态/二次确认）、audit ≥+25（4xx：无 confirm/坏 JSON/未知表/版本不兼容）
+  5. 截图 ≥7：备份卡/导出落盘/选择文件/校验预览/确认恢复对话框/窄屏/错误态
+- 验收标准：
+  1. 全量绿：e2e ≥3865、audit ≥2916，README 双节同步（精简版三处）
+  2. **备份恢复真实性**：waizhuan 造已知数据→导出 JSON→删/改→恢复→逐表逐字段回读相等；坏 JSON/未知表/无二次确认全部拒绝且零半态
+  3. **危险区红线**：不动 sessions/change_log；恢复只替换白名单业务表；既有用户数据不被误删（恢复前预览清晰）；waizhuan raw 库快照核对
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r48 已发版（v0.0.54）✅
+- 明确边界：备份只在本地/登录用户，不接外部存储；零新依赖、零 token；无新 tab（20 tab 数量不变，设置页内卡片；若渲染层变化则壳基线同批重拍）
 
-### r54 路 P0-1 琛ヤ慨锛歳emote 涓氬姟璺敱缁熶竴 admin 闂搁棬锛坙ead 閲嶅畾鏂规锛?- 鑳屾櫙锛歳53 鍏抽棴浜嗗紑鏀炬敞鍐岋紙P0-1 鍓嶅崐锛夛紝浣嗗璁″憳 r53 鍘熸楠ら噸鏀捐瘉瀹炩€斺€?*宸茶璇?user token 浠嶈兘 GET/DELETE admin 鏂囨。锛?00锛?*銆傚叧鍏ュ彛 鈮?娑堥櫎瓒婃潈銆俽53 鍏朵綑 5 椤癸紙P0-2/P1-1/P1-2/P2-2/P2-3锛夐噸鏀惧叏閮ㄥ叧闂€?- 鏍瑰洜锛歚server.ts:444-453` 鐨?remote onRequest hook 鍙獙銆屽凡鐧诲綍銆嶄笉楠岃鑹诧紱`assertPermission` 鍙湪灏戞暟鏁忔劅璺敱锛坲ser:manage/auth:mode锛夎皟鐢紱涓氬姟鏁版嵁璺敱闆惰鑹查椄闂ㄣ€?- lead 鏂规锛堝崟宸ヤ綔鍖鸿涔夛細**涓€涓暟鎹墍鏈夎€?= admin**锛屼笉寮曞叆澶氱鎴?璧勬簮褰掑睘琛級锛?  1. 鍦?remote onRequest hook 鍔犵粺涓€闂搁棬锛氶櫎 PUBLIC_AUTH_PATHS + `ALWAYS_PROTECTED_PATHS` + `/api/auth/me`/`guard` 澶栵紝remote 妯″紡涓?*鎵€鏈?`/api/*` 涓氬姟璺敱瑕佹眰 `user:manage` 鏉冮檺**锛堝嵆 admin锛夛紱闈?admin 杩斿洖 403 `FORBIDDEN`
-  2. 淇濈暀 r53 鐨勬敞鍐岄椄闂ㄤ笌 admin 寤鸿处鍙疯兘鍔涒€斺€攗ser 璐﹀彿鍙瓨鍦紝浣?remote 涓嬪彧鑳借皟鐢?auth 鎺㈤拡锛坢e/guard锛夛紝鏃犳硶璁块棶涓氬姟鏁版嵁
-  3. local 妯″紡瀹屽叏涓嶅彈褰卞搷锛堟湰鍦板崟鏈鸿涔夊尶鍚嶅彲鐢級
-  4. 琛ユ柇瑷€锛歳emote 涓?user token 瀵?鈮?0 鏉′唬琛ㄦ€т笟鍔¤矾鐢憋紙documents/projects/todos/schedules/board/tables/approvals/assets/backup/forms锛塆ET/DELETE 鍧?403锛沘dmin 鍚岃矾鐢?200
-  5. 鍙樺紓绾㈢浉 鈮? 缁勶細闂搁棬鏉′欢鏀瑰潖锛堝鍙嫤 DELETE 涓嶆嫤 GET锛夆啋 鏂版柇瑷€绾?鈫?杩樺師鍏ㄧ豢
-- 楠屾敹鏍囧噯锛氬璁″憳鐢?r52 鍘熷鐜版楠ら噸鏀?P0-1 鍏ㄩ儴澶辫触锛坲ser 璇诲啓鍒?403锛夛紱鍏ㄩ噺缁匡紙鏃㈡湁鏂█闆跺洖褰掞級锛涘弻 VERDICT 閫氳繃
-- 鍓嶇疆锛歳53 淇宸茶惤锛堟湰鍦?HEAD 06e0b44锛夛紱瀹¤閲嶆斁鎶ュ憡 docs/feedback/2026-11-21-r53-audit-recheck.md 鉁?- 鏄庣‘杈圭晫锛氬彧鍔犵粺涓€闂搁棬 + 鏂█锛屼笉鏀逛笟鍔″姛鑳?瑙掕壊瀹氫箟锛涢浂鏂颁緷璧栥€侀浂 token锛涙棤娓叉煋灞傛敼鍔紙娌跨敤澹冲浘涓夊澹版槑锛?
-## 鍘嗗彶杞锛坮1~r2 宸叉敹妗ｏ紝瑙佷笅鏂硅璐﹀尯锛?
+### r50 · 第 50 轮里程碑体系复审（lead 主导，不新增功能）
+- 目标：按宪法第六条「每完成一个大里程碑，lead 复审一次『不做清单』」+ 总监职责，对 28 轮迭代后的体系做一次全面体检，输出可追溯的复审结论
+- 交付清单：
+  1. **不做清单复审**：逐项核对宪法六条（实时汇率/外部行情、视频会议、第三方 IM、插件市场、SaaS 多租户计费）在 28 轮中是否有越界——查代码/依赖/tab 清单
+  2. **危险区台账复审**：核对 docs/plan.md「危险区台账」是否记录全部 lead 审批动作（CI 修复、Release 补发、push 通道、进程收净等）
+  3. **断言纪律复审**：规模只涨（1842→3922 / 1503→2957 全程无删）、变异红相覆盖（抽查 5 轮的红相证据）、无自洽占位
+  4. **README 精简状态复审**：owner 明确要求精简——核对当前行数与历史外移完整性
+  5. **两道护栏有效性**：check:text（用户文案）+ DOC-CONTRACT（文档契约）各自变异红相在最近 3 轮是否真生效
+  6. 若复审发现真问题（如不做清单越界、台账缺记），本轮修；否则纯文档轮沿用 r49 壳图并三处声明
+- 验收标准：复审报告逐条有证据（文件+行号/断言名）；全量绿；双 VERDICT 通过
+- 前置：r49 已发版（v0.0.55）✅
+- 明确边界：本轮不新增业务功能；只复审 + 修真问题
+
+### r52 · 质量审计 #1：注入与越权（安全维度，owner 选定的审计方向首轮）
+- 目标：对 30 轮积累的全栈代码做系统性安全审计，聚焦四类真实风险：SQL 注入 / XSS / 越权 id / 认证绕过；发现真问题即修并补断言
+- 交付清单：
+  1. **SQL 注入审计**：全库扫描 raw SQL 拼接（`db.prepare(\`...\$\{`、字符串拼接 WHERE/ORDER BY），核对是否全部参数化或白名单；动态排序字段是否枚举校验
+  2. **XSS 审计**：web 层 `dangerouslySetInnerHTML` / `innerHTML` / 模板字符串渲染用户输入的地方（r32 HTML 导出已知用 escaping，核对是否完整）；Markdown 渲染是否转义 script/onerror
+  3. **越权 id 审计**：API 路由中 `:id` 是否都经 owner 校验（抽查 10 条不同资源的 GET/PUT/DELETE）；备份恢复/ICS 订阅 key 等敏感路由有无越权
+  4. **认证绕过审计**：remote 模式下 auth middleware 覆盖面；401 处理是否清 token 跳登录；`autoExecute` 等开关能否绕过确认闸门
+  5. 发现真问题：按严重度 P0/P1/P2 分级，P0/P1 必修并带变异红相断言；P2 记账
+  6. 若零真问题：输出「零问题证明」（扫描命令 + 命中逐条判定为误报的理由）
+- 验收标准：审计报告 docs/feedback/2026-11-21-r52-audit.md 逐条有文件+行号证据；若修复则全量绿且断言只涨；双 VERDICT 通过
+- 前置：r51 已发版（v0.0.57）✅
+- 明确边界：本轮不新增业务功能；只审计 + 修真安全问题；零 token、零新依赖；危险区（密钥/发布/删用户数据）交 lead
+
+### r53 · r52 安全漏洞修复（P0×2 / P1×2 / P2×3，lead 定方案）
+- 目标：修复 r52 审计发现的真实安全漏洞。**产品语义前提**：本项目是单工作区/本地优先（AGENTS.md 明确不做 SaaS 多租户），不做资源归属表——修复聚焦「关闭越权入口」而非引入多租户
+- lead 定方案（逐项）：
+  1. **P0-1 开放注册**：remote 模式关闭公开 `/api/auth/register`（返回 403/409），改由 admin 经 `user:manage` 建账号；local 模式保留公开注册（单机语义）；补 HTTP 断言
+  2. **P0-2 恢复篡改 mode**：① `server.mode` 从可恢复 `settings` 白名单排除（与 users/sessions 同级运行时保护）；② `POST /api/backup/restore` 加 admin 闸门；③ 启动时 `ENV_MODE` 优先级高于 DB（或恢复后刷新内存并强制重认证）；补断言：篡改 mode 的备份 422 + 重启 remote 不降级
+  3. **P1-1 审批冒充**：actor/actorMemberId 从 `req.auth.user` 派生，忽略 body 声明；shared 决策校验 session user ↔ assignee；补断言：伪造 actor 的 user 403
+  4. **P1-2 备份闸门**：export/validate/restore 三路由统一 admin（或 backup:read/write 权限）；确认令牌升级为会话绑定一次性 nonce（若成本高则记账下轮，但 admin 闸门本轮必做）
+  5. **P2-2 信息泄漏**：公开 `/api/settings`、`/api/health` 只返回白名单键（server.mode 等），不回显 `calendar_feed_key`
+  6. **P2-3 物资 operator**：从会话派生，忽略 body.operator
+  7. P2-1（autoExecute 明示绕过）按 C9 已披露口径记账不改
+- 工程纪律：TDD 先红——每条修复先写复现断言（red）再改实现（green）；**变异红相**：至少 2 组（回滚注册闸门 / 回滚 mode 保护）；审计复现步骤逐条转为回归断言；非幂等修复（注册/权限）需保证既有 3922 断言零回归
+- 验收标准：
+  1. 审计 P0/P1 全部关闭，P2-2/P2-3 关闭（P2-1 记账）；附加 ≥15 条安全断言；全量绿
+  2. r52 审计员（或 waizhuan）用原复现步骤重放：全部失败 = 修复有效
+  3. 双 VERDICT（waizhuan + ui 阻断岗）通过；无渲染层改动则沿用壳图声明
+- 前置：r52 审计报告已出（v0.0.57）✅
+- 明确边界：只修安全漏洞不改产品功能；零新依赖、零 token、零密钥文件；危险区交 lead
+
+### r54 · P0-1 补修：remote 业务路由统一 admin 闸门（lead 重定方案）
+- 背景：r53 关闭了开放注册（P0-1 前半），但审计员 r53 原步骤重放证实——**已认证 user token 仍能 GET/DELETE admin 文档（200）**。关入口 ≠ 消除越权。r53 其余 5 项（P0-2/P1-1/P1-2/P2-2/P2-3）重放全部关闭。
+- 根因：`server.ts:444-453` 的 remote onRequest hook 只验「已登录」不验角色；`assertPermission` 只在少数敏感路由（user:manage/auth:mode）调用；业务数据路由零角色闸门。
+- lead 方案（单工作区语义：**一个数据所有者 = admin**，不引入多租户/资源归属表）：
+  1. 在 remote onRequest hook 加统一闸门：除 PUBLIC_AUTH_PATHS + `ALWAYS_PROTECTED_PATHS` + `/api/auth/me`/`guard` 外，remote 模式下**所有 `/api/*` 业务路由要求 `user:manage` 权限**（即 admin）；非 admin 返回 403 `FORBIDDEN`
+  2. 保留 r53 的注册闸门与 admin 建账号能力——user 账号可存在，但 remote 下只能调用 auth 探针（me/guard），无法访问业务数据
+  3. local 模式完全不受影响（本地单机语义匿名可用）
+  4. 补断言：remote 下 user token 对 ≥10 条代表性业务路由（documents/projects/todos/schedules/board/tables/approvals/assets/backup/forms）GET/DELETE 均 403；admin 同路由 200
+  5. 变异红相 ≥1 组：闸门条件改坏（如只拦 DELETE 不拦 GET）→ 新断言红 → 还原全绿
+- 验收标准：审计员用 r52 原复现步骤重放 P0-1 全部失败（user 读写删 403）；全量绿（既有断言零回归）；双 VERDICT 通过
+- 前置：r53 修复已落（本地 HEAD 06e0b44）；审计重放报告 docs/feedback/2026-11-21-r53-audit-recheck.md ✅
+- 明确边界：只加统一闸门 + 断言，不改业务功能/角色定义；零新依赖、零 token；无渲染层改动（沿用壳图三处声明）
+
+## 历史轮次（r1~r2 已收档，见下方记账区）
+
 ---
 
-## 璁拌处鍖猴紙姣忚疆杩藉姞锛?
-### 2026-11-21 路 r54 鐮斿彂锛坹anfa-r54 路 P0-1 琛ヤ慨锛歳emote 涓氬姟璺敱缁熶竴 admin 闂搁棬锛?- 浜や粯锛氭寜 lead 閲嶅畾鏂规锛宍apps/api/src/server.ts` remote onRequest hook 澧炵粺涓€闂搁棬鈥斺€旈櫎 `PUBLIC_AUTH_PATHS`銆乣ALWAYS_PROTECTED_PATHS`锛堣矾鐢辫嚜甯﹂椄闂級銆乣/api/auth/me`/`guard` 涓や釜鎺㈤拡澶栵紝鎵€鏈?`/api/*` 涓氬姟璺敱瑕佹眰 `user:manage`锛涢潪 admin 缁?`assertPermission` 鈫?`authErrorReply` 鍥?403 `FORBIDDEN`銆俵ocal 鍗曟満鍖垮悕璇箟闆跺彉鍖栵紱r53 鍏」淇涓庢棦鏈?admin 闂搁棬鍘熸牱淇濈暀锛堝崟宸ヤ綔鍖鸿涔夛紝涓嶅紩鍏ュ绉熸埛/褰掑睘琛級銆?- 瀹¤澶嶇幇杞柇瑷€锛氬璁″憳 r53 鍘熸楠わ紙鍖垮悕娉ㄥ唽 403 鈫?admin 寤?user 鈫?admin 寤虹瀵嗘枃妗?鈫?user GET/DELETE 搴?403 鈫?admin 鍥炶 200 涓旀湭杞垹锛夊叏閮ㄨ惤鍒?`scripts/audit-http.ts`锛沗auditR54()` 鍙﹁鐩?11 涓笟鍔℃棌 user GET/DELETE 403 + FORBIDDEN 涓?admin GET 200锛坆oard 鎺掑湪 projects 鍓嶉伩鍏嶇骇鑱斿垹鍗★紱backup 鏃?DELETE 璺敱锛寀ser 鎺㈤拡浠?403銆乤dmin 涓?404 濡傚疄鎶湶锛夈€俽19/r53 鏃㈡湁 user-token 涓氬姟鏂█鍦?remote 鏀?403锛屽師 actor/operator/褰掑睘璇箟绛変环鏀圭敱 admin 浼氳瘽鎴?local 妯″紡淇濈暀锛岄浂鍒犻櫎銆?- 鏂█锛歟2e 3937鈫?*3946锛?9锛屾帴绾挎柇瑷€锛?* 路 audit 3014鈫?*3120锛?106锛?*锛沗pnpm run test:all` exit 0锛汥OC-CONTRACT **105** checks锛圧OUND r54锛宺50~r53 鍘嗗彶涓撴淇濈暀锛宻chema v27 鏈彉锛夛紱check:text 7047 literals / 26 tsx / 0 鍛戒腑锛泃ypecheck 5 鍖呭叏缁裤€俁EADME 閫熸煡琛?/ 褰撳墠杞晫闈㈠鐓?/ 鏂█瑙勬ā琛屼笁澶勫悓姝ャ€?- **TDD 鍏堢孩**锛氬厛钀藉璁″鐜版柇瑷€璺?audit 鈫?68 绾紙user GET/DELETE admin 鏂囨。瀹炴祴 200锛屼笌瀹¤鍘熺粨鏋滀竴鑷达級鈫?瀹炵幇闂搁棬鍚?0 绾€?*鍙樺紓绾㈢浉 1 缁?*锛氭妸闂搁棬鏉′欢鏀瑰潖涓轰粎 `req.method === "DELETE"` 鐢熸晥 鈫?audit 24 绾紙10 鏃?user GET 鍏?200 + 澶嶇幇 GET 200 + user POST/娴佹按鍐欏叆鏀捐锛夆啋 閫愬瓧鑺傝繕鍘燂紙SHA256 `957F9FE0鈥?BC0` 鍓嶅悗鍚屽€笺€乣req.method === "DELETE"` 闆舵畫鐣欙級鍚庡叏缁裤€?- 宸ョ▼绾緥锛歴cratch DB + 涓存椂绔彛锛?788/18791/18799锛夛紝杩涚▼鍏ㄦ敹鍑€锛涢浂 token 钀界洏銆侀浂鏂颁緷璧栥€侀浂瀵嗛挜鏂囦欢锛涙棤娓叉煋灞傛敼鍔紝娌跨敤 r49 涓冨浘 + 20 澹充笁澶勯€忔槑澹版槑锛涙湭 push / 鏈墦 tag / 鏈彂鐗?/ 鏈姩 `data/xieflow.db`銆?- 鎶ュ憡锛歚docs/feedback/2026-11-21-r54-yanfa.md`锛堜笁鎬佺邯寰?+ 闂搁棬鏂规 + 鍙樺紓绾㈢浉 + 瀹¤澶嶇幇杞柇瑷€锛夈€?
-### 2026-11-21 路 r53 鐮斿彂锛坹anfa-r53 路 r52 瀹夊叏婕忔礊淇锛宭ead 瀹氭柟妗堬級
-- 浜や粯锛氭寜 `r52-audit.md` 鐪熷疄澶嶇幇閫愰」鍏抽棴鈥斺€擯0-1 remote 娉ㄥ唽闂搁棬锛?03 `REGISTER_CLOSED` / admin `user:manage` 寤鸿处鍙凤紝local 淇濈暀鍏紑娉ㄥ唽锛夛紱P0-2 `BACKUP_PROTECTED_SETTING_KEYS` 鎺掗櫎 `server.mode` + db 鍙岄槻绾?+ `resolveStartupMode` ENV 浼樺厛 + restore admin锛汸1-1 瀹℃壒 actor/actorMemberId 浠庝細璇濇淳鐢燂紙浼€?403 `ACTOR_FORGED`锛夛紱P1-2 澶囦唤涓夎矾鐢?remote admin 闂搁棬锛汸2-2 鍏紑 settings/health 鐧藉悕鍗曪紱P2-3 鐗╄祫 operator 浠庝細璇濇淳鐢熴€侾2-1 autoExecute 鎸?C9 璁拌处涓嶆敼銆傞浂鏂颁緷璧栥€侀浂 token銆佹棤澶氱鎴?褰掑睘琛ㄣ€?- 鏂█锛歟2e 3922鈫?*3937锛?15锛?* 路 audit 2957鈫?*3014锛?57锛?*锛岄浂鍒犻櫎锛泃ypecheck 5 鍖咃紱`pnpm run test:all` exit 0锛汥OC-CONTRACT **105 checks**锛圧OUND r53锛宺50/r51 鍘嗗彶涓撴淇濈暀锛泂chema v27 鏈彉锛夛紱check:text 7047 literals / 26 tsx / 0 鍛戒腑銆俁EADME 閫熸煡琛?/ 褰撳墠杞鐓ц〃 / 鏂█瑙勬ā琛屼笁澶勫悓姝ャ€?- **鍙樺紓绾㈢浉 3 缁?*锛氣憼 娉ㄥ唽闂搁棬鍥炴粴 鈫?audit 3 绾紱鈶?澶囦唤淇濇姢閿牎楠屽洖婊?鈫?e2e 3 绾?+ audit 4 绾紱鈶?ENV 浼樺厛鍥炴粴 鈫?audit 2 绾紙閫愬瓧澶嶇幇 remote鈫抣ocal 闄嶇骇銆佸尶鍚?200锛夈€備笁缁勫潎閫愬瓧鑺傝繕鍘燂紙SHA `38520AF3鈥?5D32` / `4DDF7A53鈥67C9A` 鍓嶅悗鍚屽€硷級鍚庡叏缁裤€?- 宸ョ▼绾緥锛歍DD 鍏堢孩锛坋2e 24 绾?/ audit 11 绾級鍐嶅疄鐜帮紱鍙岃繘绋嬮噸鍚帰閽堢敤 scratch DB銆佽剼鏈唴涓€娆℃€ц繘绋嬫敹鍑€绔彛 18791锛沨eadless銆佹湭 push / 鏈墦 tag / 鏈彂鐗?/ 鏈姩鐢ㄦ埛鏁版嵁銆?- 鎶ュ憡锛歚docs/feedback/2026-11-21-r53-yanfa.md`锛堥€愰」淇琛?+ 涓夋€佺邯寰?+ 鍙樺紓绾㈢浉璇佹嵁锛夈€?
-### 2026-11-21 路 r49 杩斿伐 #1锛堟柇瑷€鏁板瓧鍙ｅ緞瀵归綈 路 waizhuan P2-1锛?- 闂锛歳49 鍙戝竷鍙ｅ緞鎶?e2e 瀹炴祴 3922锛堝湪绾?3923锛夎鍐欎负 3921锛沗check-doc-contract.ts:parsePublishedCounts` 浠?`e2e-test.ts` 鏈€鍚庝竴鏉?`e2e锛圢 鏂█锛塦 鍙栨暟锛屼笌 e2e 鑷韩鏈熸湜涓插悓婧愶紝鏁?`test:all` 鑷唇缁夸絾鏂囨涓庡疄娴嬪樊 1锛堝娉曠鍥涙潯銆岀鑷唇鍗犱綅銆嶅弽闈級銆?- 淇锛堝彧鏀规暟瀛楀彛寰?鏂囨锛屾柇瑷€鏉℃暟闆舵敼锛夛細README 閫熸煡琛?鏂█瑙勬ā琛?3921鈫?922銆佸湪绾?+1 = 3923銆?91鈫?92銆佽ˉ銆孌OC-CONTRACT **86** checks銆嶏紱`e2e-test.ts` 11 澶勫彂甯冨彛寰勬湡鏈涗覆 3921鈫?922锛沗check-doc-contract.ts` 涓ゅ +91鈫?92锛沗plan.md:255/1110` 涓?r49 涓変唤鎶ュ憡鍙欒堪鏁板瓧鍚屾銆?- TDD 鍏堟柇瑷€绾㈢浉锛氬厛鏀?11 澶勬湡鏈涗覆涓?watchdog 鍙ｅ緞銆丷EADME 淇濇寔鏃у€?鈫?`check:doc-contract` 2 FAIL/84 ok锛坋xit 1锛夈€乣pnpm test` 11 绾紙3911 閫氳繃 / 11 澶辫触锛宔xit 1锛夛紱琛?README 鍚庡叏缁裤€?- 涓夊瀵归綈瀹炴祴锛歚pnpm run test:all` exit 0锛宔2e **3922**锛堢绾匡級锛泂cratch api 8787 涓?e2e **3923**锛堝湪绾匡紝鎺㈤拡鍚庣鍙ｆ敹鍑€锛夛紱`DOC-CONTRACT: ALL GREEN (86 checks; schema v27; e2e 3922; audit 2957)`銆俁EADME 閫熸煡琛?`e2e锛?922 鏂█锛塦銆佽妯¤ `e2e **3922**` / `DOC-CONTRACT **86** checks` / `api 鍦ㄧ嚎 +1 = 3923` 涓庡疄娴嬮€愬瓧鐩哥瓑銆?- 鍙樺紓绾㈢浉 1 缁勶細浠呮妸 README 鍙ｅ緞鏀瑰洖 3921 鈫?watchdog 2 FAIL + e2e 11 绾紱浠庢敼鍓嶅浠介€愬瓧鑺傝繕鍘燂紙`SHA256 80950736鈥?9093E3` 鍓嶅悗鍚屽€笺€乣MATCH=True`锛夊悗鍏ㄧ豢锛岃瘉鏄?watchdog 涓嶅啀浠庨敊璇簮鑷唇銆?- 鎴浘锛氭湰杞函鏁板瓧鍙ｅ緞淇锛?*鏃犳覆鏌撳眰鏀瑰姩锛屾部鐢?r49 涓冨浘 + 浜屽崄 tab 澹冲浘**锛屼笉鏂板/涓嶉噸鎷嶏紱涓夊閫忔槑澹版槑瑙佹牴 README銆岀晫闈笌娴嬭瘯瀵圭収銆嶃€佹湰鏉′笌 `r49-yanfa.md`銆岃繑宸?#1銆嶈妭銆?- 绾緥锛氬叏绋?headless銆佹湇鍔℃敹鍑€銆侀浂 token銆佷笉 push 涓嶆墦 tag锛涗笌 r49 鎶ュ憡鍚屼竴鎻愪氦 `r49: 杩斿伐#1 鈥銆?
-### 2026-11-21 路 r49 鐮斿彂锛坹anfa-r49 路 M10 鍚庡姛鑳借ˉ寮猴細宸ヤ綔鍖烘暟鎹浠戒笌鎭㈠鎬诲叆鍙ｏ級
-- 浜や粯锛歚packages/shared/backup.ts` 鍞竴鍙ｅ緞鈥斺€擝ACKUP_TABLES 38 寮犱笟鍔¤〃鐧藉悕鍗曪紙鎺掗櫎 sessions/change_log/entity_versions/users 鍥涚被璁よ瘉涓庡悓姝ヨ繍琛屾椂琛級銆乥uildBackupManifest / buildBackupFile / buildBackupFileName锛堢増鏈?鏃堕棿/琛ㄨ鏁帮級銆乿alidateBackupFile锛堢粨鏋?鏍煎紡鐗堟湰/schema 鐗堟湰/鐧藉悕鍗?琛屽舰鐘讹紝鎷掔粷鏈煡琛級銆乸lanRestore锛堝厛鍏ㄩ噺鏍￠獙鍐嶇敓鎴?76 姝ヨ鍒掞紝鏍￠獙澶辫触闆舵楠わ級銆乤ssertRestoreConfirmed锛坈onfirm=RESTORE_WORKSPACE锛夛紱api/web 闆剁畻娉曞垎鏀紱闆舵柊渚濊禆銆侀浂 token
-- api锛歚GET /api/backup/export`锛堝叏閲忕櫧鍚嶅崟琛?JSON 蹇収 + 闄勪欢涓嬭浇澶达級銆乣POST /api/backup/validate`锛堥瑙堥浂鍐欏叆锛夈€乣POST /api/backup/restore`锛堜簩娆＄‘璁?+ 鍗?BEGIN IMMEDIATE 浜嬪姟鍙嶅簭娓呯┖/姝ｅ簭鎻掑叆锛屼换涓€姝ュけ璐?ROLLBACK锛夛紱4xx锛氭棤纭/閿欐嫾纭 400锛圕ONFIRM_REQUIRED锛夈€佸潖 JSON 400銆佹湭鐭ヨ〃/鐗堟湰涓嶅吋瀹?缁撴瀯閿?422銆佺害鏉熻繚瑙?400锛圧ESTORE_ROLLED_BACK锛?- web锛氬伐浣滃彴璁剧疆鍖烘柊澧炪€屾暟鎹浠戒笌鎭㈠銆嶅崱锛堝鍑鸿惤鐩?/ 閫夋枃浠堕瑙堟牎楠?/ 琛ㄨ鏁颁笌鐗堟湰 / 浜屾纭瀵硅瘽妗?/ 鎭㈠鍚庨噸杞芥彁绀猴級锛屼簩鍗?tab 鏁伴噺涓嶅彉锛涗竷 seam 榻愬叏銆佺獎灞忓彲杈?- 鏂█锛歟2e 3830鈫?*3922锛?92锛?* 路 audit 2891鈫?*2957锛?66锛?*锛岄浂鍒犻櫎锛泃ypecheck 5 鍖咃紱`pnpm run test:all` exit 0锛汥OC-CONTRACT 76鈫?*86 checks**锛沜heck:text 7047 literals / 26 tsx / 0 鍛戒腑
-- **鍙樺紓绾㈢浉 1 缁勶紙鐧藉悕鍗曟牎楠屽け鏁堬級**锛氭妸 shared/backup `if (!isBackupTable(name))` 涓存椂鏀?`if (false && 鈥?` 鈫?e2e 2 绾紙鏈煡 sessions/change_log 涓嶅啀琚嫆锛夈€乤udit 2 绾紙422 閿欒娓呭崟涓嶅惈琛ㄥ悕锛夛紱閫愬瓧鑺傝繕鍘燂紙SHA256 `112CBAC5鈥?CF89` 鍓嶅悗鍚屽€笺€乣false &&` 闆舵畫鐣欙級鍚?`test:all` 鍏ㄧ豢
-- 銆岀敤鎴风涓€娆＄敤銆嶅叏閾捐矾锛坔eadless CDP 鐪熺偣 19/19锛夛細HTTP 閫犲凡鐭ュ緟鍔炩啋瀵煎嚭蹇収鈫掓敼鐘舵€佲啋娴忚鍣ㄧ湡鐐瑰鍑烘寜閽啋鏂囦欢杈撳叆鐪熼€夊浠解啋鏍￠獙棰勮 38 琛ㄢ啋寮€纭瀵硅瘽妗嗭紙鏈嬀閫夌鐢?鍕鹃€夊惎鐢級鈫掔湡鐐圭‘璁ゆ仮澶嶁啋HTTP 閫愬瓧娈靛洖璇烩啋鐐归噸鏂板姞杞解啋鏁版嵁浠嶅湪鈫掓帰閽堟竻鐞嗐€佺鍙ｆ敹鍑€
-- 鎴浘锛歚docs/ui/r49/` 7 寮?+ 浜屽崄 tab 澹冲悓鎵归噸鎷嶏紱7/7銆?0/20 SHA256 浜掑紓锛岀煩闃碘啍澹抽噸鍙?0锛屽叏搴?393 PNG / 391 浜掑紓锛堝悓鎬佺粍浠?r4 宸叉姭闇?2 缁勶級锛岄€愬紶 `read_image` 鐩獙锛涚储寮?/ shell README R49 鍧?/ 绮剧畝鐗堟牴 README 涓夊鍚屼竴鎻愪氦
-- 鍗遍櫓鍖猴細鏈?push / 鏈墦 tag / 鏈彂鐗?/ 鏈敼 CI 鍙戝竷閰嶇疆锛?*sessions/change_log/entity_versions/users 涓嶈繘蹇収銆佷笉鍙備笌鏇挎崲**锛坋2e raw 蹇収閫愬瓧鑺傜浉绛?+ audit 鍚屾璁℃暟鍓嶅悗鐩哥瓑锛夛紱鎴浘/CDP 鍏ㄨ蛋 scratch 搴撳苟鍒犻櫎锛宍data/xieflow.db` 鏈綔鏁版嵁婧愶紱鍏ㄧ▼ headless銆佹湇鍔℃敹鍑€銆丳owerShell 鍏?ASCII銆侀浂 token
-- 鎶ュ憡锛歚docs/feedback/2026-11-21-r49-yanfa.md`锛堜笁鎬佺邯寰?+ 鑷洕 + 鍙樺紓绾㈢浉 + 鍗遍櫓鍖鸿瘉鎹級
+## 记账区（每轮追加）
 
-### 2026-11-21 路 r47 鐮斿彂锛坹anfa-r47 路 M10 鍚庡姛鑳借ˉ寮猴細AI 宸ュ叿璋冪敤纭闂搁棬锛?- 浜や粯锛歚packages/agent/toolGate.ts` 涓夌函鍑芥暟锛坣eedsConfirmation 澶嶇敤 shared STATE_CHANGING_TOOLS 鐧藉悕鍗?/ buildToolPreview 浜虹被鍙鎽樿 / planToolExecution 鏈‘璁ゅ啓 pending銆佸彧璇荤洿鎺ユ墽琛岋級+ normalizeCallIds 瀹堝崼锛沗ToolCallRecord` 鎵╁彲閫?`callId/confirmStatus/preview`锛堟棤 schema 鍙樻洿锛寁27 淇濇寔锛夛紱api/web 闆堕椄闂ㄧ畻娉曞垎鏀紱闆舵柊渚濊禆闆?token
-- api锛歚POST /api/conversations/:id/chat` 鎵?`autoExecute`锛堥粯璁?false 鈫?鍐?pending+preview 涓嶆墽琛岋紱true 鑰佽涓哄叏淇濈暀锛夛紱`POST /api/conversations/:id/confirm`锛坈allIds + action confirm/discard 鐪熸墽琛?鏍囨斁寮冿級锛?xx锛氶潪娉?callId 400 / 閲嶅纭 409 / 瓒婃潈 conversation 400 / 浼氳瘽涓嶅瓨鍦?404锛沝b `findToolCallByCallId` + `resolvePendingToolCall` 鍗曚簨鍔￠浂鍗婃€?- web锛欰I 宸ヤ綔鍙板璇濇祦寰呯‘璁ら粍鍗★紙棰勮鏍囬/鎽樿/鍙傛暟 + 纭鎵ц/鏀惧純鎸夐挳锛? 鑷姩鎵ц寮€鍏筹紙localStorage 鎸佷箙鍖栵級+ 纭澶辫触绾㈡潯锛沺ending 鍥炴墽钀?tool_calls_json锛宺eload 涓嶄涪锛涚‘璁?鏀惧純 seam 榻愬叏
-- 鏂█锛歟2e 3731鈫?*3830锛?99锛?* 路 audit 2838鈫?*2891锛?53锛?*锛岄浂鍒犻櫎锛泃ypecheck 5 鍖咃紱`pnpm run test:all` exit 0锛汥OC-CONTRACT 59鈫?2 checks锛沜heck:text 6872 literals/0 鍛戒腑
-- **鍙樺紓绾㈢浉 1 缁?*锛歚planToolExecution` 闂搁棬鍙嶈浆锛堟湭纭鍐欎笉杩?pending锛夆啋 e2e 宕╂簝锛坧ending 鏂█ red锛? audit 3 FAIL锛堝啓璋冪敤 got executed / pendingCalls got 0锛夛紱閫愬瓧鑺傝繕鍘?SHA256 `A24FEECC鈥8951A4` 鍓嶅悗鍚屽€笺€乣MUTATION-PROBE` 闆舵畫鐣欙紝閲嶈窇鍏ㄧ豢
-- 銆岀敤鎴风涓€娆＄敤銆嶅叏閾捐矾锛坔eadless CDP 鐪熺偣 12/12锛夛細寤轰細璇?鈫?鍙戞贩鍚堟秷鎭?鈫?鍙鐩村嚭/鍐?pending 鍗?鈫?纭鐪熷缓寰呭姙 鈫?鏀惧純闆跺啓 鈫?reload 鐘舵€佸彲瑙?鈫?鎺㈤拡娓呯悊锛沗R47 FIRSTUSE: ALL GREEN`
-- 鎴浘锛歚docs/ui/r47/` 7 寮?+ 浜屽崄 tab 澹冲悓鎵归噸鎷嶏紙r45鈫抮47 changed=9/same=11 濡傚疄鎶湶锛夛紱7/7 涓?20/20 SHA256 浜掑紓銆佺煩闃碘啍澹抽噸鍙?0銆佸叏搴?386 PNG/384 浜掑紓锛岄€愬紶 `read_image` 鐩獙锛涚储寮?/ shell README / 绮剧畝鐗堟牴 README 涓夊鍚屼竴鎻愪氦
-- 鍗遍櫓鍖猴細鏈?push / 鏈墦 tag / 鏈彂鐗?/ 鏈敼 CI 鍙戝竷閰嶇疆锛涙棤 schema 杩佺Щ锛坴27锛夛紱鎴浘涓?CDP 璧?scratch local-mode 搴撳苟鍒犻櫎锛宍data/xieflow.db` 鏈綔鏁版嵁婧愶紱鍏ㄧ▼ headless銆佹湇鍔℃敹鍑€銆丳owerShell 鍏?ASCII锛坰hot.ps1 nonAscii=0 / Parser 0 閿欒锛夈€侀浂 token
-- 鎶ュ憡锛歚docs/feedback/2026-11-21-r47-yanfa.md`锛堜笁鎬佺邯寰?+ 鑷洕 + 鍙樺紓绾㈢浉 + 鍏ㄩ摼璺瘉鎹級
+### 2026-11-21 · r54 研发（yanfa-r54 · P0-1 补修：remote 业务路由统一 admin 闸门）
+- 交付：按 lead 重定方案，`apps/api/src/server.ts` remote onRequest hook 增统一闸门——除 `PUBLIC_AUTH_PATHS`、`ALWAYS_PROTECTED_PATHS`（路由自带闸门）、`/api/auth/me`/`guard` 两个探针外，所有 `/api/*` 业务路由要求 `user:manage`；非 admin 经 `assertPermission` → `authErrorReply` 回 403 `FORBIDDEN`。local 单机匿名语义零变化；r53 六项修复与既有 admin 闸门原样保留（单工作区语义，不引入多租户/归属表）。
+- 审计复现转断言：审计员 r53 原步骤（匿名注册 403 → admin 建 user → admin 建秘密文档 → user GET/DELETE 应 403 → admin 回读 200 且未软删）全部落到 `scripts/audit-http.ts`；`auditR54()` 另覆盖 11 个业务族 user GET/DELETE 403 + FORBIDDEN 与 admin GET 200（board 排在 projects 前避免级联删卡；backup 无 DELETE 路由，user 探针仍 403、admin 为 404 如实披露）。r19/r53 既有 user-token 业务断言在 remote 改 403，原 actor/operator/归属语义等价改由 admin 会话或 local 模式保留，零删除。
+- 断言：e2e 3937→**3946（+9，接线断言）** · audit 3014→**3120（+106）**；`pnpm run test:all` exit 0；DOC-CONTRACT **105** checks（ROUND r54，r50~r53 历史专段保留，schema v27 未变）；check:text 7047 literals / 26 tsx / 0 命中；typecheck 5 包全绿。README 速查行 / 当前轮界面对照 / 断言规模行三处同步。
+- **TDD 先红**：先落审计复现断言跑 audit → 68 红（user GET/DELETE admin 文档实测 200，与审计原结果一致）→ 实现闸门后 0 红。**变异红相 1 组**：把闸门条件改坏为仅 `req.method === "DELETE"` 生效 → audit 24 红（10 族 user GET 全 200 + 复现 GET 200 + user POST/流水写入放行）→ 逐字节还原（SHA256 `957F9FE0…2BC0` 前后同值、`req.method === "DELETE"` 零残留）后全绿。
+- 工程纪律：scratch DB + 临时端口（8788/18791/18799），进程全收净；零 token 落盘、零新依赖、零密钥文件；无渲染层改动，沿用 r49 七图 + 20 壳三处透明声明；未 push / 未打 tag / 未发版 / 未动 `data/xieflow.db`。
+- 报告：`docs/feedback/2026-11-21-r54-yanfa.md`（三态纪律 + 闸门方案 + 变异红相 + 审计复现转断言）。
 
-### 2026-11-21 路 r41 鐮斿彂锛坹anfa-r41 路 M10 鍚庡姛鑳借ˉ寮猴細杞婚噺琛ㄥ崟鏀堕泦锛氬垱寤?濉啓/姹囨€伙級
-- 浜や粯锛歴chema v25鈫抳26锛坒orms / form_questions / form_responses 涓夎〃 + 棰樺瀷 CHECK + FK CASCADE + 涓ょ储寮曪級锛沗packages/shared/forms.ts` 涓夊嚱鏁板敮涓€鍙ｅ緞锛坣ormalizeFormDefinition / validateFormAnswers / summarizeResponses锛夛紝api/web 闆剁畻娉曞垎鏀紱闆舵柊渚濊禆銆侀浂 token
-- api锛歠orms CRUD + `GET /api/forms/:id/fill` + `POST /api/forms/:id/responses` + `GET /api/forms/:id/summary` + 绛斿嵎鍒楄〃锛?xx锛氬繀濉己澶?绫诲瀷涓嶇/鏈煡棰?閫夐」瓒婄晫/瓒婃潈 404/闈炴暟瀛?id 400/宸插叧闂彁浜?409
-- web锛氭柊澧炵浜屽崄 tab銆岃〃鍗曘€嶁€斺€斿垪琛?+ 鍒涘缓锛堝姞/鍒犻棶棰橈紝鍥涢鍨嬶級+ 濉啓 + 姹囨€伙紙鏂囨湰鍒椾妇/鏁板€兼€诲拰鍧囧€?閫夐」鍒嗗竷/鍕鹃€夌巼锛夛紝`?formId=&view=` 娣遍摼 reload 涓嶄涪锛涗簩鍗?tab 澹冲熀绾垮悓鎵归噸鎷?- 鏂█锛歟2e 3430鈫?*3551锛?121锛?* 路 audit 2641鈫?*2703锛?62锛?*锛岄浂鍒犻櫎锛泃ypecheck 5 鍖咃紱`pnpm run test:all` exit 0锛汣I smoke 姝ｅ垯鍗?v26锛汻EADME 閫熸煡琛?褰撳墠杞鐓ц〃/鏂█瑙勬ā琛屼笁澶勫悓姝?- **鍙樺紓绾㈢浉 1 缁?*锛歚summarizeResponses` 鎬诲拰 `roundRate(sum)`鈫抈roundRate(sum+1)` 鈫?e2e 3 绾紙sum 60鈫?1锛? audit 1 绾紱閫愬瓧鑺傝繕鍘燂紙SHA `E10DA994鈥34617` 鍓嶅悗鍚屽€硷級鍏ㄧ豢
-- 銆岀敤鎴风涓€娆＄敤銆嶅叏閾捐矾锛歚scripts/r41-firstuse-cdp.mjs`锛坔eadless CDP 鐪熺偣 10 姝ワ細寤鸿〃鍗?鈫?鍔犱袱绫婚棶棰?鈫?濉?3 浠?鈫?鐪嬫眹鎬?sum 60/avg 20 鈫?reload 涓嶄涪 鈫?HTTP truth 鈫?DELETE 鎺㈤拡褰掗浂锛夛紝`R41 FIRSTUSE: ALL GREEN`
-- 鎴浘锛歚docs/ui/r41/` 7 寮?+ 浜屽崄 tab 澹冲悓鎵归噸鎷嶏紱7/7銆?0/20 SHA256 浜掑紓銆佺煩闃碘啍澹抽噸鍙?0锛屽叏搴?365 PNG / 363 浜掑紓锛?7 寮犻€愬紶 `read_image` 鐩獙锛涢杞?02/03銆?4/05 鍚屾€佺粡鍏ㄧ煩闃甸噸鎷嶄慨姝ｏ紝搴熺墖鏈叆搴擄紱绱㈠紩 / shell README R41 褰撳墠鍧?/ 绮剧畝鐗堟牴 README 鍚屼竴鎻愪氦
-- 鍗遍櫓鍖猴細鏈?push / 鏈墦 tag / 鏈彂鐗?/ 鏈敼 CI 鍙戝竷閰嶇疆锛涘彧璧?user_version 杩佺Щ銆佹湭鎵嬫敼搴撴枃浠讹紱鎴浘涓?CDP 璧?scratch 搴撳苟鍒犻櫎銆乣data/xieflow.db` 鍏ㄧ▼鏈綔鏁版嵁婧愶紱鍏ㄧ▼ headless銆佹湇鍔℃敹鍑€銆丳owerShell 鍏?ASCII銆侀浂 token
-- 鎶ュ憡锛歚docs/feedback/2026-11-21-r41-yanfa.md`锛堜笁鎬佺邯寰?+ 鑷洕 + 鍙樺紓绾㈢浉 + 鍏ㄩ摼璺瘉鎹級
+### 2026-11-21 · r53 研发（yanfa-r53 · r52 安全漏洞修复，lead 定方案）
+- 交付：按 `r52-audit.md` 真实复现逐项关闭——P0-1 remote 注册闸门（403 `REGISTER_CLOSED` / admin `user:manage` 建账号，local 保留公开注册）；P0-2 `BACKUP_PROTECTED_SETTING_KEYS` 排除 `server.mode` + db 双防线 + `resolveStartupMode` ENV 优先 + restore admin；P1-1 审批 actor/actorMemberId 从会话派生（伪造 403 `ACTOR_FORGED`）；P1-2 备份三路由 remote admin 闸门；P2-2 公开 settings/health 白名单；P2-3 物资 operator 从会话派生。P2-1 autoExecute 按 C9 记账不改。零新依赖、零 token、无多租户/归属表。
+- 断言：e2e 3922→**3937（+15）** · audit 2957→**3014（+57）**，零删除；typecheck 5 包；`pnpm run test:all` exit 0；DOC-CONTRACT **105 checks**（ROUND r53，r50/r51 历史专段保留；schema v27 未变）；check:text 7047 literals / 26 tsx / 0 命中。README 速查行 / 当前轮对照表 / 断言规模行三处同步。
+- **变异红相 3 组**：① 注册闸门回滚 → audit 3 红；② 备份保护键校验回滚 → e2e 3 红 + audit 4 红；③ ENV 优先回滚 → audit 2 红（逐字复现 remote→local 降级、匿名 200）。三组均逐字节还原（SHA `38520AF3…45D32` / `4DDF7A53…B67C9A` 前后同值）后全绿。
+- 工程纪律：TDD 先红（e2e 24 红 / audit 11 红）再实现；双进程重启探针用 scratch DB、脚本内一次性进程收净端口 18791；headless、未 push / 未打 tag / 未发版 / 未动用户数据。
+- 报告：`docs/feedback/2026-11-21-r53-yanfa.md`（逐项修复表 + 三态纪律 + 变异红相证据）。
 
-### 2026-11-21 路 r40 鐮斿彂锛坹anfa-r40 路 M10 鍚庤交閲忚疆锛氬彛寰勬竻鐞嗕笌鎵弿鍣ㄥ姞鍥猴級
-- 浜や粯锛欰uthPages.tsx 鐧诲綍椤佃剼娉ㄦ敼銆屾湰椤典笉鍗犱富鐣岄潰 tab 鏁伴噺銆嶏紙涓嶅惈鏁板瓧銆佸幓 token 寮€鍙戣€呭彛寰勶級锛汚pp.tsx:415 娉ㄩ噴鍚屾鏍℃锛沗scripts/check-user-facing-text.ts` 杞鍙锋鍒?`/r\d{2}(?!\d)/i` 鈫?`/\br\d{1,3}\b/i` + `ROUND_SELF_PROBES` 鑷柇瑷€锛坮2/r39/r123 鍛戒腑銆佷笟鍔¤瘝涓嶅懡涓級
-- 鍗曚綅鏁?rN 娓呴浂锛氭墿姝ｅ垯鏆撮湶 11 澶勭湡瀹炲崟浣嶆暟 rN锛坮39 verify P5 鐐瑰悕鐨勭瀛?placeholder锛夛紝閫愬鏀圭函鐢ㄦ埛鏂囨锛坧laceholder銆屼緥锛氭暣鐞嗗搴﹀緟鍔炴竻鍗曘€嶏級锛宍?shot=` 瀹堝崼 / `pinSeed*` 绉嶅瓙鍑芥暟 / `shot-note` 鍥炬敞鍘熸牱淇濈暀锛涘鎵?6265 literals / 24 tsx / 0 鍛戒腑锛屽瓧闈㈤噺鏁版湭鍙?- 鏂█锛歟2e 3412鈫?*3430锛?18锛?* 路 audit 2623鈫?*2641锛?18锛?*锛岄浂鍒犻櫎锛?7 鏉″巻鍙叉柇瑷€浠呮帹杩涙湡鏈涘€?鏍囩锛坮39 鏁板瓧涓?R39 褰撳墠鍧?鈫?r40 鏁板瓧涓?R40 褰撳墠鍧楋級锛泃ypecheck 5 鍖咃紱`pnpm run test:all` exit 0
-- **鍙樺紓绾㈢浉 2 缁?*锛氣憼 鑷柇瑷€鍦ㄦ棫涓や綅姝ｅ垯涓嬪厛绾紙self-probe FAILED got=false want=true锛夆啋 鎵╂鍒欏悗缁匡紱鈶?TodosPage:595 鍔犲洖銆宺2 澶嶉獙鏉愭枡銆嶁啋 鎵弿 1 绾?/ exit 1 鈫?閫愬瓧鑺傝繕鍘燂紙SHA `CE6E7B76鈥74DFE` 鍓嶅悗鍚屽€硷級鍏ㄧ豢
-- 鎴浘锛歚docs/ui/r40/` 1 寮犵櫥褰曢〉骞插噣鎬?+ 鍗佷節 tab 澹冲悓鎵归噸鎷嶏紱20/20 SHA256 浜掑紓銆佺煩闃碘啍澹抽噸鍙?0锛況39鈫抮40 澹?changed=5/same=14 濡傚疄鎶湶锛堜笉绉伴€愪綅鍏ㄥ紓锛夛紱鍏ㄥ簱 357 PNG / 355 浜掑紓锛?0 寮犻€愬紶 `read_image` 鐩獙锛涚储寮?/ shell README R40 褰撳墠鍧?/ 绮剧畝鐗堟牴 README 涓夊鍚屼竴鎻愪氦
-- 绾緥锛氬叏绋?headless銆佹湇鍔℃敹鍑€锛?787/8788/5173 listen=0锛夈€佹埅鍥捐蛋 scratch 搴撳苟鍒犻櫎銆乣data/xieflow.db` 鏈綔鏁版嵁婧愩€丳owerShell 鍏?ASCII銆侀浂 token銆佹湭 push / 鏈墦 tag / 鏈彂鐗?/ 鏈敼 CI
-- 鎶ュ憡锛歚docs/feedback/2026-11-21-r40-yanfa.md`锛堜笁鎬佺邯寰?+ 鑷洕 + 鍙樺紓绾㈢浉 + seam 鎶湶锛?
-### 2026-11-21 路 r39 鐮斿彂锛坹anfa-r39b 路 缁仛鏀跺熬锛氱敤鎴峰彲瑙佹枃妗堟竻鐞?+ 鏈哄埗闃插鍙戯級
-- 鎺ユ墜鐘舵€侊細鍓嶄换 yanfa-r39 浼氳瘽涓柇锛?2h gap锛夛紝宸ヤ綔鏍?18 鏂囦欢鍗婃垚鍝併€佹棤鎻愪氦/鎶ュ憡/鎴浘锛涘熀绾?`pnpm run test:all` 绾?1 鏉?`summary.tomorrow = 1 (got 2, want 1)`銆傛牴鍥犳槸 audit 棣栦釜鏍锋湰纭紪鐮?`2026-11-22` 鎭颁负褰撴棩銆屾槑澶┿€嶏紝涓庢棦鏈夋槑澶╂牱鏈挒杞︼紙r22 鍚岀被鍏堜緥锛夈€傛寜鐩稿鏃ユ湡 `today+2` 鏀瑰啓鏍锋湰鏃ユ湡涓庤鍥炲€硷紝**鏉℃暟/鏈熸湜鍙ｅ緞涓嶅彉**锛屽璺戝叏缁匡紱鎶ュ憡鑷洕銆?- 浜や粯锛氬湪鍗婃垚鍝佸熀纭€涓婄画鍋氾紝涓嶆帹鍊掗噸鍐欍€傜敤鎴峰彲瑙佸瓧绗︿覆鍐呴儴鏈锛堟埅鍥鹃拤鎬?/ audit / e2e / 4xx / seam / shot= / rNN锛夋竻闆讹紱娉ㄩ噴銆乣shot ===` 瀹堝崼銆乣shot-note` / `seam-note` 鍥炬敞 seam 鏍囪鍘熸牱淇濈暀锛堝娉曠涓€鏉¤瘹瀹炴€э級銆傛柊澧?`scripts/check-user-facing-text.ts` 鎵弿鏂█锛?265 literals / 24 tsx / 0 鍛戒腑锛夛紝`package.json` `check:text` 鎺ュ叆 `test:all`銆?- 鍙樺紓绾㈢浉锛氭妸 `BoardPage.tsx:312` 閿欒鏉℃敼鍥炪€屄?鎴浘閽夋€佸搴?audit 4xx 闈炴硶鏍囩銆嶁啋 鎵弿鏂█ 1 绾?/ exit 1锛涢€愬瓧鑺傝繕鍘燂紙SHA `309CA6D4鈥?107F39F4` 鍓嶅悗鍚屽€硷級鍚庡叏缁裤€傞娆¤鎶婃柇瑷€鏀规垚涓嶅彲杈惧垎鏀紙鎵弿浠嶇豢锛夊凡鑷洕骞朵綔搴燂紝涓嶈涓烘湁鏁堢孩鐩搞€?- 鏂█锛歟2e 3377 鈫?**3412锛?35锛?* 路 audit 2616 鈫?**2623锛?7锛?*锛岄浂鍒犻櫎锛涙柊澧?r39 鏂囨绾敤鎴锋柇瑷€ + 4xx 閿欒浣撻浂鏈鏂█ + 鎴浘/绱㈠紩/鍝堝笇涓€鑷存€ф柇瑷€锛汻EADME 閫熸煡琛?/ 褰撳墠杞鐓ц〃 / 鏂█瑙勬ā琛屼笁澶勫悓姝ワ紱`pnpm run test:all` exit 0銆?- 鎴浘锛歚docs/ui/r39/` 7 寮犻敊璇€?鎻愮ず鎬?+ 鍗佷節 tab 澹冲悓鎵归噸鎷嶏紱26/26 SHA256 浜掑紓銆佺煩闃碘啍澹抽噸鍙?0銆佸叏搴?356 PNG / 354 浜掑紓锛?6 寮犻€愬紶 `read_image` 鐩獙锛沗scripts/r39-shot.mjs` 涓€娆℃€?headless CDP 鎹曡幏锛坮emote 妯″紡鎹曡幏鏈?seam 宸插湪涓ゅ绱㈠紩濡傚疄鎶湶锛屼笉鏀逛骇鍝佷唬鐮?鏁版嵁搴?鐢ㄦ埛鏁版嵁锛夈€?- 绾緥锛氬叏绋?headless銆佹湇鍔℃敹鍑€銆侀浂 token銆佷笉鍔ㄧ敤鎴锋暟鎹€佹湭 push/鏈墦 tag/鏈彂鐗堛€佷笉鏀?CI 鍙戝竷閰嶇疆銆傚緟 waizhuan 澶嶉獙 + UI 闃绘柇宀楀弻 VERDICT 鍚庣敱 lead 鍙戠増銆?
-### 2026-11-21 路 r38 鐮斿彂锛坹anfa-r38 路 M10 鍚庡姛鑳借ˉ寮猴細鐪嬫澘鍗＄墖鍏冩暟鎹紝鍚戝悗鍏煎锛?- 浜や粯锛歚packages/shared/src/cardMeta.ts` 鍞竴鍙ｅ緞锛圡AX_CARD_LABELS/MAX_CARD_LABEL_LENGTH 路 normalizeCardLabels trim/鍘婚噸/涓婇檺/绂佺┖ 路 assertValidCardLabel/assertValidCardDueDate 路 isCompletionColumnName 瀹屾垚鍒楄瘑鍒?路 isOverdue 鏈湴鏃ユ湡鍙ｅ緞涓斿畬鎴愬垪鎶戝埗 路 collectOverdueCards 路 filterCardsByLabel 路 cardMetaSummary 鏍囩鏁?閫炬湡鎬?璐熻矗浜烘憳瑕?路 asCardWithMeta锛夛紱`@xieflow/shared/cardMeta` 瀛愯矾寰勭櫥璁帮紱`SCHEMA_VERSION` 24鈫?5锛宍BoardCard` 鎵╀笁鍙┖瀛楁锛宎pi/web 闆剁畻娉曞垎鏀紱闆舵柊渚濊禆銆侀浂 token
-- schema锛歚MIGRATIONS` 杩藉姞 v25鈥斺€擿cards.assignee_member_id`锛堝彲绌?FK鈫抦embers ON DELETE SET NULL锛? `cards.due_date`锛堝彲绌?TEXT锛? `card_labels`锛坈ard_id FK CASCADE / label / UNIQUE(card_id,label)锛? 涓夌储寮曪紱鍘?cards 鍏垪閫愬瓧涓嶅姩锛岃€佸崱涓ゅ垪鎭?NULL銆佹爣绛鹃浂琛岋紝鏈墜鏀瑰簱鏂囦欢
-- api锛氬崱鐗?POST/PATCH 鎵?labels/assigneeMemberId/dueDate锛堣礋璐ｄ汉缁?shared/org assertAssignableMember 鏍￠獙瀛樺湪+鍦ㄨ亴锛涙棩鏈?鏍囩缁?shared/cardMeta 瀹堝崼锛夛紝鍝嶅簲鍥炲甫 assigneeMember 鎽樿锛沗GET /api/boards/:id/overdue`锛堥€炬湡鍗″垪琛?+ count锛夈€乣GET /api/boards/:id/cards?label=`锛堟爣绛剧瓫閫夛紝label 缂虹渷杩斿洖鍏ㄩ儴锛夛紱4xx锛氶潪娉?瓒呴暱/瓒呴噺鏍囩銆佸仠鐢?涓嶅瓨鍦ㄦ垚鍛樸€侀潪娉曟棩鏈熴€佽秺鏉?id 404銆侀潪鏁板瓧 id 400
-- web锛歚BoardPage.tsx` 鍗＄墖姝ｉ潰鍔犳爣绛?chip / 璐熻矗浜?/ 鎴鏃?/ 閫炬湡绾㈡爣锛堣蛋 shared isOverdue 鍞竴鍙ｅ緞锛夛紝鏂板缓/缂栬緫闈㈡澘鍔犳爣绛捐緭鍏ワ紙chip 棰勮锛? 璐熻矗浜猴紙澶嶇敤 r24 MemberPicker锛? 鎴鏃?date锛岀瓫閫夋爮鍔犳爣绛句笅鎷夛紱鍗佷節 tab 鏁颁笉鍙橈紝椤舵爮寰界珷鎺ㄨ繘 r38锛宍styles.css` 鏂板 `.board-label-*` / `.board-card-*` 瑙勫垯锛沗?shot=board-meta-*` 涓冩€侀拤鎬?- 鏂█锛歟2e 3277 鈫?**3377锛?100锛?* 路 audit 2536 鈫?**2616锛?80锛?*锛屾棤涓€鏉″垹闄わ紱typecheck 5 鍖咃紱`pnpm run test:all` exit 0锛汣I smoke 姝ｅ垯鍗?v25锛汻EADME 閫熸煡琛?褰撳墠杞鐓ц〃/鏂█瑙勬ā琛屼笁澶勫悓姝?- **鍙樺紓绾㈢浉 1 缁?*锛歚shared/cardMeta.ts` `isOverdue` 瀹屾垚鍒楁姂鍒跺垎鏀敼鍧忥紙鍘绘帀 isCompletionColumnName 鍒ゆ柇锛夆啋 e2e / audit 绾紝閫愬瓧鑺傝繕鍘熷悗鍏ㄧ豢锛堣瑙佹姤鍛婏級
-- 銆岀敤鎴风涓€娆＄敤銆嶅叏閾捐矾锛歚scripts/r38-firstuse-cdp.mjs`锛坔eadless CDP 鐪熺偣锛氬缓椤圭洰 鈫?寤哄崱 鈫?鍔犳爣绛?璐熻矗浜?鎴鏃?鈫?閫炬湡绾㈡爣 鈫?鏍囩绛涢€?鈫?reload 涓嶄涪 鈫?HTTP truth 鍥炴煡 鈫?鎺㈤拡娓呯悊锛?- 鎴浘锛歚docs/ui/r38/` 7 寮狅紙绌烘€?鏍囩/璐熻矗浜?鎴鏃?閫炬湡绾㈡爣/绐勫睆/閿欒锛? 鍗佷節 tab 澹冲悓鎵归噸鎷嶏紱7/7銆?9/19 SHA256 浜掑紓銆佺煩闃碘啍澹抽噸鍙?0锛岄€愬紶 `read_image` 鐩獙锛涚储寮?/ shell README R38 褰撳墠鍝堝笇鍧?/ 绮剧畝鐗堟牴 README 鍚屼竴鎻愪氦
-- 鍗遍櫓鍖猴細鏈?push / 鏈墦 tag / 鏈彂鐗?/ 鏈敼 CI 鍙戝竷閰嶇疆锛涘彧璧?user_version 杩佺Щ銆佹湭鎵嬫敼搴撴枃浠讹紱鍙垹鏈疆鎺㈤拡涓?scratch 搴擄紝浠撳簱 `data/xieflow.db` 鏈綔 DB_PATH锛涘叏绋?headless銆佹湇鍔℃敹鍑€銆丳owerShell 鏂版鍏?ASCII銆侀浂 token
-- 鎶ュ憡锛歚docs/feedback/2026-11-21-r38-yanfa.md`锛堜笁鎬佺邯寰?+ 鑷洕 + 鍙樺紓绾㈢浉 + 鍚戝悗鍏煎璇佹嵁锛?
-### 2026-11-20 路 r37 鐮斿彂锛坹anfa-r37 路 M10 鍚庡姛鑳借ˉ寮猴細琛ㄦ牸鍒嗙粍瑙嗗浘涓庢眹鎬昏锛?- 浜や粯锛歚packages/shared/src/tableGroups.ts` 鍞竴鍙ｅ緞锛圙ROUP_AGGREGATORS 涓夋灇涓?/ isGroupAggregator / assertValidGroupAggregator / GroupSpec / NULL_GROUP_KEY / groupRecords 鍒嗘《鍚?null 鐙珛缁勪笌纭畾鎬х粍搴?/ aggregateGroup count|sum|avg 璺宠繃闈炴暟鍊间笖鏃犳湁鏁堟暟鍊艰繑鍥?null / countNumericValues / buildGroupView 鍒嗙粍+缁勫唴鎺掑簭+姹囨€昏 / normalizeGroupSpec 瀛楁路鑱氬悎路鍙栧€煎瓧娈靛畧鍗?/ describeGroupSpec锛夛紱`@xieflow/shared/tableGroups` 瀛愯矾寰勭櫥璁帮紱`SCHEMA_VERSION` 23鈫?4锛宍normalizeViewSpec` / `TableView` 鎵?groupSpec锛宎pi/web 闆剁畻娉曞垎鏀紱闆舵柊渚濊禆銆侀浂 token銆佽仛鍚堝彧璇讳笉钀藉簱
-- schema锛歚MIGRATIONS` 杩藉姞 v24锛坄ALTER TABLE views ADD COLUMN group_spec TEXT` 鍙┖鍒楋紝鑰佽鍥炬亽 NULL=鏈垎缁勶級锛宮apRowToTableView 璇诲洖銆乧reateView/updateView 鎸佷箙鍖栦笌娓呯┖锛屾湭鎵嬫敼搴撴枃浠?- api锛氳鍥?CRUD 鎵?groupSpec锛沗GET /api/views/:id/grouped`锛堣鍥炬寔涔呭寲鍙ｅ緞 + 鏌ヨ涓?fieldId/aggregator/aggregateFieldId 瑕嗙洊锛涘厛鎸夎鍥剧瓫閫夊叏閲忓啀鍒嗙粍锛岀粍鍐呮帓搴忓鐢?view.sortSpec锛夛紝4xx锛氶潪娉曞瓧娈?鑱氬悎/鍙栧€煎瓧娈碉紙鏂囨湰鍒椾笉鍙眰鍜岋級/鏈厤缃垎缁?view/瓒婃潈 view id/闈炴暟瀛?id
-- web锛氳〃鏍奸〉瑙嗗浘鏍忓姞鍒嗙粍涓嬫媺锛堝瓧娈?鑱氬悎鏂瑰紡+鏁板€煎彇鍊煎瓧娈碉級銆佸垎缁勬姌鍙犲ご + 姣忕粍鍙姹囨€昏 + 閿欒绾㈡潯锛涘崄涔?tab 鏁颁笉鍙橈紝椤舵爮寰界珷鎺ㄨ繘 r37锛宍styles.css` 鏂板 `.bases-group-*` 瑙勫垯锛沗?shot=bases-group-*` 涓冩€侀拤鎬?- 鏂█锛歟2e 3167 鈫?**3277锛?110锛?* 路 audit 2471 鈫?**2536锛?65锛?*锛屾棤涓€鏉″垹闄わ紱typecheck 5 鍖咃紱`pnpm run test:all` exit 0锛汣I smoke 姝ｅ垯鍗?v24锛汻EADME 閫熸煡琛?褰撳墠杞鐓ц〃/鏂█瑙勬ā琛屼笁澶勫悓姝?- **鍙樺紓绾㈢浉 1 缁?*锛歚aggregateGroup` 鐨?`sum += n` 鈫?`sum += n + 1`锛堣仛鍚堢畻娉曟敼鍧忥級鈫?e2e 11 绾紙鎵嬬畻 sum 30鈫?2 / avg 15鈫?6 / 绌哄€肩粍 5鈫? 绛夛級+ audit 8 绾紙HTTP 鍥炰紶姹囨€诲€煎叏閿欙級锛涢€愬瓧鑺傝繕鍘燂紙SHA `CAC8FFE60C8D118E4CB39B9A1D229456D3DBDC67D83F8277393CB15576F6DA27` 鍓嶅悗鍚屽€笺€乣MUTATION-PROBE r37` 闆舵畫鐣欙級鍙屽浠跺叏缁?- 銆岀敤鎴风涓€娆＄敤銆嶅叏閾捐矾锛歚scripts/r37-firstuse-cdp.mjs`锛坔eadless CDP 鐪熺偣 11 姝ュ叏缁匡級閫犺〃褰?10/20/30/绌哄€?4 琛?鈫?閫夎鍥?鈫?鐪熺偣鍒嗙粍涓嬫媺璁惧彛寰?鈫?鐪嬫眹鎬?30 鈫?鎶樺彔缁勶紙4鈫? 琛屽彲瑙侊級鈫?reload 涓嶄涪 鈫?HTTP truth 鍥炴煡 groupSpec 涓?sum=30 鈫?鎺㈤拡娓呯悊銆佹湇鍔℃敹鍑€
-- 鎴浘锛歚docs/ui/r37/` 7 寮狅紙绌烘€?涓嬫媺/鏁板€煎垎缁?鍧囧€兼眹鎬?鎶樺彔鍚?绐勫睆/閿欒锛? 鍗佷節 tab 澹冲悓鎵归噸鎷嶏紱7/7銆?9/19 SHA256 浜掑紓锛岀煩闃碘啍澹抽噸鍙?0锛屽叏搴?342 PNG / 340 浜掑紓锛?6 寮犻€愬紶 `read_image` 鐩獙锛涚储寮?/ shell README R37 褰撳墠鍝堝笇鍧?/ 绮剧畝鐗堟牴 README 鍚屼竴鎻愪氦
-- 鍗遍櫓鍖猴細鏈?push / 鏈墦 tag / 鏈彂鐗?/ 鏈敼 CI 鍙戝竷閰嶇疆锛涘彧璧?user_version 杩佺Щ銆佹湭鎵嬫敼搴撴枃浠讹紱鎴浘涓?CDP 璧?scratch 搴撳苟鍦ㄦ壒娆℃湯鍒犻櫎锛屼粨搴?`data/xieflow.db` 鍏ㄧ▼鏈綔 DB_PATH锛涘叏绋?headless銆佹湇鍔℃敹鍑€锛?787/8788/5173/8791 缁堟€?listen=0锛夈€丳owerShell 鏂版鍏?ASCII銆侀浂 token
-- 鎶ュ憡锛歚docs/feedback/2026-11-21-r37-yanfa.md`锛堜笁鎬佺邯寰?+ 鑷洕 + 鍙樺紓绾㈢浉 + 鍏ㄩ摼璺瘉鎹級
+### 2026-11-21 · r49 返工 #1（断言数字口径对齐 · waizhuan P2-1）
+- 问题：r49 发布口径把 e2e 实测 3922（在线 3923）误写为 3921；`check-doc-contract.ts:parsePublishedCounts` 从 `e2e-test.ts` 最后一条 `e2e（N 断言）` 取数，与 e2e 自身期望串同源，故 `test:all` 自洽绿但文案与实测差 1（宪法第四条「禁自洽占位」反面）。
+- 修订（只改数字口径/文案，断言条数零改）：README 速查行/断言规模行 3921→3922、在线 +1 = 3923、+91→+92、补「DOC-CONTRACT **86** checks」；`e2e-test.ts` 11 处发布口径期望串 3921→3922；`check-doc-contract.ts` 两处 +91→+92；`plan.md:255/1110` 与 r49 三份报告叙述数字同步。
+- TDD 先断言红相：先改 11 处期望串与 watchdog 口径、README 保持旧值 → `check:doc-contract` 2 FAIL/84 ok（exit 1）、`pnpm test` 11 红（3911 通过 / 11 失败，exit 1）；补 README 后全绿。
+- 三处对齐实测：`pnpm run test:all` exit 0，e2e **3922**（离线）；scratch api 8787 下 e2e **3923**（在线，探针后端口收净）；`DOC-CONTRACT: ALL GREEN (86 checks; schema v27; e2e 3922; audit 2957)`。README 速查行 `e2e（3922 断言）`、规模行 `e2e **3922**` / `DOC-CONTRACT **86** checks` / `api 在线 +1 = 3923` 与实测逐字相等。
+- 变异红相 1 组：仅把 README 口径改回 3921 → watchdog 2 FAIL + e2e 11 红；从改前备份逐字节还原（`SHA256 80950736…19093E3` 前后同值、`MATCH=True`）后全绿，证明 watchdog 不再从错误源自洽。
+- 截图：本轮纯数字口径修复，**无渲染层改动，沿用 r49 七图 + 二十 tab 壳图**，不新增/不重拍；三处透明声明见根 README「界面与测试对照」、本条与 `r49-yanfa.md`「返工 #1」节。
+- 纪律：全程 headless、服务收净、零 token、不 push 不打 tag；与 r49 报告同一提交 `r49: 返工#1 …`。
 
-### 2026-11-20 路 r36 鐮斿彂锛坹anfa-r36 路 M10 鍚庡姛鑳借ˉ寮猴細鏃ユ姤涓庡懆鎶ヨ嚜鍔ㄧ敓鎴愶級
-- 浜や粯锛歚packages/shared/src/workReports.ts` 鍞竴鍙ｅ緞锛坄parseWorkReportPeriod` 鏃?鑷劧鍛?ISO 鍛ㄩ敋鐐?路 `inWorkReportWindow` 闂尯闂磋繃婊?路 `collectReportData` 瀹屾垚鎸?updatedAt / 鏂板缓杩涜涓寜 createdAt||updatedAt / 闃诲鍙?r34 渚濊禆鍥?路 `buildReportMarkdown` 鍏 路 `buildReportHtml` 鎵撳嵃鐗堜簲瀛楃杞箟 路 `reportSummary` 璁℃暟 路 `assertValidWorkReportSave` 瀹堝崼锛夛紱`@xieflow/shared/workReports` 瀛愯矾寰勭櫥璁帮紱api/web 闆剁畻娉曞垎鏀紱闆舵柊渚濊禆銆侀浂 token銆佹棤 schema 杩佺Щ锛堝鐢?documents + blocks锛?- api锛歚GET /api/reports/daily?date=`銆乣GET /api/reports/weekly?week=`锛圡arkdown + 缁撴瀯鍖栨暟鎹?+ 鎽樿 + 鎵撳嵃 HTML锛夈€乣POST /api/reports/save`锛堟柊寤?201 / 瑕嗙洊 200锛岀┖鍐呭 400 / 瓒婃潈鏂囨。 id 404 / 闈炴硶鏃ユ湡 400锛夆€斺€攁udit 75 鏉＄湡 HTTP 鍏ㄧ豢
-- web锛氭柊澧炵鍗佷節 tab銆屾姤鍛娿€嶏紙`?page=work-reports`锛夆€斺€旀棩鎶?鍛ㄦ姤鍒囨崲 + 鏃ユ湡/鍛ㄩ敋鐐?+ 鍙紪杈?Markdown 棰勮 + 璁℃暟鎽樿 + 瀛樹负鏂囨。鍥炴墽 + 鎵撳嵃瀵煎嚭 + 閿欒绾㈡潯锛涘崄涔?tab 澹冲熀绾垮悓鎵归噸鎷?- 鏂█锛歟2e 3069 鈫?**3167锛?98锛?* 路 audit 2396 鈫?**2471锛?75锛?*锛屾棤涓€鏉″垹闄わ紱typecheck 5 鍖咃紱`pnpm run test:all` exit 0
-- **鍙樺紓绾㈢浉 1 缁?*锛歚inWorkReportWindow` 涓婄晫 `day <= period.to` 鈫?`day < period.to`锛堟湯鏃ヨ閿欒鎺掗櫎锛夆啋 e2e 18 绾?/ audit 15 绾紱閫愬瓧鑺傝繕鍘燂紙SHA `7080BE3D鈥3B14`锛宍MUTATION-PROBE r36` 闆舵畫鐣欙級鍙屽浠跺叏缁?- 銆岀敤鎴风涓€娆＄敤銆嶅叏閾捐矾锛歚scripts/r36-firstuse-cdp.mjs`锛坔eadless CDP 鐪熺偣锛?6 姝ュ叏缁匡級閫?4 寰呭姙/2 鏃ョ▼ 鈫?鐪嬫棩鎶?鈫?鍒囧懆鎶?鈫?缂栬緫 Markdown 鈫?瀛樹负鏂囨。 鈫?鏂囨。椤垫墦寮€ 鈫?reload 涓嶄涪 鈫?HTTP truth 鍥炴煡 鈫?鎺㈤拡娓呯悊銆佹湇鍔℃敹鍑€
-- 鎴浘锛歚docs/ui/r36/` 7 寮?+ `docs/ui/shell/` 鍗佷節 tab 鍚屾壒閲嶆媿锛?/7銆?9/19 SHA256 浜掑紓锛岀煩闃碘啍澹抽噸鍙?0锛屽叏搴?335 PNG / 333 浜掑紓锛岄€愬紶 `read_image` 鐩獙锛涢杞?remote 鐧诲綍椤靛簾鐗囦笌娆¤疆涓绘寜閽櫧瀛楃櫧搴曞簾鐗囧潎鍏ㄦ壒閲嶆媿鏈叆搴擄紱绱㈠紩 / shell README R36 鍧?/ 绮剧畝鐗堟牴 README 鍚屼竴鎻愪氦
-- 鍗遍櫓鍖猴細鏈?push / 鏈墦 tag / 鏈彂鐗?/ 鏈敼 CI 鍙戝竷閰嶇疆锛涙棤 schema 杩佺Щ銆佹湭鎵嬫敼搴撴枃浠讹紱鎴浘涓?CDP 璧?scratch 搴撳苟鍦ㄦ壒娆℃湯鍒犻櫎锛屼粨搴?`data/xieflow.db` 鏈綔 DB_PATH锛涘叏绋?headless銆佹湇鍔℃敹鍑€銆丳owerShell 鏂版鍏?ASCII銆侀浂 token
-- 鎶ュ憡锛歚docs/feedback/2026-11-20-r36-yanfa.md`锛堜笁鎬佺邯寰?+ 鑷洕 + 鍙樺紓绾㈢浉 + 鍏ㄩ摼璺瘉鎹級
+### 2026-11-21 · r49 研发（yanfa-r49 · M10 后功能补强：工作区数据备份与恢复总入口）
+- 交付：`packages/shared/backup.ts` 唯一口径——BACKUP_TABLES 38 张业务表白名单（排除 sessions/change_log/entity_versions/users 四类认证与同步运行时表）、buildBackupManifest / buildBackupFile / buildBackupFileName（版本/时间/表计数）、validateBackupFile（结构/格式版本/schema 版本/白名单/行形状，拒绝未知表）、planRestore（先全量校验再生成 76 步计划，校验失败零步骤）、assertRestoreConfirmed（confirm=RESTORE_WORKSPACE）；api/web 零算法分支；零新依赖、零 token
+- api：`GET /api/backup/export`（全量白名单表 JSON 快照 + 附件下载头）、`POST /api/backup/validate`（预览零写入）、`POST /api/backup/restore`（二次确认 + 单 BEGIN IMMEDIATE 事务反序清空/正序插入，任一步失败 ROLLBACK）；4xx：无确认/错拼确认 400（CONFIRM_REQUIRED）、坏 JSON 400、未知表/版本不兼容/结构错 422、约束违规 400（RESTORE_ROLLED_BACK）
+- web：工作台设置区新增「数据备份与恢复」卡（导出落盘 / 选文件预览校验 / 表计数与版本 / 二次确认对话框 / 恢复后重载提示），二十 tab 数量不变；七 seam 齐全、窄屏可达
+- 断言：e2e 3830→**3922（+92）** · audit 2891→**2957（+66）**，零删除；typecheck 5 包；`pnpm run test:all` exit 0；DOC-CONTRACT 76→**86 checks**；check:text 7047 literals / 26 tsx / 0 命中
+- **变异红相 1 组（白名单校验失效）**：把 shared/backup `if (!isBackupTable(name))` 临时改 `if (false && …)` → e2e 2 红（未知 sessions/change_log 不再被拒）、audit 2 红（422 错误清单不含表名）；逐字节还原（SHA256 `112CBAC5…7CF89` 前后同值、`false &&` 零残留）后 `test:all` 全绿
+- 「用户第一次用」全链路（headless CDP 真点 19/19）：HTTP 造已知待办→导出快照→改状态→浏览器真点导出按钮→文件输入真选备份→校验预览 38 表→开确认对话框（未勾选禁用/勾选启用）→真点确认恢复→HTTP 逐字段回读→点重新加载→数据仍在→探针清理、端口收净
+- 截图：`docs/ui/r49/` 7 张 + 二十 tab 壳同批重拍；7/7、20/20 SHA256 互异，矩阵↔壳重叠 0，全库 393 PNG / 391 互异（同态组仅 r4 已披露 2 组），逐张 `read_image` 目验；索引 / shell README R49 块 / 精简版根 README 三处同一提交
+- 危险区：未 push / 未打 tag / 未发版 / 未改 CI 发布配置；**sessions/change_log/entity_versions/users 不进快照、不参与替换**（e2e raw 快照逐字节相等 + audit 同步计数前后相等）；截图/CDP 全走 scratch 库并删除，`data/xieflow.db` 未作数据源；全程 headless、服务收净、PowerShell 全 ASCII、零 token
+- 报告：`docs/feedback/2026-11-21-r49-yanfa.md`（三态纪律 + 自曝 + 变异红相 + 危险区证据）
 
-### 2026-11-20 路 r33 鐮斿彂锛坹anfa-r33 路 M10 鍚庣鍗佷竴杞姛鑳借ˉ寮猴細鍏ㄥ眬鎼滅储 / 璺ㄥ叓婧愬彧璇荤粺涓€妫€绱級
-- 浜や粯锛歚packages/shared/src/globalSearch.ts` 鍞竴妫€绱㈠彛寰勶紙`normalizeQuery` trim/灏忓啓/鍒嗚瘝 路 `scoreMatch` 鏍囬鏉冮噸 3 > 姝ｆ枃 1銆佸墠缂€ 10 > 鍖呭惈 5 路 `assembleSearchResults` 璺ㄦ簮鑱氬悎/鍒嗘暟闄嶅簭/姣忔簮涓婇檺/type:id 鍘婚噸/deepLink 瑁呴厤 路 `parseSearchTypes` / `parseSearchLimit` / `assertValidSearchQuery` 瀹堝崼 路 `splitSearchHighlight` 楂樹寒鍒囧垎 路 鍏簮 tab/id 鍙傛暟鏄犲皠锛夛紝鏍?index.ts 閲嶅鍑恒€佸瓙璺緞 `./globalSearch` 寮€鏀撅紱**闆舵柊渚濊禆銆侀浂 token銆侀浂澶栭儴鎼滅储鏈嶅姟銆佹棤 schema 杩佺Щ**
-- api锛歚GET /api/search?q=&limit=&types=` 涓€娆℃绱?8 绫绘簮锛坱odos / schedules / projects / cards / documents / knowledge_docs / members / meetings锛屽叏 `list*` 鍙锛夛紝姣忔潯 `{type,id,title,snippet,score,tab,deepLink}`锛?xx锛氱┖ q / 瓒呴暱 q / 闈炴硶 types / 瓒婃潈婧愶紙users锛? 闈炴硶 limit
-- web锛氶《鏍忓叏灞€鎼滅储妗嗭紙Ctrl/Cmd+K 鑱氱劍 + 涓嬫媺缁撴灉闈㈡澘锛氱被鍨嬪垎缁勫浘鏍?/ 榛勫簳楂樹寒 / 鍒嗘暟 / ArrowUp路ArrowDown 閫変腑 / Enter 鎴栫偣缁撴灉 deep-link 璺宠浆锛? 浼氳椤?`meetingId` 娣遍摼瀹氫綅鏉?+ 寰呭姙/鍗＄墖/鎴愬憳瀹氫綅楂樹寒锛?*18 tab 鏁伴噺涓嶅彉**锛岄《鏍忓彉鍖?鈫?鍗佸叓 tab 澹冲熀绾垮悓鎵归噸鎷?- 鏂█锛歟2e 2766 鈫?**2849锛?83锛?* 路 audit 2185 鈫?**2262锛?77锛?*锛屾棤涓€鏉″垹鏀癸紙鏃㈡湁浠呭仛寰界珷 r32鈫抮33銆佸綋鍓嶅搱甯屽潡 R32鈫扲33銆侀€熸煡琛屾湡鏈涘€?鏍囩鏇存柊锛夛紱typecheck 5 鍖咃紱`pnpm run test:all` exit 0
-- **鍙樺紓绾㈢浉 1 缁?*锛歚assembleSearchResults` 缁堟帓搴?`b.score - a.score` 鈫?`a.score - b.score`锛堝崌搴忔敼鍧忥級鈫?e2e 2 绾紙鍒嗘暟闄嶅簭 / 姝ｆ枃鍛戒腑鏈綅锛? audit 4 绾紙姝ｆ枃鍛戒腑鏈€鍓?+ 涓夊鐩搁偦鍒嗘暟閫嗗簭锛夛紱閫愬瓧鑺傝繕鍘燂紙SHA `9A8D8086鈥?69BF9` 鍓嶅悗鍚屽€笺€乣MUTATION-PROBE r33` 闆舵畫鐣欙級鍚庡弻濂椾欢鍏ㄧ豢
-- 銆岀敤鎴风涓€娆＄敤銆嶅叏閾捐矾锛坔eadless CDP 鐪熺偣锛宍scripts/r33-firstuse-cdp.mjs`锛? 妯″潡鍚屽叧閿瘝璧锋锛夛細HTTP 閫犲緟鍔?鏂囨。/鐭ヨ瘑搴擄紙姝ｆ枃鍛戒腑锛?浼氳瀹?浼氳 鈫?Ctrl+K 鑱氱劍 鈫?杈撳叆鐪熸绱㈠洓缁?鈫?ArrowDown 閫変腑 鈫?鐐逛細璁粨鏋滆烦 meetings tab 涓?`#meetingId` 楂樹寒鍛戒腑鏉?鈫?reload 淇濈暀 page+meetingId 涓斾粛瀹氫綅 鈫?HTTP 鍥炴煡 search/deep-link 鈫?鎺㈤拡褰掗浂銆佺鍙ｆ敹鍑€
-- 鍙璇佹嵁锛歛pi collector 鍏?`list*`銆佹簮鐮侀浂鍐欏叆璋冪敤 seam锛沘udit 鍏簮鎺㈤拡鍓嶅悗鍥涘紶涓氬姟琛ㄨ鏁伴€愬瓧鑺傜浉绛?+ 閲嶅妫€绱㈢粨鏋滈€愬瓧鑺備竴鑷达紱鎴浘涓?CDP 鍏ㄨ蛋 scratch 搴擄紝`data/xieflow.db` 鏈綔 DB_PATH
-- 鎴浘锛歚docs/ui/r33/` 7 寮狅紙绌烘€?杈撳叆涓?鍗曠被鍨?澶氱被鍨?閿洏閫変腑/绐勫睆/鐪?4xx锛? 鍗佸叓 tab 澹冲悓鎵归噸鎷嶏紱7/7銆?8/18 SHA256 浜掑紓锛岀煩闃碘啍澹抽噸鍙?0锛屽叏搴?313 PNG / 311 浜掑紓锛堝悓鎬佺粍浠?r4 宸叉姭闇?2 缁勶級锛岄€愬紶 `read_image` 鐩獙锛涢杞?01 棰勫～/02 涓?04 鍚屾€?06 绐勫睆瑁佸垏涓夊鍏ㄦ壒閲嶆媿锛屽簾鐗囨湭鍏ュ簱
-- 鍗遍櫓鍖猴細鏈?push / 鏈墦 tag / 鏈彂鐗?/ 鏈敼 CI 鍙戝竷閰嶇疆锛涢浂涓氬姟琛ㄥ啓鍏ャ€侀浂鐢ㄦ埛鏁版嵁鍒犻櫎銆侀浂鏂颁緷璧栥€侀浂 token锛涘叏绋?headless銆佹湇鍔℃敹鍑€銆丳owerShell 鏂版鍏?ASCII
-- 鎶ュ憡锛歚docs/feedback/2026-11-21-r33-yanfa.md`锛堜笁鎬佺邯寰?+ 鑷洕 + 鍙樺紓绾㈢浉 + 鍙璇佹嵁锛?
-### 2026-11-20 路 r32 鐮斿彂锛坹anfa-r32 路 M10 鍚庣鍗佽疆鍔熻兘琛ュ己锛氭枃妗ｆ墦鍗板鍑哄寮猴級
-- 浜や粯锛歚packages/shared/src/docExport.ts` 鍞竴瀵煎嚭寮曟搸锛坄sanitizeExportHtml` 浜斿瓧绗﹁浆涔?鎹㈣ `<br>` / `blocksToPrintHtml` 璇箟鍖?HTML+鍐呭祵 `@media print`/`@page`/`counter(page)` 椤电爜椤电湁 / `blocksToWordHtml` UTF-8 BOM + Word 鍛藉悕绌洪棿 + `WordSection1` + `mso-field-code` + base64(UTF-8) 鑷瘉 / `assertExportableBlocks` 绌烘枃妗ｄ笌闈炴硶鍧楀畧鍗?/ `buildExportFileName` / `buildPrintPreview`锛夛紝鏍?`index.ts` 閲嶅鍑猴紝api/web 闆剁畻娉曞垎鏀紱**闆舵柊渚濊禆銆佸叚涓?package.json 涓嶅姩銆侀浂澶栭摼銆侀浂 token銆佹棤 schema 杩佺Щ**
-- api锛歚GET /api/documents/:id/export.html`锛坕nline text/html锛屽彲鎵撳嵃/鍙﹀瓨 PDF锛夈€乣GET /api/documents/:id/export.doc`锛坅ttachment application/msword锛孶TF-8 BOM锛夈€乣GET /api/documents/:id/print-preview`锛圝SON + 瀹屾暣 HTML锛夛紱4xx锛氳秺鏉?id 404 / 闈炴硶 id 400 / 绌烘枃妗?422 / 闈炴硶鍧楀啓鍏?400
-- web锛氭枃妗ｉ〉瀵煎嚭鑿滃崟鍔犮€屾墦鍗?/ 鍙﹀瓨涓?PDF銆嶃€屼笅杞?Word(.doc)銆嶃€屾墦寮€ HTML 鎵撳嵃鐗堛€嶏紱鎵撳嵃璧伴殣钘?iframe `src=/export.html` + `window.print()`锛宧eadless锛堥拤鎬佹垨 `navigator.webdriver`锛夊彧鍐?`__xieflowPrintSpy` 涓嶅脊绯荤粺瀵硅瘽妗嗭紙r8 鏁欒锛夛紱Word 鎸夊師瀛楄妭涓嬭浇骞剁暀 BOM 浣愯瘉锛?*18 tab 鏁伴噺涓嶅彉**锛屾枃妗ｉ〉娓叉煋鍙樺寲 鈫?鍗佸叓 tab 澹冲熀绾垮悓鎵归噸鎷?- 鏂█锛歟2e 2685 鈫?**2766锛?81锛?* 路 audit 2138 鈫?**2185锛?47锛?*锛屾棤涓€鏉″垹鏀癸紙鏃㈡湁鍙仛寰界珷 r31鈫抮32銆佸綋鍓嶅搱甯屽潡 R31鈫扲32銆侀€熸煡琛?2685/2138鈫?766/2185 鏈熸湜鍊?鏍囩鏇存柊锛夛紱typecheck 5 鍖咃紱`pnpm run test:all` exit 0锛汣I smoke 姝ｅ垯淇濇寔 `(2|鈥22)`锛汻EADME 閫熸煡琛?鍙岃妭/r32 鐭╅樀绱㈠紩/澹?R32 鍝堝笇鍧楅€愬瓧鍚屾
-- 銆岀敤鎴风涓€娆＄敤銆嶅叏閾捐矾锛坔eadless CDP 鐪熺偣锛宍scripts/r32-firstuse-cdp.mjs`锛? 鏂囨。璧锋锛夛細寤烘枃妗?鈫?瀵煎叆鍗佺鍧?鈫?瀵煎嚭鑿滃崟 鈫?鎵撳嵃 spy 1 娆′笖涓嶅脊绐?鈫?Word BOM 浣愯瘉 鈫?reload 11 鍧楀叏鍦?鈫?HTTP 鍥炴煡 HTML/Word 200 鈫?鎺㈤拡杞垹銆佹湇鍔℃敹鍑€
-- 鎴浘锛歚docs/ui/r32/` 6 寮狅紙瀵煎嚭鑿滃崟/鎵撳嵃棰勮/HTML 钀界洏/Word 钀界洏/绐勫睆/鐪?4xx 閿欒锛? 涓や唤鐪熷鍑烘枃浠讹紙`document-export.html` / `document-export.doc`锛? 鍗佸叓 tab 澹冲悓鎵归噸鎷嶏紱6/6銆?8/18 SHA256 浜掑紓锛岀煩闃碘啍澹抽噸鍙?0锛屽叏搴?306 PNG / 304 浜掑紓锛坮4 宸叉姭闇?2 缁勫悓鎬侀櫎澶栵級锛岄€愬紶 `read_image` 鐩獙
-- 鍗遍櫓鍖猴細鏈?push / 鏈墦 tag / 鏈彂鐗?/ 鏈敼 CI 鍙戝竷閰嶇疆锛涙棤 schema 杩佺Щ銆佹湭鎵嬫敼搴撴枃浠讹紱鎴浘涓?CDP 鍙蛋 `scripts/.tmp-r32shot/shot.db`锛宎udit 璧?`scripts/.tmp-audit` 骞舵竻鐞嗭紱鍏ㄧ▼ headless銆佹湇鍔℃敹鍑€銆丳owerShell 鏂版鍏?ASCII銆侀浂 token
-- 鎶ュ憡锛歚docs/feedback/2026-11-21-r32-yanfa.md`锛堜笁鎬佺邯寰?+ 鑷洕 + 鍙樺紓绾㈢浉 + 闆朵緷璧栬瘉鎹級
+### 2026-11-21 · r47 研发（yanfa-r47 · M10 后功能补强：AI 工具调用确认闸门）
+- 交付：`packages/agent/toolGate.ts` 三纯函数（needsConfirmation 复用 shared STATE_CHANGING_TOOLS 白名单 / buildToolPreview 人类可读摘要 / planToolExecution 未确认写 pending、只读直接执行）+ normalizeCallIds 守卫；`ToolCallRecord` 扩可选 `callId/confirmStatus/preview`（无 schema 变更，v27 保持）；api/web 零闸门算法分支；零新依赖零 token
+- api：`POST /api/conversations/:id/chat` 扩 `autoExecute`（默认 false → 写 pending+preview 不执行；true 老行为全保留）；`POST /api/conversations/:id/confirm`（callIds + action confirm/discard 真执行/标放弃）；4xx：非法 callId 400 / 重复确认 409 / 越权 conversation 400 / 会话不存在 404；db `findToolCallByCallId` + `resolvePendingToolCall` 单事务零半态
+- web：AI 工作台对话流待确认黄卡（预览标题/摘要/参数 + 确认执行/放弃按钮）+ 自动执行开关（localStorage 持久化）+ 确认失败红条；pending 回执落 tool_calls_json，reload 不丢；确认/放弃 seam 齐全
+- 断言：e2e 3731→**3830（+99）** · audit 2838→**2891（+53）**，零删除；typecheck 5 包；`pnpm run test:all` exit 0；DOC-CONTRACT 59→62 checks；check:text 6872 literals/0 命中
+- **变异红相 1 组**：`planToolExecution` 闸门反转（未确认写不进 pending）→ e2e 崩溃（pending 断言 red）/ audit 3 FAIL（写调用 got executed / pendingCalls got 0）；逐字节还原 SHA256 `A24FEECC…F8951A4` 前后同值、`MUTATION-PROBE` 零残留，重跑全绿
+- 「用户第一次用」全链路（headless CDP 真点 12/12）：建会话 → 发混合消息 → 只读直出/写 pending 卡 → 确认真建待办 → 放弃零写 → reload 状态可见 → 探针清理；`R47 FIRSTUSE: ALL GREEN`
+- 截图：`docs/ui/r47/` 7 张 + 二十 tab 壳同批重拍（r45→r47 changed=9/same=11 如实披露）；7/7 与 20/20 SHA256 互异、矩阵↔壳重叠 0、全库 386 PNG/384 互异，逐张 `read_image` 目验；索引 / shell README / 精简版根 README 三处同一提交
+- 危险区：未 push / 未打 tag / 未发版 / 未改 CI 发布配置；无 schema 迁移（v27）；截图与 CDP 走 scratch local-mode 库并删除，`data/xieflow.db` 未作数据源；全程 headless、服务收净、PowerShell 全 ASCII（shot.ps1 nonAscii=0 / Parser 0 错误）、零 token
+- 报告：`docs/feedback/2026-11-21-r47-yanfa.md`（三态纪律 + 自曝 + 变异红相 + 全链路证据）
 
-### 2026-11-20 路 r31 鐮斿彂锛坹anfa-r31 路 M10 鍚庣涔濊疆杞婚噺娓呯悊锛氬瓧娈电被鍨嬫枃妗堝洖褰?+ 鍏紡娴偣灞曠ず锛?- 浜や粯锛氭竻 r30 涓ゅ矖璁拌处鐨勪綆鎴愭湰鐪熼棶棰橈紝涓嶆柊澧炲姛鑳姐€佹棤 schema 杩佺Щ锛堝鐢?v22锛夈€侀浂渚濊禆銆侀浂 token鈥斺€斺憼 `BasesPage.tsx` 闆惰〃绌烘€併€? 绉嶅瓧娈电被鍨嬮綈澶囥€嶁啋銆? 绉嶅瓧娈电被鍨嬮綈澶囷紙鍚叕寮忥級銆嶅苟鍚屾 `docs/ui/shell/README.md` bases 琛岋紱鈶?`packages/shared/formula.ts` 鏂板鍞竴灞曠ず鏍煎紡鍖栫函鍑芥暟 `formatFormulaDisplay`锛坣ull/undefined鈫掋€屸€斻€嶏紝鏁存暟/闈炴湁闄愭暟鍘熸牱锛岄潪鏁存暟鎸?12 浣嶆湁鏁堟暟瀛楁敹鏁涘熬鏁帮紝鏂囨湰/甯冨皵閫愬瓧淇濈暀锛夛紝web 鍏紡鍗曞厓鏍?`CellView` 涓庡疄鏃堕瑙堥潰鏉跨粺涓€璋冪敤锛?*API 姹傚€艰涔夐浂鏀瑰姩**锛宍84.80000000000001` 浠嶄负 HTTP 鍘熷鍊硷紝浠呭睍绀轰负 `84.8`
-- 鏂█锛歟2e 2664 鈫?**2685锛?21锛氱函鍑芥暟 10 路 姹傚€?灞曠ず鍒嗙 2 路 鏂囨/鎺ョ嚎/鎴浘 seam 9锛?* 路 audit 2122 鈫?**2138锛?16锛氶摼寮忓叕寮忕湡 HTTP 瑁呴厤 路 GET/棰勮鍘熷娴偣閫愬瓧淇濇寔 路 灞曠ず鏀舵暃 路 鍏紡鍒椾笉钀藉簱 路 鎺㈤拡褰掗浂锛?*锛屾棤涓€鏉″垹鏀癸紙鏃㈡湁鍙仛鍏寰界珷 r30鈫抮31銆佷竷澶勫疄闄呮枃浠跺搱甯屽紩鐢ㄥ潡 R30鈫扲31銆佷簲澶勯€熸煡琛?2664/2122鈫?685/2138 鏈熸湜鍊兼洿鏂帮級锛泃ypecheck 5 鍖咃紱`pnpm run test:all` exit 0锛汣I smoke 姝ｅ垯淇濇寔 v22锛汻EADME 閫熸煡琛?鍙岃妭/r31 鐭╅樀鍥涜/澹?R31 鍝堝笇鍧楅€愬瓧鍚屾
-- **鍙樺紓绾㈢浉 1 缁?*锛歚formatFormulaDisplay` 鍘绘帀 `toPrecision(12)` 灞曠ず鏀舵暃 鈫?e2e 4 绾紙涓夋潯娴偣灏炬暟 + 姹傚€?灞曠ず鍒嗙锛? audit 2 绾紙GET 涓庨瑙堢湡 HTTP 灞曠ず鏂█锛夛紱閫愬瓧鑺傝繕鍘?SHA `99807E6D鈥99A4`锛堟敼鍓嶆敼鍚庡悓鍊笺€乣MUTATION-PROBE r31` 闆舵畫鐣欙級鍙屽浠跺叏缁?- 鎴浘锛歚docs/ui/r31/` 3 寮狅紙绌烘€佸叓绫绘枃妗?/ 璇曠畻棰勮 84.8 / 绾綉鏍煎惈绋庡垪 84.8锛? 鍗佸叓 tab 澹冲熀绾垮悓鎵归噸鎷嶏紱3/3銆?8/18 SHA256 浜掑紓锛岀煩闃碘啍澹抽噸鍙?0锛宺30鈫抮31 鍗佸叓澹抽€愬悕鍏ㄥ紓锛屽叏搴?300 PNG / 298 浜掑紓锛堝悓鎬佺粍浠?r4 宸叉姭闇?2 缁勶級锛岄€愬紶 `read_image` 鐩獙锛涢鎷嶄袱鎬佸彂鐜板脊绐楅伄鎸＄綉鏍煎垪 鈫?琛ョ涓夊紶绾綉鏍兼€佸悗鍏ㄦ壒閲嶆媿锛屽簾鐗囨湭鍏ュ簱
-- 鍗遍櫓鍖猴細鏈?push / 鏈墦 tag / 鏈彂鐗?/ 鏈敼 CI release 閰嶇疆锛涙棤 schema 杩佺Щ銆佹湭鎵嬫敼搴撴枃浠讹紱鎴浘璧?scratch 搴擄紙`data/xieflow.db` 鍙锛夛紝audit 璧?`.tmp-audit` 涓存椂搴撳苟娓呯悊锛涘叏绋?headless銆佹湇鍔℃敹鍑€銆丳owerShell 鏂版鍏?ASCII銆侀浂 token
-- 鎶ュ憡锛歚docs/feedback/2026-11-21-r31-yanfa.md`锛堜笁鎬佺邯寰?+ 鑷洕鑺?+ 鍙樺紓绾㈢浉锛?
-### 2026-11-20 路 r30 鐮斿彂锛坹anfa-r30 路 M10 鍚庡姛鑳借ˉ寮猴細澶氱淮琛ㄦ牸鍏紡瀛楁锛岀函鏈湴琛ㄨ揪寮忔眰鍊硷級
-- 浜や粯锛歴chema v21鈫抳22锛堟棤鏂拌〃锛涢噸寤?fields 琛ㄦ妸 type CHECK 鐧藉悕鍗?7鈫? 绉嶏紝閫愬垪鍘熸牱鎷疯礉鏃㈡湁瀛楁锛沷ptions JSON 鍙屽舰鎬佲€斺€旀棫/闈炲叕寮忓瓧娈典粛涓烘暟缁勶紝鍏紡瀛楁涓?`{expression}` 瀵硅薄锛夛紱`packages/shared/formula.ts` 绾?TS tokenizer + parser + evaluator锛堝瓧娈靛紩鐢?`{鍚峿` / 瀛楅潰閲?/ + - \* / / 姣旇緝 / IF / ROUND锛沺arseFormula / evaluateFormula / compileFormula 缁撴瀯鍖栭敊璇?/ detectFormulaCycles / recomputeFormulas 鎷撴墤搴?+ 浼犻€掓薄鏌擄級锛?*闆?eval / 闆?Function 鏋勯€犲櫒 / 闆朵緷璧?*锛宎pi/web 闆剁畻娉曞垎鏀?- api锛氬叕寮忓瓧娈垫柊寤?缂栬緫鏍￠獙锛堥潪娉曡〃杈惧紡路鏈煡瀛楁路缂鸿〃杈惧紡路寰幆寮曠敤 鈫?400锛岃秺鏉冭〃/瀛楁 id 鈫?404锛夛紱GET 琛?瑙嗗浘/鍗曟潯璁板綍鍥炲甫 `computed`锛堣鏃惰绠楋紝搴撳唴鍏紡鍒楁亽 null 涓嶈惤搴擄級+ `cycles`锛沗POST /api/tables/:id/formulas/preview` 瀹炴椂璇曠畻涓庣紪杈戦瑙堬紙draft 琛ㄨ揪寮忎笉钀藉簱锛?- web锛氬瓧娈电被鍨嬪姞銆屽叕寮忋€嶏紙8 绉嶄笅鎷夛級锛涜〃杈惧紡杈撳叆妗?+ 瀹炴椂棰勮闈㈡澘 + 閿欒绾㈡潯锛涚綉鏍煎叕寮忓垪鍙缁垮€?/ 閿欒绾㈡爣 `鈿燻锛?*18 tab 鏁伴噺涓嶅彉**锛岃〃鏍奸〉娓叉煋灞傚彉鍖?鈫?鍗佸叓 tab 澹冲熀绾垮悓鎵归噸鎷?- 鏂█锛歟2e 2542 鈫?**2664锛?122锛?* 路 audit 2004鈫?060鈫?*2122锛?62锛?*锛屾棤涓€鏉″垹鏀癸紱typecheck 5 鍖咃紱`pnpm run test:all` exit 0锛汣I smoke 姝ｅ垯鍗?v22锛汻EADME 閫熸煡琛?鍙岃妭/r30 鐭╅樀鍏/澹?R30 鍝堝笇鍧楅€愬瓧鍚屾
-- **鍙樺紓绾㈢浉 1 缁?*锛歚packages/shared/src/formula.ts` 涔樻硶 `a * b` 鈫?`a + b`锛堟眰鍊肩畻娉曟敼鍧忥級鈫?e2e 8 绾紙12脳3銆?2.5脳4銆佷紭鍏堢骇銆侀摼寮忋€佹壒閲忛噸绠椼€佹暟鎹眰瑁呴厤绛夛級/ audit 5 绾紙50 / 21 / 80 / 84.8 鐪?HTTP 鍊煎叏閿欙級锛涢€愬瓧鑺傝繕鍘?SHA `ABF118AE鈥A85EB`锛堟敼鍓嶆敼鍚庡悓鍊笺€乣MUTATION-PROBE r30` 闆舵畫鐣欙級鍙屽浠跺叏缁?- 銆岀敤鎴风涓€娆＄敤銆嶅叏閾捐矾锛堢湡 HTTP锛夛細寤鸿〃 鈫?鍔犲崟浠?number / 鏁伴噺 number 鈫?鍔犲皬璁?formula `{鍗曚环}*{鏁伴噺}` 鈫?褰?12.5脳4 涓?3脳7 鈫?GET 鍥炲甫 50 / 21 涓?data 鍐呭叕寮忓垪 null 鈫?鏀瑰崟浠蜂负 20 鍚庤鏃堕噸绠?80 鈫?閾惧紡鍏紡棰勮 84.8 鈫?鐢测啍涔欏惊鐜敼鍐?400 闆跺崐鎬?鈫?闄ら浂 error 绾㈡爣 鈫?鏁磋〃鎺㈤拡鍒犻櫎褰掗浂
-- 鎴浘锛歚docs/ui/r30/` 7 寮?+ 鍗佸叓 tab 澹冲熀绾垮悓鎵归噸鎷嶏紱7/7銆?8/18 SHA256 浜掑紓锛岀煩闃碘啍澹抽噸鍙?0锛屽叏搴?297 PNG / 295 浜掑紓锛堝悓鎬佺粍浠?r4 宸叉姭闇?2 缁勶級锛岄€愬紶 `read_image` 鐩獙锛涢杞櫥褰曢〉搴熺墖涓庝簩杞?05 闈㈡澘鎬佸簾鐗囧潎鍏ㄦ壒閲嶆媿鏈叆搴?- 鍗遍櫓鍖猴細鏈?push / 鏈墦 tag / 鏈彂鐗?/ 鏈敼 CI release 閰嶇疆锛涘彧璧?user_version 杩佺Щ銆佹湭鎵嬫敼搴撴枃浠讹紱鎴浘涓庢帰閽堝彧璧?scratch 搴擄紙`data/xieflow.db` 鍙锛屽師搴撳浜?remote 鐧诲綍鎬佹晠鏈娇鐢級锛涘叏绋?headless銆佹湇鍔℃敹鍑€銆丳owerShell 鏂版鍏?ASCII銆侀浂 token
-- 鎶ュ憡锛歚docs/feedback/2026-11-21-r30-yanfa.md`锛堜笁鎬佺邯寰?+ 鑷洕鑺?+ 鍙樺紓绾㈢浉 + 闆?eval 璇佹嵁锛?
-### 2026-11-20 路 r29 鐮斿彂锛坹anfa-r29 路 M10 鍚庡姛鑳借ˉ寮猴細鏂囨。鐗堟湰鍘嗗彶涓庡洖鏀剁珯锛?- 浜や粯锛歴chema v20鈫抳21锛坉ocument_versions 涓冨垪 + UNIQUE(document_id,version) + 澶栭敭绾ц仈 + 绱㈠紩锛沝ocuments.deleted_at 鍙┖鍒楋級锛沗packages/shared/docHistory.ts` 涓夊嚱鏁帮紙nextDocVersion / buildVersionNote LCS 澧炲垹琛屾憳瑕?/ canRestoreVersion 闃叉仮澶嶅凡杞垹锛? 鎭㈠瀹堝崼锛宎pi/web 闆剁畻娉曞垎鏀紱鏃犳柊渚濊禆銆侀浂 token銆佷笉鎺ュ疄鏃跺崗鍚岋紙CRDT 瓒呰寖鍥达級
-- api锛氱増鏈垪琛?/ 鎵嬪姩蹇収 / 鎭㈠鐢熸垚鏂扮増鏈紙涓嶈鐩栵級/ 鏂囨。杞垹 / 鍥炴敹绔欏垪琛?/ 鍥炴敹绔欒繕鍘?/ 姘镐箙鍒犻櫎锛坈onfirm=PERMANENTLY_DELETE 浜屾纭锛屽彧浣滅敤浜庡洖鏀剁珯鎺㈤拡锛夛紱4xx锛氱増鏈笉瀛樺湪 404 / 瓒婃潈鏂囨。 404 / 璺ㄦ枃妗ｇ増鏈?404 / 闈炴硶鐗堟湰 400 / 鎭㈠宸茶蒋鍒犳枃妗?400 / 缂虹‘璁?400
-- web锛氭枃妗ｉ〉鍐呭姞銆岀増鏈巻鍙层€嶄晶鏍忥紙鍒楄〃 + 鍙樻洿鎽樿 + 棰勮 + 鎭㈠锛? 宸ュ叿鏍忋€屽洖鏀剁珯銆嶅叆鍙ｏ紙杩樺師 / 姘镐箙鍒犻櫎浜屾纭锛夛紱**18 tab 鏁伴噺涓嶅彉**锛屾枃妗ｉ〉鍙樻洿 鈫?鍗佸叓 tab 澹冲熀绾垮悓鎵归噸鎷?- 鏂█锛歟2e 2460 鈫?**2542锛?82锛?* 路 audit 2004 鈫?**2060锛?56锛?*锛屾棤涓€鏉″垹鏀癸紙鏃㈡湁鍙仛鏈熸湜鍊?鏍囩鎺ㄨ繘锛夛紱typecheck 5 鍖咃紱`pnpm run test:all` exit 0锛汣I smoke 姝ｅ垯鍗?v21锛汻EADME 閫熸煡琛?鍙岃妭/r29 鐭╅樀绱㈠紩/澹?R29 鍝堝笇鍧楅€愬瓧鍚屾
-- **鍙樺紓绾㈢浉 1 缁?*锛歴hared `nextDocVersion` 鐨?`return n + 1` 鈫?`return n`锛堟仮澶嶅皢瑕嗙洊锛夆啋 e2e 4 绾?+ 鏁版嵁灞?CHECK 涓柇 / audit 11 绾紱閫愬瓧鑺傝繕鍘燂紙SHA `0782FBBC鈥?2645D`锛夊弻濂椾欢鍏ㄧ豢
-- 銆岀敤鎴风涓€娆＄敤銆嶅叏閾捐矾锛氱湡 HTTP v1鈫抳2鈫抳3 鈫?鎭㈠ v1 鐢熸垚 v4锛堝叏鏂囬€愬瓧绛変簬 v1锛寁1~v3 鏈鐩栵級鈫?杞垹 鈫?鍥炴敹绔?鈫?杩樺師 鈫?reload 涓嶄涪 鈫?鍐嶈蒋鍒?鈫?浜屾纭姘镐箙鍒犻櫎鎺㈤拡褰掗浂锛涘叏绋?headless銆佹湇鍔℃敹鍑€
-- 鎴浘锛歚docs/ui/r29/` 7 寮?+ 鍗佸叓 tab 澹冲熀绾垮悓鎵归噸鎷嶏紱7/7銆?8/18 SHA256 浜掑紓锛岀煩闃碘啍澹抽噸鍙?0锛屽叏搴?290 PNG / 288 浜掑紓锛堝悓鎬佺粍浠?r4 宸叉姭闇?2 缁勶級锛岄€愬紶 `read_image` 鐩獙锛涢杞?03/04 鍚屽搱甯屽簾鐗囧叏鎵归噸鎷嶆湭鍏ュ簱
-- 鍗遍櫓鍖猴細鏈?push / 鏈墦 tag / 鏈彂鐗?/ 鏈敼 CI release 閰嶇疆锛涘彧璧?user_version 杩佺Щ銆佹湭鎵嬫敼搴撴枃浠讹紱鍙敤 scratch 搴撲笌鐪?HTTP 鎺㈤拡骞舵竻鐞嗭紙姘镐箙鍒犻櫎鍙垹鏈疆鎺㈤拡锛夛紱浠撳簱 `data/xieflow.db` 鍙锛汸owerShell 鏂版鍏?ASCII銆侀浂 token
-- 鎶ュ憡锛歚docs/feedback/2026-11-21-r29-yanfa.md`锛堜笁鎬佺邯寰?+ 鑷洕鑺?+ 鍙樺紓绾㈢浉 + 鍏ㄩ摼璺瘉鎹級
+### 2026-11-21 · r41 研发（yanfa-r41 · M10 后功能补强：轻量表单收集：创建/填写/汇总）
+- 交付：schema v25→v26（forms / form_questions / form_responses 三表 + 题型 CHECK + FK CASCADE + 两索引）；`packages/shared/forms.ts` 三函数唯一口径（normalizeFormDefinition / validateFormAnswers / summarizeResponses），api/web 零算法分支；零新依赖、零 token
+- api：forms CRUD + `GET /api/forms/:id/fill` + `POST /api/forms/:id/responses` + `GET /api/forms/:id/summary` + 答卷列表；4xx：必填缺失/类型不符/未知题/选项越界/越权 404/非数字 id 400/已关闭提交 409
+- web：新增第二十 tab「表单」——列表 + 创建（加/删问题，四题型）+ 填写 + 汇总（文本列举/数值总和均值/选项分布/勾选率），`?formId=&view=` 深链 reload 不丢；二十 tab 壳基线同批重拍
+- 断言：e2e 3430→**3551（+121）** · audit 2641→**2703（+62）**，零删除；typecheck 5 包；`pnpm run test:all` exit 0；CI smoke 正则升 v26；README 速查行/当前轮对照表/断言规模行三处同步
+- **变异红相 1 组**：`summarizeResponses` 总和 `roundRate(sum)`→`roundRate(sum+1)` → e2e 3 红（sum 60→61）/ audit 1 红；逐字节还原（SHA `E10DA994…E34617` 前后同值）全绿
+- 「用户第一次用」全链路：`scripts/r41-firstuse-cdp.mjs`（headless CDP 真点 10 步：建表单 → 加两类问题 → 填 3 份 → 看汇总 sum 60/avg 20 → reload 不丢 → HTTP truth → DELETE 探针归零），`R41 FIRSTUSE: ALL GREEN`
+- 截图：`docs/ui/r41/` 7 张 + 二十 tab 壳同批重拍；7/7、20/20 SHA256 互异、矩阵↔壳重叠 0，全库 365 PNG / 363 互异，27 张逐张 `read_image` 目验；首轮 02/03、04/05 同态经全矩阵重拍修正，废片未入库；索引 / shell README R41 当前块 / 精简版根 README 同一提交
+- 危险区：未 push / 未打 tag / 未发版 / 未改 CI 发布配置；只走 user_version 迁移、未手改库文件；截图与 CDP 走 scratch 库并删除、`data/xieflow.db` 全程未作数据源；全程 headless、服务收净、PowerShell 全 ASCII、零 token
+- 报告：`docs/feedback/2026-11-21-r41-yanfa.md`（三态纪律 + 自曝 + 变异红相 + 全链路证据）
 
-### 2026-11-15 路 r1 绔嬮」
-- 浠撳簱钀藉湴锛歮onorepo 鍥涘寘 / 杩佺Щ妗嗘灦 v1鈫抳2 / 鐘舵€佹満闆嗕腑 / 鍋ュ悍鎺㈤拡 / 鎴浘鐭╅樀 5 寮?/ CI 瀹氫箟
-- 鏂█瑙勬ā 0 鈫?42锛泃ypecheck 4 鍖呭叏缁?- 鍏抽敭鍧戯紙璁板綍鍦?yanfa 鎶ュ憡锛夛細pnpm 11 allowBuilds / CJS-ESM 瀵煎叆 / PS 5.1 缂栫爜 / Windows DPR 鎴浘
-- 鍐崇瓥璁板綍锛氱獎灞忔祴璇曠敤 ?narrow=1 鏄惧紡閽夋€侊紝涓嶈祵瑙嗗彛瀹藉害锛汬TTP 鍐掔儫浼橀泤闄嶇骇涓嶅け璐?
-### 2026-11-15 路 r1 澶嶉獙涓庢敹灏?- waizhuan 瀹炶窇澶嶉獙锛歵est:all 涓よ疆 exit 0锛堢绾?41 / 鍦ㄧ嚎 42 鍏ㄧ豢锛夈€乭ealth 鎺㈤拡鐪熻搴撱€佸弻绔彛鏀跺噣銆佹埅鍥鹃€愬紶鐩獙鈥斺€?*VERDICT: 閫氳繃**锛堟姤鍛?docs/feedback/2026-11-15-r1-verify.md锛?- 澶嶉獙闂澶勭疆锛歅1 shot.ps1 api 鍒嗙鍚姩琛?`< NUL` stdin 閲嶅畾鍚戯紝瀹炴祴 15s 瀛樻椿 鉁咃紱P3 CI 鍒嗘敮 main鈫抦aster 鉁咃紱P4 涓ゆ潯鑷唇鍗犱綅鏂█ 鈫?宸插垪鍏?r2 鏀硅繘椤癸紱P5 plan.md 闅忔湰鎻愪氦绾冲叆
-- 鍙戠増锛歷0.0.1锛堟湰鍦?commit + tag锛夈€?*P2 鎸傝处**锛氭棤 git remote锛宲ush 涓?Release 璧勪骇鏍稿寰?owner 閰嶇疆杩滅鍚庤ˉ鍋氾紙瀹硶绗簩鏉＄ 4 姝ュ眾鏃舵墽琛岋級
+### 2026-11-21 · r40 研发（yanfa-r40 · M10 后轻量轮：口径清理与扫描器加固）
+- 交付：AuthPages.tsx 登录页脚注改「本页不占主界面 tab 数量」（不含数字、去 token 开发者口径）；App.tsx:415 注释同款校正；`scripts/check-user-facing-text.ts` 轮次号正则 `/r\d{2}(?!\d)/i` → `/\br\d{1,3}\b/i` + `ROUND_SELF_PROBES` 自断言（r2/r39/r123 命中、业务词不命中）
+- 单位数 rN 清零：扩正则暴露 11 处真实单位数 rN（r39 verify P5 点名的种子/placeholder），逐处改纯用户文案（placeholder「例：整理季度待办清单」），`?shot=` 守卫 / `pinSeed*` 种子函数 / `shot-note` 图注原样保留；复扫 6265 literals / 24 tsx / 0 命中，字面量数未变
+- 断言：e2e 3412→**3430（+18）** · audit 2623→**2641（+18）**，零删除；27 条历史断言仅推进期望值/标签（r39 数字与 R39 当前块 → r40 数字与 R40 当前块）；typecheck 5 包；`pnpm run test:all` exit 0
+- **变异红相 2 组**：① 自断言在旧两位正则下先红（self-probe FAILED got=false want=true）→ 扩正则后绿；② TodosPage:595 加回「r2 复验材料」→ 扫描 1 红 / exit 1 → 逐字节还原（SHA `CE6E7B76…D74DFE` 前后同值）全绿
+- 截图：`docs/ui/r40/` 1 张登录页干净态 + 十九 tab 壳同批重拍；20/20 SHA256 互异、矩阵↔壳重叠 0；r39→r40 壳 changed=5/same=14 如实披露（不称逐位全异）；全库 357 PNG / 355 互异；20 张逐张 `read_image` 目验；索引 / shell README R40 当前块 / 精简版根 README 三处同一提交
+- 纪律：全程 headless、服务收净（8787/8788/5173 listen=0）、截图走 scratch 库并删除、`data/xieflow.db` 未作数据源、PowerShell 全 ASCII、零 token、未 push / 未打 tag / 未发版 / 未改 CI
+- 报告：`docs/feedback/2026-11-21-r40-yanfa.md`（三态纪律 + 自曝 + 变异红相 + seam 披露）
 
-### 2026-11-15 路 P2 娓呰处 + 杩滅浜嬫晠璁板綍锛坙ead锛?- 閰嶇疆 remote `origin = github.com/sun13-AI/xieflow`锛堢鏈変粨搴擄紝API 鍒涘缓锛涘嚟鎹蛋 Windows 鍑嵁绠＄悊鍣ㄤ腑 gh CLI 鐨?token锛岀粡 `scripts/credential-github.ps1` 鍠傜粰 git锛宼oken 涓嶈惤鐩橈級
-- **浜嬫晠**锛歡ithub.com 鐩磋繛闂存瓏闃绘柇鏈熼棿鏀圭敤 Git Data API 鎺ㄩ€侊紝涓€娆″け璇紙tree 缂?base_tree锛夊鑷磋繙绔袱涓彁浜や涪澶卞叏閮ㄥ唴瀹规枃浠?鈫?CI 浠?lockfile not found 鎶ラ敊鏆撮湶 鈫?缃戠粶鎭㈠鍚?`git push --force` 鐢ㄥ畬鏁存湰鍦板巻鍙茶鐩?- **鏁欒鍏ュ簱**锛欰PI 鎺ㄩ€佸彧鐢ㄤ簬鍙鎿嶄綔锛涘啓鎿嶄綔蹇呴』璧?git锛涚綉缁滈棶棰樼粰 git 閰?`-c http.proxy=http://127.0.0.1:7897`锛堢郴缁熶唬鐞嗭級
-- **CI 瀹炶窇鏆撮湶骞朵慨澶?*锛歳elease job 缂?pnpm锛?27锛夆啋 琛?`pnpm/action-setup`锛涘娉曘€屼笉鎸棫 tag銆嶆墽琛岋細v0.0.1 鐨?release 宸插潖涓嶅姩锛?*v0.0.2 琛ュ彂**
-- 缁堟€侊細master CI 鉁?/ **v0.0.2 tag CI 鉁?+ Release 璧勪骇鏍稿 鉁咃紙xieflow-v0.0.2.tar.gz 宸蹭笂鏋讹級**锛涙湰鍦?git 姘镐箙閰嶇疆浠ｇ悊
-- 鐜澶囧繕锛氱郴缁熶唬鐞?127.0.0.1:7897锛沢ithub.com 鐩磋繛涓嶇ǔ瀹氭椂 git 蹇呴』鏄惧紡璧颁唬鐞?
-### 2026-11-15 路 缂栧埗鎵╁厖锛圛KanBot 鍩哄噯妯″紡 + 灞ュ巻寤烘。锛?- 纭珛**鍩哄噯娴佺▼ = IKanBot 鍙?agent 妯″紡**锛堢爺鍙?鈫?浣跨敤鑰呭疄璺戝楠?鈫?VERDICT 鈫?鎵撳洖杩斿伐 鈫?姣忚疆鍙戝皬鐗堟湰锛夛紝鍏堣窇閫氬啀璋堟墿灞?- 鍥涘矖浣嶈绔嬶紙缂栧埗琛?workflows/org.md锛夛細椤圭洰鎬荤洃锛坙ead锛? 鐮斿彂瑙嗚 / 浣跨敤鑰呰瑙?/ **UI 瀹℃煡瀹橈紙鎵╁睍宀楋紝r2 璧峰苟琛岃瀵熴€佷笉闃绘柇锛?*
-- 鍛樺伐妗ｆ涓庡伐浣滃饱鍘嗗缓妗?docs/staff/锛堝洓浠斤紝r1 鍘嗗彶杩芥函琛ヨ锛夛紱灞ュ巻璺熷矖浣嶈蛋銆佷笉璺熶細璇濊蛋
-- 宀椾綅鎻愮ず璇嶅叆搴?workflows/锛歞irector / yanfa / waizhuan / ui-reviewer / lead-inspect
-- 鎵╁睍宀楀崌绾ч棬妲涳紙鍏堣瘯涓嶆€ョ潃瑕侊級锛氳繛缁?2 杞姄鍒颁娇鐢ㄨ€呰瑙掓紡鎺夌殑 U1 + 鏃犺鎶?+ 姣忚疆 <10 鍒嗛挓 鈫?r3 璧疯繘鍙?VERDICT 瑁佸喅
-- 鍥炲簲 owner 鍏冲垏銆屾祴璇曚笉瓒炽€嶏細r2 璧锋柇瑷€闈㈡墿鍒?HTTP 璺敱灞傦紙scripts/audit-http.ts锛屽惈 4xx 鍒嗘敮锛夛紝涓旂姝㈣嚜娲藉崰浣嶆柇瑷€锛坮1 P4 鏁欒锛?
+### 2026-11-21 · r39 研发（yanfa-r39b · 续做收尾：用户可见文案清理 + 机制防复发）
+- 接手状态：前任 yanfa-r39 会话中断（12h gap），工作树 18 文件半成品、无提交/报告/截图；基线 `pnpm run test:all` 红 1 条 `summary.tomorrow = 1 (got 2, want 1)`。根因是 audit 首个样本硬编码 `2026-11-22` 恰为当日「明天」，与既有明天样本撞车（r22 同类先例）。按相对日期 `today+2` 改写样本日期与读回值，**条数/期望口径不变**，复跑全绿；报告自曝。
+- 交付：在半成品基础上续做，不推倒重写。用户可见字符串内部术语（截图钉态 / audit / e2e / 4xx / seam / shot= / rNN）清零；注释、`shot ===` 守卫、`shot-note` / `seam-note` 图注 seam 标记原样保留（宪法第一条诚实性）。新增 `scripts/check-user-facing-text.ts` 扫描断言（6265 literals / 24 tsx / 0 命中），`package.json` `check:text` 接入 `test:all`。
+- 变异红相：把 `BoardPage.tsx:312` 错误条改回「· 截图钉态对应 audit 4xx 非法标签」→ 扫描断言 1 红 / exit 1；逐字节还原（SHA `309CA6D4…0107F39F4` 前后同值）后全绿。首次误把断言改成不可达分支（扫描仍绿）已自曝并作废，不计为有效红相。
+- 断言：e2e 3377 → **3412（+35）** · audit 2616 → **2623（+7）**，零删除；新增 r39 文案纯用户断言 + 4xx 错误体零术语断言 + 截图/索引/哈希一致性断言；README 速查行 / 当前轮对照表 / 断言规模行三处同步；`pnpm run test:all` exit 0。
+- 截图：`docs/ui/r39/` 7 张错误态/提示态 + 十九 tab 壳同批重拍；26/26 SHA256 互异、矩阵↔壳重叠 0、全库 356 PNG / 354 互异，26 张逐张 `read_image` 目验；`scripts/r39-shot.mjs` 一次性 headless CDP 捕获（remote 模式捕获期 seam 已在两处索引如实披露，不改产品代码/数据库/用户数据）。
+- 纪律：全程 headless、服务收净、零 token、不动用户数据、未 push/未打 tag/未发版、不改 CI 发布配置。待 waizhuan 复验 + UI 阻断岗双 VERDICT 后由 lead 发版。
+
+### 2026-11-21 · r38 研发（yanfa-r38 · M10 后功能补强：看板卡片元数据，向后兼容）
+- 交付：`packages/shared/src/cardMeta.ts` 唯一口径（MAX_CARD_LABELS/MAX_CARD_LABEL_LENGTH · normalizeCardLabels trim/去重/上限/禁空 · assertValidCardLabel/assertValidCardDueDate · isCompletionColumnName 完成列识别 · isOverdue 本地日期口径且完成列抑制 · collectOverdueCards · filterCardsByLabel · cardMetaSummary 标签数/逾期态/负责人摘要 · asCardWithMeta）；`@xieflow/shared/cardMeta` 子路径登记；`SCHEMA_VERSION` 24→25，`BoardCard` 扩三可空字段，api/web 零算法分支；零新依赖、零 token
+- schema：`MIGRATIONS` 追加 v25——`cards.assignee_member_id`（可空 FK→members ON DELETE SET NULL）+ `cards.due_date`（可空 TEXT）+ `card_labels`（card_id FK CASCADE / label / UNIQUE(card_id,label)）+ 三索引；原 cards 六列逐字不动，老卡两列恒 NULL、标签零行，未手改库文件
+- api：卡片 POST/PATCH 扩 labels/assigneeMemberId/dueDate（负责人经 shared/org assertAssignableMember 校验存在+在职；日期/标签经 shared/cardMeta 守卫），响应回带 assigneeMember 摘要；`GET /api/boards/:id/overdue`（逾期卡列表 + count）、`GET /api/boards/:id/cards?label=`（标签筛选，label 缺省返回全部）；4xx：非法/超长/超量标签、停用/不存在成员、非法日期、越权 id 404、非数字 id 400
+- web：`BoardPage.tsx` 卡片正面加标签 chip / 负责人 / 截止日 / 逾期红标（走 shared isOverdue 唯一口径），新建/编辑面板加标签输入（chip 预览）/ 负责人（复用 r24 MemberPicker）/ 截止日 date，筛选栏加标签下拉；十九 tab 数不变，顶栏徽章推进 r38，`styles.css` 新增 `.board-label-*` / `.board-card-*` 规则；`?shot=board-meta-*` 七态钉态
+- 断言：e2e 3277 → **3377（+100）** · audit 2536 → **2616（+80）**，无一条删除；typecheck 5 包；`pnpm run test:all` exit 0；CI smoke 正则升 v25；README 速查行/当前轮对照表/断言规模行三处同步
+- **变异红相 1 组**：`shared/cardMeta.ts` `isOverdue` 完成列抑制分支改坏（去掉 isCompletionColumnName 判断）→ e2e / audit 红，逐字节还原后全绿（详见报告）
+- 「用户第一次用」全链路：`scripts/r38-firstuse-cdp.mjs`（headless CDP 真点：建项目 → 建卡 → 加标签/负责人/截止日 → 逾期红标 → 标签筛选 → reload 不丢 → HTTP truth 回查 → 探针清理）
+- 截图：`docs/ui/r38/` 7 张（空态/标签/负责人/截止日/逾期红标/窄屏/错误）+ 十九 tab 壳同批重拍；7/7、19/19 SHA256 互异、矩阵↔壳重叠 0，逐张 `read_image` 目验；索引 / shell README R38 当前哈希块 / 精简版根 README 同一提交
+- 危险区：未 push / 未打 tag / 未发版 / 未改 CI 发布配置；只走 user_version 迁移、未手改库文件；只删本轮探针与 scratch 库，仓库 `data/xieflow.db` 未作 DB_PATH；全程 headless、服务收净、PowerShell 新段全 ASCII、零 token
+- 报告：`docs/feedback/2026-11-21-r38-yanfa.md`（三态纪律 + 自曝 + 变异红相 + 向后兼容证据）
+
+### 2026-11-20 · r37 研发（yanfa-r37 · M10 后功能补强：表格分组视图与汇总行）
+- 交付：`packages/shared/src/tableGroups.ts` 唯一口径（GROUP_AGGREGATORS 三枚举 / isGroupAggregator / assertValidGroupAggregator / GroupSpec / NULL_GROUP_KEY / groupRecords 分桶含 null 独立组与确定性组序 / aggregateGroup count|sum|avg 跳过非数值且无有效数值返回 null / countNumericValues / buildGroupView 分组+组内排序+汇总行 / normalizeGroupSpec 字段·聚合·取值字段守卫 / describeGroupSpec）；`@xieflow/shared/tableGroups` 子路径登记；`SCHEMA_VERSION` 23→24，`normalizeViewSpec` / `TableView` 扩 groupSpec，api/web 零算法分支；零新依赖、零 token、聚合只读不落库
+- schema：`MIGRATIONS` 追加 v24（`ALTER TABLE views ADD COLUMN group_spec TEXT` 可空列，老视图恒 NULL=未分组），mapRowToTableView 读回、createView/updateView 持久化与清空，未手改库文件
+- api：视图 CRUD 扩 groupSpec；`GET /api/views/:id/grouped`（视图持久化口径 + 查询串 fieldId/aggregator/aggregateFieldId 覆盖；先按视图筛选全量再分组，组内排序复用 view.sortSpec），4xx：非法字段/聚合/取值字段（文本列不可求和）/未配置分组 view/越权 view id/非数字 id
+- web：表格页视图栏加分组下拉（字段+聚合方式+数值取值字段）、分组折叠头 + 每组只读汇总行 + 错误红条；十九 tab 数不变，顶栏徽章推进 r37，`styles.css` 新增 `.bases-group-*` 规则；`?shot=bases-group-*` 七态钉态
+- 断言：e2e 3167 → **3277（+110）** · audit 2471 → **2536（+65）**，无一条删除；typecheck 5 包；`pnpm run test:all` exit 0；CI smoke 正则升 v24；README 速查行/当前轮对照表/断言规模行三处同步
+- **变异红相 1 组**：`aggregateGroup` 的 `sum += n` → `sum += n + 1`（聚合算法改坏）→ e2e 11 红（手算 sum 30→32 / avg 15→16 / 空值组 5→6 等）+ audit 8 红（HTTP 回传汇总值全错）；逐字节还原（SHA `CAC8FFE60C8D118E4CB39B9A1D229456D3DBDC67D83F8277393CB15576F6DA27` 前后同值、`MUTATION-PROBE r37` 零残留）双套件全绿
+- 「用户第一次用」全链路：`scripts/r37-firstuse-cdp.mjs`（headless CDP 真点 11 步全绿）造表录 10/20/30/空值 4 行 → 选视图 → 真点分组下拉设口径 → 看汇总 30 → 折叠组（4→2 行可见）→ reload 不丢 → HTTP truth 回查 groupSpec 与 sum=30 → 探针清理、服务收净
+- 截图：`docs/ui/r37/` 7 张（空态/下拉/数值分组/均值汇总/折叠后/窄屏/错误）+ 十九 tab 壳同批重拍；7/7、19/19 SHA256 互异，矩阵↔壳重叠 0，全库 342 PNG / 340 互异，26 张逐张 `read_image` 目验；索引 / shell README R37 当前哈希块 / 精简版根 README 同一提交
+- 危险区：未 push / 未打 tag / 未发版 / 未改 CI 发布配置；只走 user_version 迁移、未手改库文件；截图与 CDP 走 scratch 库并在批次末删除，仓库 `data/xieflow.db` 全程未作 DB_PATH；全程 headless、服务收净（8787/8788/5173/8791 终态 listen=0）、PowerShell 新段全 ASCII、零 token
+- 报告：`docs/feedback/2026-11-21-r37-yanfa.md`（三态纪律 + 自曝 + 变异红相 + 全链路证据）
+
+### 2026-11-20 · r36 研发（yanfa-r36 · M10 后功能补强：日报与周报自动生成）
+- 交付：`packages/shared/src/workReports.ts` 唯一口径（`parseWorkReportPeriod` 日/自然周/ISO 周锚点 · `inWorkReportWindow` 闭区间过滤 · `collectReportData` 完成按 updatedAt / 新建进行中按 createdAt||updatedAt / 阻塞取 r34 依赖图 · `buildReportMarkdown` 六段 · `buildReportHtml` 打印版五字符转义 · `reportSummary` 计数 · `assertValidWorkReportSave` 守卫）；`@xieflow/shared/workReports` 子路径登记；api/web 零算法分支；零新依赖、零 token、无 schema 迁移（复用 documents + blocks）
+- api：`GET /api/reports/daily?date=`、`GET /api/reports/weekly?week=`（Markdown + 结构化数据 + 摘要 + 打印 HTML）、`POST /api/reports/save`（新建 201 / 覆盖 200，空内容 400 / 越权文档 id 404 / 非法日期 400）——audit 75 条真 HTTP 全绿
+- web：新增第十九 tab「报告」（`?page=work-reports`）——日报/周报切换 + 日期/周锚点 + 可编辑 Markdown 预览 + 计数摘要 + 存为文档回执 + 打印导出 + 错误红条；十九 tab 壳基线同批重拍
+- 断言：e2e 3069 → **3167（+98）** · audit 2396 → **2471（+75）**，无一条删除；typecheck 5 包；`pnpm run test:all` exit 0
+- **变异红相 1 组**：`inWorkReportWindow` 上界 `day <= period.to` → `day < period.to`（末日被错误排除）→ e2e 18 红 / audit 15 红；逐字节还原（SHA `7080BE3D…B3B14`，`MUTATION-PROBE r36` 零残留）双套件全绿
+- 「用户第一次用」全链路：`scripts/r36-firstuse-cdp.mjs`（headless CDP 真点，16 步全绿）造 4 待办/2 日程 → 看日报 → 切周报 → 编辑 Markdown → 存为文档 → 文档页打开 → reload 不丢 → HTTP truth 回查 → 探针清理、服务收净
+- 截图：`docs/ui/r36/` 7 张 + `docs/ui/shell/` 十九 tab 同批重拍；7/7、19/19 SHA256 互异，矩阵↔壳重叠 0，全库 335 PNG / 333 互异，逐张 `read_image` 目验；首轮 remote 登录页废片与次轮主按钮白字白底废片均全批重拍未入库；索引 / shell README R36 块 / 精简版根 README 同一提交
+- 危险区：未 push / 未打 tag / 未发版 / 未改 CI 发布配置；无 schema 迁移、未手改库文件；截图与 CDP 走 scratch 库并在批次末删除，仓库 `data/xieflow.db` 未作 DB_PATH；全程 headless、服务收净、PowerShell 新段全 ASCII、零 token
+- 报告：`docs/feedback/2026-11-20-r36-yanfa.md`（三态纪律 + 自曝 + 变异红相 + 全链路证据）
+
+### 2026-11-20 · r33 研发（yanfa-r33 · M10 后第十一轮功能补强：全局搜索 / 跨八源只读统一检索）
+- 交付：`packages/shared/src/globalSearch.ts` 唯一检索口径（`normalizeQuery` trim/小写/分词 · `scoreMatch` 标题权重 3 > 正文 1、前缀 10 > 包含 5 · `assembleSearchResults` 跨源聚合/分数降序/每源上限/type:id 去重/deepLink 装配 · `parseSearchTypes` / `parseSearchLimit` / `assertValidSearchQuery` 守卫 · `splitSearchHighlight` 高亮切分 · 八源 tab/id 参数映射），根 index.ts 重导出、子路径 `./globalSearch` 开放；**零新依赖、零 token、零外部搜索服务、无 schema 迁移**
+- api：`GET /api/search?q=&limit=&types=` 一次检索 8 类源（todos / schedules / projects / cards / documents / knowledge_docs / members / meetings，全 `list*` 只读），每条 `{type,id,title,snippet,score,tab,deepLink}`；4xx：空 q / 超长 q / 非法 types / 越权源（users）/ 非法 limit
+- web：顶栏全局搜索框（Ctrl/Cmd+K 聚焦 + 下拉结果面板：类型分组图标 / 黄底高亮 / 分数 / ArrowUp·ArrowDown 选中 / Enter 或点结果 deep-link 跳转）+ 会议页 `meetingId` 深链定位条 + 待办/卡片/成员定位高亮；**18 tab 数量不变**，顶栏变化 → 十八 tab 壳基线同批重拍
+- 断言：e2e 2766 → **2849（+83）** · audit 2185 → **2262（+77）**，无一条删改（既有仅做徽章 r32→r33、当前哈希块 R32→R33、速查行期望值/标签更新）；typecheck 5 包；`pnpm run test:all` exit 0
+- **变异红相 1 组**：`assembleSearchResults` 终排序 `b.score - a.score` → `a.score - b.score`（升序改坏）→ e2e 2 红（分数降序 / 正文命中末位）/ audit 4 红（正文命中最前 + 三处相邻分数逆序）；逐字节还原（SHA `9A8D8086…469BF9` 前后同值、`MUTATION-PROBE r33` 零残留）后双套件全绿
+- 「用户第一次用」全链路（headless CDP 真点，`scripts/r33-firstuse-cdp.mjs`，4 模块同关键词起步）：HTTP 造待办/文档/知识库（正文命中）/会议室+会议 → Ctrl+K 聚焦 → 输入真检索四组 → ArrowDown 选中 → 点会议结果跳 meetings tab 且 `#meetingId` 高亮命中条 → reload 保留 page+meetingId 且仍定位 → HTTP 回查 search/deep-link → 探针归零、端口收净
+- 只读证据：api collector 全 `list*`、源码零写入调用 seam；audit 八源探针前后四张业务表计数逐字节相等 + 重复检索结果逐字节一致；截图与 CDP 全走 scratch 库，`data/xieflow.db` 未作 DB_PATH
+- 截图：`docs/ui/r33/` 7 张（空态/输入中/单类型/多类型/键盘选中/窄屏/真 4xx）+ 十八 tab 壳同批重拍；7/7、18/18 SHA256 互异，矩阵↔壳重叠 0，全库 313 PNG / 311 互异（同态组仅 r4 已披露 2 组），逐张 `read_image` 目验；首轮 01 预填/02 与 04 同态/06 窄屏裁切三处全批重拍，废片未入库
+- 危险区：未 push / 未打 tag / 未发版 / 未改 CI 发布配置；零业务表写入、零用户数据删除、零新依赖、零 token；全程 headless、服务收净、PowerShell 新段全 ASCII
+- 报告：`docs/feedback/2026-11-21-r33-yanfa.md`（三态纪律 + 自曝 + 变异红相 + 只读证据）
+
+### 2026-11-20 · r32 研发（yanfa-r32 · M10 后第十轮功能补强：文档打印导出增强）
+- 交付：`packages/shared/src/docExport.ts` 唯一导出引擎（`sanitizeExportHtml` 五字符转义+换行 `<br>` / `blocksToPrintHtml` 语义化 HTML+内嵌 `@media print`/`@page`/`counter(page)` 页码页眉 / `blocksToWordHtml` UTF-8 BOM + Word 命名空间 + `WordSection1` + `mso-field-code` + base64(UTF-8) 自证 / `assertExportableBlocks` 空文档与非法块守卫 / `buildExportFileName` / `buildPrintPreview`），根 `index.ts` 重导出，api/web 零算法分支；**零新依赖、六个 package.json 不动、零外链、零 token、无 schema 迁移**
+- api：`GET /api/documents/:id/export.html`（inline text/html，可打印/另存 PDF）、`GET /api/documents/:id/export.doc`（attachment application/msword，UTF-8 BOM）、`GET /api/documents/:id/print-preview`（JSON + 完整 HTML）；4xx：越权 id 404 / 非法 id 400 / 空文档 422 / 非法块写入 400
+- web：文档页导出菜单加「打印 / 另存为 PDF」「下载 Word(.doc)」「打开 HTML 打印版」；打印走隐藏 iframe `src=/export.html` + `window.print()`，headless（钉态或 `navigator.webdriver`）只写 `__xieflowPrintSpy` 不弹系统对话框（r8 教训）；Word 按原字节下载并留 BOM 佐证；**18 tab 数量不变**，文档页渲染变化 → 十八 tab 壳基线同批重拍
+- 断言：e2e 2685 → **2766（+81）** · audit 2138 → **2185（+47）**，无一条删改（既有只做徽章 r31→r32、当前哈希块 R31→R32、速查行 2685/2138→2766/2185 期望值/标签更新）；typecheck 5 包；`pnpm run test:all` exit 0；CI smoke 正则保持 `(2|…|22)`；README 速查行/双节/r32 矩阵索引/壳 R32 哈希块逐字同步
+- 「用户第一次用」全链路（headless CDP 真点，`scripts/r32-firstuse-cdp.mjs`，0 文档起步）：建文档 → 导入十种块 → 导出菜单 → 打印 spy 1 次且不弹窗 → Word BOM 佐证 → reload 11 块全在 → HTTP 回查 HTML/Word 200 → 探针软删、服务收净
+- 截图：`docs/ui/r32/` 6 张（导出菜单/打印预览/HTML 落盘/Word 落盘/窄屏/真 4xx 错误）+ 两份真导出文件（`document-export.html` / `document-export.doc`）+ 十八 tab 壳同批重拍；6/6、18/18 SHA256 互异，矩阵↔壳重叠 0，全库 306 PNG / 304 互异（r4 已披露 2 组同态除外），逐张 `read_image` 目验
+- 危险区：未 push / 未打 tag / 未发版 / 未改 CI 发布配置；无 schema 迁移、未手改库文件；截图与 CDP 只走 `scripts/.tmp-r32shot/shot.db`，audit 走 `scripts/.tmp-audit` 并清理；全程 headless、服务收净、PowerShell 新段全 ASCII、零 token
+- 报告：`docs/feedback/2026-11-21-r32-yanfa.md`（三态纪律 + 自曝 + 变异红相 + 零依赖证据）
+
+### 2026-11-20 · r31 研发（yanfa-r31 · M10 后第九轮轻量清理：字段类型文案回归 + 公式浮点展示）
+- 交付：清 r30 两岗记账的低成本真问题，不新增功能、无 schema 迁移（复用 v22）、零依赖、零 token——① `BasesPage.tsx` 零表空态「7 种字段类型齐备」→「8 种字段类型齐备（含公式）」并同步 `docs/ui/shell/README.md` bases 行；② `packages/shared/formula.ts` 新增唯一展示格式化纯函数 `formatFormulaDisplay`（null/undefined→「—」，整数/非有限数原样，非整数按 12 位有效数字收敛尾数，文本/布尔逐字保留），web 公式单元格 `CellView` 与实时预览面板统一调用；**API 求值语义零改动**，`84.80000000000001` 仍为 HTTP 原始值，仅展示为 `84.8`
+- 断言：e2e 2664 → **2685（+21：纯函数 10 · 求值/展示分离 2 · 文案/接线/截图 seam 9）** · audit 2122 → **2138（+16：链式公式真 HTTP 装配 · GET/预览原始浮点逐字保持 · 展示收敛 · 公式列不落库 · 探针归零）**，无一条删改（既有只做六处徽章 r30→r31、七处实际文件哈希引用块 R30→R31、五处速查行 2664/2122→2685/2138 期望值更新）；typecheck 5 包；`pnpm run test:all` exit 0；CI smoke 正则保持 v22；README 速查行/双节/r31 矩阵四行/壳 R31 哈希块逐字同步
+- **变异红相 1 组**：`formatFormulaDisplay` 去掉 `toPrecision(12)` 展示收敛 → e2e 4 红（三条浮点尾数 + 求值/展示分离）/ audit 2 红（GET 与预览真 HTTP 展示断言）；逐字节还原 SHA `99807E6D…C99A4`（改前改后同值、`MUTATION-PROBE r31` 零残留）双套件全绿
+- 截图：`docs/ui/r31/` 3 张（空态八类文案 / 试算预览 84.8 / 纯网格含税列 84.8）+ 十八 tab 壳基线同批重拍；3/3、18/18 SHA256 互异，矩阵↔壳重叠 0，r30→r31 十八壳逐名全异，全库 300 PNG / 298 互异（同态组仅 r4 已披露 2 组），逐张 `read_image` 目验；首拍两态发现弹窗遮挡网格列 → 补第三张纯网格态后全批重拍，废片未入库
+- 危险区：未 push / 未打 tag / 未发版 / 未改 CI release 配置；无 schema 迁移、未手改库文件；截图走 scratch 库（`data/xieflow.db` 只读），audit 走 `.tmp-audit` 临时库并清理；全程 headless、服务收净、PowerShell 新段全 ASCII、零 token
+- 报告：`docs/feedback/2026-11-21-r31-yanfa.md`（三态纪律 + 自曝节 + 变异红相）
+
+### 2026-11-20 · r30 研发（yanfa-r30 · M10 后功能补强：多维表格公式字段，纯本地表达式求值）
+- 交付：schema v21→v22（无新表；重建 fields 表把 type CHECK 白名单 7→8 种，逐列原样拷贝既有字段；options JSON 双形态——旧/非公式字段仍为数组，公式字段为 `{expression}` 对象）；`packages/shared/formula.ts` 纯 TS tokenizer + parser + evaluator（字段引用 `{名}` / 字面量 / + - \* / / 比较 / IF / ROUND；parseFormula / evaluateFormula / compileFormula 结构化错误 / detectFormulaCycles / recomputeFormulas 拓扑序 + 传递污染），**零 eval / 零 Function 构造器 / 零依赖**，api/web 零算法分支
+- api：公式字段新建/编辑校验（非法表达式·未知字段·缺表达式·循环引用 → 400，越权表/字段 id → 404）；GET 表/视图/单条记录回带 `computed`（读时计算，库内公式列恒 null 不落库）+ `cycles`；`POST /api/tables/:id/formulas/preview` 实时试算与编辑预览（draft 表达式不落库）
+- web：字段类型加「公式」（8 种下拉）；表达式输入框 + 实时预览面板 + 错误红条；网格公式列只读绿值 / 错误红标 `⚠`；**18 tab 数量不变**，表格页渲染层变化 → 十八 tab 壳基线同批重拍
+- 断言：e2e 2542 → **2664（+122）** · audit 2004→2060→**2122（+62）**，无一条删改；typecheck 5 包；`pnpm run test:all` exit 0；CI smoke 正则升 v22；README 速查行/双节/r30 矩阵八行/壳 R30 哈希块逐字同步
+- **变异红相 1 组**：`packages/shared/src/formula.ts` 乘法 `a * b` → `a + b`（求值算法改坏）→ e2e 8 红（12×3、12.5×4、优先级、链式、批量重算、数据层装配等）/ audit 5 红（50 / 21 / 80 / 84.8 真 HTTP 值全错）；逐字节还原 SHA `ABF118AE…FA85EB`（改前改后同值、`MUTATION-PROBE r30` 零残留）双套件全绿
+- 「用户第一次用」全链路（真 HTTP）：建表 → 加单价 number / 数量 number → 加小计 formula `{单价}*{数量}` → 录 12.5×4 与 3×7 → GET 回带 50 / 21 且 data 内公式列 null → 改单价为 20 后读时重算 80 → 链式公式预览 84.8 → 甲↔乙循环改写 400 零半态 → 除零 error 红标 → 整表探针删除归零
+- 截图：`docs/ui/r30/` 7 张 + 十八 tab 壳基线同批重拍；7/7、18/18 SHA256 互异，矩阵↔壳重叠 0，全库 297 PNG / 295 互异（同态组仅 r4 已披露 2 组），逐张 `read_image` 目验；首轮登录页废片与二轮 05 面板态废片均全批重拍未入库
+- 危险区：未 push / 未打 tag / 未发版 / 未改 CI release 配置；只走 user_version 迁移、未手改库文件；截图与探针只走 scratch 库（`data/xieflow.db` 只读，原库处于 remote 登录态故未使用）；全程 headless、服务收净、PowerShell 新段全 ASCII、零 token
+- 报告：`docs/feedback/2026-11-21-r30-yanfa.md`（三态纪律 + 自曝节 + 变异红相 + 零 eval 证据）
+
+### 2026-11-20 · r29 研发（yanfa-r29 · M10 后功能补强：文档版本历史与回收站）
+- 交付：schema v20→v21（document_versions 七列 + UNIQUE(document_id,version) + 外键级联 + 索引；documents.deleted_at 可空列）；`packages/shared/docHistory.ts` 三函数（nextDocVersion / buildVersionNote LCS 增删行摘要 / canRestoreVersion 防恢复已软删）+ 恢复守卫，api/web 零算法分支；无新依赖、零 token、不接实时协同（CRDT 超范围）
+- api：版本列表 / 手动快照 / 恢复生成新版本（不覆盖）/ 文档软删 / 回收站列表 / 回收站还原 / 永久删除（confirm=PERMANENTLY_DELETE 二次确认，只作用于回收站探针）；4xx：版本不存在 404 / 越权文档 404 / 跨文档版本 404 / 非法版本 400 / 恢复已软删文档 400 / 缺确认 400
+- web：文档页内加「版本历史」侧栏（列表 + 变更摘要 + 预览 + 恢复）+ 工具栏「回收站」入口（还原 / 永久删除二次确认）；**18 tab 数量不变**，文档页变更 → 十八 tab 壳基线同批重拍
+- 断言：e2e 2460 → **2542（+82）** · audit 2004 → **2060（+56）**，无一条删改（既有只做期望值/标签推进）；typecheck 5 包；`pnpm run test:all` exit 0；CI smoke 正则升 v21；README 速查行/双节/r29 矩阵索引/壳 R29 哈希块逐字同步
+- **变异红相 1 组**：shared `nextDocVersion` 的 `return n + 1` → `return n`（恢复将覆盖）→ e2e 4 红 + 数据层 CHECK 中断 / audit 11 红；逐字节还原（SHA `0782FBBC…92645D`）双套件全绿
+- 「用户第一次用」全链路：真 HTTP v1→v2→v3 → 恢复 v1 生成 v4（全文逐字等于 v1，v1~v3 未覆盖）→ 软删 → 回收站 → 还原 → reload 不丢 → 再软删 → 二次确认永久删除探针归零；全程 headless、服务收净
+- 截图：`docs/ui/r29/` 7 张 + 十八 tab 壳基线同批重拍；7/7、18/18 SHA256 互异，矩阵↔壳重叠 0，全库 290 PNG / 288 互异（同态组仅 r4 已披露 2 组），逐张 `read_image` 目验；首轮 03/04 同哈希废片全批重拍未入库
+- 危险区：未 push / 未打 tag / 未发版 / 未改 CI release 配置；只走 user_version 迁移、未手改库文件；只用 scratch 库与真 HTTP 探针并清理（永久删除只删本轮探针）；仓库 `data/xieflow.db` 只读；PowerShell 新段全 ASCII、零 token
+- 报告：`docs/feedback/2026-11-21-r29-yanfa.md`（三态纪律 + 自曝节 + 变异红相 + 全链路证据）
+
+### 2026-11-15 · r1 立项
+- 仓库落地：monorepo 四包 / 迁移框架 v1→v2 / 状态机集中 / 健康探针 / 截图矩阵 5 张 / CI 定义
+- 断言规模 0 → 42；typecheck 4 包全绿
+- 关键坑（记录在 yanfa 报告）：pnpm 11 allowBuilds / CJS-ESM 导入 / PS 5.1 编码 / Windows DPR 截图
+- 决策记录：窄屏测试用 ?narrow=1 显式钉态，不赌视口宽度；HTTP 冒烟优雅降级不失败
+
+### 2026-11-15 · r1 复验与收尾
+- waizhuan 实跑复验：test:all 两轮 exit 0（离线 41 / 在线 42 全绿）、health 探针真读库、双端口收净、截图逐张目验——**VERDICT: 通过**（报告 docs/feedback/2026-11-15-r1-verify.md）
+- 复验问题处置：P1 shot.ps1 api 分离启动补 `< NUL` stdin 重定向，实测 15s 存活 ✅；P3 CI 分支 main→master ✅；P4 两条自洽占位断言 → 已列入 r2 改进项；P5 plan.md 随本提交纳入
+- 发版：v0.0.1（本地 commit + tag）。**P2 挂账**：无 git remote，push 与 Release 资产核对待 owner 配置远端后补做（宪法第二条第 4 步届时执行）
+
+### 2026-11-15 · P2 清账 + 远端事故记录（lead）
+- 配置 remote `origin = github.com/sun13-AI/xieflow`（私有仓库，API 创建；凭据走 Windows 凭据管理器中 gh CLI 的 token，经 `scripts/credential-github.ps1` 喂给 git，token 不落盘）
+- **事故**：github.com 直连间歇阻断期间改用 Git Data API 推送，一次失误（tree 缺 base_tree）导致远端两个提交丢失全部内容文件 → CI 以 lockfile not found 报错暴露 → 网络恢复后 `git push --force` 用完整本地历史覆盖
+- **教训入库**：API 推送只用于只读操作；写操作必须走 git；网络问题给 git 配 `-c http.proxy=http://127.0.0.1:7897`（系统代理）
+- **CI 实跑暴露并修复**：release job 缺 pnpm（127）→ 补 `pnpm/action-setup`；宪法「不挪旧 tag」执行：v0.0.1 的 release 已坏不动，**v0.0.2 补发**
+- 终态：master CI ✅ / **v0.0.2 tag CI ✅ + Release 资产核对 ✅（xieflow-v0.0.2.tar.gz 已上架）**；本地 git 永久配置代理
+- 环境备忘：系统代理 127.0.0.1:7897；github.com 直连不稳定时 git 必须显式走代理
+
+### 2026-11-15 · 编制扩充（IKanBot 基准模式 + 履历建档）
+- 确立**基准流程 = IKanBot 双 agent 模式**（研发 → 使用者实跑复验 → VERDICT → 打回返工 → 每轮发小版本），先跑通再谈扩展
+- 四岗位设立（编制表 workflows/org.md）：项目总监（lead）/ 研发视角 / 使用者视角 / **UI 审查官（扩展岗，r2 起并行观察、不阻断）**
+- 员工档案与工作履历建档 docs/staff/（四份，r1 历史追溯补记）；履历跟岗位走、不跟会话走
+- 岗位提示词入库 workflows/：director / yanfa / waizhuan / ui-reviewer / lead-inspect
+- 扩展岗升级门槛（先试不急着要）：连续 2 轮抓到使用者视角漏掉的 U1 + 无误报 + 每轮 <10 分钟 → r3 起进双 VERDICT 裁决
+- 回应 owner 关切「测试不足」：r2 起断言面扩到 HTTP 路由层（scripts/audit-http.ts，含 4xx 分支），且禁止自洽占位断言（r1 P4 教训）
