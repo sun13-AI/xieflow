@@ -212,6 +212,8 @@ import {
   type Meeting,
   type MeetingAttendee,
 } from "@xieflow/shared/meetings";
+// r43：设备白名单守卫/归一唯一口径在 shared/roomRecommend（本层只落库 JSON）
+import { assertValidEquipment, normalizeEquipment } from "@xieflow/shared/roomRecommend";
 import {
   nextDocVersion,
   buildVersionNote,
@@ -3357,23 +3359,26 @@ export class XieFlowDb {
 
   listRooms(activeOnly = false): Room[] {
     const where = activeOnly ? " WHERE active = 1" : "";
-    return this.db.all(`SELECT id, name, location, capacity, active, created_at, updated_at FROM rooms${where} ORDER BY id`).map(mapRowToRoom);
+    return this.db.all(`SELECT id, name, location, capacity, active, equipment, created_at, updated_at FROM rooms${where} ORDER BY id`).map(mapRowToRoom);
   }
 
   getRoom(id: number): Room | null {
     const row = this.db.get(
-      "SELECT id, name, location, capacity, active, created_at, updated_at FROM rooms WHERE id = ?",
+      "SELECT id, name, location, capacity, active, equipment, created_at, updated_at FROM rooms WHERE id = ?",
       [id],
     );
     return row ? mapRowToRoom(row) : null;
   }
 
   createRoom(input: unknown): Room {
-    const room = normalizeRoomDraft(input as Record<string, unknown>);
+    const body = (input ?? {}) as Record<string, unknown>;
+    const room = normalizeRoomDraft(body);
+    assertValidEquipment(body.equipment);
+    const equipment = normalizeEquipment(body.equipment);
     const now = new Date().toISOString();
     const res = this.db.run(
-      `INSERT INTO rooms (name, location, capacity, active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
-      [room.name, room.location, room.capacity, room.active ? 1 : 0, now, now],
+      `INSERT INTO rooms (name, location, capacity, active, equipment, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [room.name, room.location, room.capacity, room.active ? 1 : 0, JSON.stringify(equipment), now, now],
     );
     const created = this.getRoom(Number(res.lastInsertRowid));
     if (!created) throw new Error("会议室写入后读回失败");
@@ -3390,9 +3395,11 @@ export class XieFlowDb {
       capacity: body.capacity !== undefined ? body.capacity : existing.capacity,
       active: body.active !== undefined ? body.active : existing.active,
     });
+    assertValidEquipment(body.equipment !== undefined ? body.equipment : existing.equipment);
+    const equipment = normalizeEquipment(body.equipment !== undefined ? body.equipment : existing.equipment);
     this.db.run(
-      "UPDATE rooms SET name = ?, location = ?, capacity = ?, active = ?, updated_at = ? WHERE id = ?",
-      [room.name, room.location, room.capacity, room.active ? 1 : 0, new Date().toISOString(), id],
+      "UPDATE rooms SET name = ?, location = ?, capacity = ?, active = ?, equipment = ?, updated_at = ? WHERE id = ?",
+      [room.name, room.location, room.capacity, room.active ? 1 : 0, JSON.stringify(equipment), new Date().toISOString(), id],
     );
     return this.getRoom(id);
   }

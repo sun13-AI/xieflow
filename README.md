@@ -13,7 +13,7 @@ pnpm install
 powershell -File scripts\start.ps1 start   # api:8787 + web:5173
 powershell -File scripts\start.ps1 stop
 # 开发模式：pnpm dev:api / pnpm dev:web
-pnpm run test:all    # typecheck + 文案扫描 + e2e（3551 断言）+ HTTP 审计（2703 断言）
+pnpm run test:all    # typecheck + 文档契约 + 文案扫描 + e2e（3665 断言）+ HTTP 审计（2802 断言）
 ```
 
 - 打包：`pnpm run pack`（免安装目录 `release/xieflow-portable/`，双击 `start.cmd` 即用）/ `pnpm run dist`（setup zip）；均单端口 8080，数据落目录内 `data/`
@@ -26,20 +26,18 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 
 ## 界面与测试对照
 
-按宪法第一条：**界面更新必须带截图证据（每次，无例外）**，截图与实现同一提交。当前轮 r41 轻量表单收集（创建/填写/汇总；七张矩阵 + 二十 tab 壳基线）：
-
-> **r42 透明声明（按 r21 U2-1 先例）**：本轮无渲染层改动，仅新增 DOC-CONTRACT watchdog 与文档同步 → 沿用 r41 壳图，不重拍；说明见 [r42 索引](docs/ui/r42/README.md)。
+按宪法第一条：**界面更新必须带截图证据（每次，无例外）**，截图与实现同一提交。当前轮 r43 会议室设备与智能推荐（设备徽标 + 帮我推荐面板；七张矩阵 + 二十 tab 壳同批重拍，tab 数不变）：
 
 | 截图 | 形态 | 对应断言 |
 |---|---|---|
-| [01-forms-empty.png](docs/ui/r41/01-forms-empty.png) | 「表单」tab 空态：零表单引导 + 新建入口 + 二十 tab 壳激活态 | e2e「r41 web·空态 seam」「App·二十 tab」；audit「GET 空表单列表 -> 200」 |
-| [02-forms-create.png](docs/ui/r41/02-forms-create.png) | 创建表单：标题/说明 + 默认题 + 创建按钮 | e2e「r41 web·创建表单 seam」；audit「POST 建表单 -> 201」 |
-| [03-forms-questions.png](docs/ui/r41/03-forms-questions.png) | 问题编辑：文本/数字/单选/勾选四类题 + 添加移除 | e2e「r41 类型·四题白名单」；audit「4xx·未知题型 -> 400」 |
-| [04-forms-fill.png](docs/ui/r41/04-forms-fill.png) | 填写视图：按题型渲染控件 + 提交/汇总/返回 | e2e「r41 校验·归一答案」；audit「GET 填写视图 -> 200」 |
-| [05-forms-submitted.png](docs/ui/r41/05-forms-submitted.png) | 提交成功：绿色成功条 + 填写态保留 | e2e「r41 web·提交成功 seam」；audit「提交答卷 -> 201」 |
-| [06-forms-summary.png](docs/ui/r41/06-forms-summary.png) | 汇总统计：文本列举/总和 60 均值 20/分布 2:1/勾选率 67% | e2e「r41 汇总·数值手算」；audit「汇总·HTTP 手算」 |
-| [07-forms-narrow.png](docs/ui/r41/07-forms-narrow.png) | 窄屏 488px：填写表单纵排 + 底部导航「更多 ›」 | e2e「r41 截图·七张 SHA256 互异」；headless CDP 钉态 |
-| [shell/](docs/ui/shell/README.md) | 二十 tab 壳基线（r41 同批重拍，新增 `forms-tab-active.png`） | e2e「r41 壳索引·R41 当前哈希块在场」 |
+| [01-equipment-empty.png](docs/ui/r43/01-equipment-empty.png) | 「会议」tab 存量会议室无设备空态徽标 | e2e「r43 设备·NULL 归一为空」；audit「建室不传设备默认空数组」 |
+| [02-equipment-badges.png](docs/ui/r43/02-equipment-badges.png) | 会议室卡片设备徽标（投影/白板/视频会议/电话会议） | e2e「r43 web·设备徽标 seam」；audit「会议室列表设备字段真回带」 |
+| [03-recommend-panel.png](docs/ui/r43/03-recommend-panel.png) | 预约表单「帮我推荐」面板：人数/设备四项/时段输入 + 按钮 | e2e「r43 web·帮我推荐按钮 seam」；audit「GET /api/rooms/recommend -> 200」 |
+| [04-recommend-results.png](docs/ui/r43/04-recommend-results.png) | 推荐结果：8 人+投影按容量最接近升序（8 座在前、12 座在后），点选回填 | e2e「r43 推荐·容量最接近升序」；audit「手算·按容量最接近升序」 |
+| [05-recommend-conflicts.png](docs/ui/r43/05-recommend-conflicts.png) | 冲突原因：容量不足/设备缺失/时段冲突回带会议 id/停用 | e2e「r43 原因·按序给全」；audit「冲突原因·回带冲突会议 id」 |
+| [06-recommend-narrow.png](docs/ui/r43/06-recommend-narrow.png) | 窄屏 488px：推荐面板纵排 + 底部导航「更多 ›」 | e2e「r43 截图·七张 SHA256 互异」；headless CDP 钉态 |
+| [07-recommend-error.png](docs/ui/r43/07-recommend-error.png) | 错误态：非法人数/设备的 400 红条 | e2e「r43 需求·非法设备被拒」；audit「4xx·非法设备 -> 400」 |
+| [shell/](docs/ui/shell/README.md) | 二十 tab 壳基线（r43 同批重拍，会议页含设备徽标） | e2e「r43 截图·二十 tab 壳同批重拍 20 张」 |
 
 **历史逐轮截图索引（r1~r32 全量、逐张对照断言）见 [README 归档](docs/README-ARCHIVE.md) 与 [docs/ui/](docs/ui/) 各轮 README**；矩阵 SHA256 互异、同态组仅 r4 已披露 2 组。
 
@@ -47,15 +45,15 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 
 ### 断言规模（每轮更新，下降 = 回归 = 冻结发版）
 
-- **当前 r41**：e2e **3551**（服务离线口径；api 在线 +1）· HTTP audit **2703** · check:text 文案扫描 **6596 literals / 25 tsx / 0 命中** · typecheck 5 包全绿；**无一条断言被删**，仅期望值/标签随行为推进。
-- **r42 watchdog 轮**：本轮无渲染层改动，断言规模沿用 r41（e2e **3551** · HTTP audit **2703** · typecheck 5 包）；新增 DOC-CONTRACT 文档契约套件只校验文档一致性，不增删业务断言。
+- **当前 r43**：e2e **3665**（服务离线口径；api 在线 +1）· HTTP audit **2802** · check:text 文案扫描 **0 命中** · typecheck 5 包全绿；**无一条断言被删**（+114 / +99），仅期望值/标签随行为推进。
+- **r43 渲染层**：会议室设备徽标 + 推荐面板 → 七张矩阵 + 二十 tab 壳同批重拍（tab 数不变）；DOC-CONTRACT 文档契约套件随 schema v27 同步。
 - 纪律：断言只涨不缩；禁自洽占位；关键行为做变异红相留痕（改坏实现 → 断言变红 → 逐字节还原全绿）。
-- **逐轮规模变化（r1~r32 的完整记账）见 [README 归档](docs/README-ARCHIVE.md)**；CI smoke 正则随 schema 版本同步至 v26；CI 三平台 verify + tag 触发 Release。
+- **逐轮规模变化（r1~r32 的完整记账）见 [README 归档](docs/README-ARCHIVE.md)**；CI smoke 正则随 schema 版本同步至 v27；CI 三平台 verify + tag 触发 Release。
 
 ## 核心概念（实现唯一入口）
 
 - **仓库即状态 + 双 VERDICT**：进度/证据/报告全落仓库；研发→使用者 VERDICT + UI 阻断岗 UI-VERDICT 双通过才发版；报告三态纪律（已做并验过 / 已做但没验 / 没做）。
-- **状态机/规则全集中**：shared 定义 todo/schedule/board/field/approval/unit-task/auth/offline/deploy/docHistory/formula/globalSearch/todoDeps/tableGroups/cardMeta/forms 等唯一入口，api/web 零算法分支；schema 走 `user_version` 迁移队列（当前 v26）。
+- **状态机/规则全集中**：shared 定义 todo/schedule/board/field/approval/unit-task/auth/offline/deploy/docHistory/formula/globalSearch/todoDeps/tableGroups/cardMeta/forms 等唯一入口，api/web 零算法分支；schema 走 `user_version` 迁移队列（当前 v27）。
 - **AI 工作台**：mock-planner + 12 工具真服务层 + 多轮上下文 + 三类产物 + 27 条录制回放；知识库 TF-IDF 检索 + RAG 引用溯源（无命中不编造）；全程 mock 零 token，接真实模型留接口。
 - **协同办公模块**：块级文档（Markdown 双向 + AI 修订 + 版本历史/回收站 + HTML/Word 导出）、思维导图、白板画布（AI 建板 + 避让）、审批流、物资/单位任务、组织通讯录、通知中心、会议预约（冲突检测）、报表中心、全局搜索（跨 8 源只读）。
 - **网络与单机**：PBKDF2 本地会话 + remote 模式统一鉴权（401 清假登录态）+ 多端同步乐观锁 + 离线队列/PWA + docker-compose 私有化 + portable 单机版。

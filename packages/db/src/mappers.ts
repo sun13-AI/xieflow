@@ -50,6 +50,7 @@ import type {
 import type { Department, Member } from "@xieflow/shared/org";
 import type { Notification, NotificationRefType, NotificationType } from "@xieflow/shared/notifications";
 import type { Meeting, MeetingAttendee, Room } from "@xieflow/shared/meetings";
+import { parseStoredEquipment } from "@xieflow/shared/roomRecommend";
 import type {
   Form,
   FormQuestion,
@@ -651,6 +652,7 @@ export function mapRowToRoom(row: Row): Room {
     name: String(row.name),
     location: String(row.location),
     capacity: Number(row.capacity),
+    equipment: parseStoredEquipment(row.equipment),
     active: Number(row.active) === 1,
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),

@@ -13,11 +13,20 @@ import {
   type Room,
   type Meeting,
 } from "@xieflow/shared/meetings";
+import {
+  ROOM_EQUIPMENT_WHITELIST,
+  normalizeEquipment,
+  parseRecommendNeed,
+  buildRoomRecommendation,
+  type RoomRecommendation,
+} from "@xieflow/shared/roomRecommend";
 import type { Member } from "@xieflow/shared/org";
 import { SERVICE_DOWN_MESSAGE, fetchJsonOrThrow, apiFetch } from "./httpClient";
 
 const PINNED = new Set([
   "meetings-empty", "meetings-list", "meetings-grid", "meetings-form", "meetings-conflict", "meetings-error",
+  "meetings-equipment-empty", "meetings-equipment-badges", "meetings-recommend-panel",
+  "meetings-recommend-results", "meetings-recommend-conflicts", "meetings-recommend-error",
 ]);
 const GRID_START = 8 * 60;
 const GRID_END = 20 * 60;
@@ -48,6 +57,23 @@ const SHOT_MEMBERS: Member[] = [
   { id: 3, name: "王五（停用）", departmentId: null, role: "member", email: "w@example.com", phone: "", title: "产品", status: "inactive", userId: null },
 ];
 
+// r43：设备台账 + 推荐矩阵钉态样本（UI 只消费 shared/roomRecommend 结果，零算法分支）
+const R43_SHOTS = new Set([
+  "meetings-equipment-empty", "meetings-equipment-badges", "meetings-recommend-panel",
+  "meetings-recommend-results", "meetings-recommend-conflicts", "meetings-recommend-error",
+]);
+const SHOT_ROOMS_EQUIP: Room[] = [
+  { id: 1, name: "第一会议室", location: "3F 东侧", capacity: 12, active: true, equipment: ["投影", "视频会议"], createdAt: "t", updatedAt: "t" },
+  { id: 2, name: "第二会议室", location: "3F 西侧", capacity: 8, active: true, equipment: ["投影", "白板"], createdAt: "t", updatedAt: "t" },
+  { id: 3, name: "第三会议室", location: "2F 北侧", capacity: 6, active: true, equipment: ["电话会议"], createdAt: "t", updatedAt: "t" },
+  { id: 4, name: "小会议室（停用）", location: "2F", capacity: 4, active: false, equipment: ["白板"], createdAt: "t", updatedAt: "t" },
+];
+const SHOT_ROOMS_NO_EQUIP: Room[] = SHOT_ROOMS_EQUIP.map((r) => ({ ...r, equipment: [] }));
+const SHOT_MEETINGS_R43: Meeting[] = [
+  { id: 21, roomId: 2, title: "已占用评审", date: "2026-11-20", start: "14:00", end: "15:30", organizer: "张三", createdAt: "t", updatedAt: "t" },
+];
+const R43_DATE = "2026-11-20";
+
 function readQuery(): { shot: string; date: string; roomId: string; meetingId: string } {
   const p = new URLSearchParams(window.location.search);
   return { shot: p.get("shot") ?? "", date: p.get("date") ?? "", roomId: p.get("roomId") ?? "", meetingId: p.get("meetingId") ?? "" };
@@ -75,12 +101,14 @@ function todayStr(): string {
 
 export default function MeetingsPage(): ReactElement {
   const query = readQuery();
-  const initialDate = query.date !== "" ? query.date : "2026-11-20";
+  const initialDate = query.date !== "" ? query.date : R43_DATE;
+  const shotRooms = query.shot === "meetings-equipment-empty" ? SHOT_ROOMS_NO_EQUIP
+    : R43_SHOTS.has(query.shot) ? SHOT_ROOMS_EQUIP : SHOT_ROOMS;
+  const shotMeetings = R43_SHOTS.has(query.shot) ? SHOT_MEETINGS_R43
+    : (PINNED.has(query.shot) && query.shot !== "meetings-empty" ? SHOT_MEETINGS : []);
   const [date, setDate] = useState(initialDate);
-  const [rooms, setRooms] = useState<readonly Room[]>(PINNED.has(query.shot) ? SHOT_ROOMS : []);
-  const [meetings, setMeetings] = useState<readonly Meeting[]>(
-    PINNED.has(query.shot) && query.shot !== "meetings-empty" ? SHOT_MEETINGS : [],
-  );
+  const [rooms, setRooms] = useState<readonly Room[]>(PINNED.has(query.shot) ? shotRooms : []);
+  const [meetings, setMeetings] = useState<readonly Meeting[]>(shotMeetings);
   const [members, setMembers] = useState<readonly Member[]>(PINNED.has(query.shot) ? SHOT_MEMBERS : []);
   const [roomId, setRoomId] = useState(query.roomId !== "" ? Number(query.roomId) : 1);
   const [form, setForm] = useState<BookingForm>({
@@ -88,11 +116,27 @@ export default function MeetingsPage(): ReactElement {
     date: initialDate, start: "09:00", end: "10:00", organizer: "", attendees: [],
   });
   const [newRoomName, setNewRoomName] = useState("");
+  const [newRoomEquipment, setNewRoomEquipment] = useState<readonly string[]>([]);
   const [conflict, setConflict] = useState<number[]>(query.shot === "meetings-conflict" ? [11, 12] : []);
   const [message, setMessage] = useState("");
   const [error, setError] = useState(query.shot === "meetings-error" ? `${SERVICE_DOWN_MESSAGE}` : "");
   const [phase, setPhase] = useState<"loading" | "ready" | "error">(
-    query.shot === "meetings-error" ? "error" : PINNED.has(query.shot) ? "ready" : "loading",
+    query.shot === "meetings-error" || query.shot === "meetings-recommend-error" ? "error" : PINNED.has(query.shot) ? "ready" : "loading",
+  );
+  // r43：推荐需求 + 结果（结果只由 shared/roomRecommend 产出，本页零算法分支）
+  const [needAttendees, setNeedAttendees] = useState(R43_SHOTS.has(query.shot) ? "8" : "");
+  const [needEquipment, setNeedEquipment] = useState<readonly string[]>(R43_SHOTS.has(query.shot) ? ["投影"] : []);
+  const [recommendResult, setRecommendResult] = useState<RoomRecommendation | null>(() => {
+    if (query.shot !== "meetings-recommend-results" && query.shot !== "meetings-recommend-conflicts") return null;
+    const conflict = query.shot === "meetings-recommend-conflicts";
+    const need = parseRecommendNeed({
+      attendees: 8, equipment: "投影", date: R43_DATE,
+      start: conflict ? "14:30" : "10:00", end: conflict ? "15:00" : "11:00",
+    });
+    return buildRoomRecommendation(SHOT_ROOMS_EQUIP, need, SHOT_MEETINGS_R43);
+  });
+  const [recommendError, setRecommendError] = useState(
+    query.shot === "meetings-recommend-error" ? "参会人数必须是 1..1000 的整数" : "",
   );
 
   async function load(nextDate: string, nextRoom: number): Promise<void> {
@@ -159,17 +203,42 @@ export default function MeetingsPage(): ReactElement {
     void load(next, roomId);
   }
 
+  /** r43：帮我推荐——把人数/设备/时段交给 HTTP 推荐端点，结果由 shared 判定，点选回填 roomId */
+  async function runRecommend(): Promise<void> {
+    setRecommendError("");
+    setRecommendResult(null);
+    try {
+      const queryString = new URLSearchParams({
+        attendees: needAttendees,
+        equipment: needEquipment.join(","),
+        date: form.date !== "" ? form.date : date,
+        start: form.start,
+        end: form.end,
+      });
+      const data = await getJson<RoomRecommendation>(`/api/rooms/recommend?${queryString.toString()}`);
+      setRecommendResult(data);
+    } catch (err) {
+      setRecommendError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  function pickRecommended(id: number): void {
+    chooseRoom(id);
+    setForm((f) => ({ ...f, roomId: String(id) }));
+  }
+
   async function createRoom(): Promise<void> {
     if (newRoomName.trim() === "") { setMessage("请先填写会议室名称"); return; }
     try {
       const res = await apiFetch("/api/rooms", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name: newRoomName.trim(), location: "", capacity: 8, active: true }),
+        body: JSON.stringify({ name: newRoomName.trim(), location: "", capacity: 8, active: true, equipment: newRoomEquipment }),
       });
       const created = await fetchJsonOrThrow(res) as { id?: unknown } | null;
       const createdId = typeof created?.id === "number" && Number.isInteger(created.id) && created.id > 0 ? created.id : 0;
       setNewRoomName("");
+      setNewRoomEquipment([]);
       setMessage("会议室已创建");
       // r28 返工#1：建室成功后自动选中新室，不等用户点左栏（roomId + form + URL 一次对齐）。
       if (createdId > 0) chooseRoom(createdId);
@@ -222,7 +291,13 @@ export default function MeetingsPage(): ReactElement {
     : query.shot === "meetings-form" ? "截图钉态：右侧预约表单与通讯录参会人选择"
       : query.shot === "meetings-conflict" ? "截图钉态：冲突时段被拒，红条回带冲突会议 id"
         : query.shot === "meetings-empty" ? "截图钉态：空会议室台账"
-          : "";
+          : query.shot === "meetings-equipment-empty" ? "截图钉态：存量会议室无设备时显示空态徽标"
+            : query.shot === "meetings-equipment-badges" ? "截图钉态：会议室卡片展示设备徽标"
+              : query.shot === "meetings-recommend-panel" ? "截图钉态：预约表单的帮我推荐面板"
+                : query.shot === "meetings-recommend-results" ? "截图钉态：按人数/设备/时段推荐结果（容量最接近升序）"
+                  : query.shot === "meetings-recommend-conflicts" ? "截图钉态：不可用会议室给出明确冲突原因"
+                    : query.shot === "meetings-recommend-error" ? "截图钉态：非法推荐需求的红条错误态"
+                      : "";
 
   return (
     <div className="meetings-page" data-state="meetings-page">
@@ -246,7 +321,7 @@ export default function MeetingsPage(): ReactElement {
       {phase === "error" && (
         <div className="state-error" role="alert" data-state="meetings-error">
           <h2>连接失败</h2>
-          <p className="error-message">{error}</p>
+          <p className="error-message">{error || recommendError}</p>
           <p className="hint">请确认 api 服务已启动（pnpm dev:api），然后重试。</p>
           <button type="button" onClick={() => { setError(""); void load(date, roomId); }}>重试</button>
         </div>
@@ -267,12 +342,31 @@ export default function MeetingsPage(): ReactElement {
                   >
                     <strong>{r.name}</strong>
                     <small>{r.active ? `${r.location || "未填位置"} · ${r.capacity} 人` : "已停用"}</small>
+                    <span className="meeting-room-equips" data-state="meeting-room-equips">
+                      {normalizeEquipment(r.equipment).length === 0 ? (
+                        <span className="meeting-room-equip-empty" data-state="meeting-room-equip-empty">暂无设备</span>
+                      ) : normalizeEquipment(r.equipment).map((item) => (
+                        <span className="meeting-room-equip" data-state="meeting-room-equip" key={item}>{item}</span>
+                      ))}
+                    </span>
                   </button>
                 </li>
               ))}
             </ul>
             <div className="meeting-new-room" data-state="meeting-new-room">
               <label>新建会议室 <input data-state="meeting-new-room-name" value={newRoomName} placeholder="会议室名称" onChange={(e) => setNewRoomName(e.target.value)} /></label>
+              <div className="meeting-new-room-equips" data-state="meeting-new-room-equips">
+                {ROOM_EQUIPMENT_WHITELIST.map((item) => (
+                  <label key={item} className="meeting-new-room-equip">
+                    <input
+                      type="checkbox" data-action="meeting-new-room-equip" data-equipment={item}
+                      checked={newRoomEquipment.includes(item)}
+                      onChange={(e) => setNewRoomEquipment((prev) => e.target.checked ? [...prev, item] : prev.filter((v) => v !== item))}
+                    />
+                    {item}
+                  </label>
+                ))}
+              </div>
               <button type="button" data-action="meeting-room-create" onClick={() => void createRoom()}>新建</button>
             </div>
           </section>
@@ -328,6 +422,46 @@ export default function MeetingsPage(): ReactElement {
             <label>开始 <input type="time" data-state="meeting-start" value={form.start} onChange={(e) => setForm((f) => ({ ...f, start: e.target.value }))} /></label>
             <label>结束 <input type="time" data-state="meeting-end" value={form.end} onChange={(e) => setForm((f) => ({ ...f, end: e.target.value }))} /></label>
             <label>组织者 <input data-state="meeting-organizer" value={form.organizer} placeholder="姓名" onChange={(e) => setForm((f) => ({ ...f, organizer: e.target.value }))} /></label>
+            <fieldset className="meeting-recommend-need" data-state="meeting-recommend-need">
+              <legend>帮我推荐（人数 / 设备 / 时段）</legend>
+              <label>参会人数 <input type="number" min={1} max={1000} data-state="meeting-need-attendees" value={needAttendees} onChange={(e) => setNeedAttendees(e.target.value)} /></label>
+              <div className="meeting-need-equipments" data-state="meeting-need-equipments">
+                {ROOM_EQUIPMENT_WHITELIST.map((item) => (
+                  <label key={item} className="meeting-need-equip">
+                    <input
+                      type="checkbox" data-action="meeting-need-equip-toggle" data-equipment={item}
+                      checked={needEquipment.includes(item)}
+                      onChange={(e) => setNeedEquipment((prev) => e.target.checked ? [...prev, item] : prev.filter((v) => v !== item))}
+                    />
+                    {item}
+                  </label>
+                ))}
+              </div>
+              <button type="button" className="btn-secondary" data-action="meeting-recommend" onClick={() => void runRecommend()}>帮我推荐</button>
+            </fieldset>
+            {recommendError !== "" && (
+              <p className="meeting-recommend-error" role="alert" data-state="meeting-recommend-error">{recommendError}</p>
+            )}
+            {recommendResult !== null && (
+              <div className="meeting-recommend-result" data-state="meeting-recommend-result">
+                <h3>推荐结果</h3>
+                <p data-state="meeting-recommend-summary">可用 {recommendResult.available.length} 间 · 不可用 {recommendResult.unavailable.length} 间</p>
+                <ul className="meeting-recommend-available" data-state="meeting-recommend-available">
+                  {recommendResult.available.map((hit) => (
+                    <li key={hit.id}>
+                      <button type="button" data-action="meeting-recommend-pick" data-room-id={hit.id} onClick={() => pickRecommended(hit.id)}>
+                        {hit.name} · {hit.capacity} 人 · 余 {hit.seatsOver} 座（点选回填）
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                <ul className="meeting-recommend-unavailable" data-state="meeting-recommend-unavailable">
+                  {recommendResult.unavailable.map((miss) => (
+                    <li key={miss.id} data-state="meeting-recommend-miss">{miss.name}：{miss.reasons.join("；")}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <fieldset className="meeting-attendees" data-state="meeting-attendees">
               <legend>参会人（从通讯录选）</legend>
               {members.map((m) => (

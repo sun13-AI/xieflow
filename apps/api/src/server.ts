@@ -159,6 +159,11 @@ import {
   assertValidMeetingDate,
   meetingAvailability,
 } from "@xieflow/shared/meetings";
+// r43：会议室设备与智能推荐——归一/可用/冲突原因/容量排序唯一口径在 shared/roomRecommend
+import {
+  parseRecommendNeed,
+  buildRoomRecommendation,
+} from "@xieflow/shared/roomRecommend";
 // r33：全局搜索——归一/打分/聚合/每源上限/去重/直达/守卫唯一口径在 shared/globalSearch，路由层零算法分支
 import {
   assertValidSearchQuery,
@@ -4242,6 +4247,28 @@ app.get("/api/rooms", async () => {
 app.post("/api/rooms", async (req, reply) => {
   try {
     return reply.code(201).send(requireDb().createRoom(req.body ?? {}));
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+/**
+ * r43：智能推荐只读路由。人数/设备/时段归一 + 可用判定 + 冲突原因 + 容量排序
+ * 全在 shared/roomRecommend；本层只装配真库快照并把 ValidationError 映射为 400。
+ * 返回 available（可用，按容量最接近升序）+ unavailable（含明确冲突原因）。
+ */
+app.get("/api/rooms/recommend", async (req, reply) => {
+  try {
+    const need = parseRecommendNeed(req.query as Record<string, unknown>);
+    const store = requireDb();
+    const rooms = store.listRooms();
+    const meetings = store.listMeetings({ date: need.date });
+    const result = buildRoomRecommendation(rooms, need, meetings);
+    return {
+      ...result,
+      availableCount: result.available.length,
+      unavailableCount: result.unavailable.length,
+    };
   } catch (err) {
     return toErrorReply(err, reply);
   }

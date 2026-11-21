@@ -610,6 +610,16 @@ export const MIGRATIONS: Migration[] = [
       `CREATE INDEX IF NOT EXISTS idx_form_responses_form ON form_responses (form_id)`,
     ],
   },
+  {
+    version: 27,
+    name: "r43 · rooms.equipment 可空列（会议室设备台账，向后兼容）",
+    // 只加一列可空 JSON 文本（设备白名单数组），老会议室 equipment 恒 NULL = 空设备；
+    // r28 的 rooms 六列与 meetings 两表逐字不动，预约/冲突/availability 零行为改动。
+    ensureColumns: [
+      { table: "rooms", column: "equipment", sql: `ALTER TABLE rooms ADD COLUMN equipment TEXT` },
+    ],
+    up: [],
+  },
 ];
 
 /** 当前 schema 版本（与 shared 的 SCHEMA_VERSION 保持一致，e2e 会断言二者相等） */

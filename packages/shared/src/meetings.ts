@@ -19,6 +19,8 @@ export interface Room {
   readonly name: string;
   readonly location: string;
   readonly capacity: number;
+  /** r43：设备白名单数组（存量 NULL 归一为空）；推荐规则在 shared/roomRecommend */
+  readonly equipment?: readonly string[];
   readonly active: boolean;
   readonly createdAt: string;
   readonly updatedAt: string;

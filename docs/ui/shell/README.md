@@ -59,6 +59,10 @@
 > 如实披露，不称逐位全异。
 > **r42 无渲染层改动（README 版本号 watchdog，仅脚本 + 文档）**：本轮沿用 r41 壳图，不重拍；
 > 按 r21 U2-1 先例在此透明声明（当前界面基线仍是 r41 的二十张，详见 [r42 索引](../r42/README.md)）。
+> **r43 tab 数量仍不变（二十）**：会议室卡片加设备徽标 +预约表单加「帮我推荐」面板，不新增 tab；
+> 徽章沿用 r39 纯用户文案 + schema v27 → **二十张同批重拍**。与 r41 同名字节 changed=6 / same=14
+> （todos / schedules / board / knowledge / meetings / forms 变化，其余沿用），
+> 按 r25 先例如实披露，不称逐位全异。当前块见下方 R43 哈希块。
 
 | 文件 | 形态 | 对应断言 |
 |---|---|---|
@@ -83,6 +87,21 @@
 | meetings-tab-active.png | **会议激活（r28 新增）**（?page=meetings；零会议室 / 零成员空态：「还没有会议室——先在下方新建一间。」/「该日期暂无可用会议室。」/「通讯录暂无成员。」+ 十九药丸壳 + r37 徽章；各轮 shell 零数据最小集惯例，不是三室态） | e2e「r28 十八 tab 与顶栏按钮在场 / 会议页消费 shared 唯一口径」；audit「r28 清理后本轮会议归零」 |
 | forms-tab-active.png | **表单激活（r41 新增）**（?page=forms；零表单空态「还没有表单。点『＋ 新建表单』创建第一张…」+ 二十药丸壳 + 纯用户文案徽章；各轮 shell 零数据最小集惯例，不是有数据态） | e2e「r41 App·二十 tab / 表单 tab 激活态 seam」；audit「r41 GET 空表单列表 -> 200」 |
 
+## r43 哈希自查（二十张互异，与当前文件逐字一致；R43 当前哈希块，以下 R41 及以下为历史块）
+
+<!-- R43_HASHES_BEGIN -->
+`workbench=25DB4F1A` · `todos=EA209828` · `schedules=85F8FA3E` · `projects=04F53EB5` ·
+`board=BACD8D5A` · `bases=39108DB8` · `docs=6E792EE8` · `chat=A49B5562` ·
+`knowledge=B6BCB76E` · `mindmap=8FB50B92` · `whiteboard=57ABC543` · `approval=24722CCA` ·
+`assets=962259ED` · `unit-tasks=6ECDA61A` · `org=514A3356` · `notifications=DE039C98` ·
+`reports=5C730CA6` · `work-reports=84F0302A` · `meetings=93EA3FC5` · `forms=7DE7F01E` —— **20/20 互异**。
+<!-- R43_HASHES_END -->
+
+> r43 渲染层改动（会议室设备徽标 + 推荐面板）→ 二十张同批重拍；徽章沿用 r39 纯用户文案。
+> 捕获用 `scripts/r39-shot.mjs` 一次性 headless CDP（seam 网络钉态：`/api/auth/mode` 钉 local、401 钉空态），
+> **不改产品代码 / 数据库 / 用户数据**；截图走 `XIEFLOW_DB_PATH` scratch 库并删除。
+> 矩阵↔壳重叠 0；r41→r43 壳 changed=8/same=12 如上，如实披露。
+
 ## r41 哈希自查（二十张互异，与当前文件逐字一致；R41 当前哈希块，以下 R40 及以下为历史块）
 
 <!-- R41_HASHES_BEGIN -->
@@ -97,7 +116,7 @@
 > 捕获用 `scripts/r39-shot.mjs` 一次性 headless CDP（与 r39/r40 同款 seam 网络钉态：`/api/auth/mode` 钉 local、
 > 401 钉最小空态 JSON；报表 / 报告用 `?shot=reports-empty` / `?shot=wr-empty`），
 > **不改产品代码 / 数据库 / 用户数据**；截图与 CDP 走 `XIEFLOW_DB_PATH` scratch 库并删除。
-> 矩阵↔壳重叠 0；全库 365 PNG / 363 互异（同态组仅 r4 已披露 2 组）。
+> 矩阵↔壳重叠 0；全库 372 PNG / 370 互异（同态组仅 r4 已披露 2 组）。
 
 ## r40 哈希自查（十九张互异，R40 块原样保留为历史块；当前文件见上方 R41 块）
 

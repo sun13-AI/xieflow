@@ -1,4 +1,8 @@
-// XieFlow r42 - DOC-CONTRACT watchdog (headless, zero deps, exit 0/1).
+// XieFlow r43 - DOC-CONTRACT watchdog (headless, zero deps, exit 0/1).
+// r43: schema v27 + render-layer changes (room equipment badges + recommend panel);
+// the compact root README must name the current round in both the UI and scale
+// sections, carry the seven-shot matrix links, and keep the two vN prose spots in
+// sync with SCHEMA_VERSION / the CI smoke regex. Any mismatch => exit 1.
 // Authoritative sources:
 //   - schema version: packages/shared/src/index.ts  SCHEMA_VERSION constant
 //   - CI smoke regex: .github/workflows/ci.yml      schemaVersion grep -E group
@@ -8,7 +12,7 @@
 //   - two "vN" prose spots (CI smoke regex / schema migration queue)
 //   - quick-ref line e2e/audit numbers
 //   - "界面与测试对照" and "### 断言规模" sections, both naming the current round
-//   - screenshots index + shell index transparent "no render change / reuse r41" declaration
+//   - screenshot matrix index links + shell re-shoot declaration (render-change round)
 // Any mismatch => exit 1. This script is itself guarded by self-probes so its
 // parsers cannot silently become vacuous (r40 check:text ROUND_SELF_PROBES precedent).
 export {};
@@ -156,14 +160,15 @@ if (counts.e2e !== null && counts.audit !== null) {
   check(root.includes(quickRef), `README·速查行数字与 scripts 实测口径一致（${quickRef}）`);
 }
 
-const ROUND = "r42";
+const ROUND = "r43";
 const uiSec = sectionBody(root, "## 界面与测试对照");
 const scaleSec = sectionBody(root, "### 断言规模");
 check(uiSec !== null, "README·「界面与测试对照」节在场");
 check(scaleSec !== null, "README·「### 断言规模」节在场");
 check(
-  uiSec !== null && uiSec.includes(ROUND) && uiSec.includes("无渲染层改动") && uiSec.includes("沿用 r41 壳图"),
-  "README·「界面与测试对照」节声明当前轮 r42 无渲染层改动，沿用 r41 壳图",
+  uiSec !== null && uiSec.includes(ROUND) && uiSec.includes("docs/ui/r43/01-equipment-empty.png") &&
+    uiSec.includes("docs/ui/shell/README.md") && uiSec.includes("同批重拍"),
+  "README·「界面与测试对照」节声明当前轮 r43 七张矩阵 + 二十 tab 壳同批重拍",
 );
 check(
   scaleSec !== null &&
@@ -172,20 +177,20 @@ check(
     counts.audit !== null &&
     scaleSec.includes(`e2e **${counts.e2e}**`) &&
     scaleSec.includes(`HTTP audit **${counts.audit}**`),
-  "README·「### 断言规模」节声明当前轮 r42 且数字与 scripts 口径一致",
+  "README·「### 断言规模」节声明当前轮 r43 且数字与 scripts 口径一致",
 );
 
-// ---------- screenshot / shell index transparency (r21 U2-1 precedent) ----------
+// ---------- screenshot / shell index (r43 render-change round) ----------
 
-const roundIndex = readOrEmpty("docs/ui/r42/README.md");
+const roundIndex = readOrEmpty("docs/ui/r43/README.md");
 check(
-  roundIndex.includes(ROUND) && roundIndex.includes("无渲染层改动") && roundIndex.includes("沿用 r41 壳图"),
-  "r42 索引·透明声明本轮无渲染层改动，沿用 r41 壳图",
+  roundIndex.includes(ROUND) && roundIndex.includes("01-equipment-empty.png") && roundIndex.includes("07-recommend-error.png"),
+  "r43 索引·七态矩阵文件在场",
 );
 const shellIndex = read("docs/ui/shell/README.md");
 check(
-  shellIndex.includes(ROUND) && shellIndex.includes("无渲染层改动") && shellIndex.includes("沿用 r41 壳图"),
-  "shell 索引·透明声明 r42 无渲染层改动，沿用 r41 壳图",
+  shellIndex.includes(ROUND) && shellIndex.includes("同批重拍") && shellIndex.includes("<!-- R43_HASHES_BEGIN -->"),
+  "shell 索引·声明 r43 二十 tab 壳同批重拍且 R43 哈希块在场",
 );
 
 // ---------- verdict ----------

@@ -33,6 +33,7 @@
 #   powershell -File scripts\shot.ps1 shots -Round r36 # capture r36 report tab matrix + 19-tab shell baseline
 #   powershell -File scripts\shot.ps1 shots -Round r39 # capture r39 user-facing text cleanup error states + 19-tab shell baseline
 #   powershell -File scripts\shot.ps1 shots -Round r40 # capture r40 login clean-text state + 19-tab shell baseline
+#   powershell -File scripts\shot.ps1 shots -Round r43 # capture r43 equipment badges + recommend matrix + 20-tab shell baseline
 #   powershell -File scripts\shot.ps1 shots -Round r41 # capture r41 form collection matrix + 20-tab shell baseline
 #   powershell -File scripts\shot.ps1 shots -Round r11 -Shot 08-docs-diff-inline # rework#1: re-capture ONLY the diff-inline evidence (no other matrix/shell re-shot)
 #   powershell -File scripts\shot.ps1 shots -Round r26 -Shot 09-notif-deeplink-target # r26 rework#2: seed 3 pending approvals, CDP-click the SECOND notification, capture ONLY 09 (no other matrix/shell re-shot)
@@ -59,7 +60,7 @@ param(
   [Parameter(Position = 0)]
   [ValidateSet("up", "shots", "down", "status", "all")]
   [string]$Action = "status",
-  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r26", "r27", "r28", "r29", "r30", "r31", "r32", "r33", "r34", "r35", "r36", "r37", "r38", "r39", "r40", "r41")]
+  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r26", "r27", "r28", "r29", "r30", "r31", "r32", "r33", "r34", "r35", "r36", "r37", "r38", "r39", "r40", "r41", "r43")]
   [string]$Round = "r1",
   [Parameter()]
   [string]$Shot = ""
@@ -1019,7 +1020,20 @@ function Invoke-Shots {
     }
   }
 
-  if ($Round -eq "r41") {
+  if ($Round -eq "r43") {
+    # r43: room equipment badges + smart recommendation. Seven deterministic
+    # ?shot= pins over the real MeetingsPage; all rules stay in shared/roomRecommend.
+    $r43Base = "http://127.0.0.1:$WebPort/?page=meetings"
+    $shots = @(
+      @{ name = "01-equipment-empty";     url = "$r43Base&shot=meetings-equipment-empty";    width = 1280; height = 900 },
+      @{ name = "02-equipment-badges";    url = "$r43Base&shot=meetings-equipment-badges";   width = 1280; height = 900 },
+      @{ name = "03-recommend-panel";     url = "$r43Base&shot=meetings-recommend-panel";    width = 1280; height = 900 },
+      @{ name = "04-recommend-results";   url = "$r43Base&shot=meetings-recommend-results";  width = 1280; height = 1300 },
+      @{ name = "05-recommend-conflicts"; url = "$r43Base&shot=meetings-recommend-conflicts"; width = 1280; height = 1300 },
+      @{ name = "06-recommend-narrow";    url = "$r43Base&shot=meetings-recommend-results&narrow=1"; width = 488; height = 1100 },
+      @{ name = "07-recommend-error";     url = "$r43Base&shot=meetings-recommend-error";    width = 1280; height = 900 }
+    )
+  } elseif ($Round -eq "r41") {
     # r41: lightweight form collection. Seven deterministic ?shot= pins over the
     # real FormsPage (empty / create / question editor / fill / submitted / summary /
     # narrow / error). Real CRUD and hand-computed stats are locked by e2e + audit.
@@ -1675,8 +1689,8 @@ function Invoke-Shots {
     $out = Join-Path $UiDir ($s.name + ".png")
     # delete any stale png first: a failed capture must never look like a success
     if (Test-Path $out) { Remove-Item $out -Force }
-    if ($Round -eq "r39" -or $Round -eq "r40" -or $Round -eq "r41") {
-      # r39/r40/r41: CDP capture (Edge plain --screenshot intermittently wrote no PNG here)
+    if ($Round -eq "r39" -or $Round -eq "r40" -or $Round -eq "r41" -or $Round -eq "r43") {
+      # r39/r40/r41/r43: CDP capture (Edge plain --screenshot intermittently wrote no PNG here)
       $helper = Join-Path $Root "scripts\r39-shot.mjs"
       & node $helper --browser "$browser" --url "$($s.url)" --out "$out" --width $($s.width) --height $($s.height)
       if ($LASTEXITCODE -ne 0) { throw "CDP shot failed: $($s.name)" }

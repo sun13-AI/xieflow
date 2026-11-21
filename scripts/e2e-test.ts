@@ -480,6 +480,23 @@ import {
   resolveSelectedRoomId,
   type MeetingWindow,
 } from "@xieflow/shared/meetings";
+// r43：会议室设备与智能推荐——归一/可用/冲突原因/容量排序唯一口径在 shared/roomRecommend
+import {
+  ROOM_EQUIPMENT_WHITELIST,
+  normalizeEquipment,
+  assertValidEquipment,
+  parseEquipmentQuery,
+  parseStoredEquipment,
+  parseAttendees,
+  parseRecommendNeed,
+  roomMismatchReasons,
+  roomMatchesNeed,
+  recommendRooms,
+  buildRoomRecommendation,
+  type RecommendNeed,
+  type RecommendRoom,
+  type RecommendMeeting,
+} from "@xieflow/shared/roomRecommend";
 // r34：任务依赖与阻塞关系——canStartTodo / 环检测 / 拓扑阻塞链唯一口径在 shared/todoDeps
 import {
   canStartTodo,
@@ -1158,8 +1175,8 @@ try {
     const v3Migrated = openDatabaseRaw({ path: v3Path });
     eq(
       v3Migrated.appliedMigrations,
-      [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26],
-      "v2 旧库重开补跑 v3+v4+v5+v6+v7+v8+v9+v10+v11+v12+v13+v14+v15+v16+v17+v18+v19+v20+v21+v22+v23+v24+v25+v26 迁移（真实 PRAGMA 升级路径）",
+      [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27],
+      "v2 旧库重开补跑 v3+v4+v5+v6+v7+v8+v9+v10+v11+v12+v13+v14+v15+v16+v17+v18+v19+v20+v21+v22+v23+v24+v25+v26+v27 迁移（真实 PRAGMA 升级路径）",
     );
     const tables = v3Migrated.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -1384,8 +1401,8 @@ try {
     const v4Open = openDatabaseRaw({ path: v4Path });
     eq(
       v4Open.appliedMigrations,
-      [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26],
-      "v3 旧库重开只补跑 v4+v5+v6+v7+v8+v9+v10+v11+v12+v13+v14+v15+v16+v17+v18+v19+v20+v21+v22+v23+v24+v25+v26 迁移（真实 PRAGMA 升级路径）",
+      [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27],
+      "v3 旧库重开只补跑 v4+v5+v6+v7+v8+v9+v10+v11+v12+v13+v14+v15+v16+v17+v18+v19+v20+v21+v22+v23+v24+v25+v26+v27 迁移（真实 PRAGMA 升级路径）",
     );
     const tables = v4Open.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -2043,7 +2060,7 @@ try {
     v4Open2.raw.exec("PRAGMA user_version = 4");
     v4Open2.raw.close();
     const v5Open = openDatabaseRaw({ path: v5Path });
-    eq(v5Open.appliedMigrations, [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26], "v4 旧库重开只补跑 v5+v6+v7+v8+v9+v10+v11+v12+v13+v14+v15+v16+v17+v18+v19+v20+v21+v22+v23+v24+v25+v26 迁移（真实 PRAGMA 升级路径）");
+    eq(v5Open.appliedMigrations, [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27], "v4 旧库重开只补跑 v5+v6+v7+v8+v9+v10+v11+v12+v13+v14+v15+v16+v17+v18+v19+v20+v21+v22+v23+v24+v25+v26+v27 迁移（真实 PRAGMA 升级路径）");
     const tableNames = v5Open.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
       .map((r) => String((r as unknown as { name: unknown }).name));
@@ -2764,7 +2781,7 @@ try {
     v5Open.raw.exec("PRAGMA user_version = 5");
     v5Open.raw.close();
     const v6Open = openDatabaseRaw({ path: v6Path });
-    eq(v6Open.appliedMigrations, [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26], "v5 旧库重开只补跑 v6+v7+v8+v9+v10+v11+v12+v13+v14+v15+v16+v17+v18+v19+v20+v21+v22+v23+v24+v25+v26 迁移（真实 PRAGMA 升级路径）");
+    eq(v6Open.appliedMigrations, [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27], "v5 旧库重开只补跑 v6+v7+v8+v9+v10+v11+v12+v13+v14+v15+v16+v17+v18+v19+v20+v21+v22+v23+v24+v25+v26+v27 迁移（真实 PRAGMA 升级路径）");
     const tableNames = v6Open.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
       .map((r) => String((r as unknown as { name: unknown }).name));
@@ -3044,7 +3061,7 @@ try {
     oldOpen.raw.exec("PRAGMA user_version = 6");
     oldOpen.raw.close();
     const v7Open = openDatabaseRaw({ path: v7Path });
-    eq(v7Open.appliedMigrations, [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26], "v6 旧库重开补跑 v7+v8+v9+v10+v11+v12+v13+v14+v15+v16+v17+v18+v19+v20+v21+v22+v23+v24+v25+v26 迁移（真实 PRAGMA 升级路径）");
+    eq(v7Open.appliedMigrations, [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27], "v6 旧库重开补跑 v7+v8+v9+v10+v11+v12+v13+v14+v15+v16+v17+v18+v19+v20+v21+v22+v23+v24+v25+v26+v27 迁移（真实 PRAGMA 升级路径）");
     eq(
       (v7Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
@@ -3432,7 +3449,7 @@ try {
     old10.raw.exec("PRAGMA user_version = 7");
     old10.raw.close();
     const v8 = openDatabaseRaw({ path: p10Path });
-    eq(v8.appliedMigrations, [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26], "v7 旧库重开只补跑 v8+v9+v10+v11+v12+v13+v14+v15+v16+v17+v18+v19+v20+v21+v22+v23+v24+v25+v26 迁移（真实 PRAGMA 升级路径）");
+    eq(v8.appliedMigrations, [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27], "v7 旧库重开只补跑 v8+v9+v10+v11+v12+v13+v14+v15+v16+v17+v18+v19+v20+v21+v22+v23+v24+v25+v26+v27 迁移（真实 PRAGMA 升级路径）");
     eq(
       (v8.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
@@ -3848,7 +3865,7 @@ try {
     old.raw.exec("PRAGMA user_version = 8");
     old.raw.close();
     const v9 = openDatabaseRaw({ path: p });
-    eq(v9.appliedMigrations, [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26], "v8 旧库重开只补跑 v9+v10+v11+v12+v13+v14+v15+v16+v17+v18+v19+v20+v21+v22+v23+v24+v25+v26 迁移（真实 PRAGMA 升级路径）");
+    eq(v9.appliedMigrations, [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27], "v8 旧库重开只补跑 v9+v10+v11+v12+v13+v14+v15+v16+v17+v18+v19+v20+v21+v22+v23+v24+v25+v26+v27 迁移（真实 PRAGMA 升级路径）");
     eq(
       (v9.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
@@ -4244,7 +4261,7 @@ try {
     eq(reopened14.getMindmap(1)!.contentMarkdown, "# 根\n- 子", "导图关库重开不丢（Markdown 源逐字节）");
     reopened14.close();
     const raw14 = openDatabaseRaw({ path: `scripts/.tmp-e2e/r14-raw-${Date.now()}.db` });
-    eq((raw14.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 26, "真实 PRAGMA user_version=26");
+    eq((raw14.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 27, "真实 PRAGMA user_version=27");
     eq(
       raw14.raw.all("PRAGMA table_info(mindmaps)").map((r) => String((r as unknown as { name: unknown }).name)),
       ["id", "title", "content_markdown", "created_at", "updated_at"],
@@ -4427,7 +4444,7 @@ try {
     eq(r15.listWhiteboardItems(1)[0]!.content, "关库不丢", "白板条目关库重开不丢（逐字）");
     r15.close();
     const raw15 = openDatabaseRaw({ path: `scripts/.tmp-e2e/r15-raw-${Date.now()}.db` });
-    eq((raw15.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 26, "真实 PRAGMA user_version=26");
+    eq((raw15.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 27, "真实 PRAGMA user_version=27");
     eq(
       raw15.raw.all("PRAGMA table_info(whiteboards)").map((r) => String((r as unknown as { name: unknown }).name)),
       ["id", "title", "created_at"],
@@ -4625,7 +4642,7 @@ try {
     r16.close();
 
     const raw16 = openDatabaseRaw({ path: `scripts/.tmp-e2e/r16-raw-${Date.now()}.db` });
-    eq((raw16.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 26, "真实 PRAGMA user_version=26");
+    eq((raw16.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 27, "真实 PRAGMA user_version=27");
     eq(
       raw16.raw.all("PRAGMA table_info(approvals)").map((r) => String((r as unknown as { name: unknown }).name)),
       ["id", "title", "type", "applicant_id", "status", "current_assignee", "created_at", "updated_at", "applicant_member_id"],
@@ -4731,7 +4748,7 @@ try {
 
     // 51d. schema v13 与数据层（真迁移、真落库、真事务、零半态）
     const raw17 = openDatabaseRaw({ path: ":memory:" });
-    eq((raw17.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 26, "新库 user_version=26");
+    eq((raw17.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 27, "新库 user_version=27");
     eq(
       raw17.raw.all("PRAGMA table_info(assets)").map((r) => String((r as unknown as { name: unknown }).name)),
       ["id", "name", "category", "quantity", "unit", "location", "custodian", "created_at", "custodian_member_id"],
@@ -4896,7 +4913,7 @@ try {
 
     // 52f. schema v14 与账号数据层（真迁移、真落库、不明文、级联清理）
     const raw18 = openDatabaseRaw({ path: ":memory:" });
-    eq((raw18.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 26, "新库 user_version=26");
+    eq((raw18.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 27, "新库 user_version=27");
     eq(
       raw18.raw.all("PRAGMA table_info(users)").map((r) => String((r as unknown as { name: unknown }).name)),
       ["id", "username", "password_hash", "role", "created_at"],
@@ -5116,7 +5133,7 @@ try {
 
     // schema v15 与数据层：change_log / entity_versions 真表真迁移
     const raw19 = openDatabaseRaw({ path: ":memory:" });
-    eq((raw19.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 26, "r19 新库 user_version=26（r19 基线随 r28 推进）");
+    eq((raw19.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 27, "r19 新库 user_version=27（r19 基线随 r28 推进）");
     const logCols = raw19.raw.all("PRAGMA table_info(change_log)").map((r) => String((r as unknown as { name: unknown }).name));
     eq(logCols, ["id", "entity_type", "entity_id", "operation", "payload", "user_id", "created_at", "version"], "r19 change_log 八列逐列存在");
     const verCols = raw19.raw.all("PRAGMA table_info(entity_versions)").map((r) => String((r as unknown as { name: unknown }).name));
@@ -5417,7 +5434,7 @@ try {
     // (C) shell README 与实际字节逐字一致（14 张哈希 + 全库计数）
     const shellReadme = readFileSync("docs/ui/shell/README.md", "utf8");
     ok(/r25 同批重拍/.test(shellReadme) && /r25 哈希自查/.test(shellReadme), "r25 shell README 整段推进到 r25 口径（r23/r24 历史对照保留）");
-    const hashBlock = shellReadme.match(/<!-- R41_HASHES_BEGIN -->([\s\S]*?)<!-- R41_HASHES_END -->/);
+    const hashBlock = shellReadme.match(/<!-- R43_HASHES_BEGIN -->([\s\S]*?)<!-- R43_HASHES_END -->/);
     const listed = Array.from((hashBlock?.[1] ?? "").matchAll(/([a-z-]+)=([0-9A-F]{8})/g)).map(
       (m) => `${m[1]}=${m[2]}`,
     ).sort();
@@ -5548,7 +5565,7 @@ try {
 
     // schema v16：两表真迁移 + raw 约束
     const raw23 = openDatabaseRaw({ path: ":memory:" });
-    eq((raw23.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 26, "r23 新库 user_version=26（r19 基线随 r28 推进）");
+    eq((raw23.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 27, "r23 新库 user_version=27（r19 基线随 r28 推进）");
     const deptCols = raw23.raw.all("PRAGMA table_info(departments)").map((r) => String((r as { name: unknown }).name));
     eq(deptCols, ["id", "name", "parent_id", "sort_order", "created_at"], "r23 departments 五列逐列存在");
     const memCols = raw23.raw.all("PRAGMA table_info(members)").map((r) => String((r as { name: unknown }).name));
@@ -5630,7 +5647,7 @@ try {
     );
     ok(css.includes(".org-columns") && css.includes("html.force-narrow .org-columns"), "r23 样式含双栏布局与窄屏单列 seam");
     ok(shot.includes('"r23"') && shot.includes("org-tab-active"), "r23 shot.ps1 ValidateSet 与壳基线含组织 tab");
-    ok(ci.includes("(2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19|20|21|22|23|24|25|26)"), "r23 CI 正则随 schema v19 推进（r25 口径）");
+    ok(ci.includes("(2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19|20|21|22|23|24|25|26|27)"), "r23 CI 正则随 schema v19 推进（r25 口径）");
     ok((r23Index.match(/^\| \d\d-(org-|narrow|error)[^|]*\.png \|/gm) ?? []).length === 7, "r23 截图索引含七张矩阵行");
     const walkPng23 = (dir: string): string[] =>
       readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
@@ -5642,7 +5659,7 @@ try {
     const shellPng = walkPng23("docs/ui/shell");
     eq(shellPng.length, 20, "随 r28 推进：壳基线已扩为 19 张 PNG（新增会议 tab）");
     eq(new Set(shellPng.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 20, "壳基线 19 张 SHA256 两两互异");
-    const r23HashBlock = shellReadme.match(/<!-- R41_HASHES_BEGIN -->([\s\S]*?)<!-- R41_HASHES_END -->/);
+    const r23HashBlock = shellReadme.match(/<!-- R43_HASHES_BEGIN -->([\s\S]*?)<!-- R43_HASHES_END -->/);
     ok(r23HashBlock !== null, "shell README 含 R32_HASHES 当前自查块（随 r32 推进）");
     if (r23HashBlock) {
       const listed = [...r23HashBlock[1]!.matchAll(/`([a-z-]+)=([0-9A-F]{8})`/g)].map((m) => [m[1], m[2]]);
@@ -5653,7 +5670,7 @@ try {
       });
       eq(mismatches, [], "r26 shell README 18 张哈希与实际文件逐字一致");
     }
-    ok(rootReadme.includes("e2e（3551 断言）+ HTTP 审计（2703 断言）"), "r23 口径随 r24 速查行推进");
+    ok(rootReadme.includes("e2e（3665 断言）+ HTTP 审计（2802 断言）"), "r23 口径随 r24 速查行推进");
     ok(
       ARCHIVE_README.includes("- e2e **2766** 项") && ARCHIVE_README.includes("- HTTP audit **2185** 项") &&
         ARCHIVE_README.includes("### r24 矩阵") && ARCHIVE_README.includes("e2e 1952 → **2041（+89）**"),
@@ -5725,7 +5742,7 @@ try {
 
     // (B) schema v17：只追加四张可空列，原 TEXT NOT NULL 列逐列不动
     const raw24 = openDatabaseRaw({ path: ":memory:" });
-    eq((raw24.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 26, "r24 基线库现新库 user_version=26（r28 推进）");
+    eq((raw24.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 27, "r24 基线库现新库 user_version=27（r28 推进）");
     const colsOf = (table: string) => raw24.raw.all(`PRAGMA table_info(${table})`) as {
       name: string; notnull: number; dflt_value: unknown;
     }[];
@@ -5873,7 +5890,7 @@ try {
     ok(assets.includes('data-state="assets-member-badge"'), "r24 物资卡片部门徽标 seam 在场");
     ok(css.includes(".mp-modal") && css.includes("html.force-narrow .mp-modal"), "r24 弹窗样式与窄屏单列 seam 在场");
     ok(shot.includes('"r24"') && ["01-approval-picker", "02-approval-picked", "03-timeline-badge", "04-assets-picker", "05-assets-badge", "06-narrow", "07-error"].every((s) => shot.includes(s)), "r24 shot.ps1 ValidateSet 与七张矩阵名齐备");
-    ok(ci.includes("(2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19|20|21|22|23|24|25|26)"), "r24 CI smoke 正则随 v19 推进");
+    ok(ci.includes("(2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19|20|21|22|23|24|25|26|27)"), "r24 CI smoke 正则随 v19 推进");
 
     const walkPng = (dir: string): string[] =>
       readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
@@ -5885,7 +5902,7 @@ try {
     const shellPng = walkPng("docs/ui/shell");
     eq(shellPng.length, 20, "随 r28 推进：壳基线已扩为 19 张 PNG");
     eq(new Set(shellPng.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 20, "壳基线 19 张 SHA256 两两互异");
-    const hashBlock = shellReadme.match(/<!-- R41_HASHES_BEGIN -->([\s\S]*?)<!-- R41_HASHES_END -->/);
+    const hashBlock = shellReadme.match(/<!-- R43_HASHES_BEGIN -->([\s\S]*?)<!-- R43_HASHES_END -->/);
     ok(hashBlock !== null, "shell README 哈希自查块在场");
     if (hashBlock) {
       const listed = [...hashBlock[1]!.matchAll(/`([a-z-]+)=([0-9A-F]{8})`/g)].map((m) => [m[1], m[2]]);
@@ -5897,7 +5914,7 @@ try {
       eq(mismatches, [], "shell README 18 张哈希与实际文件逐字一致");
     }
     ok((r24Index.match(/^\| \d\d-[^|]*\.png \|/gm) ?? []).length === 7, "r24 截图索引含七张矩阵行");
-    ok(rootReadme.includes("e2e（3551 断言）+ HTTP 审计（2703 断言）"), "r24 根 README 速查行数字同步");
+    ok(rootReadme.includes("e2e（3665 断言）+ HTTP 审计（2802 断言）"), "r24 根 README 速查行数字同步");
     ok(ARCHIVE_README.includes("### r24 矩阵") && ARCHIVE_README.includes("e2e 1952 → **2041（+89）**"), "r24 双节规模与矩阵索引历史行归档后仍同步");
   }
 
@@ -5941,7 +5958,7 @@ try {
 
     // (C) schema v18 raw：只加 approval_steps.actor_member_id 可空列，原列不动
     const raw25 = openDatabaseRaw({ path: ":memory:" });
-    eq((raw25.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 26, "r25 新库 user_version=26（r19 基线随 r28 推进）");
+    eq((raw25.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 27, "r25 新库 user_version=27（r19 基线随 r28 推进）");
     const cols25 = raw25.raw.all("PRAGMA table_info(approval_steps)") as {
       name: string; notnull: number; dflt_value: unknown;
     }[];
@@ -6026,7 +6043,7 @@ try {
     ok(approval25.includes('data-state="approval-actor-badge"'), "r25 审批动作步骤徽标 seam 在场");
     ok(api25.includes('"/api/org/members/me"') && api25.includes("actorMemberId: firstDefined"), "r25 api 提供登录成员解析且接受 actorMemberId");
     ok(schemaSource25.includes("actor_member_id") && schemaSource25.includes("version: 18"), "r25 schema v18 动作列迁移在场");
-    ok(ci25.includes("(2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19|20|21|22|23|24|25|26)"), "r25 CI smoke 正则升 v19（含历史 v18）");
+    ok(ci25.includes("(2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19|20|21|22|23|24|25|26|27)"), "r25 CI smoke 正则升 v19（含历史 v18）");
     ok(shot25.includes('"r25"') && ["01-approval-actor-badge", "02-picker-dept-filter", "03-badge-named", "04-manual-hint", "05-assets-detail-badge", "06-narrow", "07-error"].every((s) => shot25.includes(s)), "r25 shot.ps1 ValidateSet 与七张矩阵名齐备");
 
     const walkPng25 = (dir: string): string[] =>
@@ -6039,7 +6056,7 @@ try {
     const shells25 = walkPng25("docs/ui/shell");
     eq(shells25.length, 20, "随 r28 推进：壳基线已扩为 19 张 PNG");
     eq(new Set(shells25.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 20, "壳基线 19 张 SHA256 两两互异");
-    const hash25 = shell25.match(/<!-- R41_HASHES_BEGIN -->([\s\S]*?)<!-- R41_HASHES_END -->/);
+    const hash25 = shell25.match(/<!-- R43_HASHES_BEGIN -->([\s\S]*?)<!-- R43_HASHES_END -->/);
     ok(hash25 !== null, "shell README R32 当前哈希块在场");
     if (hash25) {
       const listed25 = [...hash25[1]!.matchAll(/`([a-z-]+)=([0-9A-F]{8})`/g)].map((m) => [m[1], m[2]]);
@@ -6053,7 +6070,7 @@ try {
     ok(shell25.includes("**r23 基线**") && shell25.includes("**r24 基线**"), "shell README 保留 r23/r24 历史对照行");
     ok(shell25.includes("90166EF8") || shell25.includes("物资壳"), "shell README 如实记录物资壳与 r23 同字节事实");
     ok((r25Index.match(/^\| \d\d-[^|]*\.png \|/gm) ?? []).length === 7, "r25 截图索引含七张矩阵行");
-    ok(root25.includes("e2e（3551 断言）+ HTTP 审计（2703 断言）"), "r25 根 README 速查行数字同步");
+    ok(root25.includes("e2e（3665 断言）+ HTTP 审计（2802 断言）"), "r25 根 README 速查行数字同步");
     ok(ARCHIVE_README.includes("### r25 矩阵") && ARCHIVE_README.includes("e2e 2041 → **2096（+55）**"), "r25 双节规模与矩阵索引历史行归档后仍同步");
   }
 
@@ -6211,7 +6228,7 @@ try {
 
     // (G) schema v19 raw：notifications 表 / 检查约束 / 索引 / 可空列
     const raw26 = openDatabaseRaw({ path: ":memory:" });
-    eq((raw26.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 26, "r26 新库 user_version=26");
+    eq((raw26.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 27, "r26 新库 user_version=27");
     const nCols = raw26.raw.all("PRAGMA table_info(notifications)") as { name: string; notnull: number; dflt_value: unknown }[];
     eq(nCols.map((c) => c.name), ["id", "type", "title", "body", "ref_type", "ref_id", "read_at", "created_at"], "r26 notifications 八列逐字锁定");
     eq(nCols.find((c) => c.name === "read_at")?.notnull, 0, "r26 read_at 可空（未读默认 NULL）");
@@ -6278,11 +6295,11 @@ try {
     ok(api26.includes('app.post("/api/notifications/read-all"') && api26.includes('app.get("/api/notifications/summary"'), "r26 批量已读与汇总路由在场");
     ok(api26.includes("collectNotificationCandidates") && api26.includes("shouldNotify") && api26.includes("buildNotification"), "r26 api 只装配 shared 规则零算法分支");
     ok(schemaSource26.includes("version: 19") && schemaSource26.includes("CREATE TABLE IF NOT EXISTS notifications"), "r26 schema v19 迁移在场");
-    ok(ci26.includes("(2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19|20|21|22|23|24|25|26)"), "r26 CI smoke 正则升 v19");
+    ok(ci26.includes("(2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19|20|21|22|23|24|25|26|27)"), "r26 CI smoke 正则升 v19");
     ok(shot26.includes('"r26"') && ["01-notif-empty", "02-notif-unread", "03-notif-filtered", "04-notif-read", "05-notif-refreshed", "06-narrow", "07-error", "08-notif-badge-decrement"].every((s) => shot26.includes(s)), "r26 shot.ps1 ValidateSet 与八张矩阵名齐备");
     ok(shell26.includes("<!-- R26_HASHES_BEGIN -->") && shell26.includes("<!-- R26_HASHES_END -->"), "r26 shell README 历史哈希块在场（当前块见 R28）");
     ok((r26Index.match(/^\| \[?\d\d-[^|\]]*\.png/gm) ?? []).length === 9, "r26 截图索引含九张矩阵行（返工#2 补 09）");
-    ok(root26.includes("e2e（3551 断言）+ HTTP 审计（2703 断言）"), "返工#1 根 README 速查行数字逐字同步");
+    ok(root26.includes("e2e（3665 断言）+ HTTP 审计（2802 断言）"), "返工#1 根 README 速查行数字逐字同步");
 
     // (J) 截图矩阵与十六 tab 壳基线（SHA 两两互异 + README 哈希逐字一致）
     const walkPng26 = (dir: string): string[] => {
@@ -6300,7 +6317,7 @@ try {
     const shells26 = walkPng26("docs/ui/shell");
     eq(shells26.length, 20, "随 r28 推进：壳基线 19 张 PNG");
     eq(new Set(shells26.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 20, "壳基线 19 张 SHA256 两两互异（随 r28 推进）");
-    const hash26 = shell26.match(/<!-- R41_HASHES_BEGIN -->([\s\S]*?)<!-- R41_HASHES_END -->/);
+    const hash26 = shell26.match(/<!-- R43_HASHES_BEGIN -->([\s\S]*?)<!-- R43_HASHES_END -->/);
     ok(hash26 !== null, "shell README R32 当前哈希块在场");
     if (hash26) {
       const listed26 = [...hash26[1]!.matchAll(/`([a-z-]+)=([0-9A-F]{8})`/g)].map((m) => ({ name: m[1]!, hash: m[2]! }));
@@ -6516,7 +6533,7 @@ try {
     const shells27 = walkPng27("docs/ui/shell");
     eq(shells27.length, 20, "r28 壳基线 19 张 PNG（新增会议 tab）");
     eq(new Set(shells27.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 20, "r28 壳基线 19 张 SHA256 两两互异（随 r28 推进）");
-    const hash27 = shell27.match(/<!-- R41_HASHES_BEGIN -->([\s\S]*?)<!-- R41_HASHES_END -->/);
+    const hash27 = shell27.match(/<!-- R43_HASHES_BEGIN -->([\s\S]*?)<!-- R43_HASHES_END -->/);
     ok(hash27 !== null, "shell README R32 当前哈希块在场");
     if (hash27) {
       const listed27 = [...hash27[1]!.matchAll(/`([a-z-]+)=([0-9A-F]{8})`/g)].map((m) => ({ name: m[1]!, hash: m[2]! }));
@@ -6654,9 +6671,9 @@ try {
 
     // (G) schema v20 raw：三表 / 约束 / 索引 / 真迁移
     const raw28 = openDatabaseRaw({ path: ":memory:" });
-    eq((raw28.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 26, "r28 新库 user_version=26");
+    eq((raw28.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 27, "r28 新库 user_version=27");
     const roomCols28 = raw28.raw.all("PRAGMA table_info(rooms)").map((r) => String((r as { name: unknown }).name));
-    eq(roomCols28, ["id", "name", "location", "capacity", "active", "created_at", "updated_at"], "r28 rooms 七列逐列存在");
+    eq(roomCols28, ["id", "name", "location", "capacity", "active", "created_at", "updated_at", "equipment"], "r28 rooms 七列逐字不动 + r43 equipment 追加在尾");
     const meetingCols28 = raw28.raw.all("PRAGMA table_info(meetings)").map((r) => String((r as { name: unknown }).name));
     eq(meetingCols28, ["id", "room_id", "title", "date", "start_time", "end_time", "organizer", "created_at", "updated_at"], "r28 meetings 九列逐列存在");
     const attendeeCols28 = raw28.raw.all("PRAGMA table_info(meeting_attendees)").map((r) => String((r as { name: unknown }).name));
@@ -6731,7 +6748,7 @@ try {
     ok(api28.includes("MeetingConflictError") && api28.includes("meetingAvailability"), "r28 api 只编排 shared 规则并映射 409");
     ok(sharedPkg28.includes('"./meetings": "./src/meetings.ts"'), "r28 shared/meetings 子路径导出在场");
     ok(schema28.includes("version: 20") && schema28.includes("CREATE TABLE IF NOT EXISTS rooms"), "r28 schema v20 迁移在场");
-    ok(ci28.includes("(2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19|20|21|22|23|24|25|26)"), "r28 CI smoke 正则升 v20");
+    ok(ci28.includes("(2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19|20|21|22|23|24|25|26|27)"), "r28 CI smoke 正则升 v20");
     ok(shot28.includes('"r28"') && shot28.includes('@{ page = "meetings";'), "r28 shot.ps1 ValidateSet 与会议 tab 壳基线在场");
     ok(["01-meetings-empty", "02-meetings-list", "03-meetings-grid", "04-meetings-form", "05-meetings-conflict", "06-narrow", "07-error"].every((s) => shot28.includes(s)), "r28 七张矩阵名齐备");
 
@@ -6754,7 +6771,7 @@ try {
     eq(new Set(shells28.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 20, "r28 壳基线 19 张 SHA256 两两互异");
     ok(r28Index.includes("<!-- R28_HASHES_BEGIN -->") && r28Index.includes("<!-- R28_HASHES_END -->"), "r28 索引哈希自查块在场");
     const shell28 = readFileSync("docs/ui/shell/README.md", "utf8");
-    const hash28 = shell28.match(/<!-- R41_HASHES_BEGIN -->([\s\S]*?)<!-- R41_HASHES_END -->/);
+    const hash28 = shell28.match(/<!-- R43_HASHES_BEGIN -->([\s\S]*?)<!-- R43_HASHES_END -->/);
     ok(hash28 !== null, "shell README R32 当前哈希块在场");
     if (hash28) {
       const listed28 = [...hash28[1]!.matchAll(/`([a-z-]+)=([0-9A-F]{8})`/g)].map((m) => ({ name: m[1]!, hash: m[2]! }));
@@ -6826,7 +6843,7 @@ try {
 
     // (D) schema v21 raw：document_versions 七列 + documents.deleted_at + 约束
     const raw29 = openDatabaseRaw({ path: ":memory:" });
-    eq((raw29.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 26, "r29 新库 user_version=26");
+    eq((raw29.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 27, "r29 新库 user_version=27");
     eq(
       raw29.raw.all("PRAGMA table_info(document_versions)").map((r) => String((r as { name: unknown }).name)),
       ["id", "document_id", "version", "title", "content_markdown", "created_at", "note"],
@@ -6914,7 +6931,7 @@ try {
     const schemaSrc29 = readFileSync("packages/db/src/schema.ts", "utf8");
     ok(schemaSrc29.includes("version: 21") && schemaSrc29.includes("CREATE TABLE IF NOT EXISTS document_versions"), "r29 schema v21 迁移在场");
     const ci29 = readFileSync(".github/workflows/ci.yml", "utf8");
-    ok(ci29.includes("(2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19|20|21|22|23|24|25|26)"), "r29 CI smoke 正则升 v21");
+    ok(ci29.includes("(2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19|20|21|22|23|24|25|26|27)"), "r29 CI smoke 正则升 v21");
     const shot29 = readFileSync("scripts/shot.ps1", "utf8");
     ok(shot29.includes('"r29"') && shot29.includes("01-versions-empty"), "r29 shot.ps1 ValidateSet 与七张矩阵名齐备");
 
@@ -7105,8 +7122,8 @@ try {
     const raw30 = openDatabaseRaw({ path: ":memory:" });
     eq(
       (raw30.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
-      26,
-      "r30 新库 user_version=26（随当前轮推进）",
+      27,
+      "r30 新库 user_version=27（随当前轮推进）",
     );
     const fieldCols30 = (raw30.raw.all("PRAGMA table_info(fields)") as { name: string }[]).map((c) => c.name);
     eq(
@@ -7120,7 +7137,7 @@ try {
     ok(fieldsSql30.includes("'formula'"), "r30 fields CHECK 白名单含 formula");
     ok(!fieldsSql30.includes("fields_v21"), "r30 迁移临时表已删除");
     eq(raw30.appliedMigrations.filter((v) => v === 22).length, 1, "r30 迁移 22 恰好执行一次");
-    eq(MIGRATIONS.length, 26, "r30 迁移队列共 24 条（r37 追加 v24）");
+    eq(MIGRATIONS.length, 27, "r30 迁移队列共 24 条（r37 追加 v24）");
     ok(MIGRATIONS[21]!.name.includes("formula"), "r30 第 22 条迁移为公式字段轮");
     raw30.raw.close();
 
@@ -7169,7 +7186,7 @@ try {
     const schemaSrc30 = readFileSync("packages/db/src/schema.ts", "utf8");
     ok(schemaSrc30.includes("version: 22") && schemaSrc30.includes("'formula'"), "r30 schema v22 迁移在场");
     const ci30 = readFileSync(".github/workflows/ci.yml", "utf8");
-    ok(ci30.includes("19|20|21|22|23|24|25|26)"), "r30 CI smoke 正则升 v22");
+    ok(ci30.includes("19|20|21|22|23|24|25|26|27)"), "r30 CI smoke 正则升 v22");
     const formulaSrc30 = readFileSync("packages/shared/src/formula.ts", "utf8");
     ok(!/\beval\s*\(/.test(formulaSrc30), "r30 公式引擎零 eval");
     ok(!/new\s+Function/.test(formulaSrc30), "r30 公式引擎零 new Function");
@@ -7646,8 +7663,8 @@ try {
     eq(JSON.stringify(deps34), snapshotDeps34, "r34 拓扑·纯函数不修改输入");
 
     // (E) schema v23 与数据层（真库 + raw 约束）
-    eq(SCHEMA_VERSION, 26, "r34 schema·shared 版本推进到 v23");
-    eq(MIGRATIONS.length, 26, "r34 schema·迁移队列 24 条连续（r37 追加 v24）");
+    eq(SCHEMA_VERSION, 27, "r34 schema·shared 版本推进到 v23");
+    eq(MIGRATIONS.length, 27, "r34 schema·迁移队列 24 条连续（r37 追加 v24）");
     eq(MIGRATIONS[22]?.version, 23, "r34 schema·第 23 条迁移版本 = 23");
     ok(Boolean(MIGRATIONS[22]?.name.includes("todo_dependencies")), "r34 schema·迁移名标注 todo_dependencies");
     const raw34 = openDatabaseRaw({ path: ":memory:" });
@@ -7717,7 +7734,7 @@ try {
     ok(app34.includes("界面文案已优化（错误提示更清晰）"), "r34 App·轮次徽章推进到 r34");
     eq((app34.match(/data-tab="/g) ?? []).length, 20, "r34 App·十九 tab 数量（随 r36 推进）");
     const ci34 = readFileSync(".github/workflows/ci.yml", "utf8");
-    ok(ci34.includes("|22|23|24|25|26)"), "r34 CI·HTTP smoke 正则升 v23");
+    ok(ci34.includes("|22|23|24|25|26|27)"), "r34 CI·HTTP smoke 正则升 v23");
     const shot34 = readFileSync("scripts/shot.ps1", "utf8");
     ok(shot34.includes('"r34"'), "r34 shot.ps1·ValidateSet 纳入 r34");
     for (const name of ["01-dep-empty", "02-dep-add", "03-dep-blocked-list", "04-dep-satisfied", "05-dep-cycle-error", "06-dep-narrow", "07-dep-error"]) {
@@ -7747,8 +7764,8 @@ try {
     const shellIdx34 = readFileSync("docs/ui/shell/README.md", "utf8");
     ok(shellIdx34.includes("<!-- R34_HASHES_BEGIN -->") && shellIdx34.includes("R34 当前哈希块"), "r34 壳索引·R34 当前哈希块在场");
     const rootR34 = readFileSync("README.md", "utf8");
-    ok(rootR34.includes("docs/ui/r41/01-forms-empty.png") && rootR34.includes("docs/ui/shell/README.md"), "r34 历史 seam·根 README 当前矩阵索引已同步");
-    ok(rootR34.includes("当前 r41"), "r34 历史 seam·根 README 断言规模节推进到当前轮");
+    ok(rootR34.includes("docs/ui/r43/01-equipment-empty.png") && rootR34.includes("docs/ui/shell/README.md"), "r34 历史 seam·根 README 当前矩阵索引已同步");
+    ok(rootR34.includes("当前 r43"), "r34 历史 seam·根 README 断言规模节推进到当前轮");
   }
 
   // 71. r35：日历 ICS 导出与订阅（TDD：断言先于实现落地，宪法四条）
@@ -7894,10 +7911,10 @@ try {
     }
     const pkg35 = readFileSync("package.json", "utf8");
     ok(!/"(ical|node-ical|ical.js|rrule|luxon|dayjs|date-fns)"/.test(pkg35), "r35 零新依赖·清单无 ICS/日期库");
-    eq(SCHEMA_VERSION, 26, "r35 schema·r35 本轮无变化（当前 v24）");
+    eq(SCHEMA_VERSION, 27, "r35 schema·r35 本轮无变化（当前 v24）");
     const rootR35 = readFileSync("README.md", "utf8");
-    ok(rootR35.includes("docs/ui/r41/01-forms-empty.png") && rootR35.includes("docs/ui/shell/README.md"), "r35 根 README·矩阵索引已同步（三处之一）");
-    ok(rootR35.includes("当前 r41"), "r35 根 README·断言规模节推进到当前 r37");
+    ok(rootR35.includes("docs/ui/r43/01-equipment-empty.png") && rootR35.includes("docs/ui/shell/README.md"), "r35 根 README·矩阵索引已同步（三处之一）");
+    ok(rootR35.includes("当前 r43"), "r35 根 README·断言规模节推进到当前 r37");
 
     // (G) 截图矩阵 + 十八 tab 壳（同批重拍，哈希互异）
     const walkPng35 = (dir: string): string[] => {
@@ -8086,14 +8103,14 @@ try {
     ok(app36.includes("界面文案已优化（错误提示更清晰）"), "r36 App·轮次徽章推进到 r36");
     eq((app36.match(/data-tab="/g) ?? []).length, 20, "r36 App·十九 tab（报告 tab 新增）");
     ok(app36.includes('data-tab="work-reports"') && />\s*报告\s*</.test(app36), "r36 App·报告 tab 激活态入口在场");
-    eq(SCHEMA_VERSION, 26, "r36 schema·r36 本轮无变化（当前 v24，复用 documents/blocks）");
+    eq(SCHEMA_VERSION, 27, "r36 schema·r36 本轮无变化（当前 v24，复用 documents/blocks）");
     const pkgShared36 = readFileSync("packages/shared/package.json", "utf8");
     ok(pkgShared36.includes('"./workReports"'), "r36 子路径·@xieflow/shared/workReports 已登记");
     const pkg36 = readFileSync("package.json", "utf8");
     ok(!/"(marked|markdown-it|showdown|turndown|dayjs|luxon)"/.test(pkg36), "r36 零新依赖·清单无 Markdown/日期库");
     const rootR36 = readFileSync("README.md", "utf8");
-    ok(rootR36.includes("docs/ui/r41/01-forms-empty.png") && rootR36.includes("docs/ui/shell/README.md"), "r36 根 README·矩阵索引已同步（三处之一）");
-    ok(rootR36.includes("当前 r41"), "r36 根 README·断言规模节推进到当前 r37");
+    ok(rootR36.includes("docs/ui/r43/01-equipment-empty.png") && rootR36.includes("docs/ui/shell/README.md"), "r36 根 README·矩阵索引已同步（三处之一）");
+    ok(rootR36.includes("当前 r43"), "r36 根 README·断言规模节推进到当前 r37");
 
     // (H) 截图矩阵 + 十九 tab 壳（同批重拍，哈希互异）
     const walkPng36 = (dir: string): string[] => readdirSync(dir).filter((n) => n.endsWith(".png")).map((n) => `${dir}/${n}`);
@@ -8232,8 +8249,8 @@ try {
     ok(describeViewSpec({ filterSpec: [], sortSpec: [], visibleFields: [], groupSpec: spec37 }, fields37).includes("按状态分组"), "r37 摘要·视图口径含分组段");
 
     // (F) schema v24 与数据层（真库 raw）
-    eq(SCHEMA_VERSION, 26, "r37 schema·shared 版本推进到 v24");
-    eq(MIGRATIONS.length, 26, "r37 schema·迁移队列 24 条连续");
+    eq(SCHEMA_VERSION, 27, "r37 schema·shared 版本推进到 v24");
+    eq(MIGRATIONS.length, 27, "r37 schema·迁移队列 24 条连续");
     eq(MIGRATIONS[23]?.version, 24, "r37 schema·第 24 条迁移版本 = 24");
     ok(Boolean(MIGRATIONS[23]?.name.includes("group_spec")), "r37 schema·迁移名标注 group_spec");
     {
@@ -8314,9 +8331,9 @@ try {
     ok(shellIdx37.includes("<!-- R37_HASHES_BEGIN -->") && shellIdx37.includes("R37 当前哈希块"), "r37 壳索引·R37 当前哈希块在场");
     ok(shellIdx37.includes("bases-tab-active.png"), "r37 壳索引·表格 tab 激活态图在场");
     const rootR37 = readFileSync("README.md", "utf8");
-    ok(rootR37.includes("docs/ui/r41/01-forms-empty.png") && rootR37.includes("docs/ui/shell/README.md"), "r37 根 README·矩阵索引已同步（三处之一）");
-    ok(rootR37.includes("当前 r41"), "r37 根 README·断言规模节推进到当前 r37");
-    ok(rootR37.includes("e2e **3551**") && rootR37.includes("HTTP audit **2703**"), "r37 根 README·速查行断言规模同步");
+    ok(rootR37.includes("docs/ui/r43/01-equipment-empty.png") && rootR37.includes("docs/ui/shell/README.md"), "r37 根 README·矩阵索引已同步（三处之一）");
+    ok(rootR37.includes("当前 r43"), "r37 根 README·断言规模节推进到当前 r37");
+    ok(rootR37.includes("e2e **3665**") && rootR37.includes("HTTP audit **2802**"), "r37 根 README·速查行断言规模同步");
     const allPng37 = [...matrix37, ...shells37];
     eq(allPng37.length, 27, "r37 截图·本轮证据共 26 张");
   }
@@ -8399,8 +8416,8 @@ try {
     ]), "r38 纯函数·输入快照逐字节稳定");
 
     // (D) schema v25 + 真库元数据落库 / 级联删除 / 老卡 NULL
-    eq(SCHEMA_VERSION, 26, "r38 schema·shared 版本推进到 v25");
-    eq(MIGRATIONS.length, 26, "r38 schema·迁移队列 25 条连续");
+    eq(SCHEMA_VERSION, 27, "r38 schema·shared 版本推进到 v25");
+    eq(MIGRATIONS.length, 27, "r38 schema·迁移队列 25 条连续");
     eq(MIGRATIONS[24]?.version, 25, "r38 schema·第 25 条迁移版本 = 25");
     ok(Boolean(MIGRATIONS[24]?.name.includes("card_labels")), "r38 schema·迁移名标注 card_labels");
     {
@@ -8481,7 +8498,7 @@ try {
     const shot38 = readFileSync("scripts/shot.ps1", "utf8");
     ok(shot38.includes('"r38"'), "r38 shot.ps1·ValidateSet 纳入 r38");
     const ci38 = readFileSync(".github/workflows/ci.yml", "utf8");
-    ok(ci38.includes("23|24|25|26"), "r38 CI·HTTP smoke 正则含 v25");
+    ok(ci38.includes("23|24|25|26|27"), "r38 CI·HTTP smoke 正则随当前轮含 v27");
 
     // (F) 截图矩阵 7 张 + 十九壳同批重拍
     const walkPng38 = (dir: string): string[] => {
@@ -8506,9 +8523,9 @@ try {
     const shellIdx38 = readFileSync("docs/ui/shell/README.md", "utf8");
     ok(shellIdx38.includes("<!-- R38_HASHES_BEGIN -->") && shellIdx38.includes("R38 当前哈希块"), "r38 壳索引·R38 当前哈希块在场");
     const rootR38 = readFileSync("README.md", "utf8");
-    ok(rootR38.includes("docs/ui/r41/01-forms-empty.png") && rootR38.includes("docs/ui/shell/README.md"), "r38 根 README·矩阵索引已同步（三处之一）");
-    ok(rootR38.includes("当前 r41"), "r38 根 README·断言规模节推进到当前 r40");
-    ok(rootR38.includes("HTTP audit **2703**"), "r38 根 README·速查行 audit 规模同步");
+    ok(rootR38.includes("docs/ui/r43/01-equipment-empty.png") && rootR38.includes("docs/ui/shell/README.md"), "r38 根 README·矩阵索引已同步（三处之一）");
+    ok(rootR38.includes("当前 r43"), "r38 根 README·断言规模节推进到当前 r40");
+    ok(rootR38.includes("HTTP audit **2802**"), "r38 根 README·速查行 audit 规模同步");
   }
 
   // 60. r39：用户可见文案清理（错误体内部术语清零 + 机制防复发）
@@ -8555,9 +8572,9 @@ try {
   const shellIdx39 = readFileSync("docs/ui/shell/README.md", "utf8");
   ok(shellIdx39.includes("<!-- R39_HASHES_BEGIN -->") && shellIdx39.includes("R41 当前哈希块"), "r39 壳索引·当前哈希块随 r41 推进在场");
   const rootR39 = readFileSync("README.md", "utf8");
-  ok(rootR39.includes("docs/ui/r41/01-forms-empty.png") && rootR39.includes("docs/ui/shell/README.md"), "r39 根 README·矩阵索引已同步（三处之一）");
-  ok(rootR39.includes("当前 r41"), "r39 根 README·断言规模节推进到当前轮");
-  ok(rootR39.includes("e2e **3551**") && rootR39.includes("HTTP audit **2703**"), "r39 根 README·速查行断言规模同步");
+  ok(rootR39.includes("docs/ui/r43/01-equipment-empty.png") && rootR39.includes("docs/ui/shell/README.md"), "r39 根 README·矩阵索引已同步（三处之一）");
+  ok(rootR39.includes("当前 r43"), "r39 根 README·断言规模节推进到当前轮");
+  ok(rootR39.includes("e2e **3665**") && rootR39.includes("HTTP audit **2802**"), "r39 根 README·速查行断言规模同步");
   const matrix39 = readdirSync("docs/ui/r39").filter((f) => f.endsWith(".png"));
   eq(matrix39.length, 7, "r39 截图·本轮错误态矩阵 7 张");
   eq(new Set(matrix39.map((p) => createHash("sha256").update(readFileSync(`docs/ui/r39/${p}`)).digest("hex"))).size, 7, "r39 截图·七张 SHA256 两两互异");
@@ -8581,10 +8598,10 @@ try {
   ok(scan40.includes("例：写 r2 复验材料"), "r40 扫描器自断言·单位数 rN placeholder 在场");
   ok(scan40.includes("ROUND_SELF_PROBES"), "r40 扫描器自断言·探针执行路径在场");
   const root40 = readFileSync("README.md", "utf8");
-  ok(root40.includes("e2e（3551 断言）") && root40.includes("HTTP 审计（2703 断言）"), "r40 根 README·速查行断言规模同步");
-  ok(root40.includes("当前轮 r41"), "r40 根 README·当前轮对照表同步");
-  ok(root40.includes("docs/ui/r41/01-forms-empty.png"), "r40 根 README·登录页干净态索引同步");
-  ok(root40.includes("e2e **3551**") && root40.includes("HTTP audit **2703**"), "r40 根 README·断言规模行同步");
+  ok(root40.includes("e2e（3665 断言）") && root40.includes("HTTP 审计（2802 断言）"), "r40 根 README·速查行断言规模同步");
+  ok(root40.includes("当前轮 r43"), "r40 根 README·当前轮对照表同步");
+  ok(root40.includes("docs/ui/r43/01-equipment-empty.png"), "r40 根 README·登录页干净态索引同步");
+  ok(root40.includes("e2e **3665**") && root40.includes("HTTP audit **2802**"), "r40 根 README·断言规模行同步");
   const docIdx40 = readFileSync("docs/ui/r40/README.md", "utf8");
   ok(docIdx40.includes("<!-- R40_HASHES_BEGIN -->") && docIdx40.includes("01-login-clean-text.png"), "r40 索引·哈希块与登录图在场");
   const shellIdx40 = readFileSync("docs/ui/shell/README.md", "utf8");
@@ -8706,8 +8723,8 @@ try {
     ok(new FormClosedError(9) instanceof Error && !(new FormClosedError(9) instanceof ValidationError), "r41 状态·关闭错误不是输入校验错误（独立 409 语义）");
 
     // (E) schema v26 + 真库三表（raw PRAGMA / 级联删除 / 关闭表单）
-    eq(SCHEMA_VERSION, 26, "r41 schema·shared 版本推进到 v26");
-    eq(MIGRATIONS.length, 26, "r41 schema·迁移队列 26 条连续");
+    eq(SCHEMA_VERSION, 27, "r41 schema·shared 版本推进到 v26");
+    eq(MIGRATIONS.length, 27, "r41 schema·迁移队列 26 条连续");
     eq(MIGRATIONS[25]?.version, 26, "r41 schema·第 26 条迁移版本 = 26");
     ok(Boolean(MIGRATIONS[25]?.name.includes("form_questions")), "r41 schema·迁移名标注 form_questions");
     {
@@ -8789,7 +8806,7 @@ try {
     eq((app41.match(/data-tab="/g) ?? []).length, 20, "r41 App·二十 tab（新增表单 tab）");
     ok(app41.includes('data-tab="forms"'), "r41 App·表单 tab 激活态 seam");
     ok(pkgShared41.includes('"./forms"'), "r41 子路径·@xieflow/shared/forms 已登记");
-    ok(ci41.includes("|25|26)") || ci41.includes("|26)"), "r41 CI·HTTP smoke 正则升 v26");
+    ok(ci41.includes("|25|26|27)") || ci41.includes("|26|27)"), "r41 CI·HTTP smoke 正则随当前轮升 v27");
     ok(shot41.includes('"r41"'), "r41 shot.ps1·ValidateSet 纳入 r41");
 
     // (G) 截图矩阵 7 张 + 二十 tab 壳同批重拍
@@ -8808,9 +8825,193 @@ try {
     ok(shellIdx41.includes("<!-- R41_HASHES_BEGIN -->") && shellIdx41.includes("R41 当前哈希块"), "r41 壳索引·R41 当前哈希块在场");
     ok(shellIdx41.includes("forms-tab-active.png"), "r41 壳索引·表单 tab 激活态图在场");
     const root41 = readFileSync("README.md", "utf8");
-    ok(root41.includes("当前轮 r41"), "r41 根 README·当前轮对照表同步");
-    ok(root41.includes("docs/ui/r41/01-forms-empty.png") && root41.includes("docs/ui/shell/README.md"), "r41 根 README·矩阵索引同步");
-    ok(root41.includes("e2e（3551 断言）") && root41.includes("HTTP 审计（2703 断言）"), "r41 根 README·速查行断言规模同步");
+    ok(root41.includes("当前轮 r43"), "r41 根 README·当前轮对照表同步");
+    ok(root41.includes("docs/ui/r43/01-equipment-empty.png") && root41.includes("docs/ui/shell/README.md"), "r41 根 README·矩阵索引同步");
+    ok(root41.includes("e2e（3665 断言）") && root41.includes("HTTP 审计（2802 断言）"), "r41 根 README·速查行断言规模同步");
+  }
+
+  // 63. r43：会议室设备与智能推荐（归一 / 可用判定 / 冲突原因 / 容量排序 / 向后兼容）
+  section("r43 会议室设备与智能推荐：shared 唯一口径 / schema v27 / 数据层 / HTTP seam / 截图矩阵");
+  {
+    const need43: RecommendNeed = { attendees: 8, equipment: ["投影"], date: "2026-11-20", start: "10:00", end: "11:00" };
+    const rooms43: RecommendRoom[] = [
+      { id: 1, name: "大会议室", location: "3F", capacity: 12, active: true, equipment: ["投影", "视频会议"] },
+      { id: 2, name: "中会议室", location: "3F", capacity: 8, active: true, equipment: ["投影", "白板"] },
+      { id: 3, name: "小会议室", location: "2F", capacity: 6, active: true, equipment: ["电话会议"] },
+      { id: 4, name: "停用会议室", location: "2F", capacity: 20, active: false, equipment: ["投影"] },
+    ];
+    const meetings43: RecommendMeeting[] = [
+      { id: 11, roomId: 2, date: "2026-11-20", start: "14:00", end: "15:30", title: "已占用" },
+      { id: 12, roomId: 2, date: "2026-11-20", start: "15:30", end: "16:00", title: "接档" },
+    ];
+
+    // (A) 设备归一：白名单 / trim / 去重 / 固定排序 / 存量 NULL
+    eq(ROOM_EQUIPMENT_WHITELIST, ["投影", "白板", "视频会议", "电话会议"], "r43 设备·四项白名单固定顺序");
+    eq(normalizeEquipment(undefined), [], "r43 设备·undefined 归一为空");
+    eq(normalizeEquipment(null), [], "r43 设备·NULL 归一为空（存量行）");
+    eq(normalizeEquipment([]), [], "r43 设备·空数组归一为空");
+    eq(normalizeEquipment(["投影"]), ["投影"], "r43 设备·单项原样");
+    eq(normalizeEquipment(["白板", "投影"]), ["投影", "白板"], "r43 设备·按白名单固定顺序排序");
+    eq(normalizeEquipment(["投影", "投影"]), ["投影"], "r43 设备·去重");
+    eq(normalizeEquipment(["视频会议", "投影", "白板", "电话会议"]), ["投影", "白板", "视频会议", "电话会议"], "r43 设备·四项全量排序");
+    eq(normalizeEquipment("投影,白板"), ["投影", "白板"], "r43 设备·逗号串解析");
+    eq(normalizeEquipment("投影，白板、视频会议"), ["投影", "白板", "视频会议"], "r43 设备·中英文逗号与顿号解析");
+    eq(normalizeEquipment([" 投影 ", "未知设备", "电话会议"]), ["投影", "电话会议"], "r43 设备·trim + 白名单过滤");
+    noThrow(() => assertValidEquipment(undefined), "r43 守卫·缺省设备合法");
+    noThrow(() => assertValidEquipment(["投影", "白板"]), "r43 守卫·白名单设备通过");
+    await throws(() => assertValidEquipment("激光笔"), "r43 守卫·白名单外设备抛错（api 400 根因）");
+    await throws(() => assertValidEquipment(["投影", "未知"]), "r43 守卫·数组含未知设备抛错");
+    eq(parseEquipmentQuery("投影,投影"), ["投影"], "r43 查询·设备串去重");
+    await throws(() => parseEquipmentQuery(["未知"]), "r43 查询·非法设备抛错");
+    eq(parseStoredEquipment(null), [], "r43 存库·NULL 视为空设备（向后兼容）");
+    eq(parseStoredEquipment('["白板","投影"]'), ["投影", "白板"], "r43 存库·JSON 数组读回并归一");
+    eq(parseStoredEquipment("not-json"), [], "r43 存库·坏 JSON 视为空设备");
+    eq(parseStoredEquipment('{"a":1}'), [], "r43 存库·非数组 JSON 视为空设备");
+
+    // (B) 需求守卫：人数 / 时段 / 日期 / 设备
+    eq(parseAttendees(8), 8, "r43 人数·数字原样");
+    eq(parseAttendees("8"), 8, "r43 人数·字符串数字归一");
+    await throws(() => parseAttendees(0), "r43 人数·0 被拒");
+    await throws(() => parseAttendees(1001), "r43 人数·超上限被拒");
+    await throws(() => parseAttendees("abc"), "r43 人数·非数字被拒");
+    eq(parseRecommendNeed({ attendees: 8, equipment: "投影", date: "2026-11-20", start: "10:00", end: "11:00" }), need43, "r43 需求·四参数归一");
+    eq(parseRecommendNeed({ attendees: "8", equipment: "投影,投影", start: "2026-11-20T10:00", end: "2026-11-20T11:00" }), need43, "r43 需求·ISO 时段自提取日期");
+    await throws(() => parseRecommendNeed({ attendees: 8, start: "11:00", end: "10:00" }), "r43 需求·时段倒挂被拒");
+    await throws(() => parseRecommendNeed({ attendees: 8, start: "08:00", end: "17:00" }), "r43 需求·超过 8 小时被拒");
+    await throws(() => parseRecommendNeed({ attendees: 8, date: "2026-02-30", start: "10:00", end: "11:00" }), "r43 需求·非法日期被拒");
+    await throws(() => parseRecommendNeed({ attendees: 8, equipment: "激光笔", start: "10:00", end: "11:00" }), "r43 需求·非法设备被拒");
+    await throws(() => parseRecommendNeed({ start: "10:00", end: "11:00" }), "r43 需求·缺人数被拒");
+    await throws(() => parseRecommendNeed({ attendees: 8, start: "9:00", end: "11:00" }), "r43 需求·非补零时钟被拒");
+
+    // (C) 可用判定与冲突原因（复用 r28 边界相接口径）
+    eq(roomMatchesNeed(rooms43[1]!, need43, meetings43), true, "r43 判定·容量刚好 + 设备全含 + 无冲突");
+    eq(roomMatchesNeed(rooms43[0]!, need43, meetings43), true, "r43 判定·大容量含设备可用");
+    eq(roomMatchesNeed({ ...rooms43[1]!, capacity: 7 }, need43, meetings43), false, "r43 判定·容量不足不可用");
+    eq(roomMatchesNeed({ ...rooms43[1]!, equipment: [] }, need43, meetings43), false, "r43 判定·设备缺失不可用");
+    eq(roomMatchesNeed({ ...rooms43[1]!, active: false }, need43, meetings43), false, "r43 判定·停用室不可用");
+    const conflictNeed = { ...need43, start: "14:30", end: "15:00" };
+    eq(roomMatchesNeed(rooms43[1]!, conflictNeed, meetings43), false, "r43 判定·时段重叠不可用");
+    eq(roomMatchesNeed(rooms43[1]!, { ...need43, start: "16:00", end: "16:30" }, meetings43), true, "r43 判定·与上一场 16:00 边界相接不冲突（r28 口径）");
+    eq(roomMatchesNeed(rooms43[1]!, { ...need43, start: "16:00", end: "17:00" }, meetings43), true, "r43 判定·接档之后空闲可用");
+    eq(roomMatchesNeed(rooms43[1]!, { ...need43, date: "2026-11-21" }, meetings43), true, "r43 判定·跨日期预约不冲突");
+    eq(roomMatchesNeed({ ...rooms43[1]!, equipment: ["电话会议"] }, { ...need43, equipment: [] }, meetings43), true, "r43 判定·无设备需求时任意室可用");
+    eq(roomMismatchReasons(rooms43[2]!, need43, meetings43), ["容量不足（6 < 8）", "缺少设备：投影"], "r43 原因·容量 + 设备缺失按序给全");
+    eq(roomMismatchReasons({ ...rooms43[3]!, capacity: 6, equipment: [] }, need43, meetings43), ["会议室已停用", "容量不足（6 < 8）", "缺少设备：投影"], "r43 原因·停用优先且三条并存");
+    eq(roomMismatchReasons(rooms43[1]!, conflictNeed, meetings43), ["时段冲突：会议 #11 14:00–15:30 已占用"], "r43 原因·时段冲突回带会议 id 与时段");
+    eq(roomMismatchReasons(rooms43[1]!, { ...need43, start: "16:00", end: "17:00" }, meetings43), [], "r43 原因·空闲室原因清单为空");
+
+    // (D) 推荐排序：容量最接近升序 / 同容量 id 升序 / 纯函数
+    eq(recommendRooms(rooms43, need43, meetings43).map((h) => h.id), [2, 1], "r43 推荐·8 人先 8 座再 12 座（容量最接近升序）");
+    eq(recommendRooms(rooms43, need43, meetings43).map((h) => h.seatsOver), [0, 4], "r43 推荐·余座数随容量升序");
+    eq(recommendRooms(rooms43, { ...need43, attendees: 12 }, meetings43).map((h) => h.id), [1], "r43 推荐·12 人只剩大会议室");
+    eq(recommendRooms(rooms43, { ...need43, attendees: 13 }, meetings43), [], "r43 推荐·超出全部容量返回空");
+    eq(recommendRooms(rooms43, { ...need43, equipment: ["视频会议"] }, meetings43).map((h) => h.id), [1], "r43 推荐·设备过滤只留含视频会议房");
+    eq(recommendRooms(rooms43, conflictNeed, meetings43).map((h) => h.id), [1], "r43 推荐·冲突时段剔除中会议室");
+    eq(recommendRooms([rooms43[1]!, { ...rooms43[0]!, id: 0, capacity: 8 }], need43, meetings43).map((h) => h.id), [0, 2], "r43 推荐·同容量按 id 升序（确定性）");
+    const roomsSnapshot = JSON.stringify(rooms43);
+    const meetingsSnapshot = JSON.stringify(meetings43);
+    recommendRooms(rooms43, need43, meetings43);
+    eq(JSON.stringify(rooms43), roomsSnapshot, "r43 纯函数·推荐不改会议室入参");
+    eq(JSON.stringify(meetings43), meetingsSnapshot, "r43 纯函数·推荐不改预约入参");
+    const full43 = buildRoomRecommendation(rooms43, need43, meetings43);
+    eq(full43.need, need43, "r43 装配·回显需求口径");
+    eq(full43.available.map((h) => h.id), [2, 1], "r43 装配·可用分区且已排序");
+    eq(full43.unavailable.map((m) => m.id), [3, 4], "r43 装配·不可用分区按 id 升序");
+    ok(full43.unavailable.every((m) => m.reasons.length > 0), "r43 装配·每条不可用均带明确原因（非空）");
+    eq(JSON.stringify(buildRoomRecommendation(rooms43, need43, meetings43)), JSON.stringify(full43), "r43 装配·同输入逐字节确定（零随机）");
+
+    // (E) schema v27：只加可空列 + 真迁移 / 存量 NULL / CRUD
+    eq(SCHEMA_VERSION, 27, "r43 schema·shared 版本推进到 v27");
+    eq(CURRENT_SCHEMA_VERSION, 27, "r43 schema·db 当前版本与 shared 相等");
+    noThrow(() => assertMigrationsConsistent(), "r43 schema·迁移队列连续且最高版本一致");
+    eq(MIGRATIONS.length, 27, "r43 schema·迁移队列恰 27 条");
+    eq(MIGRATIONS.at(-1)?.version, 27, "r43 schema·末条迁移为 v27");
+    const raw43 = openDatabaseRaw({ path: ":memory:" });
+    eq((raw43.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 27, "r43 新库 user_version=27");
+    const cols43 = raw43.raw.all("PRAGMA table_info(rooms)").map((r) => String((r as { name: unknown }).name));
+    eq(cols43, ["id", "name", "location", "capacity", "active", "created_at", "updated_at", "equipment"], "r43 rooms·原七列逐字不动 + equipment 追加在尾");
+    const eqCol43 = raw43.raw.all("PRAGMA table_info(rooms)").find((r) => String((r as { name: unknown }).name) === "equipment") as { notnull: number; type: string };
+    eq(eqCol43.notnull, 0, "r43 rooms·equipment 可空（存量 NULL）");
+    eq(eqCol43.type.toUpperCase(), "TEXT", "r43 rooms·equipment 为 TEXT（JSON 数组）");
+    raw43.raw.run("INSERT INTO rooms (name,location,capacity,active,created_at,updated_at) VALUES ('老会议室','1F',6,1,'t','t')");
+    eq((raw43.raw.get("SELECT equipment FROM rooms WHERE id=1") as { equipment: unknown }).equipment, null, "r43 向后兼容·老行 equipment 恒 NULL");
+    eq(raw43.appliedMigrations.includes(27), true, "r43 真迁移·v27 已应用");
+    raw43.raw.close();
+    const rdb43 = openDatabase({ path: ":memory:" });
+    eq(rdb43.listRooms()[0]?.equipment, undefined, "r43 数据层·空库无会议室");
+    const roomA43 = rdb43.createRoom({ name: "甲室", location: "3F", capacity: 12, equipment: ["投影", "白板", "投影"] });
+    eq(roomA43.equipment, ["投影", "白板"], "r43 数据层·建室设备归一（去重 + 排序）");
+    const roomB43 = rdb43.createRoom({ name: "乙室", capacity: 8 });
+    eq(roomB43.equipment, [], "r43 数据层·不传设备默认空数组（向后兼容）");
+    eq(rdb43.getRoom(roomA43.id)?.equipment, ["投影", "白板"], "r43 数据层·设备真落库且读回");
+    await throws(() => rdb43.createRoom({ name: "非法室", equipment: ["激光笔"] }), "r43 数据层·非法设备被守卫拒绝");
+    eq(rdb43.listRooms().length, 2, "r43 零半态·非法建室未写库");
+    const patched43 = rdb43.updateRoom(roomA43.id, { equipment: ["视频会议"] });
+    eq(patched43?.equipment, ["视频会议"], "r43 数据层·PATCH 整组替换设备");
+    await throws(() => rdb43.updateRoom(roomA43.id, { equipment: ["未知设备"] }), "r43 数据层·PATCH 非法设备被拒");
+    eq(rdb43.getRoom(roomA43.id)?.equipment, ["视频会议"], "r43 零半态·PATCH 失败设备未被改写");
+    eq(rdb43.updateRoom(roomA43.id, { equipment: [] })?.equipment, [], "r43 数据层·可清空设备为空数组");
+
+    // (F) r28 会议零回归：预约 / 冲突 / 边界相接 / availability 在新的 8 列 rooms 上全绿
+    const regRoom = rdb43.createRoom({ name: "回归室", capacity: 10, equipment: ["投影"] });
+    const regFirst = rdb43.createMeeting({ roomId: regRoom.id, title: "首场", date: "2026-11-20", start: "09:00", end: "10:00" });
+    ok(regFirst.id > 0, "r28 零回归·预约成功落库");
+    await throws(() => rdb43.createMeeting({ roomId: regRoom.id, title: "撞车", date: "2026-11-20", start: "09:30", end: "10:30" }), "r28 零回归·重叠预约被 409 规则拒绝");
+    ok(rdb43.createMeeting({ roomId: regRoom.id, title: "接档", date: "2026-11-20", start: "10:00", end: "11:00" }).id > 0, "r28 零回归·边界相接预约成功");
+    eq(rdb43.listMeetings({ roomId: regRoom.id }).length, 2, "r28 零回归·该室两场不丢");
+    eq(meetingAvailability("2026-11-20", rdb43.listRooms(), rdb43.listMeetings()).length, 3, "r28 零回归·availability 仍列全部启用室");
+    rdb43.close();
+
+    // (G) 重启持久化（真文件库，非内存）
+    const persistPath43 = `scripts/.tmp-e2e/r43-equipment-${Date.now()}.db`;
+    const pdb43 = openDatabase({ path: persistPath43 });
+    const pRoom43 = pdb43.createRoom({ name: "持久化室", capacity: 9, equipment: ["视频会议", "投影"] });
+    pdb43.close();
+    const reopen43 = openDatabase({ path: persistPath43 });
+    eq(reopen43.getRoom(pRoom43.id)?.equipment, ["投影", "视频会议"], "r43 持久化·重开后设备逐字不丢");
+    reopen43.close();
+    try { unlinkSync(persistPath43); } catch { /* 临时探针已清理 */ }
+
+    // (H) api / web 零算法分支 + 索引 + README + 截图矩阵
+    const sharedPkg43 = readFileSync("packages/shared/package.json", "utf8");
+    const api43 = readFileSync("apps/api/src/server.ts", "utf8");
+    const web43 = readFileSync("apps/web/src/MeetingsPage.tsx", "utf8");
+    const app43 = readFileSync("apps/web/src/App.tsx", "utf8");
+    const ci43 = readFileSync(".github/workflows/ci.yml", "utf8");
+    ok(sharedPkg43.includes('"./roomRecommend": "./src/roomRecommend.ts"'), "r43 子路径·@xieflow/shared/roomRecommend 已登记");
+    ok(api43.includes('app.get("/api/rooms/recommend"'), "r43 api·推荐路由在场");
+    ok(api43.includes("parseRecommendNeed") && api43.includes("buildRoomRecommendation"), "r43 api·只装配 shared 规则");
+    ok(!/const\s+EQUIPMENT_ORDER|ROOM_EQUIPMENT_WHITELIST\s*=\s*\[/.test(api43), "r43 api·零设备算法分支");
+    ok(web43.includes('from "@xieflow/shared/roomRecommend"'), "r43 web·消费 shared 推荐口径");
+    ok(web43.includes('data-state="meeting-room-equip"'), "r43 web·设备徽标 seam 在场");
+    ok(web43.includes('data-action="meeting-recommend"'), "r43 web·帮我推荐按钮 seam 在场");
+    ok(web43.includes('data-state="meeting-recommend-result"'), "r43 web·推荐结果 seam 在场");
+    ok(web43.includes('data-state="meeting-recommend-miss"'), "r43 web·冲突原因 seam 在场");
+    ok(!/const\s+EQUIPMENT_ORDER|ROOM_EQUIPMENT_WHITELIST\s*=\s*\[/.test(web43), "r43 web·零设备算法分支");
+    eq((app43.match(/data-tab="/g) ?? []).length, 20, "r43 App·二十 tab 数量不变（无新 tab）");
+    ok(ci43.includes("|25|26|27)"), "r43 CI·HTTP smoke 正则升 v27");
+    const matrix43 = readdirSync("docs/ui/r43").filter((f) => f.endsWith(".png"));
+    eq(matrix43.length, 7, "r43 截图·矩阵恰好 7 张 PNG");
+    eq(new Set(matrix43.map((p) => createHash("sha256").update(readFileSync(`docs/ui/r43/${p}`)).digest("hex"))).size, 7, "r43 截图·七张 SHA256 两两互异");
+    ok([
+      "01-equipment-empty.png", "02-equipment-badges.png", "03-recommend-panel.png",
+      "04-recommend-results.png", "05-recommend-conflicts.png", "06-recommend-narrow.png", "07-recommend-error.png",
+    ].every((name) => matrix43.includes(name)), "r43 截图·七态文件名齐备");
+    const shells43 = readdirSync("docs/ui/shell").filter((f) => f.endsWith(".png"));
+    eq(shells43.length, 20, "r43 截图·二十 tab 壳同批重拍 20 张");
+    eq(new Set(shells43.map((p) => createHash("sha256").update(readFileSync(`docs/ui/shell/${p}`)).digest("hex"))).size, 20, "r43 截图·壳 20 张 SHA256 互异");
+    const shellSet43 = new Set(shells43.map((p) => createHash("sha256").update(readFileSync(`docs/ui/shell/${p}`)).digest("hex")));
+    eq(matrix43.filter((p) => shellSet43.has(createHash("sha256").update(readFileSync(`docs/ui/r43/${p}`)).digest("hex"))).length, 0, "r43 截图·矩阵与壳零重叠");
+    const idx43 = readFileSync("docs/ui/r43/README.md", "utf8");
+    ok(idx43.includes("<!-- R43_HASHES_BEGIN -->") && idx43.includes("01-equipment-empty.png"), "r43 索引·哈希块与首图名在场");
+    const shellIdx43 = readFileSync("docs/ui/shell/README.md", "utf8");
+    ok(shellIdx43.includes("<!-- R43_HASHES_BEGIN -->") && shellIdx43.includes("R43 当前哈希块"), "r43 壳索引·R43 当前哈希块在场");
+    const root43 = readFileSync("README.md", "utf8");
+    ok(root43.includes("当前轮 r43"), "r43 根 README·当前轮对照表同步");
+    ok(root43.includes("docs/ui/r43/01-equipment-empty.png") && root43.includes("docs/ui/shell/README.md"), "r43 根 README·矩阵索引同步");
+    ok(root43.includes("e2e（3665 断言）+ HTTP 审计（2802 断言）"), "r43 根 README·速查行断言规模同步");
+    ok(root43.includes("CI smoke 正则随 schema 版本同步至 v27"), "r43 根 README·CI vN 文案同步");
+    ok(root43.includes("迁移队列（当前 v27）"), "r43 根 README·迁移队列 vN 文案同步");
   }
 
   // 61. HTTP 冒烟 /api/health

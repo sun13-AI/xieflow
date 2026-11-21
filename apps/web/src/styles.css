@@ -4229,6 +4229,9 @@ html.force-narrow .reports-table th:nth-child(3), html.force-narrow .reports-tab
 .meeting-room-off { opacity: 0.62; }
 .meeting-new-room { border-top: 1px dashed var(--line); padding-top: 9px; display: grid; gap: 6px; }
 .meeting-new-room label { display: grid; gap: 4px; font-size: 11px; color: var(--ink-2); }
+.meeting-new-room-equips { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 6px; }
+.meeting-new-room-equip { display: flex !important; align-items: center; gap: 4px; margin-bottom: 0 !important; font-size: 10px; white-space: nowrap; }
+.meeting-new-room-equip input { width: auto; }
 .meeting-new-room input, .meeting-form input, .meeting-form select { width: 100%; box-sizing: border-box; border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font-size: 12px; }
 .meeting-date { display: block; font-size: 11px; color: var(--ink-2); margin-bottom: 9px; }
 .meeting-date input { border: 1px solid var(--line); border-radius: 6px; padding: 5px 7px; margin-left: 5px; font-size: 12px; }
@@ -4244,6 +4247,23 @@ html.force-narrow .reports-table th:nth-child(3), html.force-narrow .reports-tab
 .meeting-attendee { display: flex !important; align-items: center; gap: 5px; margin-bottom: 4px !important; font-size: 11px; }
 .meeting-attendee input { width: auto; }
 .meeting-form .btn-primary { width: 100%; }
+/* r43: 会议室设备徽标 + 推荐面板（纯展示，规则全在 shared/roomRecommend） */
+.meeting-room-equips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
+.meeting-room-equip { display: inline-block; padding: 2px 6px; border-radius: 999px; background: #eef4ff; color: #2f5aa8; font-size: 10px; border: 1px solid #d6e4ff; }
+.meeting-room-equip-empty { display: inline-block; padding: 2px 6px; border-radius: 999px; background: #f4f5f7; color: #9099a8; font-size: 10px; }
+.meeting-recommend-need { border: 1px solid var(--line); border-radius: 8px; margin: 4px 0 10px; padding: 7px 9px; }
+.meeting-recommend-need legend { font-size: 11px; color: var(--ink-2); padding: 0 4px; }
+.meeting-need-equipments { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 7px; }
+.meeting-need-equip { display: flex !important; align-items: center; gap: 4px; margin-bottom: 0 !important; font-size: 11px; }
+.meeting-need-equip input { width: auto; }
+.meeting-recommend-need .btn-secondary { width: 100%; padding: 6px 8px; border: 1px solid var(--accent); border-radius: 6px; background: #f4f8ff; color: #2f5aa8; font-size: 12px; cursor: pointer; }
+.meeting-recommend-error { margin: 0 0 9px; padding: 6px 9px; border-radius: 6px; background: #fdecea; color: #c0392b; font-size: 11px; }
+.meeting-recommend-result { border: 1px solid var(--line); border-radius: 8px; padding: 8px 9px; margin-bottom: 10px; }
+.meeting-recommend-result h3 { margin: 0 0 5px; font-size: 12px; }
+.meeting-recommend-result p { margin: 0 0 6px; font-size: 11px; color: var(--ink-2); }
+.meeting-recommend-result ul { list-style: none; margin: 0 0 6px; padding: 0; display: grid; gap: 4px; }
+.meeting-recommend-available button { width: 100%; text-align: left; padding: 5px 7px; border: 1px solid #bcd4ff; border-radius: 6px; background: #f4f8ff; color: #2f5aa8; font-size: 11px; cursor: pointer; }
+.meeting-recommend-miss { padding: 5px 7px; border-left: 3px solid #e0a44a; background: #fff9ec; color: #8a641a; font-size: 11px; border-radius: 4px; }
 html.force-narrow .meetings-columns { grid-template-columns: 1fr; }
 html.force-narrow .meeting-grid-body { max-height: 300px; overflow-y: auto; }
 @media (max-width: 900px) {

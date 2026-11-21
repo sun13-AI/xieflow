@@ -165,7 +165,7 @@ async function audit() {
     eq(h.json && h.json.ok, true, "health.ok = true");
     // r4 起动态对表：health.schemaVersion 必须等于迁移队列最高版本（不再硬编码 2/3，
     // r3 v0.0.6 CI 红教训——静态硬编码在每轮迁移后必过期）
-    eq(h.json && h.json.schemaVersion, 26, "health.schemaVersion = 18（r25 迁移后）");
+    eq(h.json && h.json.schemaVersion, 27, "health.schemaVersion = 27（r25 迁移后）");
     const s = await req("GET", "/api/settings");
     eq(s.status, 200, "GET /api/settings -> 200");
     ok(Array.isArray(s.json && s.json.settings), "settings 返回数组");
@@ -268,7 +268,7 @@ async function audit() {
   {
     // health 探针反映 schema v8（r4 起迁移后动态推进）
     const h3 = await req("GET", "/api/health");
-    eq(h3.json && h3.json.schemaVersion, 26, "health.schemaVersion = 18（r25 迁移后复核）");
+    eq(h3.json && h3.json.schemaVersion, 27, "health.schemaVersion = 27（r25 迁移后复核）");
 
     const r = await expectStatus(
       "POST",
@@ -2644,7 +2644,7 @@ async function audit() {
     const st0 = await expectStatus("GET", "/api/sync/status", undefined, 200, "r19 GET status -> 200");
     eq(st0.json && st0.json.total, 0, "r19 初始无实体版本");
     eq(st0.json && st0.json.lastChangeId, 0, "r19 初始 lastChangeId=0");
-    eq(st0.json && st0.json.schemaVersion, 26, "r19 status 回带 schema v18（r25 推进）");
+    eq(st0.json && st0.json.schemaVersion, 27, "r19 status 回带 schema v18（r25 推进）");
     const ch0 = await expectStatus("GET", "/api/sync/changes?since=0&limit=50", undefined, 200, "r19 GET changes 空 -> 200");
     eq(ch0.json && ch0.json.count, 0, "r19 初始变更日志为空");
     eq(ch0.json && ch0.json.changes, [], "r19 初始 changes 数组为空");
@@ -2865,7 +2865,7 @@ async function audit() {
     // health：真 HTTP 200 + 真读库语义
     const h = await expectStatus("GET", DEPLOY_PATHS.health, undefined, 200, "r21 GET 契约健康路径 -> 200");
     eq(h.json && h.json.ok, true, "r21 health.ok=true");
-    eq(h.json && h.json.schemaVersion, 26, "r21 health.schemaVersion=18（部署版本一致）");
+    eq(h.json && h.json.schemaVersion, 27, "r21 health.schemaVersion=27（部署版本一致）");
     ok(isServerMode(h.json && h.json.mode), "r21 health.mode 为 local|remote 之一（契约模式合法）");
 
     // mode：模式探针公开可达，回显一致
@@ -2920,7 +2920,7 @@ async function audit() {
   console.log("\n== Org r23: departments / members / tree / search / 4xx ==");
   {
     const h23 = await expectStatus("GET", "/api/health", undefined, 200, "r23 health 真 HTTP 200");
-    eq(h23.json && h23.json.schemaVersion, 26, "r23 health.schemaVersion=18（迁移真生效）");
+    eq(h23.json && h23.json.schemaVersion, 27, "r23 health.schemaVersion=27（迁移真生效）");
     const tree0 = await expectStatus("GET", "/api/org/tree", undefined, 200, "r23 空组织树 -> 200");
     eq(tree0.json && tree0.json.tree, [], "r23 空组织树 tree=[]");
     eq(tree0.json && tree0.json.departments, [], "r23 空组织树 departments=[]");
@@ -3011,7 +3011,7 @@ async function audit() {
   console.log("\n== Org r24: member_id in approvals / assets / usage / 4xx ==");
   {
     const h24 = await expectStatus("GET", "/api/health", undefined, 200, "r24 health 真 HTTP 200");
-    eq(h24.json && h24.json.schemaVersion, 26, "r24 health.schemaVersion=18（迁移真生效）");
+    eq(h24.json && h24.json.schemaVersion, 27, "r24 health.schemaVersion=27（迁移真生效）");
 
     const dept = await expectStatus("POST", "/api/departments", { name: "r24审计研发中心" }, 201, "r24 建部门 -> 201");
     const alice = await expectStatus("POST", "/api/members", {
@@ -3149,7 +3149,7 @@ async function audit() {
   console.log("\n== Approval r25: actorMemberId / linked member / action usage ==");
   {
     const h25 = await expectStatus("GET", "/api/health", undefined, 200, "r25 health 真 HTTP 200");
-    eq(h25.json && h25.json.schemaVersion, 26, "r25 health.schemaVersion=18（v18 迁移真生效）");
+    eq(h25.json && h25.json.schemaVersion, 27, "r25 health.schemaVersion=27（v18 迁移真生效）");
 
     const uname25 = `r25.actor.${Date.now()}`;
     const user25 = await expectStatus("POST", "/api/auth/register", { username: uname25, password: "Passw0rd!" }, 201, "r25 注册登录用户 -> 201");
@@ -3244,7 +3244,7 @@ async function auditR26(): Promise<void> {
   console.log("\n== Notification r26: real event aggregation / idempotent refresh / 4xx ==");
   {
     const h26 = await expectStatus("GET", "/api/health", undefined, 200, "r26 health 真 HTTP 200");
-    eq(h26.json && h26.json.schemaVersion, 26, "r26 health.schemaVersion=26（v26 迁移随轮推进）");
+    eq(h26.json && h26.json.schemaVersion, 27, "r26 health.schemaVersion=27（v27 迁移随轮推进）");
     const today = new Date();
     const pad26 = (n: number): string => String(n).padStart(2, "0");
     const todayStr26 = `${today.getFullYear()}-${pad26(today.getMonth() + 1)}-${pad26(today.getDate())}`;
@@ -3377,7 +3377,7 @@ async function auditR27(): Promise<void> {
   console.log("\n== Report r27: real HTTP assembly / hand-check / drilldown / 4xx ==");
   {
     const h27 = await expectStatus("GET", "/api/health", undefined, 200, "r27 health 真 HTTP 200");
-    eq(h27.json && h27.json.schemaVersion, 26, "r27 health.schemaVersion=26（报表轮无新迁移，随当前轮推进）");
+    eq(h27.json && h27.json.schemaVersion, 27, "r27 health.schemaVersion=27（报表轮无新迁移，随当前轮推进）");
     const today27 = new Date().toISOString().slice(0, 10);
     const q27 = `from=${today27}&to=${today27}`;
     const stamp27 = Date.now().toString(36);
@@ -3491,7 +3491,7 @@ async function auditR28(): Promise<void> {
   console.log("\n== Meeting r28: real HTTP booking / 409 conflicts / attendees / 4xx ==");
   {
     const h28 = await expectStatus("GET", "/api/health", undefined, 200, "r28 health 真 HTTP 200");
-    eq(h28.json && h28.json.schemaVersion, 26, "r28 health.schemaVersion=20（v20 迁移真生效）");
+    eq(h28.json && h28.json.schemaVersion, 27, "r28 health.schemaVersion=27（v20 迁移真生效）");
     const stamp28 = Date.now().toString(36);
     const day28 = "2027-02-18";
 
@@ -3674,7 +3674,7 @@ async function auditR28(): Promise<void> {
   {
     const stamp29 = `r29-${Date.now()}`;
     const h29 = await expectStatus("GET", "/api/health", undefined, 200, "r29 health -> 200");
-    eq(h29.json && h29.json.schemaVersion, 26, "r29 health.schemaVersion=21（v21 迁移真生效）");
+    eq(h29.json && h29.json.schemaVersion, 27, "r29 health.schemaVersion=27（v21 迁移真生效）");
 
     const docA29 = await expectStatus("POST", "/api/documents", { title: `${stamp29}-A` }, 201, "r29 建探针文档 A -> 201");
     const docB29 = await expectStatus("POST", "/api/documents", { title: `${stamp29}-B` }, 201, "r29 建探针文档 B -> 201");
@@ -3751,7 +3751,7 @@ async function auditR28(): Promise<void> {
   {
     const stamp30 = `r30-${Date.now()}`;
     const h30 = await expectStatus("GET", "/api/health", undefined, 200, "r30 health -> 200");
-    eq(h30.json && h30.json.schemaVersion, 26, "r30 health.schemaVersion=22（v22 迁移真生效）");
+    eq(h30.json && h30.json.schemaVersion, 27, "r30 health.schemaVersion=27（v22 迁移真生效）");
 
     const tbl30 = await expectStatus("POST", "/api/tables", { name: `${stamp30}-formula` }, 201, "r30 建表 -> 201");
     const tid30 = tbl30.json.id;
@@ -4626,7 +4626,7 @@ async function auditR28(): Promise<void> {
     // three submitted responses; every 4xx branch is a real rejected request.
     const KEY41 = `r41-${Date.now()}`;
     const h41 = await expectStatus("GET", "/api/health", undefined, 200, "r41 health -> 200");
-    eq(h41.json.schemaVersion, 26, "r41 health.schemaVersion=26（v26 迁移真生效）");
+    eq(h41.json.schemaVersion, 27, "r41 health.schemaVersion=27（v27 迁移真生效）");
     const listBefore41 = await expectStatus("GET", "/api/forms", undefined, 200, "r41 GET 空表单列表 -> 200");
     eq(listBefore41.json.count, 0, "r41 空库·表单列表 count=0");
     const created41 = await expectStatus("POST", "/api/forms", {
@@ -4723,6 +4723,141 @@ async function auditR28(): Promise<void> {
     await expectStatus("GET", `/api/forms/${fid41}/summary`, undefined, 404, "r41 删除后汇总 -> 404");
     const finalList41 = await expectStatus("GET", "/api/forms", undefined, 200, "r41 清理后列表 -> 200");
     ok(!JSON.stringify(finalList41.json.forms).includes(KEY41), "r41 探针归零·列表不含本轮 KEY");
+
+    // r43: meeting-room equipment + smart recommendation over REAL HTTP. Three rooms
+    // with distinct capacity/equipment, one existing booking; recommendations are
+    // hand-checked (capacity closest first) and every 4xx is a real rejected request.
+    const KEY43 = `r43-${Date.now()}`;
+    const h43 = await expectStatus("GET", "/api/health", undefined, 200, "r43 health -> 200");
+    eq(h43.json.schemaVersion, 27, "r43 health.schemaVersion=27（v27 迁移真生效）");
+
+    const roomA43 = await expectStatus("POST", "/api/rooms", {
+      name: `${KEY43} 大会议室`, location: "3F", capacity: 12, equipment: ["投影", "视频会议"],
+    }, 201, "r43 建大会议室 -> 201");
+    eq(roomA43.json.equipment, ["投影", "视频会议"], "r43 建室·设备回带原样");
+    const roomB43 = await expectStatus("POST", "/api/rooms", {
+      name: `${KEY43} 中会议室`, location: "3F", capacity: 8, equipment: ["投影", "白板"],
+    }, 201, "r43 建中会议室 -> 201");
+    const roomC43 = await expectStatus("POST", "/api/rooms", {
+      name: `${KEY43} 小会议室`, location: "2F", capacity: 6, equipment: ["电话会议"],
+    }, 201, "r43 建小会议室 -> 201");
+    const roomD43 = await expectStatus("POST", "/api/rooms", {
+      name: `${KEY43} 停用室`, location: "2F", capacity: 20, active: false, equipment: ["投影"],
+    }, 201, "r43 建停用室 -> 201");
+    eq(roomD43.json.active, false, "r43 停用室·active=false 回显");
+    const list43 = await expectStatus("GET", "/api/rooms", undefined, 200, "r43 会议室列表 -> 200");
+    ok(list43.json.rooms.some((r: any) => r.equipment && r.equipment.includes("投影")), "r43 列表·设备字段真回带");
+    const gotA43 = await expectStatus("GET", `/api/rooms/${roomA43.json.id}`, undefined, 200, "r43 单室查询 -> 200");
+    eq(gotA43.json.equipment, ["投影", "视频会议"], "r43 单室·设备不丢");
+    const patchedA43 = await expectStatus("PATCH", `/api/rooms/${roomA43.json.id}`, { equipment: ["白板", "投影", "白板"] }, 200, "r43 PATCH 设备 -> 200");
+    eq(patchedA43.json.equipment, ["投影", "白板"], "r43 PATCH·设备去重 + 排序回带");
+    const badPatch43 = await req("PATCH", `/api/rooms/${roomA43.json.id}`, { equipment: ["激光笔"] });
+    eq(badPatch43.status, 400, "r43 4xx·PATCH 非法设备 -> 400");
+    const afterBadPatch43 = await expectStatus("GET", `/api/rooms/${roomA43.json.id}`, undefined, 200, "r43 4xx 后单室查询 -> 200");
+    eq(afterBadPatch43.json.equipment, ["投影", "白板"], "r43 零半态·PATCH 失败设备未改写");
+    const badRoom43 = await req("POST", "/api/rooms", { name: `${KEY43} 非法设备室`, equipment: ["激光笔"] });
+    eq(badRoom43.status, 400, "r43 4xx·建室非法设备 -> 400");
+    const dedupRoom43 = await expectStatus("POST", "/api/rooms", { name: `${KEY43} 去重室`, capacity: 9, equipment: ["视频会议", "投影", "视频会议"] }, 201, "r43 建室去重样本 -> 201");
+    eq(dedupRoom43.json.equipment, ["投影", "视频会议"], "r43 建室·设备去重排序真落库");
+
+    // One real existing booking on room B: 14:00-15:30. Recipient of conflict reasons.
+    const booking43 = await expectStatus("POST", "/api/meetings", {
+      roomId: roomB43.json.id, title: `${KEY43} 已占用`, date: "2026-11-20", start: "14:00", end: "15:30", organizer: "张三",
+    }, 201, "r43 已有预约 -> 201");
+    ok(booking43.json.id > 0, "r43 已有预约·真 id 回带");
+
+    const baseQ = `attendees=8&equipment=${encodeURIComponent("投影")}&date=2026-11-20&start=10:00&end=11:00`;
+    const rec43 = await expectStatus("GET", `/api/rooms/recommend?${baseQ}`, undefined, 200, "r43 推荐 8 人+投影+10:00 -> 200");
+    eq(rec43.json.need.attendees, 8, "r43 需求回显·人数 8");
+    eq(rec43.json.need.equipment, ["投影"], "r43 需求回显·设备归一");
+    eq(rec43.json.need.date, "2026-11-20", "r43 需求回显·日期");
+    eq(rec43.json.availableCount, 3, "r43 手算·8 人可用 3 间（8 座 + 9 座去重室 + 12 座）");
+    eq(rec43.json.available.map((h: any) => h.id), [roomB43.json.id, dedupRoom43.json.id, roomA43.json.id], "r43 手算·按容量最接近升序（8 → 9 → 12）");
+    eq(rec43.json.available[0].capacity, 8, "r43 手算·首位容量 8");
+    eq(rec43.json.available[1].capacity, 9, "r43 手算·次位容量 9");
+    eq(rec43.json.available[2].capacity, 12, "r43 手算·末位容量 12");
+    eq(rec43.json.available[0].seatsOver, 0, "r43 手算·首位余座 0");
+    eq(rec43.json.unavailableCount, 2, "r43 手算·不可用 2 间（小室 + 停用室）");    const missSmall43 = rec43.json.unavailable.find((m: any) => m.id === roomC43.json.id);
+    ok(Boolean(missSmall43), "r43 不可用·小会议室在场");
+    ok(missSmall43.reasons.some((r: string) => r.includes("容量不足")), "r43 不可用·小室给容量不足原因");
+    ok(missSmall43.reasons.some((r: string) => r.includes("缺少设备")), "r43 不可用·小室给设备缺失原因");
+    const missOff43 = rec43.json.unavailable.find((m: any) => m.id === roomD43.json.id);
+    ok(Boolean(missOff43), "r43 不可用·停用室在场");
+    ok(missOff43.reasons.includes("会议室已停用"), "r43 不可用·停用室给停用原因");
+
+    const conflictQ = `attendees=8&equipment=${encodeURIComponent("投影")}&date=2026-11-20&start=14:30&end=15:00`;
+    const recConflict43 = await expectStatus("GET", `/api/rooms/recommend?${conflictQ}`, undefined, 200, "r43 冲突时段推荐 -> 200");
+    ok(!recConflict43.json.available.some((h: any) => h.id === roomB43.json.id), "r43 冲突剔除·中会议室不在可用");
+    const conflictMiss43 = recConflict43.json.unavailable.find((m: any) => m.id === roomB43.json.id);
+    ok(Boolean(conflictMiss43), "r43 冲突原因·中会议室在不可用");
+    ok(conflictMiss43.reasons.some((r: string) => r.includes("时段冲突") && r.includes(String(booking43.json.id))), "r43 冲突原因·回带冲突会议 id");
+    const touchQ = `attendees=8&equipment=${encodeURIComponent("投影")}&date=2026-11-20&start=15:30&end=16:00`;
+    const recTouch43 = await expectStatus("GET", `/api/rooms/recommend?${touchQ}`, undefined, 200, "r43 边界相接时段推荐 -> 200");
+    ok(recTouch43.json.available.some((h: any) => h.id === roomB43.json.id), "r43 r28 零回归·边界相接不算冲突");
+    const noEquipQ = "attendees=8&date=2026-11-20&start=10:00&end=11:00";
+    const recNoEquip43 = await expectStatus("GET", `/api/rooms/recommend?${noEquipQ}`, undefined, 200, "r43 无设备需求推荐 -> 200");
+    eq(recNoEquip43.json.availableCount, 3, "r43 无设备需求·三间启用室均可用");
+    const bigQ = "attendees=12&date=2026-11-20&start=10:00&end=11:00";
+    const recBig43 = await expectStatus("GET", `/api/rooms/recommend?${bigQ}`, undefined, 200, "r43 12 人推荐 -> 200");
+    eq(recBig43.json.available.map((h: any) => h.id), [roomA43.json.id], "r43 12 人·只有 12 座启用室可用");
+    const videoQ = `attendees=8&equipment=${encodeURIComponent("视频会议")}&date=2026-11-20&start=10:00&end=11:00`;
+    const recVideo43 = await expectStatus("GET", `/api/rooms/recommend?${videoQ}`, undefined, 200, "r43 视频会议设备推荐 -> 200");
+    eq(recVideo43.json.available.length, 1, "r43 视频会议·PATCH 后只剩去重室命中（大会议室已改为投影+白板）");
+    eq(recVideo43.json.available[0].id, dedupRoom43.json.id, "r43 视频会议·命中室 id 精确");
+    const recAgain43 = await expectStatus("GET", `/api/rooms/recommend?${baseQ}`, undefined, 200, "r43 重复推荐 -> 200");
+    eq(JSON.stringify(recAgain43.json), JSON.stringify(rec43.json), "r43 只读·重复推荐逐字节一致");
+
+    // 4xx: illegal equipment / reversed window / illegal attendees / bad date / out-of-scope ids
+    const bad43: readonly (readonly [string, number, string])[] = [
+      [`attendees=8&equipment=${encodeURIComponent("激光笔")}&start=10:00&end=11:00`, 400, "r43 4xx·非法设备 -> 400"],
+      ["attendees=8&date=2026-11-20&start=11:00&end=10:00", 400, "r43 4xx·时段倒挂 -> 400"],
+      ["attendees=8&date=2026-11-20&start=08:00&end=17:00", 400, "r43 4xx·超过 8 小时 -> 400"],
+      ["attendees=8&date=2026-02-30&start=10:00&end=11:00", 400, "r43 4xx·非法日期 -> 400"],
+      ["attendees=0&start=10:00&end=11:00", 400, "r43 4xx·人数 0 -> 400"],
+      ["attendees=abc&start=10:00&end=11:00", 400, "r43 4xx·人数非数字 -> 400"],
+      ["start=10:00&end=11:00", 400, "r43 4xx·缺人数 -> 400"],
+      ["attendees=8&start=9:00&end=11:00", 400, "r43 4xx·非补零时钟 -> 400"],
+      ["attendees=8&start=bad&end=11:00", 400, "r43 4xx·非法开始时钟 -> 400"],
+      ["attendees=8&start=10:00&end=bad", 400, "r43 4xx·非法结束时钟 -> 400"],
+    ];
+    for (const [qs, status, label] of bad43) {
+      const res = await expectStatus("GET", `/api/rooms/recommend?${qs}`, undefined, status, label);
+      cleanError39(res, `${label}·错误体零内部术语`);
+    }
+    await expectStatus("GET", "/api/rooms/99999999", undefined, 404, "r43 4xx·越权会议室 id -> 404");
+    await expectStatus("GET", "/api/rooms/not-a-number", undefined, 400, "r43 4xx·非数字会议室 id -> 400");
+    await expectStatus("PATCH", "/api/rooms/99999999", { equipment: [] }, 404, "r43 4xx·越权 PATCH -> 404");
+    const after4xx43 = await expectStatus("GET", `/api/rooms/recommend?${baseQ}`, undefined, 200, "r43 4xx 后推荐仍 200");
+    eq(JSON.stringify(after4xx43.json), JSON.stringify(rec43.json), "r43 4xx 零半态·推荐结果未被改写");
+
+    // r28 meeting zero regression on the new 8-column rooms table
+    const regBooking43 = await expectStatus("POST", "/api/meetings", {
+      roomId: roomA43.json.id, title: `${KEY43} 回归首场`, date: "2026-11-21", start: "09:00", end: "10:00", organizer: "李四",
+    }, 201, "r28 零回归·预约 -> 201");
+    ok(regBooking43.json.id > 0, "r28 零回归·预约真 id 回带");
+    await expectStatus("POST", "/api/meetings", {
+      roomId: roomA43.json.id, title: `${KEY43} 撞车`, date: "2026-11-21", start: "09:30", end: "10:30", organizer: "李四",
+    }, 409, "r28 零回归·重叠 -> 409");
+    await expectStatus("POST", "/api/meetings", {
+      roomId: roomA43.json.id, title: `${KEY43} 接档`, date: "2026-11-21", start: "10:00", end: "11:00", organizer: "李四",
+    }, 201, "r28 零回归·边界相接 -> 201");
+    const avail43 = await expectStatus("GET", "/api/rooms/99999999/availability?date=2026-11-21", undefined, 404, "r28 零回归·越权 availability -> 404");
+    ok(avail43.status === 404, "r28 零回归·availability 越权仍 404");
+    const availOk43 = await expectStatus("GET", `/api/rooms/${roomA43.json.id}/availability?date=2026-11-21`, undefined, 200, "r28 零回归·availability -> 200");
+    eq(availOk43.json.bookings.length, 2, "r28 零回归·availability 回两条预约");
+
+    // cleanup: meetings then rooms; probe rows must be gone
+    const meetings43 = await expectStatus("GET", "/api/meetings", undefined, 200, "r43 清理前会议列表 -> 200");
+    for (const m of meetings43.json.meetings.filter((m: any) => String(m.title).includes(KEY43))) {
+      await expectStatus("DELETE", `/api/meetings/${m.id}`, undefined, 200, `r43 清理会议 ${m.id} -> 200`);
+    }
+    for (const id of [roomA43.json.id, roomB43.json.id, roomC43.json.id, roomD43.json.id, dedupRoom43.json.id]) {
+      await expectStatus("DELETE", `/api/rooms/${id}`, undefined, 200, `r43 清理会议室 ${id} -> 200`);
+    }
+    const finalRooms43 = await expectStatus("GET", "/api/rooms", undefined, 200, "r43 清理后列表 -> 200");
+    ok(!JSON.stringify(finalRooms43.json.rooms).includes(KEY43), "r43 探针归零·会议室列表不含本轮 KEY");
+    const finalMeetings43 = await expectStatus("GET", "/api/meetings", undefined, 200, "r43 清理后会议列表 -> 200");
+    ok(!JSON.stringify(finalMeetings43.json.meetings).includes(KEY43), "r43 探针归零·会议列表不含本轮 KEY");
 }
 
 try {

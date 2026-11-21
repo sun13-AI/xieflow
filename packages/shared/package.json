@@ -11,6 +11,7 @@
     "./notifications": "./src/notifications.ts",
     "./reports": "./src/reports.ts",
     "./meetings": "./src/meetings.ts",
+    "./roomRecommend": "./src/roomRecommend.ts",
     "./docHistory": "./src/docHistory.ts",
     "./formula": "./src/formula.ts",
     "./globalSearch": "./src/globalSearch.ts",
