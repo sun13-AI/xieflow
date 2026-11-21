@@ -193,15 +193,15 @@ if (counts.e2e !== null && counts.audit !== null) {
   check(root.includes(quickRef), `README·速查行数字与 scripts 实测口径一致（${quickRef}）`);
 }
 
-const ROUND = "r44";
+const ROUND = "r45";
 const uiSec = sectionBody(root, "## 界面与测试对照");
 const scaleSec = sectionBody(root, "### 断言规模");
 check(uiSec !== null, "README·「界面与测试对照」节在场");
 check(scaleSec !== null, "README·「### 断言规模」节在场");
 check(
-  uiSec !== null && uiSec.includes(ROUND) && uiSec.includes("docs/ui/r43/01-equipment-empty.png") &&
+  uiSec !== null && uiSec.includes(ROUND) && uiSec.includes("docs/ui/r45/01-dnd-handles.png") &&
     uiSec.includes("docs/ui/shell/README.md") && uiSec.includes("同批重拍"),
-  "README·「界面与测试对照」节声明当前轮 r44 七张矩阵 + 二十 tab 壳同批重拍",
+  "README·「界面与测试对照」节声明当前轮 r45 七张矩阵 + 二十 tab 壳同批重拍",
 );
 check(
   scaleSec !== null &&
@@ -210,20 +210,21 @@ check(
     counts.audit !== null &&
     scaleSec.includes(`e2e **${counts.e2e}**`) &&
     scaleSec.includes(`HTTP audit **${counts.audit}**`),
-  "README·「### 断言规模」节声明当前轮 r44 且数字与 scripts 口径一致",
+  "README·「### 断言规模」节声明当前轮 r45 且数字与 scripts 口径一致",
 );
 
-// ---------- screenshot / shell index (r43 render-change round) ----------
+// ---------- screenshot / shell index (r45 render-change round) ----------
 
-const roundIndex = readOrEmpty("docs/ui/r43/README.md");
+const roundIndex = readOrEmpty("docs/ui/r45/README.md");
 check(
-  roundIndex.includes("r43") && roundIndex.includes("01-equipment-empty.png") && roundIndex.includes("07-recommend-error.png"),
-  "r43 索引·七态矩阵文件在场",
+  roundIndex.includes("r45") && roundIndex.includes("01-dnd-handles.png") &&
+    roundIndex.includes("07-dnd-error.png") && roundIndex.includes("<!-- R45_HASHES_BEGIN -->"),
+  "r45 索引·七态矩阵与哈希块在场",
 );
 const shellIndex = read("docs/ui/shell/README.md");
 check(
-  shellIndex.includes("r43") && shellIndex.includes("同批重拍") && shellIndex.includes("<!-- R43_HASHES_BEGIN -->"),
-  "shell 索引·声明 r43 二十 tab 壳同批重拍且 R43 哈希块在场",
+  shellIndex.includes("r45") && shellIndex.includes("同批重拍") && shellIndex.includes("<!-- R45_HASHES_BEGIN -->"),
+  "shell 索引·声明 r45 二十 tab 壳同批重拍且 R45 哈希块在场",
 );
 
 // ---------- r44：图证与文档口径修正（U2-1 / U2-2 / U3） ----------
@@ -281,6 +282,37 @@ const shellTable = shellIndex.slice(0, shellIndex.indexOf("## r43 哈希自查")
 check(
   !shellTable.includes("r37 徽章") && shellTable.includes("纯用户文案徽章"),
   "r44 U3-3·shell 当前表图注改为纯用户文案徽章（陈旧 r37 已清除）",
+);
+
+// ---------- r45：文档块拖拽排序（规则集中 / 图证 / 变异红相锚点） ----------
+
+const blockDndSrc = read("packages/shared/src/blockDnd.ts");
+const docsWeb45 = read("apps/web/src/DocsPage.tsx");
+check(
+  blockDndSrc.includes("export function planBlockDrop") &&
+    blockDndSrc.includes("export function validateDropTarget") &&
+    blockDndSrc.includes("const slot = Math.max(0, Math.min(total, rawTarget));"),
+  "r45·shared/blockDnd 计划与边界钳制公式在场（变异红相锚点）",
+);
+check(
+  read("packages/shared/package.json").includes('"./blockDnd": "./src/blockDnd.ts"'),
+  "r45·@xieflow/shared/blockDnd 子路径已登记",
+);
+check(
+  docsWeb45.includes('from "@xieflow/shared/blockDnd"') &&
+    docsWeb45.includes('data-state="docs-drag-handle"') &&
+    docsWeb45.includes('data-state="docs-drop-line"') &&
+    docsWeb45.includes('data-state="docs-dnd-notice"'),
+  "r45·DocsPage 消费 shared 规则且手柄/插入线/回执 seam 在场",
+);
+const r45Hashes = sectionBody(shellIndex, "## r45 哈希自查");
+const cs45 = r45Hashes === null ? { changed: null, same: null } : parseChangedSame(r45Hashes);
+const gc45 = r45Hashes === null ? { png: null, distinct: null } : parseGlobalCount(r45Hashes);
+check(cs45.changed === 9 && cs45.same === 11, "r45·shell R45 块 changed=9/same=11 如实披露");
+check(gc45.png === 379 && gc45.distinct === 377, "r45·shell R45 块全库计数 379/377 与实测一致");
+check(
+  roundIndex.includes("POST /api/blocks/:id/move") && roundIndex.includes("HTTP 400"),
+  "r45·七态索引载明真 HTTP move 与 4xx 错误态证据",
 );
 
 // ---------- verdict ----------

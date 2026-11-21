@@ -34,6 +34,7 @@
 #   powershell -File scripts\shot.ps1 shots -Round r39 # capture r39 user-facing text cleanup error states + 19-tab shell baseline
 #   powershell -File scripts\shot.ps1 shots -Round r40 # capture r40 login clean-text state + 19-tab shell baseline
 #   powershell -File scripts\shot.ps1 shots -Round r43 # capture r43 equipment badges + recommend matrix + 20-tab shell baseline
+#   powershell -File scripts\shot.ps1 shots -Round r45 # capture r45 block drag handles / insertion line / dropped order matrix + 20-tab shell baseline
 #   powershell -File scripts\shot.ps1 shots -Round r41 # capture r41 form collection matrix + 20-tab shell baseline
 #   powershell -File scripts\shot.ps1 shots -Round r11 -Shot 08-docs-diff-inline # rework#1: re-capture ONLY the diff-inline evidence (no other matrix/shell re-shot)
 #   powershell -File scripts\shot.ps1 shots -Round r26 -Shot 09-notif-deeplink-target # r26 rework#2: seed 3 pending approvals, CDP-click the SECOND notification, capture ONLY 09 (no other matrix/shell re-shot)
@@ -60,7 +61,7 @@ param(
   [Parameter(Position = 0)]
   [ValidateSet("up", "shots", "down", "status", "all")]
   [string]$Action = "status",
-  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r26", "r27", "r28", "r29", "r30", "r31", "r32", "r33", "r34", "r35", "r36", "r37", "r38", "r39", "r40", "r41", "r43")]
+  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r26", "r27", "r28", "r29", "r30", "r31", "r32", "r33", "r34", "r35", "r36", "r37", "r38", "r39", "r40", "r41", "r43", "r45")]
   [string]$Round = "r1",
   [Parameter()]
   [string]$Shot = ""
@@ -1020,7 +1021,37 @@ function Invoke-Shots {
     }
   }
 
-  if ($Round -eq "r43") {
+  $r45DocId = 0
+  if ($Round -eq "r45") {
+    # r45: seed one mixed-type block document via the real import endpoint.
+    # The probe is deleted in the cleanup block below (user data untouched).
+    try {
+      $r45Stamp = "r45-shot-" + (Get-Date -Format "yyyyMMddHHmmss")
+      $r45Body = [System.Text.Encoding]::UTF8.GetBytes('{"title":"' + $r45Stamp + ' block drag"}')
+      $r45Doc = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/documents" -Method Post -ContentType "application/json; charset=utf-8" -Body $r45Body
+      $r45DocId = $r45Doc.id
+      $r45Md = [System.Text.Encoding]::UTF8.GetBytes('{"markdown":"# r45 first block\n\nsecond paragraph\n\nthird paragraph\n\n1. ordered item\n\n> quoted line"}')
+      Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/documents/$r45DocId/import.md" -Method Post -ContentType "application/json; charset=utf-8" -Body $r45Md | Out-Null
+      Write-Output "r45 seed: doc=$r45DocId (5 mixed-type blocks)"
+    } catch {
+      Write-Output "warn: r45 seed failed ($($_.Exception.Message)) - matrix may show empty state"
+    }
+  }
+
+  if ($Round -eq "r45") {
+    # r45: seven deterministic ?shot= pins over the real DocsPage; handles,
+    # insertion line, real HTTP move result, cross-type, touch buttons, narrow, error.
+    $r45Base = "http://127.0.0.1:$WebPort/?page=docs&docId=$r45DocId"
+    $shots = @(
+      @{ name = "01-dnd-handles";    url = "$r45Base&shot=docs-dnd-handles";      width = 1280; height = 1000 },
+      @{ name = "02-dnd-dragging";   url = "$r45Base&shot=docs-dnd-dragging";     width = 1280; height = 1000 },
+      @{ name = "03-dnd-dropped";    url = "$r45Base&shot=docs-dnd-dropped";      width = 1280; height = 1000 },
+      @{ name = "04-dnd-cross-type"; url = "$r45Base&shot=docs-dnd-cross-type";   width = 1280; height = 1000 },
+      @{ name = "05-dnd-touch";      url = "$r45Base&shot=docs-dnd-touch";        width = 1280; height = 1000 },
+      @{ name = "06-dnd-narrow";     url = "$r45Base&shot=docs-dnd-touch&narrow=1"; width = 488; height = 1200 },
+      @{ name = "07-dnd-error";      url = "$r45Base&shot=docs-dnd-error";        width = 1280; height = 1000 }
+    )
+  } elseif ($Round -eq "r43") {
     # r43: room equipment badges + smart recommendation. Seven deterministic
     # ?shot= pins over the real MeetingsPage; all rules stay in shared/roomRecommend.
     $r43Base = "http://127.0.0.1:$WebPort/?page=meetings"
@@ -2156,6 +2187,16 @@ function Invoke-Shots {
       Write-Output "cleaned seeded r10 conversations and created todo"
     } catch {
       Write-Output "warn: r10 cleanup failed ($($_.Exception.Message))"
+    }
+  } elseif ($Round -eq "r45") {
+    # r45: remove ONLY the seeded drag probe document (soft delete is enough).
+    try {
+      if ($r45DocId) {
+        Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/documents/$r45DocId" -Method Delete | Out-Null
+        Write-Output "cleaned seeded r45 drag document ($r45DocId)"
+      }
+    } catch {
+      Write-Output "warn: r45 cleanup failed ($($_.Exception.Message))"
     }
   } elseif ($Round -eq "r32") {
     # r32: remove the one export probe document (soft delete, probe only).

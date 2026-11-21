@@ -20,7 +20,8 @@
     "./workReports": "./src/workReports.ts",
     "./tableGroups": "./src/tableGroups.ts",
     "./cardMeta": "./src/cardMeta.ts",
-    "./forms": "./src/forms.ts"
+    "./forms": "./src/forms.ts",
+    "./blockDnd": "./src/blockDnd.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit"

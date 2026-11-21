@@ -4434,3 +4434,15 @@ export type {
   HighlightSegment,
 } from "./globalSearch.js";
 
+// ---- r45：文档块拖拽排序（实现集中 blockDnd.ts，根导出供 web / 断言共用；api 零算法分支） ----
+export {
+  BlockDndError,
+  planBlockDrop,
+  validateDropTarget,
+} from "./blockDnd.js";
+export type {
+  BlockDropPlan,
+  DropBlockRef,
+  DropTargetCheck,
+} from "./blockDnd.js";
+

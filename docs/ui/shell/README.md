@@ -66,7 +66,10 @@
 > **r44 图证与文档口径修正（MeetingsPage 校验错误帧文案 + 05 时段 seam 同批重拍）**：tab 数量仍不变（二十）；
 > 徽章沿用 r39 纯用户文案 + schema 仍 v27 → **二十张同批重拍**。与 r43 同名字节 changed=6 / same=14
 > （forms / meetings / mindmap / todos / unit-tasks / whiteboard 变化，其余沿用），按 r25 先例如实披露，
-> 不称逐位全异；当前块见下方 R44 哈希块。
+> **r45 文档块拖拽排序（DocsPage 拖拽手柄 / 插入线 / 真 HTTP move）**：tab 数量仍不变（二十）；
+> 徽章沿用 r39 纯用户文案 + schema 仍 v27 → **二十张同批重拍**。与 r44 同名字节 changed=9 / same=11
+> （approval / board / docs / forms / mindmap / org / todos / unit-tasks / whiteboard 变化，其余沿用），
+> 按 r25 先例如实披露，不称逐位全异；当前块见下方 R45 哈希块。
 
 | 文件 | 形态 | 对应断言 |
 |---|---|---|
@@ -91,7 +94,23 @@
 | meetings-tab-active.png | **会议激活（r28 新增）**（?page=meetings；零会议室 / 零成员空态：「还没有会议室——先在下方新建一间。」/「该日期暂无可用会议室。」/「通讯录暂无成员。」+ 十九药丸壳 + 纯用户文案徽章；各轮 shell 零数据最小集惯例，不是三室态） | e2e「r28 十八 tab 与顶栏按钮在场 / 会议页消费 shared 唯一口径」；audit「r28 清理后本轮会议归零」 |
 | forms-tab-active.png | **表单激活（r41 新增）**（?page=forms；零表单空态「还没有表单。点『＋ 新建表单』创建第一张…」+ 二十药丸壳 + 纯用户文案徽章；各轮 shell 零数据最小集惯例，不是有数据态） | e2e「r41 App·二十 tab / 表单 tab 激活态 seam」；audit「r41 GET 空表单列表 -> 200」 |
 
-## r44 哈希自查（二十张互异，与当前文件逐字一致；R44 当前哈希块，以下 R43 及以下为历史块）
+## r45 哈希自查（二十张互异，与当前文件逐字一致；R45 当前哈希块，以下 R44 及以下为历史块）
+
+<!-- R45_HASHES_BEGIN -->
+`workbench=25DB4F1A` · `todos=EA209828` · `schedules=85F8FA3E` · `projects=04F53EB5` ·
+`board=3ED65755` · `bases=39108DB8` · `docs=1DCE91A9` · `chat=A49B5562` ·
+`knowledge=B6BCB76E` · `mindmap=8FB50B92` · `whiteboard=57ABC543` · `approval=35BE6912` ·
+`assets=962259ED` · `unit-tasks=6ECDA61A` · `org=A3B5B1EF` · `notifications=DE039C98` ·
+`reports=5C730CA6` · `work-reports=84F0302A` · `meetings=1F76EF8A` · `forms=7DE7F01E` —— **20/20 互异**。
+<!-- R45_HASHES_END -->
+
+> r45 渲染层改动（DocsPage 块拖拽手柄 / 插入线 / 落库回执 + 每块 ↑ / ↓ 触屏按钮保留）→ 二十张同批重拍；
+> 徽章沿用 r39 纯用户文案，tab 数不变。捕获用 `scripts/r39-shot.mjs` 一次性 headless CDP，
+> 探针文档经真实导入端点种子、矩阵后软删，`XIEFLOW_DB_PATH` 走 `scripts/.tmp-r45shot/shot.db` scratch 库。
+> 矩阵↔壳重叠 0；r44→r45 壳 changed=9 / same=11 如上，如实披露；全库 379 PNG / 377 互异
+> （+7 = r45 矩阵新增；同态组仅 r4 已披露 2 组，r45 零新增）。
+
+## r44 哈希自查（R44 当前哈希块原样保留作历史对照；当前块见上方 R45 块，以下 R43 及以下为历史块）
 
 <!-- R44_HASHES_BEGIN -->
 `workbench=25DB4F1A` · `todos=ABD14B3D` · `schedules=85F8FA3E` · `projects=04F53EB5` ·

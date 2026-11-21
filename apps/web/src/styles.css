@@ -1893,8 +1893,9 @@ body {
 }
 
 .docs-block-row {
+  position: relative;
   display: grid;
-  grid-template-columns: 22px minmax(0, 1fr) auto;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
   align-items: start;
   gap: 6px;
   padding: 4px 2px;
@@ -1902,12 +1903,75 @@ body {
 }
 
 .docs-block-gutter {
-  padding-top: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding-top: 6px;
 }
 
 .docs-block-pos {
   font-size: 11px;
   color: #b0b4bd;
+}
+
+/* r45: HTML5 DnD handle + insertion line (touch users keep the up/down buttons) */
+.docs-drag-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  color: var(--accent);
+  font-size: 15px;
+  line-height: 1;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-drag: element;
+}
+
+.docs-drag-handle:hover {
+  background: #edf3ff;
+}
+
+.docs-block-dragging {
+  opacity: 0.5;
+}
+
+.docs-drop-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -2px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12);
+  z-index: 2;
+  pointer-events: none;
+}
+
+.docs-drop-line::before {
+  content: "";
+  position: absolute;
+  left: -4px;
+  top: -3px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.docs-drop-line-tail {
+  position: relative;
+  margin: 1px 0;
+}
+
+.docs-touch-visible .docs-move-up,
+.docs-touch-visible .docs-move-down {
+  outline: 2px solid #93b8ff;
+  outline-offset: 1px;
 }
 
 .docs-block-main {
@@ -2182,7 +2246,7 @@ pre.docs-print-block.docs-code {
   }
 
   .docs-block-row {
-    grid-template-columns: 18px minmax(0, 1fr);
+    grid-template-columns: 34px minmax(0, 1fr);
   }
 
   .docs-block-controls {
@@ -2205,7 +2269,7 @@ pre.docs-print-block.docs-code {
 }
 
 .force-narrow .docs-block-row {
-  grid-template-columns: 18px minmax(0, 1fr);
+  grid-template-columns: 34px minmax(0, 1fr);
 }
 
 .force-narrow .docs-block-controls {

@@ -5,7 +5,12 @@
 // 截图钉态：?page=docs&shot=docs-* 让 headless 确定性捕获；
 // 深链参数 ?docId= 可分享、可回放（编辑器消费真实 API 数据）。
 import { useCallback, useEffect, useMemo, useRef, useState, useLayoutEffect } from "react";
-import type { TextareaHTMLAttributes } from "react";
+import type { TextareaHTMLAttributes, DragEvent } from "react";
+import {
+  planBlockDrop,
+  validateDropTarget,
+  type DropBlockRef,
+} from "@xieflow/shared/blockDnd";
 import {
   BLOCK_TYPES,
   BLOCK_TYPE_LABELS,
@@ -243,6 +248,10 @@ export default function DocsPage() {
   const [trashOpen, setTrashOpen] = useState(false);
   const [trashDocs, setTrashDocs] = useState<DocMeta[]>([]);
   const [permanentTarget, setPermanentTarget] = useState<number | null>(null);
+  // r45：桌面拖拽手柄 + 插入线；触屏继续走既有上/下移按钮（无障碍路径保留）
+  const [dragSourceId, setDragSourceId] = useState<number | null>(null);
+  const [dropSlot, setDropSlot] = useState<number | null>(null);
+  const [dndNotice, setDndNotice] = useState<string | null>(null);
   /** 截图钉态 / 自动化浏览器下禁止系统打印对话框（r8 教训），只走 spy 记录 */
   const headlessSeam = query.shot !== "" || Boolean((navigator as unknown as { webdriver?: boolean }).webdriver);
 
@@ -353,6 +362,38 @@ export default function DocsPage() {
         setTrashOpen(true);
         await loadTrash();
       }
+      // r45 截图钉态：手柄 / 拖拽中插入线 / 真 HTTP move 后顺序 / 跨类型 / 触屏按钮 / 错误态
+      if (shot === "docs-dnd-handles") {
+        setDndNotice("每块左侧的 ⠿ 手柄可拖动排序；触屏请用右侧 ↑ / ↓ 按钮。");
+      }
+      if (shot === "docs-dnd-dragging" && data.blocks.length >= 3) {
+        setDragSourceId(data.blocks[2]!.id);
+        setDropSlot(0);
+        setDndNotice("拖动块时蓝色插入线标出将落下的位置；松手即调用移动接口。");
+      }
+      if (shot === "docs-dnd-dropped" && data.blocks.length >= 3) {
+        const src = data.blocks[2]!;
+        const plan = planBlockDrop(2, 0, data.blocks.length);
+        if (plan) {
+          await moveBlock(src, plan.position);
+          setDndNotice("已放下：第三块移到首位，顺序已持久化（重开不丢）。");
+        }
+      }
+      if (shot === "docs-dnd-cross-type" && data.blocks.length >= 3) {
+        const src = data.blocks[0]!;
+        const plan = planBlockDrop(0, data.blocks.length, data.blocks.length);
+        if (plan) {
+          await moveBlock(src, plan.position);
+          setDndNotice(`已把「${BLOCK_TYPE_LABELS[src.type]}」块拖到末位，块类型保持不变。`);
+        }
+      }
+      if (shot === "docs-dnd-touch") {
+        setDndNotice("触屏可用每块右侧的 ↑ / ↓ 按钮逐格移动，无需拖拽手柄。");
+      }
+      if (shot === "docs-dnd-error" && data.blocks.length > 0) {
+        const bad = await sendJson("POST", `/api/blocks/${data.blocks[0]!.id}/move`, { position: 999999 });
+        setErrorText(`移动失败（HTTP ${bad.status}）：${String(bad.data?.error ?? "目标位置非法")}`);
+      }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query.shot]);
@@ -451,6 +492,52 @@ export default function DocsPage() {
     } finally {
       setBusy(false);
     }
+  };
+
+  // r45：桌面 HTML5 DnD。所有目标换算只调 shared/blockDnd，本页零算法分支。
+  const dropRefs = (): DropBlockRef[] => blocks.map((b) => ({ id: b.id, parentId: b.parentId }));
+
+  const slotFromPointer = (e: DragEvent<HTMLDivElement>, idx: number): number => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    return e.clientY < rect.top + rect.height / 2 ? idx : idx + 1;
+  };
+
+  const onBlockDragStart = (block: DocumentBlock): void => {
+    setDragSourceId(block.id);
+    setDropSlot(null);
+    setDndNotice(null);
+  };
+
+  const onBlockDragOver = (e: DragEvent<HTMLDivElement>, idx: number): void => {
+    e.preventDefault();
+    if (dragSourceId === null) return;
+    setDropSlot(slotFromPointer(e, idx));
+  };
+
+  const onBlockDrop = (e: DragEvent<HTMLDivElement>, idx: number): void => {
+    e.preventDefault();
+    const sourceId = dragSourceId;
+    const slot = slotFromPointer(e, idx);
+    setDragSourceId(null);
+    setDropSlot(null);
+    if (sourceId === null) return;
+    const from = blocks.findIndex((b) => b.id === sourceId);
+    if (from < 0) return;
+    const targetId = blocks[Math.min(slot, blocks.length - 1)]?.id ?? sourceId;
+    const target = validateDropTarget(sourceId, targetId, dropRefs());
+    if (!target.valid) {
+      setErrorText(target.reason ?? "不能放到这里");
+      return;
+    }
+    const plan = planBlockDrop(from, slot, blocks.length);
+    if (plan === null) {
+      setDndNotice("顺序未变化，未发起移动。");
+      return;
+    }
+    const src = blocks[from]!;
+    void moveBlock(src, plan.position).then(() => {
+      setDndNotice(`已把「${BLOCK_TYPE_LABELS[src.type]}」块移动到第 ${plan.position + 1} 位并落库。`);
+    });
   };
 
   const convertBlock = async (block: DocumentBlock, type: BlockType): Promise<void> => {
@@ -987,6 +1074,9 @@ export default function DocsPage() {
           {restoreNotice && (
             <p className="docs-notice docs-restore-note" role="status" data-state="docs-restore-note">{restoreNotice}</p>
           )}
+          {dndNotice && (
+            <p className="docs-notice docs-dnd-notice" role="status" data-state="docs-dnd-notice">{dndNotice}</p>
+          )}
           {query.shot === "docs-revise-adopted" && blocks.length > 1 && (
             <p className="docs-notice" role="status" data-state="docs-revise-adopted">
               已采纳 AI 建议并落库：第 2 块当前文本「{blockText(blocks[1]!)}」
@@ -1118,14 +1208,40 @@ export default function DocsPage() {
                     </div>
                   </div>
                   <p className="hint docs-editor-hint">
-                    共 {blocks.length} 块 · 顺序按 position 持久化；在行首按退格合块，按回车拆块；输入后点「保存」重开不丢。
+                    共 {blocks.length} 块 · 顺序按 position 持久化；拖左侧 ⠿ 手柄排序，触屏可用右侧 ↑ / ↓；在行首按退格合块，按回车拆块。
                   </p>
+                  {query.shot === "docs-dnd-touch" && (
+                    <p className="seam-note">截图钉态 · 触屏无障碍移动路径：每块右侧上/下移按钮</p>
+                  )}
 
-                  <div className="docs-block-list">
+                  <div className={`docs-block-list${query.shot === "docs-dnd-touch" ? " docs-touch-visible" : ""}`}>
                     {blocks.map((b, idx) => (
-                      <div className="docs-block-row" key={b.id} data-state="docs-block" data-block-type={b.type}>
+                      <div
+                        className={`docs-block-row${dragSourceId === b.id ? " docs-block-dragging" : ""}`}
+                        key={b.id}
+                        data-state="docs-block"
+                        data-block-type={b.type}
+                        onDragOver={(e) => onBlockDragOver(e, idx)}
+                        onDrop={(e) => onBlockDrop(e, idx)}
+                      >
+                        {dropSlot === idx && (
+                          <span className="docs-drop-line" data-state="docs-drop-line" aria-hidden="true" />
+                        )}
                         <div className="docs-block-gutter">
                           <span className="docs-block-pos">{idx + 1}</span>
+                          <span
+                            className="docs-drag-handle"
+                            data-state="docs-drag-handle"
+                            draggable
+                            role="button"
+                            tabIndex={0}
+                            aria-label="拖动排序"
+                            title="拖动排序"
+                            onDragStart={() => onBlockDragStart(b)}
+                            onDragEnd={() => { setDragSourceId(null); setDropSlot(null); }}
+                          >
+                            ⠿
+                          </span>
                         </div>
                         <div className="docs-block-main">
                           <div className={`docs-block-input-wrap ${b.type === "bullet" || b.type === "numbered" ? "docs-has-marker" : ""}`}>
@@ -1249,6 +1365,9 @@ export default function DocsPage() {
                         </div>
                       </div>
                     ))}
+                    {dropSlot === blocks.length && (
+                      <div className="docs-drop-line docs-drop-line-tail" data-state="docs-drop-line" aria-hidden="true" />
+                    )}
                     {blocks.length === 0 && (
                       <p className="empty">这篇文档还没有块——点「＋ 块」加一个。</p>
                     )}

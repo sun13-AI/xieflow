@@ -38,6 +38,8 @@ import { parseIcsCalendar, buildIcsCalendar, scheduleToIcsEvent, formatIcsDate }
 import { isServerMode } from "@xieflow/shared/auth";
 import { formatFormulaDisplay } from "@xieflow/shared/formula";
 import { createMockProvider, MOCK_PROVIDER_ID } from "@xieflow/agent";
+// r45: drag-drop plan is a shared pure function; HTTP audit drives the real move route.
+import { planBlockDrop } from "@xieflow/shared/blockDnd";
 
 const PORT = Number(process.env.XIEFLOW_API_PORT ?? 8788);
 const BASE = `http://127.0.0.1:${PORT}`;
@@ -4860,8 +4862,70 @@ async function auditR28(): Promise<void> {
     ok(!JSON.stringify(finalMeetings43.json.meetings).includes(KEY43), "r43 探针归零·会议列表不含本轮 KEY");
 }
 
+// ---- r45: block drag reorder over REAL HTTP (reuse move route + 4xx branches) ----
+async function auditR45(): Promise<void> {
+    const KEY45 = "R45HTTP" + Date.now();
+    const doc45 = await expectStatus("POST", "/api/documents", { title: `${KEY45} drag probe` }, 201, "r45 建拖拽探针文档 -> 201");
+    const docId45 = doc45.json.id;
+    const imp45 = await expectStatus("POST", `/api/documents/${docId45}/import.md`, {
+      markdown: "# r45 title\n\nsecond paragraph\n\nthird paragraph\n\nfourth paragraph\n\nfifth paragraph",
+    }, 200, "r45 导入五块 -> 200");
+    eq(imp45.json.imported, 5, "r45 导入恰好五块");
+    const before45 = await expectStatus("GET", `/api/documents/${docId45}/blocks`, undefined, 200, "r45 GET 块列表 -> 200");
+    eq(before45.json.blocks.length, 5, "r45 块列表五块在场");
+    eq(before45.json.blocks.map((b: any) => b.position), [0, 1, 2, 3, 4], "r45 拖前 position 连号");
+
+    // real plan -> real move -> reread -> full text
+    const plan45 = planBlockDrop(2, 0, before45.json.blocks.length);
+    ok(plan45 !== null && plan45.position === 0, "r45 计划·第三块到首位 position=0");
+    const moved45 = await expectStatus("POST", `/api/blocks/${before45.json.blocks[2].id}/move`, { position: plan45!.position }, 200, "r45 POST move 第三块到首位 -> 200");
+    eq(moved45.json.blocks.map((b: any) => b.content.text), ["third paragraph", "r45 title", "second paragraph", "fourth paragraph", "fifth paragraph"], "r45 HTTP move 后顺序逐项正确");
+    eq(moved45.json.blocks.map((b: any) => b.position), [0, 1, 2, 3, 4], "r45 HTTP move 后 position 连号");
+    eq(moved45.json.blocks[0].id, before45.json.blocks[2].id, "r45 HTTP 被拖块 id 精确");
+    const reread45 = await expectStatus("GET", `/api/documents/${docId45}/blocks`, undefined, 200, "r45 真 HTTP 回读 -> 200");
+    eq(JSON.stringify(reread45.json.blocks), JSON.stringify(moved45.json.blocks), "r45 HTTP 回读与 move 响应逐字节一致");
+    const text45 = await expectStatus("GET", `/api/documents/${docId45}/text`, undefined, 200, "r45 GET 全文 -> 200");
+    ok(String(text45.json.text ?? "").startsWith("third paragraph"), "r45 全文装配按新顺序开头");
+
+    // cross-type: heading now at index 1 -> last slot
+    const plan45b = planBlockDrop(1, 5, 5);
+    ok(plan45b !== null && plan45b.position === 4, "r45 计划·跨类型拖到末位 position=4");
+    const cross45 = await expectStatus("POST", `/api/blocks/${reread45.json.blocks[1].id}/move`, { position: plan45b!.position }, 200, "r45 跨类型拖到末位 -> 200");
+    eq(cross45.json.blocks.map((b: any) => b.type).at(-1), "heading1", "r45 跨类型拖拽后标题块落末位");
+    eq(cross45.json.blocks.map((b: any) => b.position), [0, 1, 2, 3, 4], "r45 跨类型拖拽 position 仍连号");
+
+    // boundary clamp: far-out drop target clamps to the last slot
+    const clamp45 = planBlockDrop(0, 999, 5);
+    ok(clamp45 !== null && clamp45.position === 4, "r45 计划·超尾钳制 position=4");
+    const clamped45 = await expectStatus("POST", `/api/blocks/${cross45.json.blocks[0].id}/move`, { position: clamp45!.position }, 200, "r45 边界钳制后 move -> 200");
+    eq(clamped45.json.blocks.map((b: any) => b.position), [0, 1, 2, 3, 4], "r45 边界钳制不越界");
+    ok(clamped45.json.blocks[4].id === cross45.json.blocks[0].id, "r45 超尾拖放落在末位");
+
+    // same-order resend: no visible change (UI suppresses via plan null)
+    const idem45 = await expectStatus("POST", `/api/blocks/${clamped45.json.blocks[4].id}/move`, { position: 4 }, 200, "r45 同序位置重发 -> 200");
+    const order45 = (payload: any): unknown => payload.blocks.map((b: any) => ({ id: b.id, position: b.position, type: b.type, text: b.content.text }));
+    eq(JSON.stringify(order45(idem45.json)), JSON.stringify(order45(clamped45.json)), "r45 同序重发顺序零变化");
+
+    // 4xx branches on the reused move route (no half-state)
+    const target45 = reread45.json.blocks[0].id;
+    await expectStatus("POST", "/api/blocks/99999999/move", { position: 0 }, 404, "r45 4xx·越权块 id -> 404");
+    await expectStatus("POST", "/api/blocks/not-a-number/move", { position: 0 }, 400, "r45 4xx·非数字块 id -> 400");
+    await expectStatus("POST", `/api/blocks/${target45}/move`, { position: -1 }, 400, "r45 4xx·负 position -> 400");
+    await expectStatus("POST", `/api/blocks/${target45}/move`, { position: 999 }, 400, "r45 4xx·超界 position -> 400");
+    await expectStatus("POST", `/api/blocks/${target45}/move`, { position: "abc" }, 400, "r45 4xx·非数字 position -> 400");
+    await expectStatus("POST", `/api/blocks/${target45}/move`, {}, 400, "r45 4xx·缺 position -> 400");
+    const after4xx45 = await expectStatus("GET", `/api/documents/${docId45}/blocks`, undefined, 200, "r45 4xx 后回读 -> 200");
+    eq(JSON.stringify(after4xx45.json.blocks), JSON.stringify(idem45.json.blocks), "r45 4xx 零半态·顺序未被改写");
+
+    // probe cleanup (only this round's rows)
+    await expectStatus("DELETE", `/api/documents/${docId45}`, undefined, 200, "r45 清理探针文档 -> 200");
+    const final45 = await expectStatus("GET", "/api/documents", undefined, 200, "r45 清理后文档列表 -> 200");
+    ok(!JSON.stringify(final45.json.documents).includes(KEY45), "r45 探针归零·列表不含本轮 key");
+}
+
 try {
   await audit();
+  await auditR45();
 } catch (err) {
   failures.push(`audit 抛错：${err instanceof Error ? err.message : String(err)}`);
   console.error(`audit crashed: ${err instanceof Error ? err.stack : String(err)}`);
