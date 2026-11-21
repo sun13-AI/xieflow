@@ -57,6 +57,8 @@
 > （approval / assets / bases / chat / docs / knowledge / meetings / mindmap / notifications / org / projects /
 > reports / todos / unit-tasks / whiteboard / work-reports 变化；board / schedules / workbench 沿用），
 > 如实披露，不称逐位全异。
+> **r42 无渲染层改动（README 版本号 watchdog，仅脚本 + 文档）**：本轮沿用 r41 壳图，不重拍；
+> 按 r21 U2-1 先例在此透明声明（当前界面基线仍是 r41 的二十张，详见 [r42 索引](../r42/README.md)）。
 
 | 文件 | 形态 | 对应断言 |
 |---|---|---|
