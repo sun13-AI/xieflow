@@ -1,8 +1,10 @@
-// XieFlow r43 - DOC-CONTRACT watchdog (headless, zero deps, exit 0/1).
-// r43: schema v27 + render-layer changes (room equipment badges + recommend panel);
-// the compact root README must name the current round in both the UI and scale
-// sections, carry the seven-shot matrix links, and keep the two vN prose spots in
-// sync with SCHEMA_VERSION / the CI smoke regex. Any mismatch => exit 1.
+// XieFlow r48 - DOC-CONTRACT watchdog (headless, zero deps, exit 0/1).
+// r48: pure documentation/convergence round (legacy ledger classification);
+// no render-layer change, so the compact root README must transparently declare
+// "沿用 r47 壳图 / 无渲染层改动" in both the UI and scale sections, keep the
+// r47 matrix links as the current evidence baseline, and carry the three-category
+// 遗留总账 counts in docs/plan.md. Any mismatch => exit 1.
+// Historical r43~r47 contracts below are kept intact (code/index facts still true).
 // Authoritative sources:
 //   - schema version: packages/shared/src/index.ts  SCHEMA_VERSION constant
 //   - CI smoke regex: .github/workflows/ci.yml      schemaVersion grep -E group
@@ -108,6 +110,28 @@ export function sectionBody(doc: string, heading: string): string | null {
   return body.join("\n");
 }
 
+/** r48: three-category counts in the plan.md 遗留总账 header. */
+export function parseLedgerCounts(ledger: string): {
+  must: number | null;
+  accepted: number | null;
+  tradeoff: number | null;
+  closed: number | null;
+} {
+  const m = ledger.match(
+    /真缺陷必修\s*(\d+)\s*\/\s*已披露可接受\s*(\d+)\s*\/\s*设计取舍保留\s*(\d+)\s*，另\s*(\d+)\s*条已闭环链/,
+  );
+  return m
+    ? { must: Number(m[1]), accepted: Number(m[2]), tradeoff: Number(m[3]), closed: Number(m[4]) }
+    : { must: null, accepted: null, tradeoff: null, closed: null };
+}
+
+/** r48: slice a top-level section by literal markers (its body has h3 subheads). */
+export function betweenMarkers(doc: string, begin: string, end: string): string {
+  const a = doc.indexOf(begin);
+  const b = doc.indexOf(end);
+  return a < 0 || b < 0 || b <= a ? "" : doc.slice(a, b);
+}
+
 /** r44: "changed=N / same=M" disclosure inside a shell-hash block. */
 export function parseChangedSame(block: string): { changed: number | null; same: number | null } {
   const m = block.match(/changed\s*=\s*(\d+)\s*\/\s*same\s*=\s*(\d+)/);
@@ -173,6 +197,25 @@ check(probeCopy.title === "输入有误" && probeCopy.hint === "请检查人数/
 check(probeCopyNone.title === null && probeCopyNone.hint === null, "self-probe·无输入错误分支 -> null");
 check(lineWith("aa\nbb foo cc\ndd", "foo") === "bb foo cc", "self-probe·lineWith 命中行提取");
 check(lineWith("aa\nbb", "zzz") === "", "self-probe·lineWith 未命中 -> 空串");
+const probeLedger = parseLedgerCounts("真缺陷必修 0 / 已披露可接受 16 / 设计取舍保留 12，另 11 条已闭环链");
+check(
+  probeLedger.must === 0 && probeLedger.accepted === 16 && probeLedger.tradeoff === 12 && probeLedger.closed === 11,
+  "self-probe·r48 总账三类计数可解析",
+);
+const probeLedgerOther = parseLedgerCounts("真缺陷必修 1 / 已披露可接受 2 / 设计取舍保留 3，另 4 条已闭环链");
+check(
+  probeLedgerOther.must === 1 && probeLedgerOther.accepted === 2 && probeLedgerOther.tradeoff === 3 && probeLedgerOther.closed === 4,
+  "self-probe·r48 旧/错计数可检出（非恒真）",
+);
+check(
+  parseLedgerCounts("无分类口径").must === null,
+  "self-probe·r48 缺总账口径 -> null",
+);
+check(
+  betweenMarkers("head\n## A\nalpha\n### a1\nbeta\n## B\ntail", "## A", "## B") === "## A\nalpha\n### a1\nbeta\n",
+  "self-probe·betweenMarkers 跨 h3 子节截取",
+);
+check(betweenMarkers("no markers", "## A", "## B") === "", "self-probe·betweenMarkers 缺标记 -> 空串");
 
 // ---------- authoritative sources ----------
 
@@ -200,16 +243,17 @@ if (counts.e2e !== null && counts.audit !== null) {
   check(root.includes(quickRef), `README·速查行数字与 scripts 实测口径一致（${quickRef}）`);
 }
 
-const ROUND = "r47";
+const ROUND = "r48";
 const uiSec = sectionBody(root, "## 界面与测试对照");
 const scaleSec = sectionBody(root, "### 断言规模");
 check(uiSec !== null, "README·「界面与测试对照」节在场");
 check(scaleSec !== null, "README·「### 断言规模」节在场");
 check(
-  uiSec !== null && uiSec.includes(ROUND) && uiSec.includes("docs/ui/r47/01-pending-card.png") &&
-    uiSec.includes("docs/ui/r47/07-error.png") && uiSec.includes("docs/ui/shell/README.md") &&
-    uiSec.includes("本轮重拍七态矩阵") && uiSec.includes("同批重拍"),
-  "README·「界面与测试对照」节声明当前轮 r47 重拍七矩阵 + 二十壳同批重拍（渲染层有改动）",
+  uiSec !== null && uiSec.includes(ROUND) &&
+    uiSec.includes("docs/ui/r48/README.md") && uiSec.includes("docs/ui/r47/README.md") &&
+    uiSec.includes("本轮无渲染层改动") && uiSec.includes("沿用 r47") &&
+    uiSec.includes("真缺陷必修 0 / 已披露可接受 16 / 设计取舍保留 12"),
+  "README·「界面与测试对照」节声明当前轮 r48 纯文档分类、沿用 r47 壳图并三处透明声明（渲染层零改动）",
 );
 check(
   scaleSec !== null &&
@@ -217,22 +261,33 @@ check(
     counts.e2e !== null &&
     counts.audit !== null &&
     scaleSec.includes(`e2e **${counts.e2e}**`) &&
-    scaleSec.includes(`HTTP audit **${counts.audit}**`),
-  "README·「### 断言规模」节声明当前轮 r47 且数字与 scripts 口径一致",
+    scaleSec.includes(`HTTP audit **${counts.audit}**`) &&
+    scaleSec.includes("规模与 r47 持平"),
+  "README·「### 断言规模」节声明当前轮 r48 且数字与 scripts 口径一致（规模持平）",
 );
 
-// ---------- screenshot / shell index (r47 render-change round) ----------
+// ---------- screenshot / shell index (r47 render-change baseline + r48 reuse declaration) ----------
 
-const roundIndex = readOrEmpty("docs/ui/r47/README.md");
+const baselineIndex = readOrEmpty("docs/ui/r47/README.md");
 check(
-  roundIndex.includes("r47") && roundIndex.includes("01-pending-card.png") &&
-    roundIndex.includes("07-error.png") && roundIndex.includes("<!-- R47_HASHES_BEGIN -->"),
-  "r47 索引·七态矩阵与哈希块在场",
+  baselineIndex.includes("r47") && baselineIndex.includes("01-pending-card.png") &&
+    baselineIndex.includes("07-error.png") && baselineIndex.includes("<!-- R47_HASHES_BEGIN -->"),
+  "r47 索引·七态矩阵与哈希块在场（r48 沿用基线未动）",
+);
+const roundIndex48 = readOrEmpty("docs/ui/r48/README.md");
+check(
+  roundIndex48.includes("r48") && roundIndex48.includes("沿用 r47") &&
+    roundIndex48.includes("无渲染层改动") && roundIndex48.includes("零图片轻量索引"),
+  "r48 索引·透明声明无渲染层改动、沿用 r47 矩阵与壳图不重拍（零图片）",
 );
 const shellIndex = read("docs/ui/shell/README.md");
 check(
   shellIndex.includes("r47") && shellIndex.includes("同批重拍") && shellIndex.includes("<!-- R47_HASHES_BEGIN -->"),
-  "shell 索引·声明 r47 二十 tab 壳同批重拍且 R47 哈希块在场",
+  "shell 索引·r47 二十 tab 壳同批重拍事实与 R47 哈希块在场（基线未动）",
+);
+check(
+  shellIndex.includes("r48") && shellIndex.includes("沿用 r47 二十 tab 壳图") && shellIndex.includes("无渲染层改动"),
+  "shell 索引·透明声明 r48 无渲染层改动沿用 r47 壳图不重拍",
 );
 
 // ---------- r47：确认闸门规则集中 / api 路由 / web seam ----------
@@ -400,6 +455,39 @@ check(
 check(
   root07.includes("共 5 张卡") && !root07.includes("共 5 块"),
   "r46 U2-3·r45 历史索引 07 逐字锁定共 5 张卡（根 README 已推进 r47）",
+);
+
+// ---------- r48：遗留总账三分类（纯文档收敛轮的权威证据） ----------
+
+const plan48 = read("docs/plan.md");
+const ledger48 = betweenMarkers(plan48, "## 遗留总账", "## 历史轮次");
+check(ledger48.length > 0, "r48·plan.md「遗留总账」节在场且可切分");
+check(
+  ledger48.includes("### A · 真缺陷必修") && ledger48.includes("### B · 已披露可接受") &&
+    ledger48.includes("### C · 设计取舍保留") && ledger48.includes("### D · 已闭环链") &&
+    ledger48.includes("### E · 重新打开触发条件"),
+  "r48·总账 A/B/C/D/E 五节齐备（三类 + 闭环链 + 复评触发）",
+);
+const ledgerCounts = parseLedgerCounts(ledger48);
+check(
+  ledgerCounts.must === 0 && ledgerCounts.accepted === 16 && ledgerCounts.tradeoff === 12 && ledgerCounts.closed === 11,
+  `r48·总账计数 0/16/12 + 11 闭环（实际 ${ledgerCounts.must}/${ledgerCounts.accepted}/${ledgerCounts.tradeoff}/${ledgerCounts.closed}）`,
+);
+check(
+  ledger48.includes("最近 15 轮（r33~r47）") && ledger48.includes("28 条独立条目"),
+  "r48·盘点范围与去重总数可追溯（r33~r47 三岗报告）",
+);
+check(
+  ledger48.includes("C1 窄容器壳末枚药丸右缘裁切") && ledger48.includes("转 B1"),
+  "r48·唯一必修候选 C1 的评估与转类留痕",
+);
+check(
+  ledger48.includes("B1 复评触发") && ledger48.includes("修法配方") && ledger48.includes("overflow-x: auto"),
+  "r48·B1 复评触发条件与修法配方在场（债务不无限滚）",
+);
+check(
+  ledger48.includes("D1 错误条内部术语") && ledger48.includes("D11 r47 闸门漏检") && ledger48.includes("D10 r35 U1-1"),
+  "r48·11 条闭环链首尾可追溯",
 );
 
 // ---------- verdict ----------
