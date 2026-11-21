@@ -49,3 +49,4 @@
 | r45 | 2026-11-21 | 拖拽复验 | 自写真输入 CDP 23/23（Mouse+Drag Intercept 非合成事件）+ r8/r9 零回归 | VERDICT 通过 |
 | r46 | 2026-11-21 | 口径复验 | 三处逐条实验 + Pillow 独立 diff=0 + 3 组改回不实各精确 1 FAIL | VERDICT 通过 |
 | r47 | 2026-11-21 | 闸门复验 | 自写 scratch HTTP 51/51：pending 零落库/confirm 真建/discard 零写/老路径全保留 | VERDICT 通过，P1–P4 零 |
+| r48 | 2026-11-21 | 盘点复验 | 抽查 9 条分类与原始报告一致 + 总账计数变异精确 1 FAIL + SHA 还原 | VERDICT 通过 |
