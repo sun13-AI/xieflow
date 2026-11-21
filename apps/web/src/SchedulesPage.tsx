@@ -50,14 +50,14 @@ function pinSeed(now: Date): MonthFetch {
   const plus = (n: number): string => localDateOffset(n, now);
   const iso = `${today}T09:00:00.000Z`;
   const todos: Todo[] = [
-    { id: 11, title: "写 r3 联动复验材料", quadrant: "q2", status: "open", dueDate: plus(2), createdAt: iso, updatedAt: iso },
-    { id: 12, title: "r2 遗留 alert 收敛", quadrant: "q3", status: "done", dueDate: today, createdAt: iso, updatedAt: iso },
+    { id: 11, title: "写联动复验材料", quadrant: "q2", status: "open", dueDate: plus(2), createdAt: iso, updatedAt: iso },
+    { id: 12, title: "遗留提示收敛", quadrant: "q3", status: "done", dueDate: today, createdAt: iso, updatedAt: iso },
   ];
   const schedules: Schedule[] = [
     { id: 21, title: "需求评审会", date: today, start: "10:00", end: "11:00", todoId: null, repeat: "none", createdAt: iso, updatedAt: iso },
     { id: 22, title: "每日站会", date: plus(1), start: "09:00", end: "09:30", todoId: null, repeat: "daily", createdAt: iso, updatedAt: iso },
-    { id: 23, title: "写 r3 联动复验材料", date: plus(2), start: "09:00", end: "10:00", todoId: 11, repeat: "none", createdAt: iso, updatedAt: iso },
-    { id: 24, title: "r2 遗留 alert 收敛", date: today, start: "15:00", end: "16:00", todoId: 12, repeat: "none", createdAt: iso, updatedAt: iso },
+    { id: 23, title: "写联动复验材料", date: plus(2), start: "09:00", end: "10:00", todoId: 11, repeat: "none", createdAt: iso, updatedAt: iso },
+    { id: 24, title: "遗留提示收敛", date: today, start: "15:00", end: "16:00", todoId: 12, repeat: "none", createdAt: iso, updatedAt: iso },
     { id: 25, title: "月度复盘", date: plus(5), start: "14:00", end: "15:00", todoId: null, repeat: "monthly", createdAt: iso, updatedAt: iso },
   ];
   return { schedules, todos };

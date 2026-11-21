@@ -4596,6 +4596,31 @@ async function auditR28(): Promise<void> {
       const projAfter = await expectStatus("GET", "/api/projects", undefined, 200, "r38 清理后项目列表 -> 200");
       ok(!JSON.stringify(projAfter.json.projects).includes(KEY), "r38 探针归零·项目列表不含本轮 KEY");
     }
+
+    // r40: HTTP 4xx bodies are the raw material of UI error bars. Widen the
+    // round-marker guard to 1..3 digits (r39 waizhuan P5: single-digit rN was
+    // missed by the old rNN regex). Real 4xx probes only, no synthetic passes.
+    const INTERNAL_TERM_40 = /截图钉态|截图钉注|钉注|audit|e2e|4xx|seam|shot=|\br\d{1,3}\b/i;
+    const OLD_TERM_39 = /r\d{2}(?!\d)/i;
+    ok(INTERNAL_TERM_40.test("例：写 r2 复验材料"), "r40 审计侧轮次号正则覆盖单位数 rN");
+    ok(!OLD_TERM_39.test("例：写 r2 复验材料"), "r40 旧 rNN 正则确认漏检单位数（扩正则必要性）");
+    function cleanError40(res: { json: any }, label: string): void {
+      ok(!INTERNAL_TERM_40.test(String(res.json?.error ?? "")), label);
+    }
+    const probes40: readonly (readonly [string, string, unknown, number, string])[] = [
+      ["POST", "/api/todos", { title: "   ", quadrant: "q1" }, 400, "r40 4xx·空白标题错误体零内部术语"],
+      ["POST", "/api/todos", { title: "x", quadrant: "q9" }, 400, "r40 4xx·非法象限错误体零内部术语"],
+      ["GET", "/api/search", undefined, 400, "r40 4xx·缺 q 错误体零内部术语"],
+      ["GET", "/api/search?q=", undefined, 400, "r40 4xx·空 q 错误体零内部术语"],
+      ["GET", "/api/boards/999999/overdue", undefined, 404, "r40 4xx·越权项目错误体零内部术语"],
+      ["GET", "/api/boards/not-a-number/overdue", undefined, 400, "r40 4xx·非数字 id 错误体零内部术语"],
+      ["GET", "/api/todos/999999", undefined, 404, "r40 4xx·越权待办错误体零内部术语"],
+      ["GET", "/api/documents/99999999/print-preview", undefined, 404, "r40 4xx·越权文档错误体零内部术语"],
+    ];
+    for (const [method, path, body, status, label] of probes40) {
+      const res = await expectStatus(method, path, body, status, `r40 ${method} ${path} -> ${status}`);
+      cleanError40(res, label);
+    }
 }
 
 try {

@@ -130,7 +130,7 @@ function AuthShell({ kind, title, subtitle, reason, shot }: AuthShellProps) {
           <a href="?page=home">返回工作台</a>
         </p>
         <p className="auth-note" data-state="auth-note">
-          认证页是独立路由，不占主界面 14 个 tab；token 仅存浏览器本地，服务端不写任何密钥文件。
+          登录后才可访问业务数据；本页不占主界面 tab 数量，账号信息仅保存在本机浏览器中。
         </p>
         {kind === "login" && readToken() !== null && (
           <p className="auth-notice" data-state="stale-token-hint">检测到残留 token：登录成功后会被新 token 覆盖。</p>

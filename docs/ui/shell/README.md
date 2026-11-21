@@ -1,4 +1,4 @@
-# docs/ui/shell · 十九 tab 壳激活态基线（r4 返工 #1 B 固化；r17 起十四 tab，r23 扩十五，r26 扩十六，r27 扩十七，r28 扩十八；r36 扩十九；r39 文案清理同批重拍）
+# docs/ui/shell · 十九 tab 壳激活态基线（r4 返工 #1 B 固化；r17 起十四 tab，r23 扩十五，r26 扩十六，r27 扩十七，r28 扩十八；r36 扩十九；r39 文案清理同批重拍；r40 口径清理同批重拍）
 
 > r2 U1-1（工作台）→ r3 U1-2（待办）→ r4 U1-1（工作台+待办+日程三页全漏）——
 > 「壳变更 → 继承页 tab 激活证据断档」三轮连漏后，ui-reviewer 建议固化为 shot.ps1
@@ -49,6 +49,9 @@
 > **r36 新增第十九 tab「报告」**：`?page=work-reports` 日报/周报自动生成（时间窗汇总 + Markdown 预览 + 存为文档 + 打印），补 `work-reports-tab-active.png`；
 > 徽章推进 r36「日报与周报自动生成（模板化汇总）」→ **十九张同批重拍**，与 r35 十八张同名文件全异。
 > 窄屏 390/488px 形态见 `docs/ui/r22/`、`docs/ui/r23/06-narrow.png`、`docs/ui/r24/06-narrow.png`、`docs/ui/r25/06-narrow.png`、`docs/ui/r26/06-narrow.png`、`docs/ui/r27/06-narrow.png`、`docs/ui/r28/06-narrow.png`、`docs/ui/r29/07-narrow.png`、`docs/ui/r30/06-narrow.png`、`docs/ui/r32/05-narrow.png`、`docs/ui/r33/06-search-narrow.png`、`docs/ui/r34/06-dep-narrow.png`、`docs/ui/r35/06-ics-narrow.png` 与 `docs/ui/r36/06-wr-narrow.png`。
+> **r40 tab 数量仍不变（十九）**：轻量轮只改用户可见文案（登录页页脚 tab 数口径 + 单位数 rN 种子/预览清理），不新增 tab，
+> 徽章沿用 r39 纯用户文案；渲染层有改动 → **十九张同批重拍**。与 r39 同名字节 changed=5 / same=14
+> （schedules / projects / chat / knowledge / meetings 变化，其余沿用），不宣称逐位全异，按 r25 先例如实披露。
 
 | 文件 | 形态 | 对应断言 |
 |---|---|---|
@@ -72,7 +75,21 @@
 | work-reports-tab-active.png | **报告激活（r36 新增）**（?page=work-reports；真实 0 数据日报空态 + 日报/周报切换 + 日期锚点 + 「生成报告 / 存为文档 / 打印」三按钮 + 十九药丸壳 + r37 徽章） | e2e「r36 App·十九 tab / 报告 tab 激活态 seam」；audit「GET /api/reports/daily 空库六段皆暂无 / summary 全 0」 |
 | meetings-tab-active.png | **会议激活（r28 新增）**（?page=meetings；零会议室 / 零成员空态：「还没有会议室——先在下方新建一间。」/「该日期暂无可用会议室。」/「通讯录暂无成员。」+ 十九药丸壳 + r37 徽章；各轮 shell 零数据最小集惯例，不是三室态） | e2e「r28 十八 tab 与顶栏按钮在场 / 会议页消费 shared 唯一口径」；audit「r28 清理后本轮会议归零」 |
 
-## r39 哈希自查（十九张互异，与当前文件逐字一致；R39 当前哈希块，以下 R38 及以下为历史块）
+## r40 哈希自查（十九张互异，与当前文件逐字一致；R40 当前哈希块，以下 R39 及以下为历史块）
+
+<!-- R40_HASHES_BEGIN -->
+`workbench=25DB4F1A` · `todos=EA209828` · `schedules=3862FA46` · `projects=3366A5DE` ·
+`board=3ED65755` · `bases=6E3338F8` · `docs=84657AA4` · `chat=DE7A26CC` ·
+`knowledge=FC461336` · `mindmap=E219934C` · `whiteboard=A2A46E10` · `approval=BE6FB8D9` ·
+`assets=370BEC5B` · `unit-tasks=D2F65902` · `org=2CD84F1B` · `notifications=93E39614` ·
+`reports=03B3D2F4` · `work-reports=B2AEDDFE` · `meetings=1E252C29` —— **19/19 互异**。
+<!-- R40_HASHES_END -->
+
+> r40 渲染层只改用户可见文案（登录页页脚 + 单位数 rN 种子/预览），十九张同批重拍，tab 数不变；徽章沿用 r39「界面文案已优化（错误提示更清晰）」。
+> 捕获用 `scripts/r39-shot.mjs` 一次性 headless CDP（与 r39 同款 seam 网络钉态：`/api/auth/mode` 钉 local、401 钉最小空态 JSON；报表 / 报告用 `?shot=reports-empty` / `?shot=wr-empty`），**不改产品代码 / 数据库 / 用户数据**；截图与 CDP 走 `XIEFLOW_DB_PATH` scratch 库并删除。
+> 矩阵↔壳重叠 0；全库 357 PNG / 355 互异（+1 = r40 登录页矩阵），同态组仅 r4 已披露 2 组。
+
+## r39 哈希自查（十九张互异，R39 块原样保留为历史块；当前文件见上方 R40 块）
 
 <!-- R39_HASHES_BEGIN -->
 `workbench=25DB4F1A` · `todos=EA209828` · `schedules=85F8FA3E` · `projects=04F53EB5` ·

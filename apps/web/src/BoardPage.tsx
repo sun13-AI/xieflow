@@ -131,7 +131,7 @@ async function fetchBoard(projectIdParam: string | null): Promise<BoardFetch> {
 function pinSeedBoard(now: Date): BoardFetch {
   const iso = now.toISOString();
   const todos: Todo[] = [
-    { id: 11, title: "写 r4 看板复验材料", quadrant: "q2", status: "open", dueDate: null, createdAt: iso, updatedAt: iso },
+    { id: 11, title: "写看板复验材料", quadrant: "q2", status: "open", dueDate: null, createdAt: iso, updatedAt: iso },
     { id: 12, title: "确认瓷砖型号", quadrant: "q3", status: "done", dueDate: null, createdAt: iso, updatedAt: iso },
   ];
   const columns: BoardColumn[] = [
@@ -143,7 +143,7 @@ function pinSeedBoard(now: Date): BoardFetch {
     { id: 1, projectId: 1, columnId: 1, title: "量房", description: null, position: 0, todoId: null, createdAt: iso, updatedAt: iso },
     { id: 2, projectId: 1, columnId: 1, title: "出平面图", description: null, position: 1, todoId: null, createdAt: iso, updatedAt: iso },
     { id: 3, projectId: 1, columnId: 1, title: "选瓷砖", description: null, position: 2, todoId: 12, createdAt: iso, updatedAt: iso },
-    { id: 4, projectId: 1, columnId: 2, title: "写 r4 看板复验材料", description: null, position: 0, todoId: 11, createdAt: iso, updatedAt: iso },
+    { id: 4, projectId: 1, columnId: 2, title: "写看板复验材料", description: null, position: 0, todoId: 11, createdAt: iso, updatedAt: iso },
     { id: 5, projectId: 1, columnId: 3, title: "定预算", description: null, position: 0, todoId: null, createdAt: iso, updatedAt: iso },
   ];
   const projects: Project[] = [

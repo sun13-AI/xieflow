@@ -24,7 +24,7 @@ const TERMS: readonly Term[] = [
   { re: /4xx/i, label: "4xx" },
   { re: /(?<![A-Za-z])seam(?![A-Za-z])/i, label: "seam" },
   { re: /shot=/i, label: "shot=" },
-  { re: /r\d{2}(?!\d)/i, label: "rNN 轮次号" },
+  { re: /\br\d{1,3}\b/i, label: "rNN 轮次号" },
 ];
 
 type Literal = {
@@ -167,6 +167,26 @@ function hits(text: string): string[] {
   const found: string[] = [];
   for (const term of TERMS) if (term.re.test(text)) found.push(term.label);
   return found;
+}
+
+// r40: self-probe locks the round-marker term as REAL behavior, not a source
+// string check. r39 waizhuan P5: single-digit `r2` leaked past the two-digit
+// regex, so a 1..3 digit marker must now be detected (waizhuan placeholder).
+const ROUND_SELF_PROBES: readonly (readonly [string, boolean])[] = [
+  ["例：写 r2 复验材料", true],
+  ["例：写 r39 复验材料", true],
+  ["例：写 r123 复验材料", true],
+  ["例：写复验材料", false],
+  ["报表中心 6 张 KPI 卡", false],
+];
+for (const [probe, expected] of ROUND_SELF_PROBES) {
+  const detected = hits(probe).includes("rNN 轮次号");
+  if (detected !== expected) {
+    console.error(
+      `USER-FACING-TEXT: self-probe FAILED ${JSON.stringify(probe)} got=${detected} want=${expected}`,
+    );
+    process.exit(1);
+  }
 }
 
 const files = collectTsxFiles(SRC);

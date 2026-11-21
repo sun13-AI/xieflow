@@ -138,7 +138,7 @@ function workbenchTodaySeed(now: Date): Schedule[] {
   const iso = `${today}T09:00:00.000Z`;
   return [
     { id: 31, title: "需求评审会", date: today, start: "10:00", end: "11:00", todoId: null, repeat: "none", createdAt: iso, updatedAt: iso },
-    { id: 32, title: "写 r3 复验材料", date: today, start: "15:00", end: "16:00", todoId: 11, repeat: "none", createdAt: iso, updatedAt: iso },
+    { id: 32, title: "写联动复验材料", date: today, start: "15:00", end: "16:00", todoId: 11, repeat: "none", createdAt: iso, updatedAt: iso },
   ];
 }
 
@@ -412,7 +412,7 @@ export default function App() {
     goToLogin("logout");
   }
 
-  // 认证页是独立路由：在 tab 壳之外整页渲染，因此 14 个 tab 数量不变。
+  // 认证页是独立路由：在 tab 壳之外整页渲染，因此不占主界面 tab 数量。
   if (authView === "login") return <LoginPage reason={query.get("reason")} />;
   if (authView === "register") return <RegisterPage reason={query.get("reason")} />;
 

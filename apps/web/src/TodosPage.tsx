@@ -154,11 +154,11 @@ function pinSeed(now: Date): Todo[] {
   const iso = (offset: number, hour = 9): string =>
     `${dayStr(offset)}T${pad(hour)}:00:00.000Z`;
   return [
-    { id: 1, title: "r2 待办页交付", quadrant: "q1", status: "open", dueDate: dayStr(0), createdAt: iso(-1), updatedAt: iso(-1) },
+    { id: 1, title: "待办页交付", quadrant: "q1", status: "open", dueDate: dayStr(0), createdAt: iso(-1), updatedAt: iso(-1) },
     { id: 2, title: "季度目标对齐会材料", quadrant: "q2", status: "open", dueDate: dayStr(1), createdAt: iso(-1), updatedAt: iso(-1) },
     { id: 3, title: "回复合作方邮件", quadrant: "q3", status: "open", dueDate: dayStr(0), createdAt: iso(-1), updatedAt: iso(-1) },
     { id: 4, title: "整理旧文档归档位", quadrant: "q4", status: "open", dueDate: dayStr(5), createdAt: iso(-1), updatedAt: iso(-1) },
-    { id: 5, title: "r1 复验问题清账", quadrant: "q1", status: "done", dueDate: dayStr(0), createdAt: iso(-2), updatedAt: iso(0) },
+    { id: 5, title: "复验问题清账", quadrant: "q1", status: "done", dueDate: dayStr(0), createdAt: iso(-2), updatedAt: iso(0) },
     { id: 6, title: "十一月周报", quadrant: "q4", status: "archived", dueDate: null, createdAt: iso(-3), updatedAt: iso(-1) },
   ];
 }
@@ -592,7 +592,7 @@ export default function TodosPage() {
                 type="text"
                 value={draft.title}
                 maxLength={MAX_TODO_TITLE}
-                placeholder="例：写 r2 复验材料"
+                placeholder="例：整理季度待办清单"
                 onChange={(e) => setDraft({ ...draft, title: e.target.value })}
               />
             </label>

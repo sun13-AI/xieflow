@@ -107,7 +107,7 @@ function InlineDiff({ original, suggested, side }: { original: string; suggested
 
 /** r9 导入预览钉态样本（真实预览端点解析，不写库） */
 const R9_SAMPLE_MD = [
-  "# r9 导入预览示例",
+  "# 导入预览示例",
   "",
   "这是一段将被导入的正文。",
   "",
