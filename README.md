@@ -13,7 +13,7 @@ pnpm install
 powershell -File scripts\start.ps1 start   # api:8787 + web:5173
 powershell -File scripts\start.ps1 stop
 # 开发模式：pnpm dev:api / pnpm dev:web
-pnpm run test:all    # typecheck + 文案扫描 + e2e（3430 断言）+ HTTP 审计（2641 断言）
+pnpm run test:all    # typecheck + 文案扫描 + e2e（3551 断言）+ HTTP 审计（2703 断言）
 ```
 
 - 打包：`pnpm run pack`（免安装目录 `release/xieflow-portable/`，双击 `start.cmd` 即用）/ `pnpm run dist`（setup zip）；均单端口 8080，数据落目录内 `data/`
@@ -26,12 +26,18 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 
 ## 界面与测试对照
 
-按宪法第一条：**界面更新必须带截图证据（每次，无例外）**，截图与实现同一提交。当前轮 r40 口径清理与扫描器加固（登录页干净态 1 张 + 十九 tab 壳基线）：
+按宪法第一条：**界面更新必须带截图证据（每次，无例外）**，截图与实现同一提交。当前轮 r41 轻量表单收集（创建/填写/汇总；七张矩阵 + 二十 tab 壳基线）：
 
 | 截图 | 形态 | 对应断言 |
 |---|---|---|
-| [01-login-clean-text.png](docs/ui/r40/01-login-clean-text.png) | 登录页页脚「本页不占主界面 tab 数量」——不含数字旧口径与 token 开发者术语 | e2e「r40 AuthPages 登录页改为不含数字的 tab 数量口径」；check:text 单位数 rN 扫描零命中 |
-| [shell/](docs/ui/shell/README.md) | 十九 tab 壳基线（r40 同批重拍，tab 数不变，徽章沿用纯用户文案） | e2e「r40 壳索引·R40 当前哈希块在场」 |
+| [01-forms-empty.png](docs/ui/r41/01-forms-empty.png) | 「表单」tab 空态：零表单引导 + 新建入口 + 二十 tab 壳激活态 | e2e「r41 web·空态 seam」「App·二十 tab」；audit「GET 空表单列表 -> 200」 |
+| [02-forms-create.png](docs/ui/r41/02-forms-create.png) | 创建表单：标题/说明 + 默认题 + 创建按钮 | e2e「r41 web·创建表单 seam」；audit「POST 建表单 -> 201」 |
+| [03-forms-questions.png](docs/ui/r41/03-forms-questions.png) | 问题编辑：文本/数字/单选/勾选四类题 + 添加移除 | e2e「r41 类型·四题白名单」；audit「4xx·未知题型 -> 400」 |
+| [04-forms-fill.png](docs/ui/r41/04-forms-fill.png) | 填写视图：按题型渲染控件 + 提交/汇总/返回 | e2e「r41 校验·归一答案」；audit「GET 填写视图 -> 200」 |
+| [05-forms-submitted.png](docs/ui/r41/05-forms-submitted.png) | 提交成功：绿色成功条 + 填写态保留 | e2e「r41 web·提交成功 seam」；audit「提交答卷 -> 201」 |
+| [06-forms-summary.png](docs/ui/r41/06-forms-summary.png) | 汇总统计：文本列举/总和 60 均值 20/分布 2:1/勾选率 67% | e2e「r41 汇总·数值手算」；audit「汇总·HTTP 手算」 |
+| [07-forms-narrow.png](docs/ui/r41/07-forms-narrow.png) | 窄屏 488px：填写表单纵排 + 底部导航「更多 ›」 | e2e「r41 截图·七张 SHA256 互异」；headless CDP 钉态 |
+| [shell/](docs/ui/shell/README.md) | 二十 tab 壳基线（r41 同批重拍，新增 `forms-tab-active.png`） | e2e「r41 壳索引·R41 当前哈希块在场」 |
 
 **历史逐轮截图索引（r1~r32 全量、逐张对照断言）见 [README 归档](docs/README-ARCHIVE.md) 与 [docs/ui/](docs/ui/) 各轮 README**；矩阵 SHA256 互异、同态组仅 r4 已披露 2 组。
 
@@ -39,7 +45,7 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 
 ### 断言规模（每轮更新，下降 = 回归 = 冻结发版）
 
-- **当前 r40**：e2e **3430**（服务离线口径；api 在线 +1）· HTTP audit **2641** · check:text 文案扫描 **6265 literals / 24 tsx / 0 命中** · typecheck 5 包全绿；**无一条断言被删**，仅期望值/标签随行为推进。
+- **当前 r41**：e2e **3551**（服务离线口径；api 在线 +1）· HTTP audit **2703** · check:text 文案扫描 **6596 literals / 25 tsx / 0 命中** · typecheck 5 包全绿；**无一条断言被删**，仅期望值/标签随行为推进。
 - 纪律：断言只涨不缩；禁自洽占位；关键行为做变异红相留痕（改坏实现 → 断言变红 → 逐字节还原全绿）。
 - **逐轮规模变化（r1~r32 的完整记账）见 [README 归档](docs/README-ARCHIVE.md)**；CI smoke 正则随 schema 版本同步至 v25；CI 三平台 verify + tag 触发 Release。
 

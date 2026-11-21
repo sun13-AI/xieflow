@@ -4330,3 +4330,40 @@ html.force-narrow .wr-window { margin-left: 0; }
 html.force-narrow .wr-summary { flex-direction: column; }
 html.force-narrow .wr-markdown { min-height: 260px; }
 html.force-narrow .wr-actions { flex-direction: column; align-items: stretch; }
+
+/* r41 表单收集：列表 / 创建与问题编辑 / 填写 / 汇总 */
+.forms-page { padding: 18px; }
+.forms-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.forms-head h2 { margin: 0; font-size: 18px; }
+.forms-head p { margin: 6px 0 0; }
+.forms-page .btn { padding: 6px 12px; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; font-size: 12px; cursor: pointer; }
+.forms-page .btn-primary { background: #0f766e; border-color: #0f766e; color: #fff; font-weight: 700; }
+.forms-page .btn-danger { color: #b42318; border-color: #fecaca; }
+.forms-page .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.forms-success { margin: 12px 0; padding: 8px 10px; background: #ecfdf3; color: #067647; border-radius: 6px; font-size: 12px; }
+.forms-empty { margin: 18px 0; padding: 28px; border: 1px dashed #cbd5e1; border-radius: 8px; text-align: center; color: var(--ink-2); font-size: 13px; }
+.forms-list { list-style: none; margin: 16px 0 0; padding: 0; }
+.forms-item { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid #e2e8f0; flex-wrap: wrap; }
+.forms-item p { margin: 4px 0 0; }
+.forms-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.forms-create h3, .forms-fill h3, .forms-summary h3 { margin: 16px 0 10px; font-size: 15px; }
+.forms-field { display: block; margin: 10px 0; font-size: 12px; font-weight: 700; }
+.forms-field input:not([type="checkbox"]), .forms-field select, .forms-field textarea {
+  display: block; width: min(100%, 640px); margin-top: 5px; padding: 7px 9px;
+  border: 1px solid #cbd5e1; border-radius: 6px; font-size: 12px; font-weight: 400; box-sizing: border-box;
+}
+.forms-field textarea { min-height: 72px; resize: vertical; }
+.forms-field input[type="checkbox"] { display: inline-block; margin-right: 6px; }
+.forms-question-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; padding: 10px; background: #f8fafc; border-radius: 6px; }
+.forms-question-row input:not([type="checkbox"]), .forms-question-row select { padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 5px; font-size: 12px; }
+.forms-required { font-size: 11px; font-weight: 400; white-space: nowrap; }
+.forms-summary-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-top: 14px; }
+.forms-summary-card { padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 12px; }
+.forms-summary-card ul { margin: 8px 0 0; padding-left: 18px; }
+.forms-summary-card li { margin: 3px 0; }
+.forms-summary-card p { margin: 8px 0 0; }
+html.force-narrow .forms-head { flex-direction: column; }
+html.force-narrow .forms-actions { flex-direction: column; align-items: stretch; }
+html.force-narrow .forms-summary-grid { grid-template-columns: 1fr; }
+html.force-narrow .forms-question-row { flex-direction: column; align-items: stretch; }
+html.force-narrow .forms-field input:not([type="checkbox"]), html.force-narrow .forms-field select, html.force-narrow .forms-field textarea { width: 100%; }

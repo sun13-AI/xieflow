@@ -578,6 +578,38 @@ export const MIGRATIONS: Migration[] = [
       { table: "cards", column: "due_date", sql: `ALTER TABLE cards ADD COLUMN due_date TEXT` },
     ],
   },
+  {
+    version: 26,
+    name: "r41 · forms / form_questions / form_responses 表（轻量表单收集：创建/填写/汇总）",
+    // 三张新表：表单定义 + 问题 + 答卷；问题/答卷均 FK CASCADE 到 forms，
+    // 删表单即清问题与答卷，零半态。答案以 JSON 存题 id → 值，题目 id 在同一表单内唯一。
+    up: [
+      `CREATE TABLE IF NOT EXISTS forms (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        description TEXT,
+        created_at TEXT NOT NULL,
+        closed_at TEXT
+      )`,
+      `CREATE TABLE IF NOT EXISTS form_questions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        form_id INTEGER NOT NULL REFERENCES forms(id) ON DELETE CASCADE,
+        type TEXT NOT NULL CHECK (type IN ('text','number','select','checkbox')),
+        label TEXT NOT NULL,
+        required INTEGER NOT NULL DEFAULT 0,
+        options_json TEXT NOT NULL DEFAULT '[]',
+        position INTEGER NOT NULL
+      )`,
+      `CREATE TABLE IF NOT EXISTS form_responses (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        form_id INTEGER NOT NULL REFERENCES forms(id) ON DELETE CASCADE,
+        answers_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_form_questions_form ON form_questions (form_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_form_responses_form ON form_responses (form_id)`,
+    ],
+  },
 ];
 
 /** 当前 schema 版本（与 shared 的 SCHEMA_VERSION 保持一致，e2e 会断言二者相等） */

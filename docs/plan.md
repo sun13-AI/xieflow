@@ -244,7 +244,7 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r38 | M10 后·看板卡片元数据（标签/负责人/截止日，向后兼容） | ✅已发版（首轮双通过；向后兼容 65/65 + 元数据重启不丢） | v0.0.44 | e2e 3377 · audit 2616 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r39 | M10 后·用户可见文案清理（错误条内部术语，连续 4 轮挂账必修） | ✅已发版（前任中断→r39b 续做；首轮双通过；连续 4 轮 U2 术语闭合） | v0.0.45 | e2e 3412 · audit 2623 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r40 | M10 后·口径清理与扫描器加固（登录页 tab 数 + rN 正则） | ✅已发版（首轮双通过；口径链闭合 + 11 处单位数 rN 清理） | v0.0.46 | e2e 3430 · audit 2641 | 通过（waizhuan）+ UI 通过（阻断岗） |
-| r41 | M10 后·轻量表单收集（创建/填写/汇总） | 🔨规划中 | — | — | — |
+| r41 | M10 后·轻量表单收集（创建/填写/汇总） | ✅研发完成（待双 VERDICT；lead 发版） | — | e2e 3551 · audit 2703 | 待复验 |
 
 ## 🏁 项目总账（2026-11-19 · M10 收官）
 
@@ -914,6 +914,17 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 ---
 
 ## 记账区（每轮追加）
+
+### 2026-11-21 · r41 研发（yanfa-r41 · M10 后功能补强：轻量表单收集：创建/填写/汇总）
+- 交付：schema v25→v26（forms / form_questions / form_responses 三表 + 题型 CHECK + FK CASCADE + 两索引）；`packages/shared/forms.ts` 三函数唯一口径（normalizeFormDefinition / validateFormAnswers / summarizeResponses），api/web 零算法分支；零新依赖、零 token
+- api：forms CRUD + `GET /api/forms/:id/fill` + `POST /api/forms/:id/responses` + `GET /api/forms/:id/summary` + 答卷列表；4xx：必填缺失/类型不符/未知题/选项越界/越权 404/非数字 id 400/已关闭提交 409
+- web：新增第二十 tab「表单」——列表 + 创建（加/删问题，四题型）+ 填写 + 汇总（文本列举/数值总和均值/选项分布/勾选率），`?formId=&view=` 深链 reload 不丢；二十 tab 壳基线同批重拍
+- 断言：e2e 3430→**3551（+121）** · audit 2641→**2703（+62）**，零删除；typecheck 5 包；`pnpm run test:all` exit 0；CI smoke 正则升 v26；README 速查行/当前轮对照表/断言规模行三处同步
+- **变异红相 1 组**：`summarizeResponses` 总和 `roundRate(sum)`→`roundRate(sum+1)` → e2e 3 红（sum 60→61）/ audit 1 红；逐字节还原（SHA `E10DA994…E34617` 前后同值）全绿
+- 「用户第一次用」全链路：`scripts/r41-firstuse-cdp.mjs`（headless CDP 真点 10 步：建表单 → 加两类问题 → 填 3 份 → 看汇总 sum 60/avg 20 → reload 不丢 → HTTP truth → DELETE 探针归零），`R41 FIRSTUSE: ALL GREEN`
+- 截图：`docs/ui/r41/` 7 张 + 二十 tab 壳同批重拍；7/7、20/20 SHA256 互异、矩阵↔壳重叠 0，全库 365 PNG / 363 互异，27 张逐张 `read_image` 目验；首轮 02/03、04/05 同态经全矩阵重拍修正，废片未入库；索引 / shell README R41 当前块 / 精简版根 README 同一提交
+- 危险区：未 push / 未打 tag / 未发版 / 未改 CI 发布配置；只走 user_version 迁移、未手改库文件；截图与 CDP 走 scratch 库并删除、`data/xieflow.db` 全程未作数据源；全程 headless、服务收净、PowerShell 全 ASCII、零 token
+- 报告：`docs/feedback/2026-11-21-r41-yanfa.md`（三态纪律 + 自曝 + 变异红相 + 全链路证据）
 
 ### 2026-11-21 · r40 研发（yanfa-r40 · M10 后轻量轮：口径清理与扫描器加固）
 - 交付：AuthPages.tsx 登录页脚注改「本页不占主界面 tab 数量」（不含数字、去 token 开发者口径）；App.tsx:415 注释同款校正；`scripts/check-user-facing-text.ts` 轮次号正则 `/r\d{2}(?!\d)/i` → `/\br\d{1,3}\b/i` + `ROUND_SELF_PROBES` 自断言（r2/r39/r123 命中、业务词不命中）

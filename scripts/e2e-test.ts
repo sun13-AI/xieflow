@@ -559,6 +559,26 @@ import {
   filterCardsByLabel,
   cardMetaSummary,
 } from "@xieflow/shared/cardMeta";
+// r41：轻量表单收集（定义归一 / 答卷校验 / 汇总统计唯一口径在 shared/forms）
+import {
+  FORM_QUESTION_TYPES,
+  FORM_TYPE_LABELS,
+  MAX_FORM_TITLE,
+  MAX_FORM_QUESTIONS,
+  MAX_SELECT_OPTIONS,
+  FormClosedError,
+  isFormQuestionType,
+  assertValidFormTitle,
+  normalizeFormDescription,
+  normalizeSelectOptions,
+  normalizeQuestionDraft,
+  normalizeFormDefinition,
+  validateFormAnswers,
+  summarizeResponses,
+  formSummaryLine,
+  type FormQuestion,
+  type FormAnswers,
+} from "@xieflow/shared/forms";
 // r29：文档版本历史与回收站——三函数唯一口径在 shared/docHistory
 import {
   nextDocVersion,
@@ -1138,8 +1158,8 @@ try {
     const v3Migrated = openDatabaseRaw({ path: v3Path });
     eq(
       v3Migrated.appliedMigrations,
-      [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-      "v2 旧库重开补跑 v3+v4+v5+v6+v7+v8+v9+v10+v11+v12+v13+v14+v15+v16+v17+v18+v19+v20+v21+v22+v23+v24+v25 迁移（真实 PRAGMA 升级路径）",
+      [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26],
+      "v2 旧库重开补跑 v3+v4+v5+v6+v7+v8+v9+v10+v11+v12+v13+v14+v15+v16+v17+v18+v19+v20+v21+v22+v23+v24+v25+v26 迁移（真实 PRAGMA 升级路径）",
     );
     const tables = v3Migrated.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -1364,8 +1384,8 @@ try {
     const v4Open = openDatabaseRaw({ path: v4Path });
     eq(
       v4Open.appliedMigrations,
-      [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-      "v3 旧库重开只补跑 v4+v5+v6+v7+v8+v9+v10+v11+v12+v13+v14+v15+v16+v17+v18+v19+v20+v21+v22+v23+v24+v25 迁移（真实 PRAGMA 升级路径）",
+      [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26],
+      "v3 旧库重开只补跑 v4+v5+v6+v7+v8+v9+v10+v11+v12+v13+v14+v15+v16+v17+v18+v19+v20+v21+v22+v23+v24+v25+v26 迁移（真实 PRAGMA 升级路径）",
     );
     const tables = v4Open.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -2023,7 +2043,7 @@ try {
     v4Open2.raw.exec("PRAGMA user_version = 4");
     v4Open2.raw.close();
     const v5Open = openDatabaseRaw({ path: v5Path });
-    eq(v5Open.appliedMigrations, [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25], "v4 旧库重开只补跑 v5+v6+v7+v8+v9+v10+v11+v12+v13+v14+v15+v16+v17+v18+v19+v20+v21+v22+v23+v24+v25 迁移（真实 PRAGMA 升级路径）");
+    eq(v5Open.appliedMigrations, [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26], "v4 旧库重开只补跑 v5+v6+v7+v8+v9+v10+v11+v12+v13+v14+v15+v16+v17+v18+v19+v20+v21+v22+v23+v24+v25+v26 迁移（真实 PRAGMA 升级路径）");
     const tableNames = v5Open.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
       .map((r) => String((r as unknown as { name: unknown }).name));
@@ -2744,7 +2764,7 @@ try {
     v5Open.raw.exec("PRAGMA user_version = 5");
     v5Open.raw.close();
     const v6Open = openDatabaseRaw({ path: v6Path });
-    eq(v6Open.appliedMigrations, [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25], "v5 旧库重开只补跑 v6+v7+v8+v9+v10+v11+v12+v13+v14+v15+v16+v17+v18+v19+v20+v21+v22+v23+v24+v25 迁移（真实 PRAGMA 升级路径）");
+    eq(v6Open.appliedMigrations, [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26], "v5 旧库重开只补跑 v6+v7+v8+v9+v10+v11+v12+v13+v14+v15+v16+v17+v18+v19+v20+v21+v22+v23+v24+v25+v26 迁移（真实 PRAGMA 升级路径）");
     const tableNames = v6Open.raw
       .all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
       .map((r) => String((r as unknown as { name: unknown }).name));
@@ -3024,7 +3044,7 @@ try {
     oldOpen.raw.exec("PRAGMA user_version = 6");
     oldOpen.raw.close();
     const v7Open = openDatabaseRaw({ path: v7Path });
-    eq(v7Open.appliedMigrations, [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25], "v6 旧库重开补跑 v7+v8+v9+v10+v11+v12+v13+v14+v15+v16+v17+v18+v19+v20+v21+v22+v23+v24+v25 迁移（真实 PRAGMA 升级路径）");
+    eq(v7Open.appliedMigrations, [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26], "v6 旧库重开补跑 v7+v8+v9+v10+v11+v12+v13+v14+v15+v16+v17+v18+v19+v20+v21+v22+v23+v24+v25+v26 迁移（真实 PRAGMA 升级路径）");
     eq(
       (v7Open.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
@@ -3412,7 +3432,7 @@ try {
     old10.raw.exec("PRAGMA user_version = 7");
     old10.raw.close();
     const v8 = openDatabaseRaw({ path: p10Path });
-    eq(v8.appliedMigrations, [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25], "v7 旧库重开只补跑 v8+v9+v10+v11+v12+v13+v14+v15+v16+v17+v18+v19+v20+v21+v22+v23+v24+v25 迁移（真实 PRAGMA 升级路径）");
+    eq(v8.appliedMigrations, [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26], "v7 旧库重开只补跑 v8+v9+v10+v11+v12+v13+v14+v15+v16+v17+v18+v19+v20+v21+v22+v23+v24+v25+v26 迁移（真实 PRAGMA 升级路径）");
     eq(
       (v8.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
@@ -3828,7 +3848,7 @@ try {
     old.raw.exec("PRAGMA user_version = 8");
     old.raw.close();
     const v9 = openDatabaseRaw({ path: p });
-    eq(v9.appliedMigrations, [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25], "v8 旧库重开只补跑 v9+v10+v11+v12+v13+v14+v15+v16+v17+v18+v19+v20+v21+v22+v23+v24+v25 迁移（真实 PRAGMA 升级路径）");
+    eq(v9.appliedMigrations, [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26], "v8 旧库重开只补跑 v9+v10+v11+v12+v13+v14+v15+v16+v17+v18+v19+v20+v21+v22+v23+v24+v25+v26 迁移（真实 PRAGMA 升级路径）");
     eq(
       (v9.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
       CURRENT_SCHEMA_VERSION,
@@ -4224,7 +4244,7 @@ try {
     eq(reopened14.getMindmap(1)!.contentMarkdown, "# 根\n- 子", "导图关库重开不丢（Markdown 源逐字节）");
     reopened14.close();
     const raw14 = openDatabaseRaw({ path: `scripts/.tmp-e2e/r14-raw-${Date.now()}.db` });
-    eq((raw14.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 25, "真实 PRAGMA user_version=25");
+    eq((raw14.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 26, "真实 PRAGMA user_version=26");
     eq(
       raw14.raw.all("PRAGMA table_info(mindmaps)").map((r) => String((r as unknown as { name: unknown }).name)),
       ["id", "title", "content_markdown", "created_at", "updated_at"],
@@ -4407,7 +4427,7 @@ try {
     eq(r15.listWhiteboardItems(1)[0]!.content, "关库不丢", "白板条目关库重开不丢（逐字）");
     r15.close();
     const raw15 = openDatabaseRaw({ path: `scripts/.tmp-e2e/r15-raw-${Date.now()}.db` });
-    eq((raw15.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 25, "真实 PRAGMA user_version=25");
+    eq((raw15.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 26, "真实 PRAGMA user_version=26");
     eq(
       raw15.raw.all("PRAGMA table_info(whiteboards)").map((r) => String((r as unknown as { name: unknown }).name)),
       ["id", "title", "created_at"],
@@ -4605,7 +4625,7 @@ try {
     r16.close();
 
     const raw16 = openDatabaseRaw({ path: `scripts/.tmp-e2e/r16-raw-${Date.now()}.db` });
-    eq((raw16.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 25, "真实 PRAGMA user_version=25");
+    eq((raw16.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 26, "真实 PRAGMA user_version=26");
     eq(
       raw16.raw.all("PRAGMA table_info(approvals)").map((r) => String((r as unknown as { name: unknown }).name)),
       ["id", "title", "type", "applicant_id", "status", "current_assignee", "created_at", "updated_at", "applicant_member_id"],
@@ -4711,7 +4731,7 @@ try {
 
     // 51d. schema v13 与数据层（真迁移、真落库、真事务、零半态）
     const raw17 = openDatabaseRaw({ path: ":memory:" });
-    eq((raw17.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 25, "新库 user_version=25");
+    eq((raw17.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 26, "新库 user_version=26");
     eq(
       raw17.raw.all("PRAGMA table_info(assets)").map((r) => String((r as unknown as { name: unknown }).name)),
       ["id", "name", "category", "quantity", "unit", "location", "custodian", "created_at", "custodian_member_id"],
@@ -4876,7 +4896,7 @@ try {
 
     // 52f. schema v14 与账号数据层（真迁移、真落库、不明文、级联清理）
     const raw18 = openDatabaseRaw({ path: ":memory:" });
-    eq((raw18.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 25, "新库 user_version=25");
+    eq((raw18.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 26, "新库 user_version=26");
     eq(
       raw18.raw.all("PRAGMA table_info(users)").map((r) => String((r as unknown as { name: unknown }).name)),
       ["id", "username", "password_hash", "role", "created_at"],
@@ -5096,7 +5116,7 @@ try {
 
     // schema v15 与数据层：change_log / entity_versions 真表真迁移
     const raw19 = openDatabaseRaw({ path: ":memory:" });
-    eq((raw19.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 25, "r19 新库 user_version=25（r19 基线随 r28 推进）");
+    eq((raw19.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 26, "r19 新库 user_version=26（r19 基线随 r28 推进）");
     const logCols = raw19.raw.all("PRAGMA table_info(change_log)").map((r) => String((r as unknown as { name: unknown }).name));
     eq(logCols, ["id", "entity_type", "entity_id", "operation", "payload", "user_id", "created_at", "version"], "r19 change_log 八列逐列存在");
     const verCols = raw19.raw.all("PRAGMA table_info(entity_versions)").map((r) => String((r as unknown as { name: unknown }).name));
@@ -5164,7 +5184,7 @@ try {
     ok(/<SyncCard\s*\/>/.test(appSrc), "r19 工作台设置区渲染多端同步卡");
     ok(!/(^|[^A-Za-z])fetch\s*\(/.test(syncSrc), "r19 同步卡无裸 fetch（统一 apiFetch）");
     ok(/\bapiFetch\b/.test(syncSrc), "r19 同步卡经 apiFetch 发请求（401 清态链路一致）");
-    eq((appSrc.match(/data-tab="/g) ?? []).length, 19, "r28 tab 口径：会议新增第十八 tab（r27 基线 17）");
+    eq((appSrc.match(/data-tab="/g) ?? []).length, 20, "r28 tab 口径：会议新增第十八 tab（r27 基线 17）");
     ok(!/r19 · 多端同步与冲突处理（M9 收官）/.test(appSrc), "r19 旧徽章已由 r20 替换（无残留）");
     ok(/sync-modal/.test(syncSrc) && /data-side="local"/.test(syncSrc) && /data-side="remote"/.test(syncSrc), "r19 冲突弹窗提供本地/远端两个选边按钮");
     ok(/sync-modal-warning/.test(syncSrc) && /不可撤销/.test(syncSrc), "r19 返工#1 选边后果提示前置（写入递增且不可撤销）");
@@ -5307,7 +5327,7 @@ try {
     ok(/overflow-x:\s*hidden/.test(cssSrc), "r20 禁止横向溢出");
     ok(/min-height:\s*44px/.test(cssSrc), "r20 触摸目标 >=44px");
     ok(/bottom-nav|net-status/.test(cssSrc), "r20 底栏/状态条样式在场");
-    eq((appSrc.match(/data-tab="/g) ?? []).length, 19, "r28 口径：会议 tab 计入壳基线共 19（r27 基线 17）");
+    eq((appSrc.match(/data-tab="/g) ?? []).length, 20, "r28 口径：会议 tab 计入壳基线共 19（r27 基线 17）");
     ok(/app\.post\("\/api\/offline\/replay"/.test(serverSrc), "r20 api 提供真重放端点（队列 4xx 由 audit 锁定）");
   }
 
@@ -5397,7 +5417,7 @@ try {
     // (C) shell README 与实际字节逐字一致（14 张哈希 + 全库计数）
     const shellReadme = readFileSync("docs/ui/shell/README.md", "utf8");
     ok(/r25 同批重拍/.test(shellReadme) && /r25 哈希自查/.test(shellReadme), "r25 shell README 整段推进到 r25 口径（r23/r24 历史对照保留）");
-    const hashBlock = shellReadme.match(/<!-- R40_HASHES_BEGIN -->([\s\S]*?)<!-- R40_HASHES_END -->/);
+    const hashBlock = shellReadme.match(/<!-- R41_HASHES_BEGIN -->([\s\S]*?)<!-- R41_HASHES_END -->/);
     const listed = Array.from((hashBlock?.[1] ?? "").matchAll(/([a-z-]+)=([0-9A-F]{8})/g)).map(
       (m) => `${m[1]}=${m[2]}`,
     ).sort();
@@ -5528,7 +5548,7 @@ try {
 
     // schema v16：两表真迁移 + raw 约束
     const raw23 = openDatabaseRaw({ path: ":memory:" });
-    eq((raw23.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 25, "r23 新库 user_version=25（r19 基线随 r28 推进）");
+    eq((raw23.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 26, "r23 新库 user_version=26（r19 基线随 r28 推进）");
     const deptCols = raw23.raw.all("PRAGMA table_info(departments)").map((r) => String((r as { name: unknown }).name));
     eq(deptCols, ["id", "name", "parent_id", "sort_order", "created_at"], "r23 departments 五列逐列存在");
     const memCols = raw23.raw.all("PRAGMA table_info(members)").map((r) => String((r as { name: unknown }).name));
@@ -5610,7 +5630,7 @@ try {
     );
     ok(css.includes(".org-columns") && css.includes("html.force-narrow .org-columns"), "r23 样式含双栏布局与窄屏单列 seam");
     ok(shot.includes('"r23"') && shot.includes("org-tab-active"), "r23 shot.ps1 ValidateSet 与壳基线含组织 tab");
-    ok(ci.includes("(2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19|20|21|22|23|24|25)"), "r23 CI 正则随 schema v19 推进（r25 口径）");
+    ok(ci.includes("(2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19|20|21|22|23|24|25|26)"), "r23 CI 正则随 schema v19 推进（r25 口径）");
     ok((r23Index.match(/^\| \d\d-(org-|narrow|error)[^|]*\.png \|/gm) ?? []).length === 7, "r23 截图索引含七张矩阵行");
     const walkPng23 = (dir: string): string[] =>
       readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
@@ -5620,20 +5640,20 @@ try {
     eq(r23Png.length, 7, "r23 目录恰好 7 张 PNG");
     eq(new Set(r23Png.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 7, "r23 七张 PNG SHA256 两两互异");
     const shellPng = walkPng23("docs/ui/shell");
-    eq(shellPng.length, 19, "随 r28 推进：壳基线已扩为 19 张 PNG（新增会议 tab）");
-    eq(new Set(shellPng.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 19, "壳基线 19 张 SHA256 两两互异");
-    const r23HashBlock = shellReadme.match(/<!-- R40_HASHES_BEGIN -->([\s\S]*?)<!-- R40_HASHES_END -->/);
+    eq(shellPng.length, 20, "随 r28 推进：壳基线已扩为 19 张 PNG（新增会议 tab）");
+    eq(new Set(shellPng.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 20, "壳基线 19 张 SHA256 两两互异");
+    const r23HashBlock = shellReadme.match(/<!-- R41_HASHES_BEGIN -->([\s\S]*?)<!-- R41_HASHES_END -->/);
     ok(r23HashBlock !== null, "shell README 含 R32_HASHES 当前自查块（随 r32 推进）");
     if (r23HashBlock) {
       const listed = [...r23HashBlock[1]!.matchAll(/`([a-z-]+)=([0-9A-F]{8})`/g)].map((m) => [m[1], m[2]]);
-      eq(listed.length, 19, "r26 shell README 列出 19 张哈希");
+      eq(listed.length, 20, "r26 shell README 列出 19 张哈希");
       const mismatches = listed.filter(([name, hash]) => {
         const file = shellPng.find((p) => p.replace(/\\/g, "/").endsWith(`/${name}-tab-active.png`));
         return !file || createHash("sha256").update(readFileSync(file)).digest("hex").slice(0, 8).toUpperCase() !== hash;
       });
       eq(mismatches, [], "r26 shell README 18 张哈希与实际文件逐字一致");
     }
-    ok(rootReadme.includes("e2e（3430 断言）+ HTTP 审计（2641 断言）"), "r23 口径随 r24 速查行推进");
+    ok(rootReadme.includes("e2e（3551 断言）+ HTTP 审计（2703 断言）"), "r23 口径随 r24 速查行推进");
     ok(
       ARCHIVE_README.includes("- e2e **2766** 项") && ARCHIVE_README.includes("- HTTP audit **2185** 项") &&
         ARCHIVE_README.includes("### r24 矩阵") && ARCHIVE_README.includes("e2e 1952 → **2041（+89）**"),
@@ -5705,7 +5725,7 @@ try {
 
     // (B) schema v17：只追加四张可空列，原 TEXT NOT NULL 列逐列不动
     const raw24 = openDatabaseRaw({ path: ":memory:" });
-    eq((raw24.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 25, "r24 基线库现新库 user_version=25（r28 推进）");
+    eq((raw24.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 26, "r24 基线库现新库 user_version=26（r28 推进）");
     const colsOf = (table: string) => raw24.raw.all(`PRAGMA table_info(${table})`) as {
       name: string; notnull: number; dflt_value: unknown;
     }[];
@@ -5853,7 +5873,7 @@ try {
     ok(assets.includes('data-state="assets-member-badge"'), "r24 物资卡片部门徽标 seam 在场");
     ok(css.includes(".mp-modal") && css.includes("html.force-narrow .mp-modal"), "r24 弹窗样式与窄屏单列 seam 在场");
     ok(shot.includes('"r24"') && ["01-approval-picker", "02-approval-picked", "03-timeline-badge", "04-assets-picker", "05-assets-badge", "06-narrow", "07-error"].every((s) => shot.includes(s)), "r24 shot.ps1 ValidateSet 与七张矩阵名齐备");
-    ok(ci.includes("(2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19|20|21|22|23|24|25)"), "r24 CI smoke 正则随 v19 推进");
+    ok(ci.includes("(2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19|20|21|22|23|24|25|26)"), "r24 CI smoke 正则随 v19 推进");
 
     const walkPng = (dir: string): string[] =>
       readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
@@ -5863,13 +5883,13 @@ try {
     eq(r24Png.length, 7, "r24 目录恰好 7 张 PNG");
     eq(new Set(r24Png.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 7, "r24 七张 PNG SHA256 两两互异");
     const shellPng = walkPng("docs/ui/shell");
-    eq(shellPng.length, 19, "随 r28 推进：壳基线已扩为 19 张 PNG");
-    eq(new Set(shellPng.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 19, "壳基线 19 张 SHA256 两两互异");
-    const hashBlock = shellReadme.match(/<!-- R40_HASHES_BEGIN -->([\s\S]*?)<!-- R40_HASHES_END -->/);
+    eq(shellPng.length, 20, "随 r28 推进：壳基线已扩为 19 张 PNG");
+    eq(new Set(shellPng.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 20, "壳基线 19 张 SHA256 两两互异");
+    const hashBlock = shellReadme.match(/<!-- R41_HASHES_BEGIN -->([\s\S]*?)<!-- R41_HASHES_END -->/);
     ok(hashBlock !== null, "shell README 哈希自查块在场");
     if (hashBlock) {
       const listed = [...hashBlock[1]!.matchAll(/`([a-z-]+)=([0-9A-F]{8})`/g)].map((m) => [m[1], m[2]]);
-      eq(listed.length, 19, "shell README 列出 19 张哈希");
+      eq(listed.length, 20, "shell README 列出 19 张哈希");
       const mismatches = listed.filter(([name, hash]) => {
         const file = shellPng.find((p) => p.replace(/\\/g, "/").endsWith(`/${name}-tab-active.png`));
         return !file || createHash("sha256").update(readFileSync(file)).digest("hex").slice(0, 8).toUpperCase() !== hash;
@@ -5877,7 +5897,7 @@ try {
       eq(mismatches, [], "shell README 18 张哈希与实际文件逐字一致");
     }
     ok((r24Index.match(/^\| \d\d-[^|]*\.png \|/gm) ?? []).length === 7, "r24 截图索引含七张矩阵行");
-    ok(rootReadme.includes("e2e（3430 断言）+ HTTP 审计（2641 断言）"), "r24 根 README 速查行数字同步");
+    ok(rootReadme.includes("e2e（3551 断言）+ HTTP 审计（2703 断言）"), "r24 根 README 速查行数字同步");
     ok(ARCHIVE_README.includes("### r24 矩阵") && ARCHIVE_README.includes("e2e 1952 → **2041（+89）**"), "r24 双节规模与矩阵索引历史行归档后仍同步");
   }
 
@@ -5921,7 +5941,7 @@ try {
 
     // (C) schema v18 raw：只加 approval_steps.actor_member_id 可空列，原列不动
     const raw25 = openDatabaseRaw({ path: ":memory:" });
-    eq((raw25.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 25, "r25 新库 user_version=25（r19 基线随 r28 推进）");
+    eq((raw25.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 26, "r25 新库 user_version=26（r19 基线随 r28 推进）");
     const cols25 = raw25.raw.all("PRAGMA table_info(approval_steps)") as {
       name: string; notnull: number; dflt_value: unknown;
     }[];
@@ -6006,7 +6026,7 @@ try {
     ok(approval25.includes('data-state="approval-actor-badge"'), "r25 审批动作步骤徽标 seam 在场");
     ok(api25.includes('"/api/org/members/me"') && api25.includes("actorMemberId: firstDefined"), "r25 api 提供登录成员解析且接受 actorMemberId");
     ok(schemaSource25.includes("actor_member_id") && schemaSource25.includes("version: 18"), "r25 schema v18 动作列迁移在场");
-    ok(ci25.includes("(2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19|20|21|22|23|24|25)"), "r25 CI smoke 正则升 v19（含历史 v18）");
+    ok(ci25.includes("(2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19|20|21|22|23|24|25|26)"), "r25 CI smoke 正则升 v19（含历史 v18）");
     ok(shot25.includes('"r25"') && ["01-approval-actor-badge", "02-picker-dept-filter", "03-badge-named", "04-manual-hint", "05-assets-detail-badge", "06-narrow", "07-error"].every((s) => shot25.includes(s)), "r25 shot.ps1 ValidateSet 与七张矩阵名齐备");
 
     const walkPng25 = (dir: string): string[] =>
@@ -6017,13 +6037,13 @@ try {
     eq(matrix25.length, 7, "r25 目录恰好 7 张 PNG");
     eq(new Set(matrix25.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 7, "r25 七张 PNG SHA256 两两互异");
     const shells25 = walkPng25("docs/ui/shell");
-    eq(shells25.length, 19, "随 r28 推进：壳基线已扩为 19 张 PNG");
-    eq(new Set(shells25.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 19, "壳基线 19 张 SHA256 两两互异");
-    const hash25 = shell25.match(/<!-- R40_HASHES_BEGIN -->([\s\S]*?)<!-- R40_HASHES_END -->/);
+    eq(shells25.length, 20, "随 r28 推进：壳基线已扩为 19 张 PNG");
+    eq(new Set(shells25.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 20, "壳基线 19 张 SHA256 两两互异");
+    const hash25 = shell25.match(/<!-- R41_HASHES_BEGIN -->([\s\S]*?)<!-- R41_HASHES_END -->/);
     ok(hash25 !== null, "shell README R32 当前哈希块在场");
     if (hash25) {
       const listed25 = [...hash25[1]!.matchAll(/`([a-z-]+)=([0-9A-F]{8})`/g)].map((m) => [m[1], m[2]]);
-      eq(listed25.length, 19, "shell README R29 块列出 19 张哈希");
+      eq(listed25.length, 20, "shell README R29 块列出 19 张哈希");
       const mismatches25 = listed25.filter(([name, hash]) => {
         const file = shells25.find((p) => p.replace(/\\/g, "/").endsWith(`/${name}-tab-active.png`));
         return !file || createHash("sha256").update(readFileSync(file)).digest("hex").slice(0, 8).toUpperCase() !== hash;
@@ -6033,7 +6053,7 @@ try {
     ok(shell25.includes("**r23 基线**") && shell25.includes("**r24 基线**"), "shell README 保留 r23/r24 历史对照行");
     ok(shell25.includes("90166EF8") || shell25.includes("物资壳"), "shell README 如实记录物资壳与 r23 同字节事实");
     ok((r25Index.match(/^\| \d\d-[^|]*\.png \|/gm) ?? []).length === 7, "r25 截图索引含七张矩阵行");
-    ok(root25.includes("e2e（3430 断言）+ HTTP 审计（2641 断言）"), "r25 根 README 速查行数字同步");
+    ok(root25.includes("e2e（3551 断言）+ HTTP 审计（2703 断言）"), "r25 根 README 速查行数字同步");
     ok(ARCHIVE_README.includes("### r25 矩阵") && ARCHIVE_README.includes("e2e 2041 → **2096（+55）**"), "r25 双节规模与矩阵索引历史行归档后仍同步");
   }
 
@@ -6191,7 +6211,7 @@ try {
 
     // (G) schema v19 raw：notifications 表 / 检查约束 / 索引 / 可空列
     const raw26 = openDatabaseRaw({ path: ":memory:" });
-    eq((raw26.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 25, "r26 新库 user_version=25");
+    eq((raw26.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 26, "r26 新库 user_version=26");
     const nCols = raw26.raw.all("PRAGMA table_info(notifications)") as { name: string; notnull: number; dflt_value: unknown }[];
     eq(nCols.map((c) => c.name), ["id", "type", "title", "body", "ref_type", "ref_id", "read_at", "created_at"], "r26 notifications 八列逐字锁定");
     eq(nCols.find((c) => c.name === "read_at")?.notnull, 0, "r26 read_at 可空（未读默认 NULL）");
@@ -6258,11 +6278,11 @@ try {
     ok(api26.includes('app.post("/api/notifications/read-all"') && api26.includes('app.get("/api/notifications/summary"'), "r26 批量已读与汇总路由在场");
     ok(api26.includes("collectNotificationCandidates") && api26.includes("shouldNotify") && api26.includes("buildNotification"), "r26 api 只装配 shared 规则零算法分支");
     ok(schemaSource26.includes("version: 19") && schemaSource26.includes("CREATE TABLE IF NOT EXISTS notifications"), "r26 schema v19 迁移在场");
-    ok(ci26.includes("(2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19|20|21|22|23|24|25)"), "r26 CI smoke 正则升 v19");
+    ok(ci26.includes("(2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19|20|21|22|23|24|25|26)"), "r26 CI smoke 正则升 v19");
     ok(shot26.includes('"r26"') && ["01-notif-empty", "02-notif-unread", "03-notif-filtered", "04-notif-read", "05-notif-refreshed", "06-narrow", "07-error", "08-notif-badge-decrement"].every((s) => shot26.includes(s)), "r26 shot.ps1 ValidateSet 与八张矩阵名齐备");
     ok(shell26.includes("<!-- R26_HASHES_BEGIN -->") && shell26.includes("<!-- R26_HASHES_END -->"), "r26 shell README 历史哈希块在场（当前块见 R28）");
     ok((r26Index.match(/^\| \[?\d\d-[^|\]]*\.png/gm) ?? []).length === 9, "r26 截图索引含九张矩阵行（返工#2 补 09）");
-    ok(root26.includes("e2e（3430 断言）+ HTTP 审计（2641 断言）"), "返工#1 根 README 速查行数字逐字同步");
+    ok(root26.includes("e2e（3551 断言）+ HTTP 审计（2703 断言）"), "返工#1 根 README 速查行数字逐字同步");
 
     // (J) 截图矩阵与十六 tab 壳基线（SHA 两两互异 + README 哈希逐字一致）
     const walkPng26 = (dir: string): string[] => {
@@ -6278,13 +6298,13 @@ try {
     eq(matrix26.length, 9, "r26 目录恰好 9 张 PNG（返工#2 补 09）");
     eq(new Set(matrix26.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 9, "r26 九张 PNG SHA256 两两互异");
     const shells26 = walkPng26("docs/ui/shell");
-    eq(shells26.length, 19, "随 r28 推进：壳基线 19 张 PNG");
-    eq(new Set(shells26.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 19, "壳基线 19 张 SHA256 两两互异（随 r28 推进）");
-    const hash26 = shell26.match(/<!-- R40_HASHES_BEGIN -->([\s\S]*?)<!-- R40_HASHES_END -->/);
+    eq(shells26.length, 20, "随 r28 推进：壳基线 19 张 PNG");
+    eq(new Set(shells26.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 20, "壳基线 19 张 SHA256 两两互异（随 r28 推进）");
+    const hash26 = shell26.match(/<!-- R41_HASHES_BEGIN -->([\s\S]*?)<!-- R41_HASHES_END -->/);
     ok(hash26 !== null, "shell README R32 当前哈希块在场");
     if (hash26) {
       const listed26 = [...hash26[1]!.matchAll(/`([a-z-]+)=([0-9A-F]{8})`/g)].map((m) => ({ name: m[1]!, hash: m[2]! }));
-      eq(listed26.length, 19, "shell README R29 块列出 19 张哈希");
+      eq(listed26.length, 20, "shell README R29 块列出 19 张哈希");
       const mismatches26 = listed26.filter(({ name, hash }) => {
         const file = shells26.find((p) => p.replace(/\\/g, "/").endsWith(`/${name}-tab-active.png`));
         return !file || createHash("sha256").update(readFileSync(file)).digest("hex").slice(0, 8).toUpperCase() !== hash;
@@ -6494,13 +6514,13 @@ try {
     eq(matrix27.length, 7, "r27 目录恰好 7 张 PNG");
     eq(new Set(matrix27.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 7, "r27 七张 PNG SHA256 两两互异");
     const shells27 = walkPng27("docs/ui/shell");
-    eq(shells27.length, 19, "r28 壳基线 19 张 PNG（新增会议 tab）");
-    eq(new Set(shells27.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 19, "r28 壳基线 19 张 SHA256 两两互异（随 r28 推进）");
-    const hash27 = shell27.match(/<!-- R40_HASHES_BEGIN -->([\s\S]*?)<!-- R40_HASHES_END -->/);
+    eq(shells27.length, 20, "r28 壳基线 19 张 PNG（新增会议 tab）");
+    eq(new Set(shells27.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 20, "r28 壳基线 19 张 SHA256 两两互异（随 r28 推进）");
+    const hash27 = shell27.match(/<!-- R41_HASHES_BEGIN -->([\s\S]*?)<!-- R41_HASHES_END -->/);
     ok(hash27 !== null, "shell README R32 当前哈希块在场");
     if (hash27) {
       const listed27 = [...hash27[1]!.matchAll(/`([a-z-]+)=([0-9A-F]{8})`/g)].map((m) => ({ name: m[1]!, hash: m[2]! }));
-      eq(listed27.length, 19, "shell README R29 块列出 19 张哈希");
+      eq(listed27.length, 20, "shell README R29 块列出 19 张哈希");
       const mismatches27 = listed27.filter(({ name, hash }) => {
         const file = shells27.find((p) => p.replace(/\\/g, "/").endsWith(`/${name}-tab-active.png`));
         return !file || createHash("sha256").update(readFileSync(file)).digest("hex").slice(0, 8).toUpperCase() !== hash;
@@ -6634,7 +6654,7 @@ try {
 
     // (G) schema v20 raw：三表 / 约束 / 索引 / 真迁移
     const raw28 = openDatabaseRaw({ path: ":memory:" });
-    eq((raw28.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 25, "r28 新库 user_version=25");
+    eq((raw28.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 26, "r28 新库 user_version=26");
     const roomCols28 = raw28.raw.all("PRAGMA table_info(rooms)").map((r) => String((r as { name: unknown }).name));
     eq(roomCols28, ["id", "name", "location", "capacity", "active", "created_at", "updated_at"], "r28 rooms 七列逐列存在");
     const meetingCols28 = raw28.raw.all("PRAGMA table_info(meetings)").map((r) => String((r as { name: unknown }).name));
@@ -6711,7 +6731,7 @@ try {
     ok(api28.includes("MeetingConflictError") && api28.includes("meetingAvailability"), "r28 api 只编排 shared 规则并映射 409");
     ok(sharedPkg28.includes('"./meetings": "./src/meetings.ts"'), "r28 shared/meetings 子路径导出在场");
     ok(schema28.includes("version: 20") && schema28.includes("CREATE TABLE IF NOT EXISTS rooms"), "r28 schema v20 迁移在场");
-    ok(ci28.includes("(2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19|20|21|22|23|24|25)"), "r28 CI smoke 正则升 v20");
+    ok(ci28.includes("(2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19|20|21|22|23|24|25|26)"), "r28 CI smoke 正则升 v20");
     ok(shot28.includes('"r28"') && shot28.includes('@{ page = "meetings";'), "r28 shot.ps1 ValidateSet 与会议 tab 壳基线在场");
     ok(["01-meetings-empty", "02-meetings-list", "03-meetings-grid", "04-meetings-form", "05-meetings-conflict", "06-narrow", "07-error"].every((s) => shot28.includes(s)), "r28 七张矩阵名齐备");
 
@@ -6730,15 +6750,15 @@ try {
     eq(matrix28.length, 7, "r28 目录恰好 7 张 PNG");
     eq(new Set(matrix28.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 7, "r28 七张 PNG SHA256 两两互异");
     const shells28 = walkPng28("docs/ui/shell");
-    eq(shells28.length, 19, "r28 壳基线 19 张 PNG（新增会议 tab）");
-    eq(new Set(shells28.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 19, "r28 壳基线 19 张 SHA256 两两互异");
+    eq(shells28.length, 20, "r28 壳基线 19 张 PNG（新增会议 tab）");
+    eq(new Set(shells28.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 20, "r28 壳基线 19 张 SHA256 两两互异");
     ok(r28Index.includes("<!-- R28_HASHES_BEGIN -->") && r28Index.includes("<!-- R28_HASHES_END -->"), "r28 索引哈希自查块在场");
     const shell28 = readFileSync("docs/ui/shell/README.md", "utf8");
-    const hash28 = shell28.match(/<!-- R40_HASHES_BEGIN -->([\s\S]*?)<!-- R40_HASHES_END -->/);
+    const hash28 = shell28.match(/<!-- R41_HASHES_BEGIN -->([\s\S]*?)<!-- R41_HASHES_END -->/);
     ok(hash28 !== null, "shell README R32 当前哈希块在场");
     if (hash28) {
       const listed28 = [...hash28[1]!.matchAll(/`([a-z-]+)=([0-9A-F]{8})`/g)].map((m) => ({ name: m[1]!, hash: m[2]! }));
-      eq(listed28.length, 19, "shell README R29 块列出 19 张哈希");
+      eq(listed28.length, 20, "shell README R29 块列出 19 张哈希");
       const mismatches28 = listed28.filter(({ name, hash }) => {
         const file = shells28.find((p) => p.replace(/\\/g, "/").endsWith(`/${name}-tab-active.png`));
         return !file || createHash("sha256").update(readFileSync(file)).digest("hex").slice(0, 8).toUpperCase() !== hash;
@@ -6806,7 +6826,7 @@ try {
 
     // (D) schema v21 raw：document_versions 七列 + documents.deleted_at + 约束
     const raw29 = openDatabaseRaw({ path: ":memory:" });
-    eq((raw29.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 25, "r29 新库 user_version=25");
+    eq((raw29.raw.get("PRAGMA user_version") as { user_version: number }).user_version, 26, "r29 新库 user_version=26");
     eq(
       raw29.raw.all("PRAGMA table_info(document_versions)").map((r) => String((r as { name: unknown }).name)),
       ["id", "document_id", "version", "title", "content_markdown", "created_at", "note"],
@@ -6878,7 +6898,7 @@ try {
 
     // (F) 渲染层 / API / 脚本 seam：规则集中，18 tab 不变
     const app29 = readFileSync("apps/web/src/App.tsx", "utf8");
-    eq((app29.match(/data-tab="/g) ?? []).length, 19, "r29 本轮不改 tab 数量（仍 19）");
+    eq((app29.match(/data-tab="/g) ?? []).length, 20, "r29 本轮不改 tab 数量（仍 19）");
     ok(app29.includes("界面文案已优化（错误提示更清晰）"), "r29 徽章推进到轻量清理轮");
     const docsPage29 = readFileSync("apps/web/src/DocsPage.tsx", "utf8");
     ok(docsPage29.includes("版本历史") && docsPage29.includes("回收站"), "r29 文档页含版本历史侧栏与回收站入口");
@@ -6894,7 +6914,7 @@ try {
     const schemaSrc29 = readFileSync("packages/db/src/schema.ts", "utf8");
     ok(schemaSrc29.includes("version: 21") && schemaSrc29.includes("CREATE TABLE IF NOT EXISTS document_versions"), "r29 schema v21 迁移在场");
     const ci29 = readFileSync(".github/workflows/ci.yml", "utf8");
-    ok(ci29.includes("(2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19|20|21|22|23|24|25)"), "r29 CI smoke 正则升 v21");
+    ok(ci29.includes("(2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19|20|21|22|23|24|25|26)"), "r29 CI smoke 正则升 v21");
     const shot29 = readFileSync("scripts/shot.ps1", "utf8");
     ok(shot29.includes('"r29"') && shot29.includes("01-versions-empty"), "r29 shot.ps1 ValidateSet 与七张矩阵名齐备");
 
@@ -6912,8 +6932,8 @@ try {
     eq(matrix29.length, 7, "r29 目录恰好 7 张 PNG");
     eq(new Set(matrix29.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 7, "r29 七张 PNG SHA256 两两互异");
     const shells29 = walkPng29("docs/ui/shell");
-    eq(shells29.length, 19, "r29 十九 tab 壳基线 19 张（随 r36 推进） PNG");
-    eq(new Set(shells29.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 19, "r29 壳基线 19 张 SHA256 两两互异");
+    eq(shells29.length, 20, "r29 十九 tab 壳基线 19 张（随 r36 推进） PNG");
+    eq(new Set(shells29.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 20, "r29 壳基线 19 张 SHA256 两两互异");
     const r29Index = readFileSync("docs/ui/r29/README.md", "utf8");
     ok(r29Index.includes("<!-- R29_HASHES_BEGIN -->") && r29Index.includes("<!-- R29_HASHES_END -->"), "r29 索引哈希自查块在场");
   }
@@ -7085,8 +7105,8 @@ try {
     const raw30 = openDatabaseRaw({ path: ":memory:" });
     eq(
       (raw30.raw.get("PRAGMA user_version") as { user_version: number }).user_version,
-      25,
-      "r30 新库 user_version=25（r38 推进）",
+      26,
+      "r30 新库 user_version=26（随当前轮推进）",
     );
     const fieldCols30 = (raw30.raw.all("PRAGMA table_info(fields)") as { name: string }[]).map((c) => c.name);
     eq(
@@ -7100,7 +7120,7 @@ try {
     ok(fieldsSql30.includes("'formula'"), "r30 fields CHECK 白名单含 formula");
     ok(!fieldsSql30.includes("fields_v21"), "r30 迁移临时表已删除");
     eq(raw30.appliedMigrations.filter((v) => v === 22).length, 1, "r30 迁移 22 恰好执行一次");
-    eq(MIGRATIONS.length, 25, "r30 迁移队列共 24 条（r37 追加 v24）");
+    eq(MIGRATIONS.length, 26, "r30 迁移队列共 24 条（r37 追加 v24）");
     ok(MIGRATIONS[21]!.name.includes("formula"), "r30 第 22 条迁移为公式字段轮");
     raw30.raw.close();
 
@@ -7143,13 +7163,13 @@ try {
     ok(web30.includes("{单价} * {数量}"), "r30 表达式示例可见于字段面板");
     const app30 = readFileSync("apps/web/src/App.tsx", "utf8");
     ok(app30.includes("界面文案已优化（错误提示更清晰）"), "r30 徽章推进到轻量清理轮");
-    eq((app30.match(/data-tab="/g) ?? []).length, 19, "r30 本轮不改 tab 数量（仍 19）");
+    eq((app30.match(/data-tab="/g) ?? []).length, 20, "r30 本轮不改 tab 数量（仍 19）");
     const sharedPkg30 = readFileSync("packages/shared/package.json", "utf8");
     ok(sharedPkg30.includes('"./formula": "./src/formula.ts"'), "r30 shared/formula 子路径导出在场");
     const schemaSrc30 = readFileSync("packages/db/src/schema.ts", "utf8");
     ok(schemaSrc30.includes("version: 22") && schemaSrc30.includes("'formula'"), "r30 schema v22 迁移在场");
     const ci30 = readFileSync(".github/workflows/ci.yml", "utf8");
-    ok(ci30.includes("19|20|21|22|23|24|25)"), "r30 CI smoke 正则升 v22");
+    ok(ci30.includes("19|20|21|22|23|24|25|26)"), "r30 CI smoke 正则升 v22");
     const formulaSrc30 = readFileSync("packages/shared/src/formula.ts", "utf8");
     ok(!/\beval\s*\(/.test(formulaSrc30), "r30 公式引擎零 eval");
     ok(!/new\s+Function/.test(formulaSrc30), "r30 公式引擎零 new Function");
@@ -7176,11 +7196,11 @@ try {
       "r30 七张 PNG SHA256 两两互异",
     );
     const shells30 = walkPng30("docs/ui/shell");
-    eq(shells30.length, 19, "r30 十九 tab 壳基线 19 张（随 r36 推进） PNG");
+    eq(shells30.length, 20, "r30 十九 tab 壳基线 19 张（随 r36 推进） PNG");
     eq(
       new Set(shells30.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size,
-      19,
-      "r30 壳基线 19 张 SHA256 两两互异（随 r36 推进）",
+      20,
+      "r30 壳基线 20 张 SHA256 两两互异（随 r36 推进）",
     );
     const r30Index = readFileSync("docs/ui/r30/README.md", "utf8");
     ok(r30Index.includes("<!-- R30_HASHES_BEGIN -->") && r30Index.includes("<!-- R30_HASHES_END -->"), "r30 索引哈希自查块在场");
@@ -7356,7 +7376,7 @@ try {
     ok(web32.includes("/print-preview") && web32.includes("/export.doc"), "r32 web·预览与 Word 下载真走 HTTP 导出端点");
     const app32 = readOpt32("apps/web/src/App.tsx");
     ok(app32.includes("界面文案已优化（错误提示更清晰）"), "r32 App·轮次徽章推进到 r33");
-    eq((app32.match(/data-tab="/g) ?? []).length, 19, "r32 App·十九 tab 数量（随 r36 推进）");
+    eq((app32.match(/data-tab="/g) ?? []).length, 20, "r32 App·十九 tab 数量（随 r36 推进）");
     const shot32 = readOpt32("scripts/shot.ps1");
     ok(shot32.includes('"r32"'), "r32 shot.ps1·ValidateSet 纳入 r32");
     for (const name of ["01-export-menu", "02-print-preview", "03-html-landing", "04-word-landing", "05-narrow", "06-error"]) {
@@ -7383,8 +7403,8 @@ try {
     eq(matrix32.length, 6, "r32 截图·矩阵恰好 6 张 PNG");
     eq(new Set(matrix32.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 6, "r32 截图·六张 SHA256 两两互异");
     const shells32 = walkPng32("docs/ui/shell");
-    eq(shells32.length, 19, "r32 截图·十九 tab 壳基线 19 张（随 r36 推进）");
-    eq(new Set(shells32.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 19, "r32 截图·壳基线 19 张 SHA256 互异");
+    eq(shells32.length, 20, "r32 截图·十九 tab 壳基线 19 张（随 r36 推进）");
+    eq(new Set(shells32.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 20, "r32 截图·壳基线 19 张 SHA256 互异");
     const shellSet32 = new Set(shells32.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex")));
     eq(matrix32.filter((p) => shellSet32.has(createHash("sha256").update(readFileSync(p)).digest("hex"))).length, 0, "r32 截图·矩阵与壳基线零重叠");
     const idx32 = readOpt32("docs/ui/r32/README.md");
@@ -7508,7 +7528,7 @@ try {
     ok(app33.includes("ArrowDown") && app33.includes("ArrowUp"), "r33 web·键盘上下选在场");
     ok(app33.includes("/api/search") && app33.includes("navigateFromSearch"), "r33 web·搜索走真 HTTP 且点结果走 deep-link 跳转");
     ok(app33.includes("界面文案已优化（错误提示更清晰）"), "r33 App·轮次徽章推进到 r33");
-    eq((app33.match(/data-tab="/g) ?? []).length, 19, "r33 App·十九 tab 数量（随 r36 推进）（顶栏加搜索框不加 tab）");
+    eq((app33.match(/data-tab="/g) ?? []).length, 20, "r33 App·十九 tab 数量（随 r36 推进）（顶栏加搜索框不加 tab）");
     const shot33 = readOpt33("scripts/shot.ps1");
     ok(shot33.includes('"r33"'), "r33 shot.ps1·ValidateSet 纳入 r33");
     for (const name of ["01-search-empty", "02-search-typing", "03-search-single", "04-search-multi", "05-search-keyboard", "06-search-narrow", "07-search-error"]) {
@@ -7529,8 +7549,8 @@ try {
     eq(matrix33.length, 7, "r33 截图·矩阵恰好 7 张 PNG");
     eq(new Set(matrix33.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 7, "r33 截图·七张 SHA256 两两互异");
     const shells33 = walkPng33("docs/ui/shell");
-    eq(shells33.length, 19, "r33 截图·十九 tab 壳基线 19 张（随 r36 推进）");
-    eq(new Set(shells33.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 19, "r33 截图·壳基线 19 张 SHA256 互异");
+    eq(shells33.length, 20, "r33 截图·十九 tab 壳基线 19 张（随 r36 推进）");
+    eq(new Set(shells33.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 20, "r33 截图·壳基线 19 张 SHA256 互异");
     const shellSet33 = new Set(shells33.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex")));
     eq(matrix33.filter((p) => shellSet33.has(createHash("sha256").update(readFileSync(p)).digest("hex"))).length, 0, "r33 截图·矩阵与壳基线零重叠");
     const idx33 = readOpt33("docs/ui/r33/README.md");
@@ -7626,8 +7646,8 @@ try {
     eq(JSON.stringify(deps34), snapshotDeps34, "r34 拓扑·纯函数不修改输入");
 
     // (E) schema v23 与数据层（真库 + raw 约束）
-    eq(SCHEMA_VERSION, 25, "r34 schema·shared 版本推进到 v23");
-    eq(MIGRATIONS.length, 25, "r34 schema·迁移队列 24 条连续（r37 追加 v24）");
+    eq(SCHEMA_VERSION, 26, "r34 schema·shared 版本推进到 v23");
+    eq(MIGRATIONS.length, 26, "r34 schema·迁移队列 24 条连续（r37 追加 v24）");
     eq(MIGRATIONS[22]?.version, 23, "r34 schema·第 23 条迁移版本 = 23");
     ok(Boolean(MIGRATIONS[22]?.name.includes("todo_dependencies")), "r34 schema·迁移名标注 todo_dependencies");
     const raw34 = openDatabaseRaw({ path: ":memory:" });
@@ -7695,9 +7715,9 @@ try {
     ok(web34.includes('data-action="dep-add"') && web34.includes('data-action="dep-remove"'), "r34 web·添加/移除前置按钮在场");
     const app34 = readFileSync("apps/web/src/App.tsx", "utf8");
     ok(app34.includes("界面文案已优化（错误提示更清晰）"), "r34 App·轮次徽章推进到 r34");
-    eq((app34.match(/data-tab="/g) ?? []).length, 19, "r34 App·十九 tab 数量（随 r36 推进）");
+    eq((app34.match(/data-tab="/g) ?? []).length, 20, "r34 App·十九 tab 数量（随 r36 推进）");
     const ci34 = readFileSync(".github/workflows/ci.yml", "utf8");
-    ok(ci34.includes("|22|23|24|25)"), "r34 CI·HTTP smoke 正则升 v23");
+    ok(ci34.includes("|22|23|24|25|26)"), "r34 CI·HTTP smoke 正则升 v23");
     const shot34 = readFileSync("scripts/shot.ps1", "utf8");
     ok(shot34.includes('"r34"'), "r34 shot.ps1·ValidateSet 纳入 r34");
     for (const name of ["01-dep-empty", "02-dep-add", "03-dep-blocked-list", "04-dep-satisfied", "05-dep-cycle-error", "06-dep-narrow", "07-dep-error"]) {
@@ -7718,8 +7738,8 @@ try {
     eq(matrix34.length, 7, "r34 截图·矩阵恰好 7 张 PNG");
     eq(new Set(matrix34.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 7, "r34 截图·七张 SHA256 两两互异");
     const shells34 = walkPng34("docs/ui/shell");
-    eq(shells34.length, 19, "r34 截图·十九 tab 壳基线 19 张（随 r36 推进）");
-    eq(new Set(shells34.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 19, "r34 截图·壳基线 19 张 SHA256 互异");
+    eq(shells34.length, 20, "r34 截图·十九 tab 壳基线 19 张（随 r36 推进）");
+    eq(new Set(shells34.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 20, "r34 截图·壳基线 19 张 SHA256 互异");
     const shellSet34 = new Set(shells34.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex")));
     eq(matrix34.filter((p) => shellSet34.has(createHash("sha256").update(readFileSync(p)).digest("hex"))).length, 0, "r34 截图·矩阵与壳基线零重叠");
     const docIdx34 = readFileSync("docs/ui/r34/README.md", "utf8");
@@ -7727,8 +7747,8 @@ try {
     const shellIdx34 = readFileSync("docs/ui/shell/README.md", "utf8");
     ok(shellIdx34.includes("<!-- R34_HASHES_BEGIN -->") && shellIdx34.includes("R34 当前哈希块"), "r34 壳索引·R34 当前哈希块在场");
     const rootR34 = readFileSync("README.md", "utf8");
-    ok(rootR34.includes("docs/ui/r40/01-login-clean-text.png") && rootR34.includes("docs/ui/shell/README.md"), "r34 历史 seam·根 README 当前矩阵索引已同步");
-    ok(rootR34.includes("当前 r40"), "r34 历史 seam·根 README 断言规模节推进到当前轮");
+    ok(rootR34.includes("docs/ui/r41/01-forms-empty.png") && rootR34.includes("docs/ui/shell/README.md"), "r34 历史 seam·根 README 当前矩阵索引已同步");
+    ok(rootR34.includes("当前 r41"), "r34 历史 seam·根 README 断言规模节推进到当前轮");
   }
 
   // 71. r35：日历 ICS 导出与订阅（TDD：断言先于实现落地，宪法四条）
@@ -7866,7 +7886,7 @@ try {
     ok(!/function\s+escapeIcsText|function\s+parseIcsCalendar/.test(web35), "r35 web·零 ICS 算法分支");
     const app35 = readFileSync("apps/web/src/App.tsx", "utf8");
     ok(app35.includes("界面文案已优化（错误提示更清晰）"), "r35 App·轮次徽章推进到 r35");
-    eq((app35.match(/data-tab="/g) ?? []).length, 19, "r35 App·十九 tab 数量（随 r36 推进）");
+    eq((app35.match(/data-tab="/g) ?? []).length, 20, "r35 App·十九 tab 数量（随 r36 推进）");
     const shot35 = readFileSync("scripts/shot.ps1", "utf8");
     ok(shot35.includes('"r35"'), "r35 shot.ps1·ValidateSet 纳入 r35");
     for (const name of ["01-ics-export-menu", "02-ics-saved", "03-ics-feed-card", "04-ics-import-preview", "05-ics-import-success", "06-ics-narrow", "07-ics-error"]) {
@@ -7874,10 +7894,10 @@ try {
     }
     const pkg35 = readFileSync("package.json", "utf8");
     ok(!/"(ical|node-ical|ical.js|rrule|luxon|dayjs|date-fns)"/.test(pkg35), "r35 零新依赖·清单无 ICS/日期库");
-    eq(SCHEMA_VERSION, 25, "r35 schema·r35 本轮无变化（当前 v24）");
+    eq(SCHEMA_VERSION, 26, "r35 schema·r35 本轮无变化（当前 v24）");
     const rootR35 = readFileSync("README.md", "utf8");
-    ok(rootR35.includes("docs/ui/r40/01-login-clean-text.png") && rootR35.includes("docs/ui/shell/README.md"), "r35 根 README·矩阵索引已同步（三处之一）");
-    ok(rootR35.includes("当前 r40"), "r35 根 README·断言规模节推进到当前 r37");
+    ok(rootR35.includes("docs/ui/r41/01-forms-empty.png") && rootR35.includes("docs/ui/shell/README.md"), "r35 根 README·矩阵索引已同步（三处之一）");
+    ok(rootR35.includes("当前 r41"), "r35 根 README·断言规模节推进到当前 r37");
 
     // (G) 截图矩阵 + 十八 tab 壳（同批重拍，哈希互异）
     const walkPng35 = (dir: string): string[] => {
@@ -7893,8 +7913,8 @@ try {
     eq(matrix35.length, 7, "r35 截图·矩阵恰好 7 张 PNG");
     eq(new Set(matrix35.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 7, "r35 截图·七张 SHA256 两两互异");
     const shells35 = walkPng35("docs/ui/shell");
-    eq(shells35.length, 19, "r35 截图·十九 tab 壳基线 19 张（随 r36 推进）");
-    eq(new Set(shells35.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 19, "r35 截图·壳基线 19 张 SHA256 互异");
+    eq(shells35.length, 20, "r35 截图·十九 tab 壳基线 19 张（随 r36 推进）");
+    eq(new Set(shells35.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 20, "r35 截图·壳基线 19 张 SHA256 互异");
     const shellSet35 = new Set(shells35.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex")));
     eq(matrix35.filter((p) => shellSet35.has(createHash("sha256").update(readFileSync(p)).digest("hex"))).length, 0, "r35 截图·矩阵与壳基线零重叠");
     const docIdx35 = readFileSync("docs/ui/r35/README.md", "utf8");
@@ -8064,16 +8084,16 @@ try {
     ok(!/function\s+collectReportData|function\s+buildReportMarkdown/.test(web36), "r36 web·零报告算法分支");
     const app36 = readFileSync("apps/web/src/App.tsx", "utf8");
     ok(app36.includes("界面文案已优化（错误提示更清晰）"), "r36 App·轮次徽章推进到 r36");
-    eq((app36.match(/data-tab="/g) ?? []).length, 19, "r36 App·十九 tab（报告 tab 新增）");
+    eq((app36.match(/data-tab="/g) ?? []).length, 20, "r36 App·十九 tab（报告 tab 新增）");
     ok(app36.includes('data-tab="work-reports"') && />\s*报告\s*</.test(app36), "r36 App·报告 tab 激活态入口在场");
-    eq(SCHEMA_VERSION, 25, "r36 schema·r36 本轮无变化（当前 v24，复用 documents/blocks）");
+    eq(SCHEMA_VERSION, 26, "r36 schema·r36 本轮无变化（当前 v24，复用 documents/blocks）");
     const pkgShared36 = readFileSync("packages/shared/package.json", "utf8");
     ok(pkgShared36.includes('"./workReports"'), "r36 子路径·@xieflow/shared/workReports 已登记");
     const pkg36 = readFileSync("package.json", "utf8");
     ok(!/"(marked|markdown-it|showdown|turndown|dayjs|luxon)"/.test(pkg36), "r36 零新依赖·清单无 Markdown/日期库");
     const rootR36 = readFileSync("README.md", "utf8");
-    ok(rootR36.includes("docs/ui/r40/01-login-clean-text.png") && rootR36.includes("docs/ui/shell/README.md"), "r36 根 README·矩阵索引已同步（三处之一）");
-    ok(rootR36.includes("当前 r40"), "r36 根 README·断言规模节推进到当前 r37");
+    ok(rootR36.includes("docs/ui/r41/01-forms-empty.png") && rootR36.includes("docs/ui/shell/README.md"), "r36 根 README·矩阵索引已同步（三处之一）");
+    ok(rootR36.includes("当前 r41"), "r36 根 README·断言规模节推进到当前 r37");
 
     // (H) 截图矩阵 + 十九 tab 壳（同批重拍，哈希互异）
     const walkPng36 = (dir: string): string[] => readdirSync(dir).filter((n) => n.endsWith(".png")).map((n) => `${dir}/${n}`);
@@ -8081,8 +8101,8 @@ try {
     eq(matrix36.length, 7, "r36 截图·矩阵恰好 7 张 PNG");
     eq(new Set(matrix36.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 7, "r36 截图·七张 SHA256 两两互异");
     const shells36 = walkPng36("docs/ui/shell");
-    eq(shells36.length, 19, "r36 截图·十九 tab 壳基线 19 张（新增报告 tab）");
-    eq(new Set(shells36.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 19, "r36 截图·壳基线 19 张 SHA256 互异");
+    eq(shells36.length, 20, "r36 截图·十九 tab 壳基线 19 张（新增报告 tab）");
+    eq(new Set(shells36.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 20, "r36 截图·壳基线 19 张 SHA256 互异");
     const shellSet36 = new Set(shells36.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex")));
     eq(matrix36.filter((p) => shellSet36.has(createHash("sha256").update(readFileSync(p)).digest("hex"))).length, 0, "r36 截图·矩阵与壳基线零重叠");
     const docIdx36 = readFileSync("docs/ui/r36/README.md", "utf8");
@@ -8212,8 +8232,8 @@ try {
     ok(describeViewSpec({ filterSpec: [], sortSpec: [], visibleFields: [], groupSpec: spec37 }, fields37).includes("按状态分组"), "r37 摘要·视图口径含分组段");
 
     // (F) schema v24 与数据层（真库 raw）
-    eq(SCHEMA_VERSION, 25, "r37 schema·shared 版本推进到 v24");
-    eq(MIGRATIONS.length, 25, "r37 schema·迁移队列 24 条连续");
+    eq(SCHEMA_VERSION, 26, "r37 schema·shared 版本推进到 v24");
+    eq(MIGRATIONS.length, 26, "r37 schema·迁移队列 24 条连续");
     eq(MIGRATIONS[23]?.version, 24, "r37 schema·第 24 条迁移版本 = 24");
     ok(Boolean(MIGRATIONS[23]?.name.includes("group_spec")), "r37 schema·迁移名标注 group_spec");
     {
@@ -8271,7 +8291,7 @@ try {
     ok(web37.includes("/api/views/${") && web37.includes("/grouped"), "r37 web·分组查询走真 HTTP");
     ok(!/function\s+groupRecords|function\s+aggregateGroup|function\s+buildGroupView/.test(web37), "r37 web·零分组算法分支");
     ok(app37.includes("界面文案已优化（错误提示更清晰）"), "r37 App·轮次徽章推进到 r37");
-    eq((app37.match(/data-tab="/g) ?? []).length, 19, "r37 App·十九 tab 数量不变");
+    eq((app37.match(/data-tab="/g) ?? []).length, 20, "r37 App·十九 tab 数量不变");
     ok(pkgShared37.includes('"./tableGroups"'), "r37 子路径·@xieflow/shared/tableGroups 已登记");
     ok(!/"(chart\.js|recharts|echarts|d3|lodash)"/.test(pkg37), "r37 零新依赖·清单无图表/工具库");
     ok(shot37.includes('"r37"'), "r37 shot.ps1·ValidateSet 纳入 r37");
@@ -8284,8 +8304,8 @@ try {
     eq(matrix37.length, 7, "r37 截图·矩阵恰好 7 张 PNG");
     eq(new Set(matrix37.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 7, "r37 截图·七张 SHA256 两两互异");
     const shells37 = walkPng37("docs/ui/shell");
-    eq(shells37.length, 19, "r37 截图·十九 tab 壳基线 19 张（本轮 tab 数不变）");
-    eq(new Set(shells37.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 19, "r37 截图·壳基线 19 张 SHA256 互异");
+    eq(shells37.length, 20, "r37 截图·十九 tab 壳基线 19 张（本轮 tab 数不变）");
+    eq(new Set(shells37.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 20, "r37 截图·壳基线 19 张 SHA256 互异");
     const shellSet37 = new Set(shells37.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex")));
     eq(matrix37.filter((p) => shellSet37.has(createHash("sha256").update(readFileSync(p)).digest("hex"))).length, 0, "r37 截图·矩阵与壳基线零重叠");
     const docIdx37 = readFileSync("docs/ui/r37/README.md", "utf8");
@@ -8294,11 +8314,11 @@ try {
     ok(shellIdx37.includes("<!-- R37_HASHES_BEGIN -->") && shellIdx37.includes("R37 当前哈希块"), "r37 壳索引·R37 当前哈希块在场");
     ok(shellIdx37.includes("bases-tab-active.png"), "r37 壳索引·表格 tab 激活态图在场");
     const rootR37 = readFileSync("README.md", "utf8");
-    ok(rootR37.includes("docs/ui/r40/01-login-clean-text.png") && rootR37.includes("docs/ui/shell/README.md"), "r37 根 README·矩阵索引已同步（三处之一）");
-    ok(rootR37.includes("当前 r40"), "r37 根 README·断言规模节推进到当前 r37");
-    ok(rootR37.includes("e2e **3430**") && rootR37.includes("HTTP audit **2641**"), "r37 根 README·速查行断言规模同步");
+    ok(rootR37.includes("docs/ui/r41/01-forms-empty.png") && rootR37.includes("docs/ui/shell/README.md"), "r37 根 README·矩阵索引已同步（三处之一）");
+    ok(rootR37.includes("当前 r41"), "r37 根 README·断言规模节推进到当前 r37");
+    ok(rootR37.includes("e2e **3551**") && rootR37.includes("HTTP audit **2703**"), "r37 根 README·速查行断言规模同步");
     const allPng37 = [...matrix37, ...shells37];
-    eq(allPng37.length, 26, "r37 截图·本轮证据共 26 张");
+    eq(allPng37.length, 27, "r37 截图·本轮证据共 26 张");
   }
 
   // 74. r38：看板卡片元数据（标签 / 负责人 / 截止日 / 逾期判定，向后兼容）
@@ -8379,8 +8399,8 @@ try {
     ]), "r38 纯函数·输入快照逐字节稳定");
 
     // (D) schema v25 + 真库元数据落库 / 级联删除 / 老卡 NULL
-    eq(SCHEMA_VERSION, 25, "r38 schema·shared 版本推进到 v25");
-    eq(MIGRATIONS.length, 25, "r38 schema·迁移队列 25 条连续");
+    eq(SCHEMA_VERSION, 26, "r38 schema·shared 版本推进到 v25");
+    eq(MIGRATIONS.length, 26, "r38 schema·迁移队列 25 条连续");
     eq(MIGRATIONS[24]?.version, 25, "r38 schema·第 25 条迁移版本 = 25");
     ok(Boolean(MIGRATIONS[24]?.name.includes("card_labels")), "r38 schema·迁移名标注 card_labels");
     {
@@ -8455,13 +8475,13 @@ try {
     ok(!/function\s+normalizeCardLabels|function\s+isOverdue|function\s+cardMetaSummary/.test(web38), "r38 web·零元数据算法分支");
     const app38 = readFileSync("apps/web/src/App.tsx", "utf8");
     ok(app38.includes("界面文案已优化（错误提示更清晰）"), "r38 App·徽章改为纯用户文案（r39 无轮次号）");
-    eq((app38.match(/data-tab="/g) ?? []).length, 19, "r38 App·十九 tab 数量不变");
+    eq((app38.match(/data-tab="/g) ?? []).length, 20, "r38 App·十九 tab 数量不变");
     const pkgShared38 = readFileSync("packages/shared/package.json", "utf8");
     ok(pkgShared38.includes('"./cardMeta"'), "r38 子路径·@xieflow/shared/cardMeta 已登记");
     const shot38 = readFileSync("scripts/shot.ps1", "utf8");
     ok(shot38.includes('"r38"'), "r38 shot.ps1·ValidateSet 纳入 r38");
     const ci38 = readFileSync(".github/workflows/ci.yml", "utf8");
-    ok(ci38.includes("23|24|25"), "r38 CI·HTTP smoke 正则含 v25");
+    ok(ci38.includes("23|24|25|26"), "r38 CI·HTTP smoke 正则含 v25");
 
     // (F) 截图矩阵 7 张 + 十九壳同批重拍
     const walkPng38 = (dir: string): string[] => {
@@ -8477,8 +8497,8 @@ try {
     eq(matrix38.length, 7, "r38 截图·矩阵恰好 7 张 PNG");
     eq(new Set(matrix38.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 7, "r38 截图·七张 SHA256 两两互异");
     const shells38 = walkPng38("docs/ui/shell");
-    eq(shells38.length, 19, "r38 截图·十九 tab 壳基线 19 张");
-    eq(new Set(shells38.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 19, "r38 截图·壳 19 张 SHA256 互异");
+    eq(shells38.length, 20, "r38 截图·十九 tab 壳基线 19 张");
+    eq(new Set(shells38.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex"))).size, 20, "r38 截图·壳 19 张 SHA256 互异");
     const shellSet38 = new Set(shells38.map((p) => createHash("sha256").update(readFileSync(p)).digest("hex")));
     eq(matrix38.filter((p) => shellSet38.has(createHash("sha256").update(readFileSync(p)).digest("hex"))).length, 0, "r38 截图·矩阵与壳零重叠");
     const docIdx38 = readFileSync("docs/ui/r38/README.md", "utf8");
@@ -8486,9 +8506,9 @@ try {
     const shellIdx38 = readFileSync("docs/ui/shell/README.md", "utf8");
     ok(shellIdx38.includes("<!-- R38_HASHES_BEGIN -->") && shellIdx38.includes("R38 当前哈希块"), "r38 壳索引·R38 当前哈希块在场");
     const rootR38 = readFileSync("README.md", "utf8");
-    ok(rootR38.includes("docs/ui/r40/01-login-clean-text.png") && rootR38.includes("docs/ui/shell/README.md"), "r38 根 README·矩阵索引已同步（三处之一）");
-    ok(rootR38.includes("当前 r40"), "r38 根 README·断言规模节推进到当前 r40");
-    ok(rootR38.includes("HTTP audit **2641**"), "r38 根 README·速查行 audit 规模同步");
+    ok(rootR38.includes("docs/ui/r41/01-forms-empty.png") && rootR38.includes("docs/ui/shell/README.md"), "r38 根 README·矩阵索引已同步（三处之一）");
+    ok(rootR38.includes("当前 r41"), "r38 根 README·断言规模节推进到当前 r40");
+    ok(rootR38.includes("HTTP audit **2703**"), "r38 根 README·速查行 audit 规模同步");
   }
 
   // 60. r39：用户可见文案清理（错误体内部术语清零 + 机制防复发）
@@ -8533,17 +8553,17 @@ try {
   const docIdx39 = readFileSync("docs/ui/r39/README.md", "utf8");
   ok(docIdx39.includes("<!-- R39_HASHES_BEGIN -->") && docIdx39.includes("01-board-meta-error-clean-text.png"), "r39 索引·哈希块与首图名在场");
   const shellIdx39 = readFileSync("docs/ui/shell/README.md", "utf8");
-  ok(shellIdx39.includes("<!-- R39_HASHES_BEGIN -->") && shellIdx39.includes("R40 当前哈希块"), "r39 壳索引·当前哈希块随 r40 推进在场");
+  ok(shellIdx39.includes("<!-- R39_HASHES_BEGIN -->") && shellIdx39.includes("R41 当前哈希块"), "r39 壳索引·当前哈希块随 r41 推进在场");
   const rootR39 = readFileSync("README.md", "utf8");
-  ok(rootR39.includes("docs/ui/r40/01-login-clean-text.png") && rootR39.includes("docs/ui/shell/README.md"), "r39 根 README·矩阵索引已同步（三处之一）");
-  ok(rootR39.includes("当前 r40"), "r39 根 README·断言规模节推进到当前轮");
-  ok(rootR39.includes("e2e **3430**") && rootR39.includes("HTTP audit **2641**"), "r39 根 README·速查行断言规模同步");
+  ok(rootR39.includes("docs/ui/r41/01-forms-empty.png") && rootR39.includes("docs/ui/shell/README.md"), "r39 根 README·矩阵索引已同步（三处之一）");
+  ok(rootR39.includes("当前 r41"), "r39 根 README·断言规模节推进到当前轮");
+  ok(rootR39.includes("e2e **3551**") && rootR39.includes("HTTP audit **2703**"), "r39 根 README·速查行断言规模同步");
   const matrix39 = readdirSync("docs/ui/r39").filter((f) => f.endsWith(".png"));
   eq(matrix39.length, 7, "r39 截图·本轮错误态矩阵 7 张");
   eq(new Set(matrix39.map((p) => createHash("sha256").update(readFileSync(`docs/ui/r39/${p}`)).digest("hex"))).size, 7, "r39 截图·七张 SHA256 两两互异");
   const shells39 = readdirSync("docs/ui/shell").filter((f) => f.endsWith(".png"));
-  eq(shells39.length, 19, "r39 截图·十九 tab 壳基线 19 张");
-  eq(new Set(shells39.map((p) => createHash("sha256").update(readFileSync(`docs/ui/shell/${p}`)).digest("hex"))).size, 19, "r39 截图·壳 19 张 SHA256 互异");
+  eq(shells39.length, 20, "r39 截图·十九 tab 壳基线 19 张");
+  eq(new Set(shells39.map((p) => createHash("sha256").update(readFileSync(`docs/ui/shell/${p}`)).digest("hex"))).size, 20, "r39 截图·壳 19 张 SHA256 互异");
   const shellSet39 = new Set(shells39.map((p) => createHash("sha256").update(readFileSync(`docs/ui/shell/${p}`)).digest("hex")));
   eq(matrix39.filter((p) => shellSet39.has(createHash("sha256").update(readFileSync(`docs/ui/r39/${p}`)).digest("hex"))).length, 0, "r39 截图·矩阵与壳零重叠");
 
@@ -8561,21 +8581,237 @@ try {
   ok(scan40.includes("例：写 r2 复验材料"), "r40 扫描器自断言·单位数 rN placeholder 在场");
   ok(scan40.includes("ROUND_SELF_PROBES"), "r40 扫描器自断言·探针执行路径在场");
   const root40 = readFileSync("README.md", "utf8");
-  ok(root40.includes("e2e（3430 断言）") && root40.includes("HTTP 审计（2641 断言）"), "r40 根 README·速查行断言规模同步");
-  ok(root40.includes("当前轮 r40"), "r40 根 README·当前轮对照表同步");
-  ok(root40.includes("docs/ui/r40/01-login-clean-text.png"), "r40 根 README·登录页干净态索引同步");
-  ok(root40.includes("e2e **3430**") && root40.includes("HTTP audit **2641**"), "r40 根 README·断言规模行同步");
+  ok(root40.includes("e2e（3551 断言）") && root40.includes("HTTP 审计（2703 断言）"), "r40 根 README·速查行断言规模同步");
+  ok(root40.includes("当前轮 r41"), "r40 根 README·当前轮对照表同步");
+  ok(root40.includes("docs/ui/r41/01-forms-empty.png"), "r40 根 README·登录页干净态索引同步");
+  ok(root40.includes("e2e **3551**") && root40.includes("HTTP audit **2703**"), "r40 根 README·断言规模行同步");
   const docIdx40 = readFileSync("docs/ui/r40/README.md", "utf8");
   ok(docIdx40.includes("<!-- R40_HASHES_BEGIN -->") && docIdx40.includes("01-login-clean-text.png"), "r40 索引·哈希块与登录图在场");
   const shellIdx40 = readFileSync("docs/ui/shell/README.md", "utf8");
-  ok(shellIdx40.includes("<!-- R40_HASHES_BEGIN -->") && shellIdx40.includes("R40 当前哈希块"), "r40 壳索引·R40 当前哈希块在场");
+  ok(shellIdx40.includes("<!-- R41_HASHES_BEGIN -->") && shellIdx40.includes("R41 当前哈希块"), "r40 壳索引·当前哈希块随 r41 推进在场");
   const matrix40 = readdirSync("docs/ui/r40").filter((f) => f.endsWith(".png"));
   eq(matrix40.length, 1, "r40 截图·登录页干净态 1 张");
   const shells40 = readdirSync("docs/ui/shell").filter((f) => f.endsWith(".png"));
-  eq(shells40.length, 19, "r40 截图·十九 tab 壳基线 19 张");
-  eq(new Set(shells40.map((p) => createHash("sha256").update(readFileSync(`docs/ui/shell/${p}`)).digest("hex"))).size, 19, "r40 截图·壳 19 张 SHA256 互异");
+  eq(shells40.length, 20, "r40 截图·十九 tab 壳基线 19 张");
+  eq(new Set(shells40.map((p) => createHash("sha256").update(readFileSync(`docs/ui/shell/${p}`)).digest("hex"))).size, 20, "r40 截图·壳 19 张 SHA256 互异");
   const shellSet40 = new Set(shells40.map((p) => createHash("sha256").update(readFileSync(`docs/ui/shell/${p}`)).digest("hex")));
   eq(matrix40.filter((p) => shellSet40.has(createHash("sha256").update(readFileSync(`docs/ui/r40/${p}`)).digest("hex"))).length, 0, "r40 截图·矩阵与壳零重叠");
+
+  // 62. r41：轻量表单收集（定义归一 / 答卷校验 / 汇总统计 / 三表 / 关闭表单）
+  section("r41 轻量表单收集：定义归一 / 答卷校验 / 汇总统计 / 三表");
+  {
+    // (A) 类型白名单与守卫
+    eq(FORM_QUESTION_TYPES, ["text", "number", "select", "checkbox"], "r41 类型·四题白名单与 schema CHECK 一致");
+    eq(FORM_TYPE_LABELS.number, "数字", "r41 类型·用户可见标签集中 shared");
+    eq(isFormQuestionType("select"), true, "r41 类型·select 合法");
+    eq(isFormQuestionType("date"), false, "r41 类型·date 不在白名单");
+    eq(isFormQuestionType(42), false, "r41 类型·非字符串不合法");
+    eq(MAX_FORM_TITLE, 200, "r41 守卫·标题上限常量 200");
+    eq(MAX_FORM_QUESTIONS, 50, "r41 守卫·题数上限常量 50");
+    noThrow(() => assertValidFormTitle("团队反馈"), "r41 守卫·合法标题通过");
+    throws(() => assertValidFormTitle("   "), "r41 守卫·空白标题抛错");
+    throws(() => assertValidFormTitle("x".repeat(MAX_FORM_TITLE + 1)), "r41 守卫·超长标题抛错");
+    eq(normalizeFormDescription(undefined), null, "r41 守卫·说明缺省归一 null");
+    eq(normalizeFormDescription("  说明  "), "说明", "r41 守卫·说明 trim");
+    eq(normalizeFormDescription(""), null, "r41 守卫·空说明归一 null");
+    throws(() => normalizeFormDescription(123), "r41 守卫·非文本说明抛错");
+    eq(normalizeSelectOptions([" 甲 ", "乙", "甲", ""], "select"), ["甲", "乙"], "r41 选项·trim/丢空/去重保序");
+    eq(normalizeSelectOptions(["甲"], "text"), [], "r41 选项·非单选题恒空数组");
+    throws(() => normalizeSelectOptions([], "select"), "r41 选项·单选题无选项抛错");
+    throws(() => normalizeSelectOptions([1], "select"), "r41 选项·非文本选项抛错");
+    throws(() => normalizeSelectOptions(Array.from({ length: MAX_SELECT_OPTIONS + 1 }, (_, i) => `项${i}`), "select"), "r41 选项·超上限抛错");
+
+    // (B) normalizeFormDefinition：类型白名单 / 必填 / 选项 / position 重排
+    const def41 = normalizeFormDefinition({
+      title: "  团队反馈  ",
+      description: " 季度收集 ",
+      questions: [
+        { type: "text", label: " 姓名 ", required: true, position: 2 },
+        { type: "select", label: "部门", required: true, options: ["研发", "产品", "研发"], position: 0 },
+        { type: "number", label: "评分", required: false, position: 1 },
+        { type: "checkbox", label: "参加", required: true, position: 0 },
+      ],
+    });
+    eq(def41.title, "团队反馈", "r41 定义·标题 trim");
+    eq(def41.description, "季度收集", "r41 定义·说明 trim");
+    eq(def41.questions.map((q) => q.label), ["部门", "参加", "评分", "姓名"], "r41 定义·按 position 排序（同值稳定）");
+    eq(def41.questions.map((q) => q.position), [0, 1, 2, 3], "r41 定义·position 连续重排");
+    eq(def41.questions[0]?.options, ["研发", "产品"], "r41 定义·选项去重归一");
+    eq(def41.questions[2]?.required, false, "r41 定义·选填标记归一");
+    eq(normalizeFormDefinition({ title: "空表单" }).questions.length, 0, "r41 定义·零题允许创建");
+    throws(() => normalizeFormDefinition({ title: "" }), "r41 定义·空标题不落库");
+    throws(() => normalizeFormDefinition({ title: "x", questions: [{ type: "date", label: "日期" }] }), "r41 定义·未知题型不落库");
+    throws(() => normalizeFormDefinition({ title: "x", questions: [{ type: "text", label: "  " }] }), "r41 定义·空题目标题不落库");
+    throws(() => normalizeFormDefinition({ title: "x", questions: [{ type: "text", label: "a", required: "yes" }] }), "r41 定义·必填非布尔不落库");
+    throws(() => normalizeFormDefinition({ title: "x", questions: "nope" }), "r41 定义·问题非数组不落库");
+    throws(() => normalizeFormDefinition({ title: "x", questions: Array.from({ length: MAX_FORM_QUESTIONS + 1 }, (_, i) => ({ type: "text", label: `题${i}` })) }), "r41 定义·超题数不落库");
+    eq(normalizeQuestionDraft({ type: "text", label: "问题" }, 7).position, 7, "r41 定义·position 缺省用回退值");
+    eq(normalizeQuestionDraft({ type: "text", label: "问题", position: -1 }, 3).position, 3, "r41 定义·负 position 回退");
+
+    // (C) validateFormAnswers：必填缺失 / 类型不符 / 未知题号
+    const qs41: FormQuestion[] = [
+      { id: 1, formId: 100, type: "text", label: "姓名", required: true, options: [], position: 0 },
+      { id: 2, formId: 100, type: "number", label: "评分", required: true, options: [], position: 1 },
+      { id: 3, formId: 100, type: "select", label: "部门", required: true, options: ["研发", "产品"], position: 2 },
+      { id: 4, formId: 100, type: "checkbox", label: "参加", required: true, options: [], position: 3 },
+      { id: 5, formId: 100, type: "text", label: "备注", required: false, options: [], position: 4 },
+    ];
+    const answers41: FormAnswers = { "1": " 张三 ", "2": "10", "3": "研发", "4": true, "5": "  " };
+    eq(validateFormAnswers(answers41, qs41), { "1": "张三", "2": 10, "3": "研发", "4": true }, "r41 校验·归一答案（文本 trim/数字字符串转数值/可选空白丢弃）");
+    throws(() => validateFormAnswers({ "2": 10, "3": "研发", "4": true }, qs41), "r41 校验·必填缺失被拒");
+    throws(() => validateFormAnswers({ "1": "张三", "2": "abc", "3": "研发", "4": true }, qs41), "r41 校验·数字类型不符被拒");
+    throws(() => validateFormAnswers({ "1": "张三", "2": 10, "3": "销售", "4": true }, qs41), "r41 校验·选项越界被拒");
+    throws(() => validateFormAnswers({ "1": "张三", "2": 10, "3": "研发", "4": "yes" }, qs41), "r41 校验·勾选类型不符被拒");
+    throws(() => validateFormAnswers({ "1": "张三", "2": 10, "3": "研发", "4": true, "99": "x" }, qs41), "r41 校验·未知题号被拒");
+    throws(() => validateFormAnswers(null, qs41), "r41 校验·答案非对象被拒");
+    throws(() => validateFormAnswers([], qs41), "r41 校验·数组不是答案字典被拒");
+    eq(validateFormAnswers({ "1": "x", "2": 1, "3": "产品", "4": false }, qs41)["5"], undefined, "r41 校验·未答可选键不落库");
+    noThrow(() => validateFormAnswers({}, []), "r41 校验·零题空答卷合法");
+
+    // (D) summarizeResponses：3 份答卷手算统计（总和 / 均值 / 分布 / 勾选率）
+    const responses41 = [
+      { answers: { "1": "张三", "2": 10, "3": "研发", "4": true } },
+      { answers: { "1": "李四", "2": 20, "3": "研发", "4": false } },
+      { answers: { "1": "王五", "2": 30, "3": "产品", "4": true } },
+    ];
+    const sum41 = summarizeResponses(responses41, qs41);
+    eq(sum41.total, 3, "r41 汇总·总答卷 3");
+    eq(sum41.questions.length, 5, "r41 汇总·每题一卡共 5 张");
+    eq(sum41.questions[0]?.type, "text", "r41 汇总·文本题型回带");
+    eq((sum41.questions[0] as unknown as { values: string[] }).values, ["张三", "李四", "王五"], "r41 汇总·文本按答卷顺序列举");
+    const num41 = sum41.questions[1] as { count: number; sum: number; avg: number; min: number; max: number };
+    eq([num41.count, num41.sum, num41.avg, num41.min, num41.max], [3, 60, 20, 10, 30], "r41 汇总·数值手算 sum=60 avg=20 min=10 max=30");
+    const sel41 = sum41.questions[2] as { distribution: readonly { option: string; count: number; rate: number }[] };
+    eq(sel41.distribution, [{ option: "研发", count: 2, rate: 0.67 }, { option: "产品", count: 1, rate: 0.33 }], "r41 汇总·选项分布按定义序 + 两位小数比率");
+    const chk41 = sum41.questions[3] as { checked: number; rate: number };
+    eq([chk41.checked, chk41.rate], [2, 0.67], "r41 汇总·勾选率 2/3=0.67");
+    eq(sum41.questions[4]?.answered, 0, "r41 汇总·未答选填题 answered=0");
+    eq(sum41.questions[4]?.skipped, 3, "r41 汇总·未答选填题 skipped=3");
+    const skipped41 = summarizeResponses([
+      { answers: { "2": 10 } },
+      { answers: { "2": 20 } },
+      { answers: {} },
+    ], qs41);
+    const numSkip41 = skipped41.questions[1] as { count: number; sum: number; avg: number };
+    eq([numSkip41.count, numSkip41.sum, numSkip41.avg], [2, 30, 15], "r41 汇总·跳过题不计入数值分母");
+    const chkSkip41 = skipped41.questions[3] as { checked: number; rate: number };
+    eq([skipped41.questions[3]?.answered, chkSkip41.rate], [0, 0], "r41 汇总·全跳过勾选率 0 不除零");
+    const empty41 = summarizeResponses([], qs41);
+    eq(empty41.total, 0, "r41 汇总·空答卷 total=0");
+    eq((empty41.questions[1] as { sum: number; avg: number; min: number | null }).min, null, "r41 汇总·空答卷 min=null 不产 NaN");
+    eq((empty41.questions[2] as { distribution: readonly { count: number }[] }).distribution.map((b) => b.count), [0, 0], "r41 汇总·空答卷分布全零");
+    ok(!JSON.stringify(empty41).includes("NaN"), "r41 汇总·无 NaN 泄漏");
+    eq(JSON.stringify(summarizeResponses(responses41, qs41)), JSON.stringify(sum41), "r41 汇总·重复装配逐字节稳定");
+    eq(formSummaryLine(sum41), "共 3 份答卷 · 5 道题", "r41 汇总·用户可见摘要行");
+    ok(new FormClosedError(9) instanceof Error && !(new FormClosedError(9) instanceof ValidationError), "r41 状态·关闭错误不是输入校验错误（独立 409 语义）");
+
+    // (E) schema v26 + 真库三表（raw PRAGMA / 级联删除 / 关闭表单）
+    eq(SCHEMA_VERSION, 26, "r41 schema·shared 版本推进到 v26");
+    eq(MIGRATIONS.length, 26, "r41 schema·迁移队列 26 条连续");
+    eq(MIGRATIONS[25]?.version, 26, "r41 schema·第 26 条迁移版本 = 26");
+    ok(Boolean(MIGRATIONS[25]?.name.includes("form_questions")), "r41 schema·迁移名标注 form_questions");
+    {
+      const gdb = openDatabaseRaw({ path: ":memory:" });
+      const rawG = gdb.raw;
+      const formsCols = (rawG.all("PRAGMA table_info(forms)") as { name: string }[]).map((c) => c.name);
+      ok(formsCols.includes("closed_at") && formsCols.includes("title"), "r41 schema·forms 列在场");
+      const qCols = (rawG.all("PRAGMA table_info(form_questions)") as { name: string }[]).map((c) => c.name);
+      ok(qCols.includes("form_id") && qCols.includes("options_json") && qCols.includes("type"), "r41 schema·form_questions 列在场");
+      const rCols = (rawG.all("PRAGMA table_info(form_responses)") as { name: string }[]).map((c) => c.name);
+      ok(rCols.includes("answers_json") && rCols.includes("created_at"), "r41 schema·form_responses 列在场");
+      rawG.close();
+    }
+    {
+      const fdb = openDatabase({ path: ":memory:" });
+      const created = fdb.createForm({
+        title: "满意度调查",
+        description: "季度反馈",
+        questions: [
+          { type: "text", label: "姓名", required: true, position: 0 },
+          { type: "number", label: "评分", required: true, position: 1 },
+          { type: "select", label: "部门", required: true, options: ["研发", "产品"], position: 2 },
+          { type: "checkbox", label: "参加", required: true, position: 3 },
+        ],
+      });
+      eq(created.title, "满意度调查", "r41 数据层·建表单标题回带");
+      eq(created.questions.length, 4, "r41 数据层·建表单四题落库");
+      eq(created.closedAt, null, "r41 数据层·新表单未关闭");
+      eq(fdb.listForms().length, 1, "r41 数据层·表单列表 1 张");
+      eq(fdb.getForm(created.id)?.questions.length, 4, "r41 数据层·getForm 回带问题");
+      const qids = created.questions.map((q) => q.id);
+      throws(() => fdb.createFormResponse(created.id, { "1": "甲", "2": "abc", "3": "研发", "4": true }), "r41 数据层·答卷类型不符不落库");
+      throws(() => fdb.createFormResponse(created.id, { "1": "甲", "2": 10, "3": "研发" }), "r41 数据层·答卷必填缺失不落库");
+      const r1 = fdb.createFormResponse(created.id, { [qids[0]!]: "甲", [qids[1]!]: 10, [qids[2]!]: "研发", [qids[3]!]: true });
+      const r2 = fdb.createFormResponse(created.id, { [qids[0]!]: "乙", [qids[1]!]: 20, [qids[2]!]: "研发", [qids[3]!]: false });
+      const r3 = fdb.createFormResponse(created.id, { [qids[0]!]: "丙", [qids[1]!]: 30, [qids[2]!]: "产品", [qids[3]!]: true });
+      eq([r1.id, r2.id, r3.id].length, 3, "r41 数据层·三份答卷 id 就位");
+      eq(fdb.listFormResponses(created.id).length, 3, "r41 数据层·答卷列表读回 3 份");
+      const dbsum = fdb.getFormSummary(created.id);
+      eq(dbsum?.total, 3, "r41 数据层·汇总总数 3");
+      eq((dbsum?.questions[1] as { sum: number }).sum, 60, "r41 数据层·真库三份答卷数值总和手算 60");
+      eq((dbsum?.questions[2] as { distribution: readonly { count: number }[] }).distribution.map((b) => b.count), [2, 1], "r41 数据层·真库选项分布 [2,1]");
+      eq((dbsum?.questions[3] as { rate: number }).rate, 0.67, "r41 数据层·真库勾选率 0.67");
+      const closed = fdb.updateForm(created.id, { closedAt: "2026-11-21T00:00:00.000Z" });
+      ok(Boolean(closed?.closedAt), "r41 数据层·关闭表单写回 closedAt");
+      throws(() => fdb.createFormResponse(created.id, { [qids[0]!]: "丁", [qids[1]!]: 40, [qids[2]!]: "产品", [qids[3]!]: false }), "r41 数据层·已关闭表单拒收新答卷");
+      eq(fdb.listFormResponses(created.id).length, 3, "r41 数据层·拒收后答卷数不变（零半态）");
+      const opened = fdb.updateForm(created.id, { closedAt: null });
+      eq(opened?.closedAt, null, "r41 数据层·重开表单清空 closedAt");
+      ok(fdb.createFormResponse(created.id, { [qids[0]!]: "丁", [qids[1]!]: 40, [qids[2]!]: "产品", [qids[3]!]: false }).id > r3.id, "r41 数据层·重开后可再提交");
+      const patched = fdb.updateForm(created.id, { title: "新标题", questions: [{ type: "text", label: "唯一题", required: true, position: 0 }] });
+      eq(patched?.questions.length, 1, "r41 数据层·整组替换问题");
+      eq(fdb.deleteForm(created.id), true, "r41 数据层·删除表单返回 true");
+      eq(fdb.listForms().length, 0, "r41 数据层·删后表单归零");
+      eq(fdb.getForm(created.id), null, "r41 数据层·删后 getForm=null");
+      fdb.close();
+    }
+
+    // (F) api / web / 子路径 / CI seam（零算法分支）
+    const api41 = readFileSync("apps/api/src/server.ts", "utf8");
+    const web41 = readFileSync("apps/web/src/FormsPage.tsx", "utf8");
+    const app41 = readFileSync("apps/web/src/App.tsx", "utf8");
+    const pkgShared41 = readFileSync("packages/shared/package.json", "utf8");
+    const ci41 = readFileSync(".github/workflows/ci.yml", "utf8");
+    const shot41 = readFileSync("scripts/shot.ps1", "utf8");
+    ok(api41.includes('app.get("/api/forms/:id/fill"'), "r41 api·填写视图路由在场");
+    ok(api41.includes('app.post("/api/forms/:id/responses"'), "r41 api·提交答卷路由在场");
+    ok(api41.includes('app.get("/api/forms/:id/summary"'), "r41 api·汇总路由在场");
+    ok(api41.includes('from "@xieflow/shared/forms"'), "r41 api·只装配 shared/forms");
+    ok(!/function\s+normalizeFormDefinition|function\s+validateFormAnswers|function\s+summarizeResponses/.test(api41), "r41 api·零表单算法分支");
+    ok(web41.includes('data-state="forms-empty"'), "r41 web·空态 seam 在场");
+    ok(web41.includes('data-state="forms-create"'), "r41 web·创建表单 seam 在场");
+    ok(web41.includes('data-state="forms-questions"'), "r41 web·问题编辑 seam 在场");
+    ok(web41.includes('data-state="forms-fill"'), "r41 web·填写视图 seam 在场");
+    ok(web41.includes('data-state="forms-summary"'), "r41 web·汇总统计 seam 在场");
+    ok(web41.includes('data-state="forms-submitted"'), "r41 web·提交成功 seam 在场");
+    ok(web41.includes("/api/forms/${"), "r41 web·走真 HTTP 而非本地假数据");
+    ok(!/function\s+normalizeFormDefinition|function\s+validateFormAnswers|function\s+summarizeResponses/.test(web41), "r41 web·零表单算法分支");
+    eq((app41.match(/data-tab="/g) ?? []).length, 20, "r41 App·二十 tab（新增表单 tab）");
+    ok(app41.includes('data-tab="forms"'), "r41 App·表单 tab 激活态 seam");
+    ok(pkgShared41.includes('"./forms"'), "r41 子路径·@xieflow/shared/forms 已登记");
+    ok(ci41.includes("|25|26)") || ci41.includes("|26)"), "r41 CI·HTTP smoke 正则升 v26");
+    ok(shot41.includes('"r41"'), "r41 shot.ps1·ValidateSet 纳入 r41");
+
+    // (G) 截图矩阵 7 张 + 二十 tab 壳同批重拍
+    const matrix41 = readdirSync("docs/ui/r41").filter((f) => f.endsWith(".png"));
+    eq(matrix41.length, 7, "r41 截图·矩阵恰好 7 张 PNG");
+    eq(new Set(matrix41.map((p) => createHash("sha256").update(readFileSync(`docs/ui/r41/${p}`)).digest("hex"))).size, 7, "r41 截图·七张 SHA256 两两互异");
+    const shells41 = readdirSync("docs/ui/shell").filter((f) => f.endsWith(".png"));
+    eq(shells41.length, 20, "r41 截图·二十 tab 壳基线 20 张（新增 forms-tab-active）");
+    eq(new Set(shells41.map((p) => createHash("sha256").update(readFileSync(`docs/ui/shell/${p}`)).digest("hex"))).size, 20, "r41 截图·壳 20 张 SHA256 互异");
+    ok(shells41.includes("forms-tab-active.png"), "r41 截图·表单 tab 激活态图在场");
+    const shellSet41 = new Set(shells41.map((p) => createHash("sha256").update(readFileSync(`docs/ui/shell/${p}`)).digest("hex")));
+    eq(matrix41.filter((p) => shellSet41.has(createHash("sha256").update(readFileSync(`docs/ui/r41/${p}`)).digest("hex"))).length, 0, "r41 截图·矩阵与壳零重叠");
+    const docIdx41 = readFileSync("docs/ui/r41/README.md", "utf8");
+    ok(docIdx41.includes("<!-- R41_HASHES_BEGIN -->") && docIdx41.includes("01-forms-empty.png"), "r41 索引·哈希块与首图名在场");
+    const shellIdx41 = readFileSync("docs/ui/shell/README.md", "utf8");
+    ok(shellIdx41.includes("<!-- R41_HASHES_BEGIN -->") && shellIdx41.includes("R41 当前哈希块"), "r41 壳索引·R41 当前哈希块在场");
+    ok(shellIdx41.includes("forms-tab-active.png"), "r41 壳索引·表单 tab 激活态图在场");
+    const root41 = readFileSync("README.md", "utf8");
+    ok(root41.includes("当前轮 r41"), "r41 根 README·当前轮对照表同步");
+    ok(root41.includes("docs/ui/r41/01-forms-empty.png") && root41.includes("docs/ui/shell/README.md"), "r41 根 README·矩阵索引同步");
+    ok(root41.includes("e2e（3551 断言）") && root41.includes("HTTP 审计（2703 断言）"), "r41 根 README·速查行断言规模同步");
+  }
 
   // 61. HTTP 冒烟 /api/health
   section("HTTP 冒烟 /api/health");

@@ -49,6 +49,9 @@ import {
   mapRowToMeeting,
   mapRowToMeetingAttendee,
   mapRowToDocumentVersion,
+  mapRowToForm,
+  mapRowToFormQuestion,
+  mapRowToFormResponse,
 } from "./mappers.js";
 import type {
   AppSetting,
@@ -216,6 +219,19 @@ import {
   normalizeVersionNote,
   type DocVersion,
 } from "@xieflow/shared/docHistory";
+// r41：轻量表单收集唯一口径在 shared/forms（归一/校验/汇总，本层只落库与装配）
+import {
+  normalizeFormDefinition,
+  validateFormAnswers,
+  summarizeResponses,
+  FormClosedError,
+  type Form,
+  type FormQuestion,
+  type FormResponse,
+  type FormWithQuestions,
+  type FormSummary,
+  type FormAnswers,
+} from "@xieflow/shared/forms";
 import {
   normalizeDepartment,
   findDuplicateDepartmentName,
@@ -3499,5 +3515,143 @@ export class XieFlowDb {
 
   removeMeetingAttendee(meetingId: number, memberId: number): boolean {
     return this.db.run("DELETE FROM meeting_attendees WHERE meeting_id = ? AND member_id = ?", [meetingId, memberId]).changes > 0;
+  }
+
+  // ---- r41：轻量表单收集（forms / form_questions / form_responses）----
+  // 规则全在 shared/forms；本层只做事务落库、读回装配与 closed 状态守卫。
+
+  private formRows(id: number): FormWithQuestions | null {
+    const row = this.db.get(
+      "SELECT id, title, description, created_at, closed_at FROM forms WHERE id = ?",
+      [id],
+    );
+    if (!row) return null;
+    const questions = this.db
+      .all(
+        "SELECT id, form_id, type, label, required, options_json, position FROM form_questions WHERE form_id = ? ORDER BY position, id",
+        [id],
+      )
+      .map(mapRowToFormQuestion);
+    return { ...mapRowToForm(row), questions };
+  }
+
+  listForms(): FormWithQuestions[] {
+    const rows = this.db.all("SELECT id, title, description, created_at, closed_at FROM forms ORDER BY id") as Record<string, unknown>[];
+    return rows.map((row) => this.formRows(Number(row.id))!).filter((f): f is FormWithQuestions => f !== null);
+  }
+
+  getForm(id: number): FormWithQuestions | null {
+    return this.formRows(id);
+  }
+
+  createForm(input: unknown): FormWithQuestions {
+    const def = normalizeFormDefinition(input);
+    const now = new Date().toISOString();
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      const res = this.db.run(
+        "INSERT INTO forms (title, description, created_at, closed_at) VALUES (?, ?, ?, NULL)",
+        [def.title, def.description, now],
+      );
+      const id = Number(res.lastInsertRowid);
+      for (const q of def.questions) {
+        this.db.run(
+          "INSERT INTO form_questions (form_id, type, label, required, options_json, position) VALUES (?, ?, ?, ?, ?, ?)",
+          [id, q.type, q.label, q.required ? 1 : 0, JSON.stringify(q.options), q.position],
+        );
+      }
+      this.db.exec("COMMIT");
+      const created = this.formRows(id);
+      if (!created) throw new Error("表单写入后读回失败");
+      return created;
+    } catch (err) {
+      this.db.exec("ROLLBACK");
+      throw err;
+    }
+  }
+
+  updateForm(id: number, patch: unknown): FormWithQuestions | null {
+    const existing = this.getForm(id);
+    if (!existing) return null;
+    const body = (patch ?? {}) as Record<string, unknown>;
+    const title = body.title !== undefined ? body.title : existing.title;
+    const description = body.description !== undefined ? body.description : existing.description;
+    const closedAt = body.closedAt !== undefined ? body.closedAt : existing.closedAt;
+    const def = normalizeFormDefinition({
+      title,
+      description,
+      questions: body.questions !== undefined ? body.questions : existing.questions,
+    });
+    if (closedAt !== null && (typeof closedAt !== "string" || Number.isNaN(new Date(closedAt).getTime()))) {
+      throw new ValidationError(`非法关闭时间：${String(closedAt)}`);
+    }
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      this.db.run(
+        "UPDATE forms SET title = ?, description = ?, closed_at = ? WHERE id = ?",
+        [def.title, def.description, closedAt, id],
+      );
+      if (body.questions !== undefined) {
+        this.db.run("DELETE FROM form_questions WHERE form_id = ?", [id]);
+        for (const q of def.questions) {
+          this.db.run(
+            "INSERT INTO form_questions (form_id, type, label, required, options_json, position) VALUES (?, ?, ?, ?, ?, ?)",
+            [id, q.type, q.label, q.required ? 1 : 0, JSON.stringify(q.options), q.position],
+          );
+        }
+      }
+      this.db.exec("COMMIT");
+      return this.formRows(id);
+    } catch (err) {
+      this.db.exec("ROLLBACK");
+      throw err;
+    }
+  }
+
+  deleteForm(id: number): boolean {
+    return this.db.run("DELETE FROM forms WHERE id = ?", [id]).changes > 0;
+  }
+
+  listFormQuestions(formId: number): FormQuestion[] {
+    if (!this.getForm(formId)) throw new ValidationError(`表单不存在：${formId}`);
+    return this.db
+      .all(
+        "SELECT id, form_id, type, label, required, options_json, position FROM form_questions WHERE form_id = ? ORDER BY position, id",
+        [formId],
+      )
+      .map(mapRowToFormQuestion);
+  }
+
+  listFormResponses(formId: number): FormResponse[] {
+    if (!this.getForm(formId)) throw new ValidationError(`表单不存在：${formId}`);
+    return this.db
+      .all(
+        "SELECT id, form_id, answers_json, created_at FROM form_responses WHERE form_id = ? ORDER BY id",
+        [formId],
+      )
+      .map(mapRowToFormResponse);
+  }
+
+  createFormResponse(formId: number, input: unknown): FormResponse {
+    const form = this.getForm(formId);
+    if (!form) throw new ValidationError(`表单不存在：${formId}`);
+    if (form.closedAt !== null) throw new FormClosedError(formId);
+    const answers: FormAnswers = validateFormAnswers(input, form.questions);
+    const res = this.db.run(
+      "INSERT INTO form_responses (form_id, answers_json, created_at) VALUES (?, ?, ?)",
+      [formId, JSON.stringify(answers), new Date().toISOString()],
+    );
+    const row = this.db.get(
+      "SELECT id, form_id, answers_json, created_at FROM form_responses WHERE id = ?",
+      [Number(res.lastInsertRowid)],
+    );
+    if (!row) throw new Error("答卷写入后读回失败");
+    return mapRowToFormResponse(row);
+  }
+
+  getFormSummary(formId: number): FormSummary | null {
+    const form = this.getForm(formId);
+    if (!form) return null;
+    return summarizeResponses(this.listFormResponses(formId), form.questions);
   }
 }

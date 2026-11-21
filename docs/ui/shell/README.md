@@ -1,4 +1,4 @@
-# docs/ui/shell · 十九 tab 壳激活态基线（r4 返工 #1 B 固化；r17 起十四 tab，r23 扩十五，r26 扩十六，r27 扩十七，r28 扩十八；r36 扩十九；r39 文案清理同批重拍；r40 口径清理同批重拍）
+# docs/ui/shell · 二十 tab 壳激活态基线（r4 返工 #1 B 固化；r17 起十四 tab，r23 扩十五，r26 扩十六，r27 扩十七，r28 扩十八；r36 扩十九；r41 扩二十；r39/r40 文案/口径清理同批重拍）
 
 > r2 U1-1（工作台）→ r3 U1-2（待办）→ r4 U1-1（工作台+待办+日程三页全漏）——
 > 「壳变更 → 继承页 tab 激活证据断档」三轮连漏后，ui-reviewer 建议固化为 shot.ps1
@@ -52,6 +52,11 @@
 > **r40 tab 数量仍不变（十九）**：轻量轮只改用户可见文案（登录页页脚 tab 数口径 + 单位数 rN 种子/预览清理），不新增 tab，
 > 徽章沿用 r39 纯用户文案；渲染层有改动 → **十九张同批重拍**。与 r39 同名字节 changed=5 / same=14
 > （schedules / projects / chat / knowledge / meetings 变化，其余沿用），不宣称逐位全异，按 r25 先例如实披露。
+> **r41 新增第二十 tab「表单」**：`?page=forms` 无代码表单（创建 / 填写 / 汇总），补 `forms-tab-active.png`；
+> 徽章沿用 r39 纯用户文案 + schema v26 → **二十张同批重拍**。与 r40 同名字节 changed=16 / same=3
+> （approval / assets / bases / chat / docs / knowledge / meetings / mindmap / notifications / org / projects /
+> reports / todos / unit-tasks / whiteboard / work-reports 变化；board / schedules / workbench 沿用），
+> 如实披露，不称逐位全异。
 
 | 文件 | 形态 | 对应断言 |
 |---|---|---|
@@ -74,8 +79,25 @@
 | reports-tab-active.png | **报表激活（r27 新增）**（?page=reports；六张 KPI 卡 + 时间范围 + 明细空态 + 十九药丸壳 + r37 徽章） | e2e「r27 十七 tab 类型含报表页 / 报表页消费 shared 口径」；audit「GET /api/reports/overview 空库六指标全 0」 |
 | work-reports-tab-active.png | **报告激活（r36 新增）**（?page=work-reports；真实 0 数据日报空态 + 日报/周报切换 + 日期锚点 + 「生成报告 / 存为文档 / 打印」三按钮 + 十九药丸壳 + r37 徽章） | e2e「r36 App·十九 tab / 报告 tab 激活态 seam」；audit「GET /api/reports/daily 空库六段皆暂无 / summary 全 0」 |
 | meetings-tab-active.png | **会议激活（r28 新增）**（?page=meetings；零会议室 / 零成员空态：「还没有会议室——先在下方新建一间。」/「该日期暂无可用会议室。」/「通讯录暂无成员。」+ 十九药丸壳 + r37 徽章；各轮 shell 零数据最小集惯例，不是三室态） | e2e「r28 十八 tab 与顶栏按钮在场 / 会议页消费 shared 唯一口径」；audit「r28 清理后本轮会议归零」 |
+| forms-tab-active.png | **表单激活（r41 新增）**（?page=forms；零表单空态「还没有表单。点『＋ 新建表单』创建第一张…」+ 二十药丸壳 + 纯用户文案徽章；各轮 shell 零数据最小集惯例，不是有数据态） | e2e「r41 App·二十 tab / 表单 tab 激活态 seam」；audit「r41 GET 空表单列表 -> 200」 |
 
-## r40 哈希自查（十九张互异，与当前文件逐字一致；R40 当前哈希块，以下 R39 及以下为历史块）
+## r41 哈希自查（二十张互异，与当前文件逐字一致；R41 当前哈希块，以下 R40 及以下为历史块）
+
+<!-- R41_HASHES_BEGIN -->
+`workbench=25DB4F1A` · `todos=ABD14B3D` · `schedules=3862FA46` · `projects=04F53EB5` ·
+`board=3ED65755` · `bases=39108DB8` · `docs=6E792EE8` · `chat=A49B5562` ·
+`knowledge=93B6F063` · `mindmap=8FB50B92` · `whiteboard=57ABC543` · `approval=24722CCA` ·
+`assets=962259ED` · `unit-tasks=6ECDA61A` · `org=514A3356` · `notifications=DE039C98` ·
+`reports=5C730CA6` · `work-reports=84F0302A` · `meetings=ED5FF9D3` · `forms=106B3347` —— **20/20 互异**。
+<!-- R41_HASHES_END -->
+
+> r41 渲染层改动（新增表单 tab + FormsPage）→ 二十张同批重拍；徽章沿用 r39「界面文案已优化（错误提示更清晰）」。
+> 捕获用 `scripts/r39-shot.mjs` 一次性 headless CDP（与 r39/r40 同款 seam 网络钉态：`/api/auth/mode` 钉 local、
+> 401 钉最小空态 JSON；报表 / 报告用 `?shot=reports-empty` / `?shot=wr-empty`），
+> **不改产品代码 / 数据库 / 用户数据**；截图与 CDP 走 `XIEFLOW_DB_PATH` scratch 库并删除。
+> 矩阵↔壳重叠 0；全库 365 PNG / 363 互异（同态组仅 r4 已披露 2 组）。
+
+## r40 哈希自查（十九张互异，R40 块原样保留为历史块；当前文件见上方 R41 块）
 
 <!-- R40_HASHES_BEGIN -->
 `workbench=25DB4F1A` · `todos=EA209828` · `schedules=3862FA46` · `projects=3366A5DE` ·

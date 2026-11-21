@@ -50,6 +50,13 @@ import type {
 import type { Department, Member } from "@xieflow/shared/org";
 import type { Notification, NotificationRefType, NotificationType } from "@xieflow/shared/notifications";
 import type { Meeting, MeetingAttendee, Room } from "@xieflow/shared/meetings";
+import type {
+  Form,
+  FormQuestion,
+  FormResponse,
+  FormAnswers,
+  FormQuestionType,
+} from "@xieflow/shared/forms";
 import type { DocVersion } from "@xieflow/shared/docHistory";
 import type { AuthUser, AuthRole, Session } from "@xieflow/shared/auth";
 import { isFieldType, isBlockType, normalizeBlockContent, isKnowledgeSourceType } from "@xieflow/shared";
@@ -671,6 +678,56 @@ export function mapRowToMeetingAttendee(row: Row): MeetingAttendee {
     id: Number(row.id),
     meetingId: Number(row.meeting_id),
     memberId: Number(row.member_id),
+    createdAt: String(row.created_at),
+  };
+}
+
+/** v26 forms 行 → 表单契约（closed_at 空 = 开放中） */
+export function mapRowToForm(row: Row): Form {
+  return {
+    id: Number(row.id),
+    title: String(row.title),
+    description: row.description === null || row.description === undefined ? null : String(row.description),
+    createdAt: String(row.created_at),
+    closedAt: row.closed_at === null || row.closed_at === undefined ? null : String(row.closed_at),
+  };
+}
+
+/** v26 form_questions 行 → 问题契约（options_json 解析失败回落空数组，不崩溃） */
+export function mapRowToFormQuestion(row: Row): FormQuestion {
+  let options: string[] = [];
+  try {
+    const parsed: unknown = JSON.parse(String(row.options_json ?? "[]"));
+    if (Array.isArray(parsed)) options = parsed.filter((x): x is string => typeof x === "string");
+  } catch {
+    /* 坏 JSON 回落空数组，由 shared 守卫在写入侧拦住 */
+  }
+  return {
+    id: Number(row.id),
+    formId: Number(row.form_id),
+    type: String(row.type) as FormQuestionType,
+    label: String(row.label),
+    required: Number(row.required) === 1,
+    options,
+    position: Number(row.position),
+  };
+}
+
+/** v26 form_responses 行 → 答卷契约（answers_json 解析失败回落空对象，不崩溃） */
+export function mapRowToFormResponse(row: Row): FormResponse {
+  let answers: FormAnswers = {};
+  try {
+    const parsed: unknown = JSON.parse(String(row.answers_json ?? "{}"));
+    if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) {
+      answers = parsed as FormAnswers;
+    }
+  } catch {
+    /* 坏 JSON 回落空对象，由 shared 校验在写入侧拦住 */
+  }
+  return {
+    id: Number(row.id),
+    formId: Number(row.form_id),
+    answers,
     createdAt: String(row.created_at),
   };
 }

@@ -18,6 +18,7 @@
 // r28：+ 会议 tab（会议室预约 / 冲突检测，本地台账），壳基线扩为十八 tab。
 // r33：+ 顶栏全局搜索（Ctrl/Cmd+K + 跨八源下拉结果 + deep-link 直达），18 tab 数量不变。
 // r36：+ 报告 tab（日报/周报自动生成：时间窗汇总 + Markdown 预览 + 存为文档），壳基线扩为十九 tab。
+// r41：+ 表单 tab（无代码表单：创建 / 填写 / 汇总），壳基线扩为二十 tab。
 import SyncCard from "./SyncCard";
 import OfflineStatus from "./OfflineStatus";
 // 截图状态真实存在：加载中 / 空数据 / 正常 / 错误 / 窄屏（?narrow=1 显式钉态）
@@ -53,6 +54,7 @@ import NotificationsPage from "./NotificationsPage";
 import ReportsPage from "./ReportsPage";
 import WorkReportsPage from "./WorkReportsPage";
 import MeetingsPage from "./MeetingsPage";
+import FormsPage from "./FormsPage";
 import { LoginPage, RegisterPage } from "./AuthPages";
 import {
   AUTH_CLEARED_EVENT,
@@ -73,7 +75,7 @@ type LoadState =
   | { phase: "error"; message: string }
   | { phase: "ready"; settings: AppSetting[]; schemaVersion: number; todaySchedules: Schedule[]; todos: Todo[] };
 
-type PageTab = "home" | "todos" | "schedules" | "projects" | "board" | "bases" | "docs" | "chat" | "knowledge" | "mindmap" | "whiteboard" | "approval" | "assets" | "unit-tasks" | "org" | "notifications" | "reports" | "work-reports" | "meetings";
+type PageTab = "home" | "todos" | "schedules" | "projects" | "board" | "bases" | "docs" | "chat" | "knowledge" | "mindmap" | "whiteboard" | "approval" | "assets" | "unit-tasks" | "org" | "notifications" | "reports" | "work-reports" | "meetings" | "forms";
 
 /** r33 截图钉态结果（真实形态与 /api/search 一致；只用于确定性捕获，不是业务数据源） */
 const SHOT_SEARCH_RESULTS: readonly SearchResult[] = [
@@ -227,7 +229,9 @@ export default function App() {
                                       ? "work-reports"
                                       : page === "meetings"
                                         ? "meetings"
-                                        : "home";
+                                        : page === "forms"
+                                          ? "forms"
+                                          : "home";
   });
   // r26 返工#1：通知跳转把目标 tab 与 refId 定位参数写进地址栏，reload 后仍定位同一实体
   function navigateFromNotification(target: string, params: Readonly<Record<string, string>> = {}): void {
@@ -420,7 +424,7 @@ export default function App() {
   const todoById = new Map(state.phase === "ready" ? state.todos.map((t) => [t.id, t]) : []);
 
   return (
-    <main className={tab === "bases" || tab === "docs" || tab === "chat" || tab === "knowledge" || tab === "mindmap" || tab === "whiteboard" || tab === "approval" || tab === "assets" || tab === "unit-tasks" || tab === "org" || tab === "notifications" || tab === "reports" || tab === "work-reports" || tab === "meetings" ? "shell shell-wide" : "shell"}>
+    <main className={tab === "bases" || tab === "docs" || tab === "chat" || tab === "knowledge" || tab === "mindmap" || tab === "whiteboard" || tab === "approval" || tab === "assets" || tab === "unit-tasks" || tab === "org" || tab === "notifications" || tab === "reports" || tab === "work-reports" || tab === "meetings" || tab === "forms" ? "shell shell-wide" : "shell"}>
       <header className="topbar">
         <span className="logo">协流 XieFlow</span>
         <div className="global-search" data-state="global-search">
@@ -652,6 +656,14 @@ export default function App() {
           >
             会议
           </button>
+          <button
+            type="button"
+            className={`tab ${tab === "forms" ? "tab-active" : ""}`}
+            data-tab="forms"
+            onClick={() => setTab("forms")}
+          >
+            表单
+          </button>
           <span className="topbar-notif" data-state="notif-badge-global">未读 {shownUnread}</span>
         </nav>
         <div className="tabs-more-wrap" data-state="tabs-more" data-more-visible={moreVisible ? "1" : "0"}>
@@ -706,6 +718,8 @@ export default function App() {
         <WorkReportsPage />
       ) : tab === "meetings" ? (
         <MeetingsPage />
+      ) : tab === "forms" ? (
+        <FormsPage />
       ) : (
         <>
           {state.phase === "loading" && (

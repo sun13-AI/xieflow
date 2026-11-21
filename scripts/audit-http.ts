@@ -165,7 +165,7 @@ async function audit() {
     eq(h.json && h.json.ok, true, "health.ok = true");
     // r4 起动态对表：health.schemaVersion 必须等于迁移队列最高版本（不再硬编码 2/3，
     // r3 v0.0.6 CI 红教训——静态硬编码在每轮迁移后必过期）
-    eq(h.json && h.json.schemaVersion, 25, "health.schemaVersion = 18（r25 迁移后）");
+    eq(h.json && h.json.schemaVersion, 26, "health.schemaVersion = 18（r25 迁移后）");
     const s = await req("GET", "/api/settings");
     eq(s.status, 200, "GET /api/settings -> 200");
     ok(Array.isArray(s.json && s.json.settings), "settings 返回数组");
@@ -268,7 +268,7 @@ async function audit() {
   {
     // health 探针反映 schema v8（r4 起迁移后动态推进）
     const h3 = await req("GET", "/api/health");
-    eq(h3.json && h3.json.schemaVersion, 25, "health.schemaVersion = 18（r25 迁移后复核）");
+    eq(h3.json && h3.json.schemaVersion, 26, "health.schemaVersion = 18（r25 迁移后复核）");
 
     const r = await expectStatus(
       "POST",
@@ -2644,7 +2644,7 @@ async function audit() {
     const st0 = await expectStatus("GET", "/api/sync/status", undefined, 200, "r19 GET status -> 200");
     eq(st0.json && st0.json.total, 0, "r19 初始无实体版本");
     eq(st0.json && st0.json.lastChangeId, 0, "r19 初始 lastChangeId=0");
-    eq(st0.json && st0.json.schemaVersion, 25, "r19 status 回带 schema v18（r25 推进）");
+    eq(st0.json && st0.json.schemaVersion, 26, "r19 status 回带 schema v18（r25 推进）");
     const ch0 = await expectStatus("GET", "/api/sync/changes?since=0&limit=50", undefined, 200, "r19 GET changes 空 -> 200");
     eq(ch0.json && ch0.json.count, 0, "r19 初始变更日志为空");
     eq(ch0.json && ch0.json.changes, [], "r19 初始 changes 数组为空");
@@ -2865,7 +2865,7 @@ async function audit() {
     // health：真 HTTP 200 + 真读库语义
     const h = await expectStatus("GET", DEPLOY_PATHS.health, undefined, 200, "r21 GET 契约健康路径 -> 200");
     eq(h.json && h.json.ok, true, "r21 health.ok=true");
-    eq(h.json && h.json.schemaVersion, 25, "r21 health.schemaVersion=18（部署版本一致）");
+    eq(h.json && h.json.schemaVersion, 26, "r21 health.schemaVersion=18（部署版本一致）");
     ok(isServerMode(h.json && h.json.mode), "r21 health.mode 为 local|remote 之一（契约模式合法）");
 
     // mode：模式探针公开可达，回显一致
@@ -2920,7 +2920,7 @@ async function audit() {
   console.log("\n== Org r23: departments / members / tree / search / 4xx ==");
   {
     const h23 = await expectStatus("GET", "/api/health", undefined, 200, "r23 health 真 HTTP 200");
-    eq(h23.json && h23.json.schemaVersion, 25, "r23 health.schemaVersion=18（迁移真生效）");
+    eq(h23.json && h23.json.schemaVersion, 26, "r23 health.schemaVersion=18（迁移真生效）");
     const tree0 = await expectStatus("GET", "/api/org/tree", undefined, 200, "r23 空组织树 -> 200");
     eq(tree0.json && tree0.json.tree, [], "r23 空组织树 tree=[]");
     eq(tree0.json && tree0.json.departments, [], "r23 空组织树 departments=[]");
@@ -3011,7 +3011,7 @@ async function audit() {
   console.log("\n== Org r24: member_id in approvals / assets / usage / 4xx ==");
   {
     const h24 = await expectStatus("GET", "/api/health", undefined, 200, "r24 health 真 HTTP 200");
-    eq(h24.json && h24.json.schemaVersion, 25, "r24 health.schemaVersion=18（迁移真生效）");
+    eq(h24.json && h24.json.schemaVersion, 26, "r24 health.schemaVersion=18（迁移真生效）");
 
     const dept = await expectStatus("POST", "/api/departments", { name: "r24审计研发中心" }, 201, "r24 建部门 -> 201");
     const alice = await expectStatus("POST", "/api/members", {
@@ -3149,7 +3149,7 @@ async function audit() {
   console.log("\n== Approval r25: actorMemberId / linked member / action usage ==");
   {
     const h25 = await expectStatus("GET", "/api/health", undefined, 200, "r25 health 真 HTTP 200");
-    eq(h25.json && h25.json.schemaVersion, 25, "r25 health.schemaVersion=18（v18 迁移真生效）");
+    eq(h25.json && h25.json.schemaVersion, 26, "r25 health.schemaVersion=18（v18 迁移真生效）");
 
     const uname25 = `r25.actor.${Date.now()}`;
     const user25 = await expectStatus("POST", "/api/auth/register", { username: uname25, password: "Passw0rd!" }, 201, "r25 注册登录用户 -> 201");
@@ -3244,7 +3244,7 @@ async function auditR26(): Promise<void> {
   console.log("\n== Notification r26: real event aggregation / idempotent refresh / 4xx ==");
   {
     const h26 = await expectStatus("GET", "/api/health", undefined, 200, "r26 health 真 HTTP 200");
-    eq(h26.json && h26.json.schemaVersion, 25, "r26 health.schemaVersion=19（v19 迁移真生效）");
+    eq(h26.json && h26.json.schemaVersion, 26, "r26 health.schemaVersion=26（v26 迁移随轮推进）");
     const today = new Date();
     const pad26 = (n: number): string => String(n).padStart(2, "0");
     const todayStr26 = `${today.getFullYear()}-${pad26(today.getMonth() + 1)}-${pad26(today.getDate())}`;
@@ -3377,7 +3377,7 @@ async function auditR27(): Promise<void> {
   console.log("\n== Report r27: real HTTP assembly / hand-check / drilldown / 4xx ==");
   {
     const h27 = await expectStatus("GET", "/api/health", undefined, 200, "r27 health 真 HTTP 200");
-    eq(h27.json && h27.json.schemaVersion, 25, "r27 health.schemaVersion=19（报表轮无新迁移）");
+    eq(h27.json && h27.json.schemaVersion, 26, "r27 health.schemaVersion=26（报表轮无新迁移，随当前轮推进）");
     const today27 = new Date().toISOString().slice(0, 10);
     const q27 = `from=${today27}&to=${today27}`;
     const stamp27 = Date.now().toString(36);
@@ -3491,7 +3491,7 @@ async function auditR28(): Promise<void> {
   console.log("\n== Meeting r28: real HTTP booking / 409 conflicts / attendees / 4xx ==");
   {
     const h28 = await expectStatus("GET", "/api/health", undefined, 200, "r28 health 真 HTTP 200");
-    eq(h28.json && h28.json.schemaVersion, 25, "r28 health.schemaVersion=20（v20 迁移真生效）");
+    eq(h28.json && h28.json.schemaVersion, 26, "r28 health.schemaVersion=20（v20 迁移真生效）");
     const stamp28 = Date.now().toString(36);
     const day28 = "2027-02-18";
 
@@ -3674,7 +3674,7 @@ async function auditR28(): Promise<void> {
   {
     const stamp29 = `r29-${Date.now()}`;
     const h29 = await expectStatus("GET", "/api/health", undefined, 200, "r29 health -> 200");
-    eq(h29.json && h29.json.schemaVersion, 25, "r29 health.schemaVersion=21（v21 迁移真生效）");
+    eq(h29.json && h29.json.schemaVersion, 26, "r29 health.schemaVersion=21（v21 迁移真生效）");
 
     const docA29 = await expectStatus("POST", "/api/documents", { title: `${stamp29}-A` }, 201, "r29 建探针文档 A -> 201");
     const docB29 = await expectStatus("POST", "/api/documents", { title: `${stamp29}-B` }, 201, "r29 建探针文档 B -> 201");
@@ -3751,7 +3751,7 @@ async function auditR28(): Promise<void> {
   {
     const stamp30 = `r30-${Date.now()}`;
     const h30 = await expectStatus("GET", "/api/health", undefined, 200, "r30 health -> 200");
-    eq(h30.json && h30.json.schemaVersion, 25, "r30 health.schemaVersion=22（v22 迁移真生效）");
+    eq(h30.json && h30.json.schemaVersion, 26, "r30 health.schemaVersion=22（v22 迁移真生效）");
 
     const tbl30 = await expectStatus("POST", "/api/tables", { name: `${stamp30}-formula` }, 201, "r30 建表 -> 201");
     const tid30 = tbl30.json.id;
@@ -4621,6 +4621,108 @@ async function auditR28(): Promise<void> {
       const res = await expectStatus(method, path, body, status, `r40 ${method} ${path} -> ${status}`);
       cleanError40(res, label);
     }
+
+    // r41: lightweight form collection over REAL HTTP. Hand-computed summary from
+    // three submitted responses; every 4xx branch is a real rejected request.
+    const KEY41 = `r41-${Date.now()}`;
+    const h41 = await expectStatus("GET", "/api/health", undefined, 200, "r41 health -> 200");
+    eq(h41.json.schemaVersion, 26, "r41 health.schemaVersion=26（v26 迁移真生效）");
+    const listBefore41 = await expectStatus("GET", "/api/forms", undefined, 200, "r41 GET 空表单列表 -> 200");
+    eq(listBefore41.json.count, 0, "r41 空库·表单列表 count=0");
+    const created41 = await expectStatus("POST", "/api/forms", {
+      title: `${KEY41} 满意度调查`,
+      description: "季度反馈",
+      questions: [
+        { type: "text", label: "姓名", required: true, position: 0 },
+        { type: "number", label: "评分", required: true, position: 1 },
+        { type: "select", label: "部门", required: true, options: ["研发", "产品"], position: 2 },
+        { type: "checkbox", label: "参加", required: true, position: 3 },
+      ],
+    }, 201, "r41 POST 建表单 -> 201");
+    const fid41 = created41.json.id as number;
+    const qids41 = (created41.json.questions as any[]).map((q) => q.id as number);
+    eq(qids41.length, 4, "r41 建表单·四题回带");
+    eq(created41.json.closedAt, null, "r41 建表单·未关闭");
+    const listed41 = await expectStatus("GET", "/api/forms", undefined, 200, "r41 GET 表单列表 -> 200");
+    eq(listed41.json.forms.filter((f: any) => f.id === fid41).length, 1, "r41 列表·新表单在场");
+    const got41 = await expectStatus("GET", `/api/forms/${fid41}`, undefined, 200, "r41 GET 表单详情 -> 200");
+    eq(got41.json.title, `${KEY41} 满意度调查`, "r41 详情·标题回带");
+    const fill41 = await expectStatus("GET", `/api/forms/${fid41}/fill`, undefined, 200, "r41 GET 填写视图 -> 200");
+    eq(fill41.json.questions.length, 4, "r41 填写视图·四题在场");
+    eq(fill41.json.closed, false, "r41 填写视图·closed=false");
+
+    // 4xx: definition guards + answer guards + unknown id + non-numeric id
+    await expectStatus("POST", "/api/forms", { title: "  ", questions: [] }, 400, "r41 4xx·空标题 -> 400");
+    await expectStatus("POST", "/api/forms", { title: "坏题型", questions: [{ type: "date", label: "日期" }] }, 400, "r41 4xx·未知题型 -> 400");
+    await expectStatus("POST", "/api/forms", { title: "坏选项", questions: [{ type: "select", label: "部门", options: [] }] }, 400, "r41 4xx·单选无选项 -> 400");
+    await expectStatus("POST", `/api/forms/${fid41}/responses`, { "2": 10, "3": "研发", [String(qids41[3])]: true }, 400, "r41 4xx·必填缺失 -> 400");
+    await expectStatus("POST", `/api/forms/${fid41}/responses`, { [String(qids41[0])]: "甲", [String(qids41[1])]: "abc", [String(qids41[2])]: "研发", [String(qids41[3])]: true }, 400, "r41 4xx·类型不符 -> 400");
+    await expectStatus("POST", `/api/forms/${fid41}/responses`, { [String(qids41[0])]: "甲", [String(qids41[1])]: 10, [String(qids41[2])]: "研发", [String(qids41[3])]: true, "999999": "x" }, 400, "r41 4xx·未知题号 -> 400");
+    await expectStatus("POST", `/api/forms/${fid41}/responses`, { [String(qids41[0])]: "甲", [String(qids41[1])]: 10, [String(qids41[2])]: "不存在部门", [String(qids41[3])]: true }, 400, "r41 4xx·选项越界 -> 400");
+    await expectStatus("GET", "/api/forms/99999999", undefined, 404, "r41 4xx·越权表单 id -> 404");
+    await expectStatus("POST", "/api/forms/99999999/responses", { "1": "x" }, 404, "r41 4xx·越权提交 -> 404");
+    await expectStatus("GET", "/api/forms/not-a-number", undefined, 400, "r41 4xx·非数字 id -> 400");
+    const reject41 = await req("POST", `/api/forms/${fid41}/responses`, { "2": "abc" });
+    ok(typeof reject41.json?.error === "string" && reject41.json.error.length > 0, "r41 4xx·错误体带用户可读 error");
+
+    // Three real submissions, then hand-computed summary (sum 60 / avg 20 / 2:1 / 2-of-3)
+    const rows41 = [
+      ["甲", 10, "研发", true],
+      ["乙", 20, "研发", false],
+      ["丙", 30, "产品", true],
+    ] as const;
+    for (const [name, score, dept, join] of rows41) {
+      const r = await expectStatus("POST", `/api/forms/${fid41}/responses`, {
+        [String(qids41[0])]: name,
+        [String(qids41[1])]: score,
+        [String(qids41[2])]: dept,
+        [String(qids41[3])]: join,
+      }, 201, `r41 提交答卷 ${name} -> 201`);
+      ok(Boolean(r.json.id) && r.json.formId === fid41, `r41 答卷 ${name}·id 与 formId 回带`);
+    }
+    const responses41 = await expectStatus("GET", `/api/forms/${fid41}/responses`, undefined, 200, "r41 GET 答卷列表 -> 200");
+    eq(responses41.json.count, 3, "r41 答卷列表·3 份");
+    const sum41 = await expectStatus("GET", `/api/forms/${fid41}/summary`, undefined, 200, "r41 GET 汇总 -> 200");
+    eq(sum41.json.total, 3, "r41 汇总·总数 3");
+    eq(sum41.json.formId, fid41, "r41 汇总·formId 回带");
+    const texts41 = sum41.json.questions[0];
+    eq(texts41.values, ["甲", "乙", "丙"], "r41 汇总·文本列举按提交顺序");
+    const nums41 = sum41.json.questions[1];
+    eq([nums41.count, nums41.sum, nums41.avg, nums41.min, nums41.max], [3, 60, 20, 10, 30], "r41 汇总·HTTP 手算 sum=60 avg=20");
+    const sels41 = sum41.json.questions[2];
+    eq(sels41.distribution, [{ option: "研发", count: 2, rate: 0.67 }, { option: "产品", count: 1, rate: 0.33 }], "r41 汇总·HTTP 选项分布 2:1");
+    const checks41 = sum41.json.questions[3];
+    eq([checks41.checked, checks41.rate], [2, 0.67], "r41 汇总·HTTP 勾选率 2/3");
+    const sumAgain41 = await expectStatus("GET", `/api/forms/${fid41}/summary`, undefined, 200, "r41 汇总重复读 -> 200");
+    eq(JSON.stringify(sumAgain41.json), JSON.stringify(sum41.json), "r41 汇总·两次读取逐字节稳定");
+
+    // Closed form rejects new submissions (409) while summary stays readable; reopen restores.
+    const closed41 = await expectStatus("PATCH", `/api/forms/${fid41}`, { closedAt: "2026-11-21T00:00:00.000Z" }, 200, "r41 PATCH 关闭表单 -> 200");
+    ok(typeof closed41.json.closedAt === "string", "r41 关闭·closedAt 回带");
+    const closedFill41 = await expectStatus("GET", `/api/forms/${fid41}/fill`, undefined, 200, "r41 关闭后填写视图仍可读 -> 200");
+    eq(closedFill41.json.closed, true, "r41 关闭·填写视图 closed=true");
+    await expectStatus("POST", `/api/forms/${fid41}/responses`, { [String(qids41[0])]: "丁", [String(qids41[1])]: 40, [String(qids41[2])]: "产品", [String(qids41[3])]: false }, 409, "r41 4xx·已关闭提交 -> 409");
+    const stillSum41 = await expectStatus("GET", `/api/forms/${fid41}/summary`, undefined, 200, "r41 关闭后汇总仍可读 -> 200");
+    eq(stillSum41.json.total, 3, "r41 关闭·汇总总数不变（拒收零半态）");
+    const reopened41 = await expectStatus("PATCH", `/api/forms/${fid41}`, { closedAt: null }, 200, "r41 PATCH 重开表单 -> 200");
+    eq(reopened41.json.closedAt, null, "r41 重开·closedAt=null");
+    await expectStatus("POST", `/api/forms/${fid41}/responses`, { [String(qids41[0])]: "丁", [String(qids41[1])]: 40, [String(qids41[2])]: "产品", [String(qids41[3])]: false }, 201, "r41 重开后提交 -> 201");
+    const afterReopen41 = await expectStatus("GET", `/api/forms/${fid41}/summary`, undefined, 200, "r41 重开后汇总 -> 200");
+    eq(afterReopen41.json.total, 4, "r41 重开·总数 4");
+
+    // Patch questions (whole-set replace) + delete cascade + probe cleanup
+    const patched41 = await expectStatus("PATCH", `/api/forms/${fid41}`, {
+      title: `${KEY41} 改名`,
+      questions: [{ type: "text", label: "唯一题", required: true, position: 0 }],
+    }, 200, "r41 PATCH 整组替换问题 -> 200");
+    eq(patched41.json.questions.length, 1, "r41 PATCH·问题整组替换为 1 题");
+    const replaceReject41 = await req("POST", `/api/forms/${fid41}/responses`, { [String(qids41[0])]: "旧题答案" });
+    eq(replaceReject41.status, 400, "r41 PATCH·旧题号提交被拒（整组替换生效）");
+    await expectStatus("DELETE", `/api/forms/${fid41}`, undefined, 200, "r41 DELETE 表单 -> 200");
+    await expectStatus("GET", `/api/forms/${fid41}`, undefined, 404, "r41 删除后详情 -> 404");
+    await expectStatus("GET", `/api/forms/${fid41}/summary`, undefined, 404, "r41 删除后汇总 -> 404");
+    const finalList41 = await expectStatus("GET", "/api/forms", undefined, 200, "r41 清理后列表 -> 200");
+    ok(!JSON.stringify(finalList41.json.forms).includes(KEY41), "r41 探针归零·列表不含本轮 KEY");
 }
 
 try {

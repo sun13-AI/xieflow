@@ -33,6 +33,7 @@
 #   powershell -File scripts\shot.ps1 shots -Round r36 # capture r36 report tab matrix + 19-tab shell baseline
 #   powershell -File scripts\shot.ps1 shots -Round r39 # capture r39 user-facing text cleanup error states + 19-tab shell baseline
 #   powershell -File scripts\shot.ps1 shots -Round r40 # capture r40 login clean-text state + 19-tab shell baseline
+#   powershell -File scripts\shot.ps1 shots -Round r41 # capture r41 form collection matrix + 20-tab shell baseline
 #   powershell -File scripts\shot.ps1 shots -Round r11 -Shot 08-docs-diff-inline # rework#1: re-capture ONLY the diff-inline evidence (no other matrix/shell re-shot)
 #   powershell -File scripts\shot.ps1 shots -Round r26 -Shot 09-notif-deeplink-target # r26 rework#2: seed 3 pending approvals, CDP-click the SECOND notification, capture ONLY 09 (no other matrix/shell re-shot)
 #   powershell -File scripts\shot.ps1 down            # stop servers
@@ -58,7 +59,7 @@ param(
   [Parameter(Position = 0)]
   [ValidateSet("up", "shots", "down", "status", "all")]
   [string]$Action = "status",
-  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r26", "r27", "r28", "r29", "r30", "r31", "r32", "r33", "r34", "r35", "r36", "r37", "r38", "r39", "r40")]
+  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r26", "r27", "r28", "r29", "r30", "r31", "r32", "r33", "r34", "r35", "r36", "r37", "r38", "r39", "r40", "r41")]
   [string]$Round = "r1",
   [Parameter()]
   [string]$Shot = ""
@@ -160,6 +161,7 @@ function Find-Browser {
 # r27: the SEVENTEENTH tab (reports) was added -> seventeen active states in one batch.
 # r28: the EIGHTEENTH tab (meetings) was added -> eighteen active states in one batch.
 # r36: the NINETEENTH tab (work-reports) was added -> nineteen active states in one batch.
+# r41: the TWENTIETH tab (forms) was added -> twenty active states in one batch.
 function Invoke-ShellBaseline {
   param([string]$BrowserPath)
   $shellDir = Join-Path $Root "docs\ui\shell"
@@ -184,7 +186,8 @@ function Invoke-ShellBaseline {
     @{ page = "notifications"; file = "notifications-tab-active" },
     @{ page = "reports";       file = "reports-tab-active";       shot = "reports-empty" },
     @{ page = "work-reports";  file = "work-reports-tab-active";  shot = "wr-empty" },
-    @{ page = "meetings";      file = "meetings-tab-active" }
+    @{ page = "meetings";      file = "meetings-tab-active" },
+    @{ page = "forms";         file = "forms-tab-active" }
   )
   foreach ($t in $tabs) {
     $url = "http://127.0.0.1:$WebPort/"
@@ -1016,7 +1019,21 @@ function Invoke-Shots {
     }
   }
 
-  if ($Round -eq "r40") {
+  if ($Round -eq "r41") {
+    # r41: lightweight form collection. Seven deterministic ?shot= pins over the
+    # real FormsPage (empty / create / question editor / fill / submitted / summary /
+    # narrow / error). Real CRUD and hand-computed stats are locked by e2e + audit.
+    $r41Base = "http://127.0.0.1:$WebPort/?page=forms"
+    $shots = @(
+      @{ name = "01-forms-empty";     url = "$r41Base&shot=forms-empty";     width = 1280; height = 900 },
+      @{ name = "02-forms-create";    url = "$r41Base&shot=forms-create";    width = 1280; height = 900 },
+      @{ name = "03-forms-questions"; url = "$r41Base&shot=forms-questions"; width = 1280; height = 900 },
+      @{ name = "04-forms-fill";      url = "$r41Base&shot=forms-fill";      width = 1280; height = 900 },
+      @{ name = "05-forms-submitted"; url = "$r41Base&shot=forms-submitted"; width = 1280; height = 900 },
+      @{ name = "06-forms-summary";   url = "$r41Base&shot=forms-summary";   width = 1280; height = 900 },
+      @{ name = "07-forms-narrow";    url = "$r41Base&shot=forms-fill&narrow=1"; width = 488; height = 1100 }
+    )
+  } elseif ($Round -eq "r40") {
     # r40: lighter round - only the login page copy changed. Re-capture its
     # clean state; the 19-tab shell baseline follows automatically below.
     $r40Web = "http://127.0.0.1:$WebPort/"
@@ -1658,8 +1675,8 @@ function Invoke-Shots {
     $out = Join-Path $UiDir ($s.name + ".png")
     # delete any stale png first: a failed capture must never look like a success
     if (Test-Path $out) { Remove-Item $out -Force }
-    if ($Round -eq "r39" -or $Round -eq "r40") {
-      # r39/r40: CDP capture (Edge plain --screenshot intermittently wrote no PNG here)
+    if ($Round -eq "r39" -or $Round -eq "r40" -or $Round -eq "r41") {
+      # r39/r40/r41: CDP capture (Edge plain --screenshot intermittently wrote no PNG here)
       $helper = Join-Path $Root "scripts\r39-shot.mjs"
       & node $helper --browser "$browser" --url "$($s.url)" --out "$out" --width $($s.width) --height $($s.height)
       if ($LASTEXITCODE -ne 0) { throw "CDP shot failed: $($s.name)" }

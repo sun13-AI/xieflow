@@ -118,6 +118,7 @@ try {
             rooms: [], meetings: [], approvals: [], steps: [], assets: [], transactions: [],
             tasks: [], members: [], departments: [], conversations: [], messages: [],
             artifacts: [], tools: [], mindmaps: [], whiteboards: [], items: [], groups: [],
+            forms: [], questions: [], responses: [],
             metrics: [], reports: [], range: null,
             lastChangeAt: null, total: 0, count: 0, conflicts: [], currentVersion: 0,
             remote: {}, base: {},

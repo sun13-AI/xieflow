@@ -18,7 +18,8 @@
     "./ics": "./src/ics.ts",
     "./workReports": "./src/workReports.ts",
     "./tableGroups": "./src/tableGroups.ts",
-    "./cardMeta": "./src/cardMeta.ts"
+    "./cardMeta": "./src/cardMeta.ts",
+    "./forms": "./src/forms.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit"

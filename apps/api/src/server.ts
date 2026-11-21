@@ -4405,6 +4405,8 @@ app.delete("/api/meetings/:id/attendees/:memberId", async (req, reply) => {
   }
 });
 
+// r41：轻量表单收集——归一/校验/汇总唯一口径在 shared/forms，路由层零算法分支
+import { FormClosedError } from "@xieflow/shared/forms";
 // r33：全局搜索 GET /api/search?q=&limit=&types= —— 一次检索八源，只读不写
 app.get("/api/search", async (req, reply) => {
   try {
@@ -4416,6 +4418,114 @@ app.get("/api/search", async (req, reply) => {
     return { query: q, total: results.length, types, results };
   } catch (err) {
     return toErrorReply(err, reply);
+  }
+});
+
+// ---- r41：表单 CRUD + 公开填写视图 + 答卷提交 + 汇总（规则全在 shared/forms） ----
+
+/** 已关闭表单提交是状态冲突（409），与输入校验失败（400）和越权 id（404）分开 */
+function formErrorReply(err: unknown, reply: FastifyReply): FastifyReply {
+  if (err instanceof FormClosedError) {
+    return reply.code(409).send({ error: err.message, code: "FORM_CLOSED", formId: err.formId });
+  }
+  if (err instanceof Error && /^表单不存在：/.test(err.message)) {
+    return reply.code(404).send({ error: err.message });
+  }
+  return toErrorReply(err, reply);
+}
+
+app.get("/api/forms", async () => {
+  const forms = requireDb().listForms();
+  return { forms, count: forms.length };
+});
+
+app.post("/api/forms", async (req, reply) => {
+  try {
+    return reply.code(201).send(requireDb().createForm(req.body ?? {}));
+  } catch (err) {
+    return formErrorReply(err, reply);
+  }
+});
+
+app.get("/api/forms/:id/fill", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const form = requireDb().getForm(id);
+    if (!form) return reply.code(404).send({ error: `表单不存在：${id}` });
+    return {
+      id: form.id,
+      title: form.title,
+      description: form.description,
+      closed: form.closedAt !== null,
+      questions: form.questions,
+    };
+  } catch (err) {
+    return formErrorReply(err, reply);
+  }
+});
+
+app.get("/api/forms/:id/responses", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const responses = requireDb().listFormResponses(id);
+    return { formId: id, responses, count: responses.length };
+  } catch (err) {
+    return formErrorReply(err, reply);
+  }
+});
+
+app.post("/api/forms/:id/responses", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    return reply.code(201).send(requireDb().createFormResponse(id, req.body ?? {}));
+  } catch (err) {
+    return formErrorReply(err, reply);
+  }
+});
+
+app.get("/api/forms/:id/summary", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const store = requireDb();
+    const form = store.getForm(id);
+    if (!form) return reply.code(404).send({ error: `表单不存在：${id}` });
+    const summary = store.getFormSummary(id);
+    if (!summary) return reply.code(404).send({ error: `表单不存在：${id}` });
+    return { formId: id, title: form.title, ...summary };
+  } catch (err) {
+    return formErrorReply(err, reply);
+  }
+});
+
+app.get("/api/forms/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const form = requireDb().getForm(id);
+    if (!form) return reply.code(404).send({ error: `表单不存在：${id}` });
+    return form;
+  } catch (err) {
+    return formErrorReply(err, reply);
+  }
+});
+
+app.patch("/api/forms/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    const updated = requireDb().updateForm(id, req.body ?? {});
+    if (!updated) return reply.code(404).send({ error: `表单不存在：${id}` });
+    return updated;
+  } catch (err) {
+    return formErrorReply(err, reply);
+  }
+});
+
+app.delete("/api/forms/:id", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    if (!requireDb().deleteForm(id)) return reply.code(404).send({ error: `表单不存在：${id}` });
+    return { deleted: true, id };
+  } catch (err) {
+    return formErrorReply(err, reply);
   }
 });
 
