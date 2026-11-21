@@ -250,7 +250,7 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r44 | M10 后·图证与文档口径修正（r43 U2-1 时段不自洽等） | ✅已发版（首轮双通过；三项挂账全闭合 + DOC-CONTRACT 43） | v0.0.50 | e2e 3677 · audit 2802 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r45 | M10 后·文档块拖拽排序（HTML5 DnD + 触屏） | ✅已发版（首轮双通过；真输入拖拽 23/23 + r8/r9 零回归） | v0.0.51 | e2e 3731 · audit 2838 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r46 | M10 后·索引口径修正（r45 U2 图证/文案） | ✅已发版（首轮双通过；三处口径闭合 + DOC-CONTRACT 59 checks） | v0.0.52 | e2e 3731 · audit 2838 | 通过（waizhuan）+ UI 通过（阻断岗） |
-| r47 | M10 后·第二十一轮（待定切片） | 🔨规划中 | — | — | — |
+| r47 | M10 后·AI 工具调用确认闸门（危险操作先预览后执行） | 🔨规划中 | — | — | — |
 
 ## 🏁 项目总账（2026-11-19 · M10 收官）
 
@@ -979,6 +979,22 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 - 验收标准：全量绿（规模只涨不缩），README 双节同步；双 VERDICT 通过；本轮无渲染层改动→沿用 r45 壳图（两处透明声明）
 - 前置：r45 已发版（v0.0.51）✅
 - 明确边界：只改索引/文档，不动代码/截图/业务逻辑
+
+### r47 · AI 工具调用确认闸门（危险操作先预览后执行，M10 后功能补强）
+- 目标：AI 工作台工具调用目前直接执行（create_todo/create_document/create_schedule 等状态变更类），缺用户确认环节——补「预览→确认→执行」闸门，避免误操作发散
+- 交付清单：
+  1. 闸门规则集中 packages/agent/toolGate.ts：needsConfirmation(toolName)（STATE_CHANGING_TOOLS + 新增工具白名单）、buildToolPreview(toolCall, toolResult?)（人类可读的操作摘要）、planToolExecution(calls, confirmedIds)（未确认的状态变更调用拦截为 pending，只读调用直接执行）——纯函数，api/web 零算法分支
+  2. api：POST /api/conversations/:id/chat 扩 `autoExecute` 参数（默认 false）——状态变更类工具返回 `pending` + preview 不执行；POST /api/conversations/:id/confirm（带 callIds）真执行已确认调用；既有 autoExecute=true 行为完全保留（向后兼容）
+  3. web：AI 工作台对话流中 pending 工具调用显示为「待确认卡」（预览摘要 + 确认/放弃按钮）；确认后真执行并落库；放弃则标 discarded；设置里可切「自动执行」模式
+  4. 断言：e2e ≥+35（闸门判定/预览摘要/待确认拦截/确认执行/放弃零写/向后兼容）、audit ≥+25（4xx：非法 callId/重复确认/越权 conversation）
+  5. 截图 ≥7：待确认卡/预览摘要/确认后结果/放弃后/混合调用（只读直接执行+写待确认）/窄屏/错误态
+- 验收标准：
+  1. 全量绿：e2e ≥3766、audit ≥2863，README 双节同步（精简版三处）
+  2. **闸门真实性**：waizhuan 造「建待办（写）+列待办（读）」混合意图→只读直接出结果、写操作 pending 零落库→确认后真建待办→放弃则零写；autoExecute=true 老路径全绿无回归
+  3. **r10/r11 工具链零回归**（17 条回放评测集、多轮上下文、产物生成断言全绿）
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r46 已发版（v0.0.52）✅
+- 明确边界：零外部 LLM（mock planner）；确认闸门只管状态变更类，只读工具不受影响；零新依赖、零 token；无新 tab（20 tab 数量不变，壳基线因 chat 页变化同批重拍）
 
 ## 历史轮次（r1~r2 已收档，见下方记账区）
 
