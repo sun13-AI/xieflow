@@ -49,3 +49,4 @@
 | r44 | 2026-11-21 | 图证口径修正 | 05 时段 seam 统一 14:30 + 07 纯用户文案 + shell 计数归位；DOC-CONTRACT 扩到 43 | e2e 3677/audit 2802，2 组变异红相 |
 | r45 | 2026-11-21 | 块拖拽排序 | shared/blockDnd 钳制/同序/子块守卫 + ⠿ 手柄/插入线/真 move + 触屏按钮保留 | e2e 3731/audit 2838，边界钳制变异红相 |
 | r46 | 2026-11-21 | 索引口径修正 | 04/05/07 三处如实引用 + watchdog 49→59 checks + 沿用 r45 壳图三处声明 | e2e 3731/audit 2838 不变，3 组变异红相 |
+| r47 | 2026-11-21 | 工具确认闸门 | shared/agent toolGate 三纯函数 + chat autoExecute/confirm + 待确认卡；自曝补丁 validateCall 前置校验 | e2e 3830/audit 2891，闸门反转变异红相 |
