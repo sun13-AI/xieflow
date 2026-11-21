@@ -244,7 +244,7 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r38 | M10 后·看板卡片元数据（标签/负责人/截止日，向后兼容） | ✅已发版（首轮双通过；向后兼容 65/65 + 元数据重启不丢） | v0.0.44 | e2e 3377 · audit 2616 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r39 | M10 后·用户可见文案清理（错误条内部术语，连续 4 轮挂账必修） | ✅已发版（前任中断→r39b 续做；首轮双通过；连续 4 轮 U2 术语闭合） | v0.0.45 | e2e 3412 · audit 2623 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r40 | M10 后·口径清理与扫描器加固（登录页 tab 数 + rN 正则） | ✅已发版（首轮双通过；口径链闭合 + 11 处单位数 rN 清理） | v0.0.46 | e2e 3430 · audit 2641 | 通过（waizhuan）+ UI 通过（阻断岗） |
-| r41 | M10 后·第十八轮（待定切片） | 🔨规划中 | — | — | — |
+| r41 | M10 后·轻量表单收集（创建/填写/汇总） | 🔨规划中 | — | — | — |
 
 ## 🏁 项目总账（2026-11-19 · M10 收官）
 
@@ -891,6 +891,23 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 - 验收标准：全量绿（e2e ≥3420、audit ≥2630），README 双节同步（精简版三处）；双 VERDICT 通过
 - 前置：r39 已发版（v0.0.45）✅
 - 明确边界：只改文案/正则/截图，不动业务逻辑；不删 seam 标记
+
+### r41 · 轻量表单收集（创建 / 填写 / 汇总，M10 后功能补强）
+- 目标：对标多宝鱼「表单收集」——无代码表单（标题 + 若干问题）→ 分享填写 → 答卷汇总，与多维表格互补
+- 交付清单：
+  1. schema v25→v26：forms 表（id/title/description/created_at/closed_at）、form_questions 表（id/form_id/type:text|number|select|checkbox/label/required/options_json/position）、form_responses 表（id/form_id/answers_json/created_at）
+  2. 表单规则集中 packages/shared/forms.ts：normalizeFormDefinition（问题类型白名单/必填/选项）、validateFormAnswers(answers, questions)（必填缺失/类型不符/未知题号）、summarizeResponses(responses, questions)（每题统计：文本列举/数值总和均值/选项分布/勾选率）——api/web 零算法分支
+  3. api：forms CRUD、GET /api/forms/:id/fill（公开填写视图）、POST /api/forms/:id/responses（提交，校验不通过 400）、GET /api/forms/:id/summary（汇总）
+  4. web：新增「表单」tab——我的表单列表 + 创建表单（加问题/编辑）+ 填写视图（含提交）+ 汇总视图（统计卡）
+  5. 断言：e2e ≥+35（定义归一/答卷校验/统计/空答卷/关闭表单）、audit ≥+25（4xx：必填缺失/类型不符/未知题/越权 id/已关闭提交）
+  6. 截图 ≥7：表单空态/创建表单/问题编辑/填写视图/提交成功/汇总统计/窄屏
+- 验收标准：
+  1. 全量绿：e2e ≥3465、audit ≥2666，README 双节同步（精简版三处）
+  2. **汇总真实性**：waizhuan 造 3 份答卷（含数值/选项/勾选）→ 汇总手算核对（总和/均值/分布/勾选率）；必填缺失与类型不符被拒
+  3. **新增「表单」tab 补该 tab 激活态图**（二十 tab 壳基线）
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r40 已发版（v0.0.46）✅
+- 明确边界：不接外部表单服务/匿名公网（本地/登录用户填写）；零新依赖、零 token
 
 ## 历史轮次（r1~r2 已收档，见下方记账区）
 
