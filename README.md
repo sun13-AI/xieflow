@@ -26,7 +26,7 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 
 ## 界面与测试对照
 
-按宪法第一条：**界面更新必须带截图证据（每次，无例外）**，截图与实现同一提交。当前轮 r45 文档块拖拽排序（⠿ 手柄 + 插入线 + 真 HTTP move + 触屏上/下移按钮；七张矩阵 + 二十 tab 壳同批重拍，tab 数不变）：
+按宪法第一条：**界面更新必须带截图证据（每次，无例外）**，截图与实现同一提交。当前轮 r46 索引口径修正（轻量轮，只改索引/文档）：**本轮无渲染层改动，沿用 r45 七张矩阵 + 二十 tab 壳图，不重拍**（按 r21 U2-1 先例在此透明声明，当前界面基线仍是 r45）；r45 交付为文档块拖拽排序（⠿ 手柄 + 插入线 + 真 HTTP move + 触屏上/下移按钮）：
 
 | 截图 | 形态 | 对应断言 |
 |---|---|---|
@@ -34,9 +34,9 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 | [02-dnd-dragging.png](docs/ui/r45/02-dnd-dragging.png) | 拖拽中：首块上方蓝色插入线与圆点，源块半透明 | e2e「r45 计划·第三块拖到首位 position=0」；e2e「r45 web·插入线 seam」 |
 | [03-dnd-dropped.png](docs/ui/r45/03-dnd-dropped.png) | 放下后：第三块真发 move 落到首位，顺序已持久化 | e2e「r45 DB·第三块拖到首位顺序正确」；audit「r45 HTTP move 后顺序逐项正确」 |
 | [04-dnd-cross-type.png](docs/ui/r45/04-dnd-cross-type.png) | 跨类型拖拽：正文块移到末位，标题/列表/引用块原位保留 | e2e「r45 计划·超尾越界钳制到末位槽」；audit「r45 跨类型拖拽 position 仍连号」 |
-| [05-dnd-touch.png](docs/ui/r45/05-dnd-touch.png) | 触屏按钮态：每块右侧 ↑ / ↓ 蓝框强调（无障碍路径保留） | e2e「r45 web·拖拽回执 seam」；audit「r45 同序位置重发 -> 200」 |
+| [05-dnd-touch.png](docs/ui/r45/05-dnd-touch.png) | 触屏按钮态：每块右侧 ↑ / ↓ 按钮在场（浅灰描边 + 绿条提示，无障碍路径保留） | e2e「r45 web·拖拽回执 seam」；audit「r45 同序位置重发 -> 200」 |
 | [06-dnd-narrow.png](docs/ui/r45/06-dnd-narrow.png) | 窄屏 488px：手柄与 ↑ / ↓ 纵排完整 + 底部导航「更多 ›」 | e2e「r45 截图·七张 SHA256 互异」；headless CDP 钉态 |
-| [07-dnd-error.png](docs/ui/r45/07-dnd-error.png) | 错误态：真 400（position 999999）红条 + 顺序未改写 | audit「r45 4xx·超界 position -> 400」+「r45 4xx 零半态」 |
+| [07-dnd-error.png](docs/ui/r45/07-dnd-error.png) | 错误态：真 400（position 999999）红条「…（共 5 张卡）」+ 顺序未改写 | audit「r45 4xx·超界 position -> 400」+「r45 4xx 零半态」 |
 | [shell/](docs/ui/shell/README.md) | 二十 tab 壳基线（r45 同批重拍，r44→r45 changed=9/same=11） | e2e「r45 截图·二十 tab 壳同批重拍 20 张」 |
 
 **历史逐轮截图索引（r1~r32 全量、逐张对照断言）见 [README 归档](docs/README-ARCHIVE.md) 与 [docs/ui/](docs/ui/) 各轮 README**；矩阵 SHA256 互异、同态组仅 r4 已披露 2 组。
@@ -45,8 +45,8 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 
 ### 断言规模（每轮更新，下降 = 回归 = 冻结发版）
 
-- **当前 r45**：e2e **3731**（服务离线口径；api 在线 +1）· HTTP audit **2838** · check:text 文案扫描 **0 命中** · typecheck 5 包全绿；**无一条断言被删**（+54 / +36），仅期望值/标签随轮次推进。
-- **r45 渲染层**：DocsPage 拖拽手柄 / 插入线 / 真 HTTP move + 触屏按钮 → 七张矩阵 + 二十 tab 壳同批重拍（tab 数不变，schema 仍 v27）；DOC-CONTRACT 文档契约套件随本轮口径同步。
+- **当前 r46**：e2e **3731**（服务离线口径；api 在线 +1）· HTTP audit **2838** · check:text 文案扫描 **0 命中** · typecheck 5 包全绿；**无一条断言被删**（r46 索引口径修正轮规模与 r45 持平；DOC-CONTRACT 独立套件 49 → 59 checks），仅期望值/标签随轮次推进。
+- **r46 无渲染层改动**：沿用 r45 渲染层（DocsPage 拖拽手柄 / 插入线 / 真 HTTP move + 触屏按钮）的七张矩阵 + 二十 tab 壳，本轮不重拍、不新增截图（透明声明见 [r46 索引](docs/ui/r46/README.md) 与 [shell 索引](docs/ui/shell/README.md)）；schema 仍 v27。
 - 纪律：断言只涨不缩；禁自洽占位；关键行为做变异红相留痕（改坏实现 → 断言变红 → 逐字节还原全绿）。
 - **逐轮规模变化（r1~r32 的完整记账）见 [README 归档](docs/README-ARCHIVE.md)**；CI smoke 正则随 schema 版本同步至 v27；CI 三平台 verify + tag 触发 Release。
 

@@ -127,6 +127,11 @@ export function parseInputErrorCopy(src: string): { title: string | null; hint: 
   return { title: title?.[1] ?? null, hint: hint?.[1] ?? null };
 }
 
+/** r46: first line in a document that contains a marker (empty string when absent). */
+export function lineWith(doc: string, marker: string): string {
+  return doc.split(/\r?\n/).find((l) => l.includes(marker)) ?? "";
+}
+
 // ---------- self-probes: parsers must be real, not vacuous ----------
 
 const PROBES: readonly (readonly [string, number | null])[] = [
@@ -166,6 +171,8 @@ const probeCopy = parseInputErrorCopy('x recommendError !== "" ? "输入有误" 
 const probeCopyNone = parseInputErrorCopy('static <h2>连接失败</h2>');
 check(probeCopy.title === "输入有误" && probeCopy.hint === "请检查人数/设备/时段后重试。", "self-probe·输入错误文案双分支可解析");
 check(probeCopyNone.title === null && probeCopyNone.hint === null, "self-probe·无输入错误分支 -> null");
+check(lineWith("aa\nbb foo cc\ndd", "foo") === "bb foo cc", "self-probe·lineWith 命中行提取");
+check(lineWith("aa\nbb", "zzz") === "", "self-probe·lineWith 未命中 -> 空串");
 
 // ---------- authoritative sources ----------
 
@@ -193,15 +200,15 @@ if (counts.e2e !== null && counts.audit !== null) {
   check(root.includes(quickRef), `README·速查行数字与 scripts 实测口径一致（${quickRef}）`);
 }
 
-const ROUND = "r45";
+const ROUND = "r46";
 const uiSec = sectionBody(root, "## 界面与测试对照");
 const scaleSec = sectionBody(root, "### 断言规模");
 check(uiSec !== null, "README·「界面与测试对照」节在场");
 check(scaleSec !== null, "README·「### 断言规模」节在场");
 check(
   uiSec !== null && uiSec.includes(ROUND) && uiSec.includes("docs/ui/r45/01-dnd-handles.png") &&
-    uiSec.includes("docs/ui/shell/README.md") && uiSec.includes("同批重拍"),
-  "README·「界面与测试对照」节声明当前轮 r45 七张矩阵 + 二十 tab 壳同批重拍",
+    uiSec.includes("docs/ui/shell/README.md") && uiSec.includes("沿用 r45") && uiSec.includes("不重拍"),
+  "README·「界面与测试对照」节声明当前轮 r46 沿用 r45 七矩阵 + 二十壳（无渲染层改动不重拍）",
 );
 check(
   scaleSec !== null &&
@@ -210,7 +217,7 @@ check(
     counts.audit !== null &&
     scaleSec.includes(`e2e **${counts.e2e}**`) &&
     scaleSec.includes(`HTTP audit **${counts.audit}**`),
-  "README·「### 断言规模」节声明当前轮 r45 且数字与 scripts 口径一致",
+  "README·「### 断言规模」节声明当前轮 r46 且数字与 scripts 口径一致",
 );
 
 // ---------- screenshot / shell index (r45 render-change round) ----------
@@ -313,6 +320,53 @@ check(gc45.png === 379 && gc45.distinct === 377, "r45·shell R45 块全库计数
 check(
   roundIndex.includes("POST /api/blocks/:id/move") && roundIndex.includes("HTTP 400"),
   "r45·七态索引载明真 HTTP move 与 4xx 错误态证据",
+);
+
+// ---------- r46：索引口径修正（U2-1 / U2-2 / U2-3，无渲染层改动沿用 r45 壳图） ----------
+
+const r46Index = readOrEmpty("docs/ui/r46/README.md");
+check(
+  r46Index.includes("r46") && r46Index.includes("沿用 r45") && r46Index.includes("无渲染层改动"),
+  "r46 索引·透明声明无渲染层改动、沿用 r45 矩阵与壳图不重拍",
+);
+check(
+  shellIndex.includes("r46") && shellIndex.includes("沿用 r45"),
+  "shell 索引·透明声明 r46 无渲染层改动沿用 r45 壳图不重拍",
+);
+
+const idx04 = lineWith(roundIndex, "04-dnd-cross-type.png");
+const idx05 = lineWith(roundIndex, "05-dnd-touch.png");
+const idx07 = lineWith(roundIndex, "07-dnd-error.png");
+const root04 = uiSec === null ? "" : lineWith(uiSec, "04-dnd-cross-type.png");
+const root05 = uiSec === null ? "" : lineWith(uiSec, "05-dnd-touch.png");
+const root07 = uiSec === null ? "" : lineWith(uiSec, "07-dnd-error.png");
+
+// U2-1：04 图画面正文块落末位；两处索引须引同一条真实 audit 断言 position 仍连号，不得再引标题块落末位。
+check(
+  idx04.includes("r45 跨类型拖拽 position 仍连号") && !idx04.includes("标题块落末位"),
+  "r46 U2-1·r45 索引 04 改引真实断言 position 仍连号（不实标题块落末位已删）",
+);
+check(
+  root04.includes("r45 跨类型拖拽 position 仍连号") && !root04.includes("标题块落末位"),
+  "r46 U2-1·根 README 04 与 r45 索引口径一致",
+);
+// U2-2：05 图按钮浅灰描边（Pillow 逐像素与 01 同区零差异），不得称蓝框强调。
+check(
+  !idx05.includes("蓝框") && idx05.includes("浅灰描边"),
+  "r46 U2-2·r45 索引 05 改浅灰描边如实描述（蓝框强调已删）",
+);
+check(
+  !root05.includes("蓝框") && root05.includes("浅灰描边"),
+  "r46 U2-2·根 README 05 与 r45 索引口径一致",
+);
+// U2-3：07 图红条逐字为共 5 张卡（看板词汇混用），索引须逐字引用画面原文，不得写成共 5 块。
+check(
+  idx07.includes("共 5 张卡") && !idx07.includes("共 5 块"),
+  "r46 U2-3·r45 索引 07 逐字引用画面原文共 5 张卡（误写共 5 块已删）",
+);
+check(
+  root07.includes("共 5 张卡") && !root07.includes("共 5 块"),
+  "r46 U2-3·根 README 07 逐字引用画面原文共 5 张卡",
 );
 
 // ---------- verdict ----------
