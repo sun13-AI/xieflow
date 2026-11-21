@@ -2699,6 +2699,45 @@ pre.docs-print-block.docs-code {
   white-space: pre-wrap;
 }
 
+/* r47: AI tool confirmation gate */
+.chat-auto-setting {
+  padding: 7px 0;
+  font-size: 12px;
+  color: #334155;
+  border-top: 1px solid #eef1f5;
+}
+.chat-auto-setting label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.chat-gate-error {
+  margin: 6px 0;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: #fee2e2;
+  color: #991b1b;
+  font-size: 12px;
+}
+.pending-card {
+  border: 1px solid #f59e0b;
+  background: #fffbeb;
+  border-radius: 8px;
+  padding: 9px 11px;
+  margin: 6px 0;
+}
+.pending-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  color: #92400e;
+  background: #fde68a;
+  border-radius: 20px;
+  padding: 1px 8px;
+  margin: 0 0 5px;
+}
+.pending-title { font-weight: 700; color: #78350f; margin: 2px 0; }
+.pending-detail { font-size: 12px; color: #451a03; margin: 2px 0; }
+.pending-args { font-size: 11px; background: #fef3c7; padding: 5px 7px; border-radius: 6px; white-space: pre-wrap; margin: 5px 0; }
+.pending-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.tool-call-resolved .tool-ok.ok { background: #dbeafe; color: #1e40af; }
+
 .chat-composer {
   display: grid;
   grid-template-columns: 1fr auto;

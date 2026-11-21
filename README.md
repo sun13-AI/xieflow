@@ -13,7 +13,7 @@ pnpm install
 powershell -File scripts\start.ps1 start   # api:8787 + web:5173
 powershell -File scripts\start.ps1 stop
 # 开发模式：pnpm dev:api / pnpm dev:web
-pnpm run test:all    # typecheck + 文档契约 + 文案扫描 + e2e（3731 断言）+ HTTP 审计（2838 断言）
+pnpm run test:all    # typecheck + 文档契约 + 文案扫描 + e2e（3830 断言）+ HTTP 审计（2891 断言）
 ```
 
 - 打包：`pnpm run pack`（免安装目录 `release/xieflow-portable/`，双击 `start.cmd` 即用）/ `pnpm run dist`（setup zip）；均单端口 8080，数据落目录内 `data/`
@@ -26,18 +26,18 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 
 ## 界面与测试对照
 
-按宪法第一条：**界面更新必须带截图证据（每次，无例外）**，截图与实现同一提交。当前轮 r46 索引口径修正（轻量轮，只改索引/文档）：**本轮无渲染层改动，沿用 r45 七张矩阵 + 二十 tab 壳图，不重拍**（按 r21 U2-1 先例在此透明声明，当前界面基线仍是 r45）；r45 交付为文档块拖拽排序（⠿ 手柄 + 插入线 + 真 HTTP move + 触屏上/下移按钮）：
+按宪法第一条：**界面更新必须带截图证据（每次，无例外）**，截图与实现同一提交。当前轮 r47 AI 工具调用确认闸门（危险操作先预览后执行）：ChatPage 新增待确认卡 / 确认 / 放弃 / 自动执行开关，**渲染层有改动** → 本轮重拍七态矩阵 + 二十 tab 壳同批重拍（不再沿用 r45）；完整索引见 [r47 矩阵](docs/ui/r47/README.md)：
 
 | 截图 | 形态 | 对应断言 |
 |---|---|---|
-| [01-dnd-handles.png](docs/ui/r45/01-dnd-handles.png) | 「文档」tab 五块混合类型左侧 ⠿ 拖拽手柄 + 触屏路径提示 | e2e「r45 web·拖拽手柄 seam」；audit「r45 GET 块列表 -> 200」 |
-| [02-dnd-dragging.png](docs/ui/r45/02-dnd-dragging.png) | 拖拽中：首块上方蓝色插入线与圆点，源块半透明 | e2e「r45 计划·第三块拖到首位 position=0」；e2e「r45 web·插入线 seam」 |
-| [03-dnd-dropped.png](docs/ui/r45/03-dnd-dropped.png) | 放下后：第三块真发 move 落到首位，顺序已持久化 | e2e「r45 DB·第三块拖到首位顺序正确」；audit「r45 HTTP move 后顺序逐项正确」 |
-| [04-dnd-cross-type.png](docs/ui/r45/04-dnd-cross-type.png) | 跨类型拖拽：正文块移到末位，标题/列表/引用块原位保留 | e2e「r45 计划·超尾越界钳制到末位槽」；audit「r45 跨类型拖拽 position 仍连号」 |
-| [05-dnd-touch.png](docs/ui/r45/05-dnd-touch.png) | 触屏按钮态：每块右侧 ↑ / ↓ 按钮在场（浅灰描边 + 绿条提示，无障碍路径保留） | e2e「r45 web·拖拽回执 seam」；audit「r45 同序位置重发 -> 200」 |
-| [06-dnd-narrow.png](docs/ui/r45/06-dnd-narrow.png) | 窄屏 488px：手柄与 ↑ / ↓ 纵排完整 + 底部导航「更多 ›」 | e2e「r45 截图·七张 SHA256 互异」；headless CDP 钉态 |
-| [07-dnd-error.png](docs/ui/r45/07-dnd-error.png) | 错误态：真 400（position 999999）红条「…（共 5 张卡）」+ 顺序未改写 | audit「r45 4xx·超界 position -> 400」+「r45 4xx 零半态」 |
-| [shell/](docs/ui/shell/README.md) | 二十 tab 壳基线（r45 同批重拍，r44→r45 changed=9/same=11） | e2e「r45 截图·二十 tab 壳同批重拍 20 张」 |
+| [01-pending-card.png](docs/ui/r47/01-pending-card.png) | 待确认卡：create_todo 写调用黄卡「待确认 · 尚未执行」+ 预览/参数 + 确认/放弃按钮 | e2e「r47 编排·写调用 confirmStatus=pending」；audit「r47 混合对话·写调用 pending」 |
+| [02-preview-summary.png](docs/ui/r47/02-preview-summary.png) | 预览摘要：操作预览蓝条 + 待确认卡 + 只读行 | e2e「r47 预览·text 人类可读」；audit「r47 混合对话·pending 带预览摘要」 |
+| [03-after-confirm.png](docs/ui/r47/03-after-confirm.png) | 确认后：写调用变「已确认」+ 真结果落回执，零半态 | e2e「r47 confirm·真建待办落库（+1）」；audit「r47 confirm·真建待办（+1）」 |
+| [04-after-discard.png](docs/ui/r47/04-after-discard.png) | 放弃后：写调用变「已放弃（未执行）」红标，零写库 | e2e「r47 discard·放弃零写」；audit「r47 discard·放弃零写」 |
+| [05-mixed-call.png](docs/ui/r47/05-mixed-call.png) | 混合调用：同帧待确认写卡 + 只读已执行行 | e2e「r47 计划·混合意图恰 1 pending / 1 execute」；audit「r47 混合对话·只读直接执行」 |
+| [06-narrow.png](docs/ui/r47/06-narrow.png) | 窄屏 488px：待确认卡纵排 + 确认/放弃可达 + 底部导航 | e2e「r47 截图·矩阵 SHA256 互异」；headless CDP 钉态 |
+| [07-error.png](docs/ui/r47/07-error.png) | 错误态：非法 callId 红条「确认失败：…」 | audit「r47 confirm·非法 callId -> 400」+「r47 重复确认 -> 409」 |
+| [shell/](docs/ui/shell/README.md) | 二十 tab 壳基线（r47 同批重拍，r45→r47 changed=9/same=11） | e2e「r47 截图·二十 tab 壳同批重拍 20 张」 |
 
 **历史逐轮截图索引（r1~r32 全量、逐张对照断言）见 [README 归档](docs/README-ARCHIVE.md) 与 [docs/ui/](docs/ui/) 各轮 README**；矩阵 SHA256 互异、同态组仅 r4 已披露 2 组。
 
@@ -45,8 +45,8 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 
 ### 断言规模（每轮更新，下降 = 回归 = 冻结发版）
 
-- **当前 r46**：e2e **3731**（服务离线口径；api 在线 +1）· HTTP audit **2838** · check:text 文案扫描 **0 命中** · typecheck 5 包全绿；**无一条断言被删**（r46 索引口径修正轮规模与 r45 持平；DOC-CONTRACT 独立套件 49 → 59 checks），仅期望值/标签随轮次推进。
-- **r46 无渲染层改动**：沿用 r45 渲染层（DocsPage 拖拽手柄 / 插入线 / 真 HTTP move + 触屏按钮）的七张矩阵 + 二十 tab 壳，本轮不重拍、不新增截图（透明声明见 [r46 索引](docs/ui/r46/README.md) 与 [shell 索引](docs/ui/shell/README.md)）；schema 仍 v27。
+- **当前 r47**：e2e **3830**（服务离线口径；api 在线 +1）· HTTP audit **2891** · check:text 文案扫描 **0 命中** · typecheck 5 包全绿；**无一条断言被删**（e2e 3731→3830 +99 / audit 2838→2891 +53，全为 r47 闸门新增；DOC-CONTRACT 独立套件继续在场），仅期望值/标签随轮次推进。
+- **r47 渲染层有改动**（ChatPage 待确认卡 / 确认 / 放弃 / 自动执行开关）：重拍七张矩阵 + 二十 tab 壳（r45→r47 changed=9/same=11，如实披露）；schema 仍 v27。
 - 纪律：断言只涨不缩；禁自洽占位；关键行为做变异红相留痕（改坏实现 → 断言变红 → 逐字节还原全绿）。
 - **逐轮规模变化（r1~r32 的完整记账）见 [README 归档](docs/README-ARCHIVE.md)**；CI smoke 正则随 schema 版本同步至 v27；CI 三平台 verify + tag 触发 Release。
 

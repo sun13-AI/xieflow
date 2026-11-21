@@ -250,7 +250,7 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r44 | M10 后·图证与文档口径修正（r43 U2-1 时段不自洽等） | ✅已发版（首轮双通过；三项挂账全闭合 + DOC-CONTRACT 43） | v0.0.50 | e2e 3677 · audit 2802 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r45 | M10 后·文档块拖拽排序（HTML5 DnD + 触屏） | ✅已发版（首轮双通过；真输入拖拽 23/23 + r8/r9 零回归） | v0.0.51 | e2e 3731 · audit 2838 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r46 | M10 后·索引口径修正（r45 U2 图证/文案） | ✅已发版（首轮双通过；三处口径闭合 + DOC-CONTRACT 59 checks） | v0.0.52 | e2e 3731 · audit 2838 | 通过（waizhuan）+ UI 通过（阻断岗） |
-| r47 | M10 后·AI 工具调用确认闸门（危险操作先预览后执行） | 🔨规划中 | — | — | — |
+| r47 | M10 后·AI 工具调用确认闸门（危险操作先预览后执行） | ✅研发完成（待双 VERDICT） | — | e2e 3830 · audit 2891 | — |
 
 ## 🏁 项目总账（2026-11-19 · M10 收官）
 
@@ -1001,6 +1001,17 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 ---
 
 ## 记账区（每轮追加）
+
+### 2026-11-21 · r47 研发（yanfa-r47 · M10 后功能补强：AI 工具调用确认闸门）
+- 交付：`packages/agent/toolGate.ts` 三纯函数（needsConfirmation 复用 shared STATE_CHANGING_TOOLS 白名单 / buildToolPreview 人类可读摘要 / planToolExecution 未确认写 pending、只读直接执行）+ normalizeCallIds 守卫；`ToolCallRecord` 扩可选 `callId/confirmStatus/preview`（无 schema 变更，v27 保持）；api/web 零闸门算法分支；零新依赖零 token
+- api：`POST /api/conversations/:id/chat` 扩 `autoExecute`（默认 false → 写 pending+preview 不执行；true 老行为全保留）；`POST /api/conversations/:id/confirm`（callIds + action confirm/discard 真执行/标放弃）；4xx：非法 callId 400 / 重复确认 409 / 越权 conversation 400 / 会话不存在 404；db `findToolCallByCallId` + `resolvePendingToolCall` 单事务零半态
+- web：AI 工作台对话流待确认黄卡（预览标题/摘要/参数 + 确认执行/放弃按钮）+ 自动执行开关（localStorage 持久化）+ 确认失败红条；pending 回执落 tool_calls_json，reload 不丢；确认/放弃 seam 齐全
+- 断言：e2e 3731→**3830（+99）** · audit 2838→**2891（+53）**，零删除；typecheck 5 包；`pnpm run test:all` exit 0；DOC-CONTRACT 59→62 checks；check:text 6872 literals/0 命中
+- **变异红相 1 组**：`planToolExecution` 闸门反转（未确认写不进 pending）→ e2e 崩溃（pending 断言 red）/ audit 3 FAIL（写调用 got executed / pendingCalls got 0）；逐字节还原 SHA256 `A24FEECC…F8951A4` 前后同值、`MUTATION-PROBE` 零残留，重跑全绿
+- 「用户第一次用」全链路（headless CDP 真点 12/12）：建会话 → 发混合消息 → 只读直出/写 pending 卡 → 确认真建待办 → 放弃零写 → reload 状态可见 → 探针清理；`R47 FIRSTUSE: ALL GREEN`
+- 截图：`docs/ui/r47/` 7 张 + 二十 tab 壳同批重拍（r45→r47 changed=9/same=11 如实披露）；7/7 与 20/20 SHA256 互异、矩阵↔壳重叠 0、全库 386 PNG/384 互异，逐张 `read_image` 目验；索引 / shell README / 精简版根 README 三处同一提交
+- 危险区：未 push / 未打 tag / 未发版 / 未改 CI 发布配置；无 schema 迁移（v27）；截图与 CDP 走 scratch local-mode 库并删除，`data/xieflow.db` 未作数据源；全程 headless、服务收净、PowerShell 全 ASCII（shot.ps1 nonAscii=0 / Parser 0 错误）、零 token
+- 报告：`docs/feedback/2026-11-21-r47-yanfa.md`（三态纪律 + 自曝 + 变异红相 + 全链路证据）
 
 ### 2026-11-21 · r41 研发（yanfa-r41 · M10 后功能补强：轻量表单收集：创建/填写/汇总）
 - 交付：schema v25→v26（forms / form_questions / form_responses 三表 + 题型 CHECK + FK CASCADE + 两索引）；`packages/shared/forms.ts` 三函数唯一口径（normalizeFormDefinition / validateFormAnswers / summarizeResponses），api/web 零算法分支；零新依赖、零 token

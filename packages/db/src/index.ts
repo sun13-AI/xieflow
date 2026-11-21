@@ -2092,6 +2092,67 @@ export class XieFlowDb {
     });
   }
 
+  /**
+   * r47：全库按 callId 定位一条工具回执（含所属会话与消息 id）。
+   * 用于 confirm 的 4xx：非法 callId（null）/ 重复确认（status != pending）/ 越权 conversation（会话 id 不符）。
+   * tool_calls_json 为 TEXT JSON，无 schema 变更。
+   */
+  findToolCallByCallId(callId: string): {
+    conversationId: number;
+    messageId: number;
+    call: ToolCallRecord;
+  } | null {
+    const rows = this.db.all(
+      "SELECT * FROM messages WHERE tool_calls_json LIKE ?",
+      [`%"callId":"${callId}"%`],
+    );
+    for (const row of rows) {
+      const found = mapRowToMessage(row).toolCalls.find((c) => c.callId === callId);
+      if (found) {
+        return {
+          conversationId: Number(row.conversation_id),
+          messageId: Number(row.id),
+          call: found,
+        };
+      }
+    }
+    return null;
+  }
+
+  /**
+   * r47：把某条 pending 工具回执落为 executed/discarded（单事务整体改写该消息的 tool_calls_json）。
+   * 返回改写后的 Message；找不到 callId 或状态非 pending 抛 ValidationError（零半态）。
+   */
+  resolvePendingToolCall(
+    messageId: number,
+    callId: string,
+    patch: { confirmStatus: "executed" | "discarded"; ok: boolean; summary: string; data?: unknown; error?: string },
+  ): Message {
+    return this.withTransaction(() => {
+      const row = this.db.get("SELECT * FROM messages WHERE id = ?", [messageId]) as
+        | Record<string, unknown>
+        | undefined;
+      if (!row) throw new ValidationError(`工具回执消息不存在：${messageId}`);
+      const calls = mapRowToMessage(row).toolCalls.map((call) => {
+        if (call.callId !== callId) return call;
+        if (call.confirmStatus !== "pending") {
+          throw new ValidationError(`工具调用已处理，不能重复确认：${callId}`);
+        }
+        return {
+          ...call,
+          confirmStatus: patch.confirmStatus,
+          ok: patch.ok,
+          summary: patch.summary,
+          data: patch.data,
+          ...(patch.error === undefined ? {} : { error: patch.error }),
+        };
+      });
+      this.db.run("UPDATE messages SET tool_calls_json = ? WHERE id = ?", [JSON.stringify(calls), messageId]);
+      const after = this.db.get("SELECT * FROM messages WHERE id = ?", [messageId]) as Record<string, unknown>;
+      return mapRowToMessage(after);
+    });
+  }
+
   // ---- r12：知识库数据层（knowledge_docs / knowledge_chunks，入库单事务零半态） ----
 
   /**

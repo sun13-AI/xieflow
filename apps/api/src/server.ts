@@ -130,6 +130,8 @@ import {
   executeChat,
   chunkText,
   searchChunks,
+  buildToolPreview,
+  normalizeCallIds,
 } from "@xieflow/agent";
 import { memberSummary, assertAssignableMember, normalizeMemberRef, resolveMemberForUser } from "@xieflow/shared/org";
 import { localDateStr, QUADRANT_LABELS, TODO_STATUS_LABELS, REPEAT_LABELS } from "@xieflow/shared";
@@ -2698,6 +2700,18 @@ interface ChatBody {
   artifactType?: unknown;
   /** 显式工具调用覆盖 mock 规划（供 4xx：未知工具 / 非法参数；正常用户对话不传） */
   toolCalls?: unknown;
+  /**
+   * r47：自动执行开关。缺省 false —— 状态变更类工具不立即执行，返回 pending + preview；
+   * true 完全保留 r10/r11 老行为（立即执行）。布尔之外的值 → 400。
+   */
+  autoExecute?: unknown;
+}
+
+/** r47：autoExecute 归一（缺省 false；仅布尔合法；非法 → ValidationError → 400） */
+function normalizeAutoExecute(raw: unknown): boolean {
+  if (raw === undefined || raw === null) return false;
+  if (typeof raw !== "boolean") throw new ValidationError("autoExecute 必须是布尔值");
+  return raw;
 }
 
 /**
@@ -2713,12 +2727,17 @@ app.post("/api/conversations/:id/chat", async (req, reply) => {
     const body = (req.body ?? {}) as ChatBody;
     assertValidChatMessage(body.message);
     const contextWindow = normalizeContextWindow(body.context_window);
-    const context = toPlannerContext(requireDb().listMessages(id).slice(-contextWindow));
+    const autoExecute = normalizeAutoExecute(body.autoExecute);
+    const allMessages = requireDb().listMessages(id);
+    // r47：callId 前缀带轮次序号（落库消息数），保证同一会话多轮的 callId 不碰撞。
+    const callIdPrefix = `c${id}-m${allMessages.length}-`;
+    const context = toPlannerContext(allMessages.slice(-contextWindow));
     const options = {
       context,
       contextWindow,
       artifactType: body.artifactType,
       ...(body.toolCalls === undefined ? {} : { toolCalls: body.toolCalls }),
+      confirmGate: { autoExecute, callIdPrefix },
     };
     const plan = await executeChat(requireDb(), toolRegistry, chatPlanner, body.message, options);
     const saved = requireDb().recordChatExchange({
@@ -2740,8 +2759,79 @@ app.post("/api/conversations/:id/chat", async (req, reply) => {
       artifact: saved.artifact,
       contextWindow: plan.contextWindow,
       contextMessages: context.length,
+      autoExecute: plan.autoExecute,
+      pendingCalls: plan.pendingCalls,
       ...(plan.resolution ? { resolution: plan.resolution } : {}),
     });
+  } catch (err) {
+    return toErrorReply(err, reply);
+  }
+});
+
+/**
+ * r47：确认闸门 —— POST 真执行已确认的 pending 写调用（或标 discarded）。
+ * body: { callIds: string[], action?: "confirm" | "discard"（缺省 confirm） }
+ * 4xx：非法 callId → 400；重复确认（已 executed/discarded）→ 409；
+ *      越权 conversation（callId 属别的会话）→ 400；非法 action / callIds → 400；会话不存在 → 404。
+ * 闸门规则（白名单 / 预览 / 决策）全在 agent.toolGate，本层只做装配与 4xx 映射。
+ */
+app.post("/api/conversations/:id/confirm", async (req, reply) => {
+  try {
+    const id = parseId((req.params as { id: string }).id);
+    if (!requireConversation(id, reply)) return reply;
+    const body = (req.body ?? {}) as { callIds?: unknown; action?: unknown };
+    const callIds = normalizeCallIds(body.callIds);
+    const action = body.action ?? "confirm";
+    if (action !== "confirm" && action !== "discard") {
+      throw new ValidationError('action 只能是 "confirm" 或 "discard"');
+    }
+
+    const resolved: Array<{
+      callId: string;
+      name: string;
+      confirmStatus: "executed" | "discarded";
+      ok: boolean;
+      summary: string;
+    }> = [];
+    for (const callId of callIds) {
+      const located = requireDb().findToolCallByCallId(callId);
+      if (!located) throw new ValidationError(`非法 callId：${callId}`);
+      if (located.conversationId !== id) {
+        throw new ValidationError(`越权 conversation：callId ${callId} 不属于会话 ${id}`);
+      }
+      if (located.call.confirmStatus !== "pending") {
+        // 409 语义：重复确认已处理的调用
+        return reply.code(409).send({ error: `重复确认：callId ${callId} 已处理`, code: "ALREADY_CONFIRMED" });
+      }
+      if (action === "discard") {
+        const updated = requireDb().resolvePendingToolCall(located.messageId, callId, {
+          confirmStatus: "discarded",
+          ok: false,
+          summary: "已放弃（未执行，无数据写入）",
+        });
+        const call = updated.toolCalls.find((t) => t.callId === callId)!;
+        resolved.push({ callId, name: call.name, confirmStatus: "discarded", ok: false, summary: call.summary });
+        continue;
+      }
+      // confirm：真执行 handler（状态变更类工具真写库），失败也落 executed=false 回执（零半态）
+      const toolCall = located.call;
+      const result = await toolRegistry.execute(requireDb(), toolCall.name, toolCall.arguments);
+      const preview = buildToolPreview(
+        { name: toolCall.name, arguments: toolCall.arguments },
+        { ok: result.ok, summary: result.summary },
+      );
+      const updated = requireDb().resolvePendingToolCall(located.messageId, callId, {
+        confirmStatus: "executed",
+        ok: result.ok,
+        summary: preview.text,
+        ...(result.data === undefined ? {} : { data: result.data }),
+        ...(result.error === undefined ? {} : { error: result.error }),
+      });
+      const call = updated.toolCalls.find((t) => t.callId === callId)!;
+      resolved.push({ callId, name: call.name, confirmStatus: "executed", ok: call.ok, summary: call.summary });
+    }
+    const messages = requireDb().listMessages(id);
+    return reply.code(200).send({ conversationId: id, action, resolved, messages });
   } catch (err) {
     return toErrorReply(err, reply);
   }

@@ -34,6 +34,7 @@
 #   powershell -File scripts\shot.ps1 shots -Round r39 # capture r39 user-facing text cleanup error states + 19-tab shell baseline
 #   powershell -File scripts\shot.ps1 shots -Round r40 # capture r40 login clean-text state + 19-tab shell baseline
 #   powershell -File scripts\shot.ps1 shots -Round r43 # capture r43 equipment badges + recommend matrix + 20-tab shell baseline
+#   powershell -File scripts\shot.ps1 shots -Round r47 # capture r47 AI confirmation-gate matrix + 20-tab shell baseline
 #   powershell -File scripts\shot.ps1 shots -Round r45 # capture r45 block drag handles / insertion line / dropped order matrix + 20-tab shell baseline
 #   powershell -File scripts\shot.ps1 shots -Round r41 # capture r41 form collection matrix + 20-tab shell baseline
 #   powershell -File scripts\shot.ps1 shots -Round r11 -Shot 08-docs-diff-inline # rework#1: re-capture ONLY the diff-inline evidence (no other matrix/shell re-shot)
@@ -61,7 +62,7 @@ param(
   [Parameter(Position = 0)]
   [ValidateSet("up", "shots", "down", "status", "all")]
   [string]$Action = "status",
-  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r26", "r27", "r28", "r29", "r30", "r31", "r32", "r33", "r34", "r35", "r36", "r37", "r38", "r39", "r40", "r41", "r43", "r45")]
+  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r26", "r27", "r28", "r29", "r30", "r31", "r32", "r33", "r34", "r35", "r36", "r37", "r38", "r39", "r40", "r41", "r43", "r45", "r47")]
   [string]$Round = "r1",
   [Parameter()]
   [string]$Shot = ""
@@ -1038,7 +1039,20 @@ function Invoke-Shots {
     }
   }
 
-  if ($Round -eq "r45") {
+  if ($Round -eq "r47") {
+    # r47: seven deterministic ?shot= pins over the real ChatPage. Pending card,
+    # preview summary, confirmed/discarded results, mixed read+write, narrow, error.
+    $r47Base = "http://127.0.0.1:$WebPort/?page=chat"
+    $shots = @(
+      @{ name = "01-pending-card";     url = "$r47Base&shot=chat-gate-pending";             width = 1280; height = 1000 },
+      @{ name = "02-preview-summary";  url = "$r47Base&shot=chat-gate-preview";             width = 1280; height = 1000 },
+      @{ name = "03-after-confirm";    url = "$r47Base&shot=chat-gate-confirmed";          width = 1280; height = 1000 },
+      @{ name = "04-after-discard";    url = "$r47Base&shot=chat-gate-discarded";          width = 1280; height = 1000 },
+      @{ name = "05-mixed-call";       url = "$r47Base&shot=chat-gate-mixed";              width = 1280; height = 1300 },
+      @{ name = "06-narrow";           url = "$r47Base&shot=chat-gate-pending&narrow=1";   width = 488;  height = 1300 },
+      @{ name = "07-error";            url = "$r47Base&shot=chat-gate-error";              width = 1280; height = 1000 }
+    )
+  } elseif ($Round -eq "r45") {
     # r45: seven deterministic ?shot= pins over the real DocsPage; handles,
     # insertion line, real HTTP move result, cross-type, touch buttons, narrow, error.
     $r45Base = "http://127.0.0.1:$WebPort/?page=docs&docId=$r45DocId"
@@ -1720,7 +1734,7 @@ function Invoke-Shots {
     $out = Join-Path $UiDir ($s.name + ".png")
     # delete any stale png first: a failed capture must never look like a success
     if (Test-Path $out) { Remove-Item $out -Force }
-    if ($Round -eq "r39" -or $Round -eq "r40" -or $Round -eq "r41" -or $Round -eq "r43") {
+    if ($Round -eq "r39" -or $Round -eq "r40" -or $Round -eq "r41" -or $Round -eq "r43" -or $Round -eq "r47") {
       # r39/r40/r41/r43: CDP capture (Edge plain --screenshot intermittently wrote no PNG here)
       $helper = Join-Path $Root "scripts\r39-shot.mjs"
       & node $helper --browser "$browser" --url "$($s.url)" --out "$out" --width $($s.width) --height $($s.height)

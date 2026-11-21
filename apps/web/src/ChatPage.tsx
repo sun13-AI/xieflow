@@ -3,8 +3,9 @@
 // 截图钉态：?page=chat&shot=chat-empty|chat-loading|chat-error|chat-tools|chat-artifact|chat-context|
 //   chat-artifact-html|chat-artifact-table|chat-tools2；深链 ?convId= 可分享回放。
 // r10 U2 修复：右侧产物卡按「第 N 轮产物 / 对应消息」与对话流同轮（不再错一轮）。
+// r47：待确认卡（pending 写调用预览 + 确认/放弃）+ 自动执行设置；确认闸门规则全在 agent.toolGate。
 import { useCallback, useEffect, useState } from "react";
-import type { Artifact, Conversation, Message, RagCitation, ToolCallRecord } from "@xieflow/shared";
+import type { Artifact, Conversation, Message, RagCitation, ToolCallRecord, ToolPreviewDetail } from "@xieflow/shared";
 import { ARTIFACT_GENERATOR_LABELS, TOOL_NAMES } from "@xieflow/shared";
 import { SERVICE_DOWN_MESSAGE, fetchJsonOrThrow, apiFetch } from "./httpClient";
 
@@ -52,6 +53,55 @@ function pickConversation(list: readonly Conversation[], convId: string): number
   if (convId !== "" && Number.isInteger(wanted) && list.some((c) => c.id === wanted)) return wanted;
   return list[0]!.id;
 }
+
+/**
+ * r47 截图钉态：构造一份「看起来像真对话」的最小数据，形态与 api 落库的 tool_calls_json 一致
+ * （confirmStatus / preview / callId 字段同源）。真实行为由 e2e + audit 断言锁定，这里只钉 UI 形态。
+ */
+function pinnedGateData(shot: string): ChatData {
+  const tools: ToolMeta[] = TOOL_NAMES.map((name) => ({ name, description: "mock · 零 token" }));
+  const conv: Conversation = { id: 47, title: "确认闸门演示", createdAt: "2026-11-21T10:00:00.000Z" };
+  const previewTodo: ToolPreviewDetail = {
+    title: "新建待办",
+    detail: "标题「闸门演示待办」 · 象限 q2",
+    text: "新建待办 — 标题「闸门演示待办」 · 象限 q2",
+  };
+  const previewDoc: ToolPreviewDetail = {
+    title: "新建文档",
+    detail: "标题「闸门演示文档」",
+    text: "新建文档 — 标题「闸门演示文档」",
+  };
+  const pendingTodo: ToolCallRecord = {
+    id: "c47-m0-tc-1", name: "create_todo", arguments: { title: "闸门演示待办", quadrant: "q2" },
+    ok: false, summary: "待确认 · 新建待办 — 标题「闸门演示待办」 · 象限 q2（尚未执行）", data: null,
+    callId: "c47-m0-tc-1", confirmStatus: "pending", preview: previewTodo,
+  };
+  const executedRead: ToolCallRecord = {
+    id: "c47-m0-tc-2", name: "list_todos", arguments: {}, ok: true,
+    summary: "待办 3 条", data: { todos: [], count: 3 }, callId: "c47-m0-tc-2", confirmStatus: "executed",
+  };
+  const doneTodo: ToolCallRecord = {
+    ...pendingTodo, ok: true, confirmStatus: "executed",
+    summary: "新建待办 — 标题「闸门演示待办」 · 象限 q2；结果：已创建待办「闸门演示待办」（#47）",
+    data: { todo: { id: 47, title: "闸门演示待办" } },
+  };
+  const discardedTodo: ToolCallRecord = {
+    ...pendingTodo, confirmStatus: "discarded", summary: "已放弃（未执行，无数据写入）",
+  };
+  let toolCalls: ToolCallRecord[];
+  if (shot === "chat-gate-confirmed") toolCalls = [doneTodo, executedRead];
+  else if (shot === "chat-gate-discarded") toolCalls = [discardedTodo, executedRead];
+  else if (shot === "chat-gate-pending") toolCalls = [pendingTodo];
+  else toolCalls = [pendingTodo, executedRead]; // chat-gate-mixed / narrow / error
+  const messages: Message[] = [
+    { id: 1, conversationId: 47, role: "user", content: { text: "新建待办：闸门演示待办，然后列出待办" }, toolCalls: [], createdAt: "2026-11-21T10:00:01.000Z" },
+    { id: 2, conversationId: 47, role: "tool", content: { text: "工具调用回执" }, toolCalls, createdAt: "2026-11-21T10:00:02.000Z" },
+    { id: 3, conversationId: 47, role: "assistant", content: { text: "已完成「create_todo+list_todos」：共 1 次工具调用。" }, toolCalls: [], createdAt: "2026-11-21T10:00:03.000Z" },
+  ];
+  return { conversations: [conv], messages, artifacts: [], tools, selectedId: 47 };
+}
+
+const GATE_SHOTS = ["chat-gate-pending", "chat-gate-mixed", "chat-gate-preview", "chat-gate-confirmed", "chat-gate-discarded", "chat-gate-narrow", "chat-gate-error"];
 
 async function loadChat(query: ChatQuery): Promise<ChatData> {
   const [convRes, toolRes] = await Promise.all([
@@ -133,6 +183,7 @@ export default function ChatPage() {
       const pinnedTools: ToolMeta[] = TOOL_NAMES.map((name) => ({ name, description: "mock · 零 token" }));
       return { phase: "ready", conversations: [], messages: [], artifacts: [], tools: pinnedTools, selectedId: null };
     }
+    if (GATE_SHOTS.includes(shot)) return { phase: "ready", ...pinnedGateData(shot) };
     return { phase: "loading" };
   });
   const [newTitle, setNewTitle] = useState("");
@@ -142,6 +193,56 @@ export default function ChatPage() {
   const [previewOverride, setPreviewOverride] = useState<PreviewMode | null>(null);
   const [preview, setPreview] = useState<ArtifactContent | null>(null);
   const [toolsPage, setToolsPage] = useState(() => (readQuery().toolsPage === "2" ? 2 : 1));
+  /** r47：自动执行设置（缺省关闭 = 危险操作先确认）；localStorage 持久化 */
+  const [autoExecute, setAutoExecute] = useState(() => {
+    try { return window.localStorage.getItem("xieflow.chat.autoExecute") === "1"; } catch { return false; }
+  });
+  const [gateError, setGateError] = useState("");
+
+  const toggleAutoExecute = (next: boolean) => {
+    setAutoExecute(next);
+    try { window.localStorage.setItem("xieflow.chat.autoExecute", next ? "1" : "0"); } catch { /* 隐私模式忽略 */ }
+  };
+
+  const resolveGate = async (callIds: string[], action: "confirm" | "discard") => {
+    if (GATE_SHOTS.includes(query.shot)) {
+      // 钉态：把本卡就地改状态（不改数据库，纯截图形态）
+      setState((prev) => {
+        if (prev.phase !== "ready") return prev;
+        return {
+          ...prev,
+          phase: "ready",
+          messages: prev.messages.map((m) => ({
+            ...m,
+            toolCalls: m.toolCalls.map((t) =>
+              callIds.includes(t.callId ?? "")
+                ? { ...t, confirmStatus: action === "confirm" ? "executed" as const : "discarded" as const,
+                    ok: action === "confirm",
+                    summary: action === "confirm" ? `${t.preview?.text ?? t.summary}；结果：已执行` : "已放弃（未执行，无数据写入）" }
+                : t,
+            ),
+          })),
+        };
+      });
+      setNotice(action === "confirm" ? "已确认并执行 1 项操作" : "已放弃 1 项操作（未写入数据）");
+      return;
+    }
+    setBusy(true);
+    setGateError("");
+    try {
+      const res = (await postJson("POST", `/api/conversations/${state.phase === "ready" ? state.selectedId : null}/confirm`, {
+        callIds, action,
+      })) as { resolved: Array<{ callId: string; ok: boolean; summary: string }> };
+      const failed = res.resolved.filter((r) => !r.ok);
+      setNotice(`${action === "confirm" ? "已确认执行" : "已放弃"} ${res.resolved.length} 项操作`);
+      if (failed.length > 0) setGateError(failed.map((f) => f.summary).join("；"));
+      await refresh();
+    } catch (err) {
+      setGateError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const refresh = useCallback(async () => {
     try {
@@ -154,7 +255,8 @@ export default function ChatPage() {
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
     if (p.get("narrow") === "1") document.documentElement.classList.add("force-narrow");
-    if (["chat-loading", "chat-error", "chat-empty"].includes(p.get("shot") ?? "")) return;
+    const shot = p.get("shot") ?? "";
+    if (["chat-loading", "chat-error", "chat-empty"].includes(shot) || GATE_SHOTS.includes(shot)) return;
     void refresh();
   }, [refresh]);
 
@@ -216,22 +318,29 @@ export default function ChatPage() {
       const res = (await postJson("POST", `/api/conversations/${state.selectedId}/chat`, {
         message: sent,
         context_window: 8,
+        autoExecute,
       })) as {
         summary: string;
         toolCalls: ToolCallRecord[];
         contextWindow: number;
         contextMessages: number;
+        autoExecute: boolean;
+        pendingCalls: Array<{ callId: string }>;
         resolution?: { referenceKind: string; referencedTitle: string };
         citations?: RagCitation[];
       };
       setDraft("");
+      setGateError("");
+      const pendingNote = res.pendingCalls.length > 0
+        ? ` · ${res.pendingCalls.length} 项操作待确认（未执行）`
+        : "";
       const refNote = res.resolution
         ? ` · 引用上一轮「${res.resolution.referencedTitle}」(${res.resolution.referenceKind})`
         : "";
       const citeNote = res.citations && res.citations.length > 0
         ? ` · 引用 ${res.citations.length} 条（可点卡片跳转原文）`
         : res.citations ? " · 知识库没有相关内容（未编造引用）" : "";
-      setNotice(`已执行 ${res.toolCalls.length} 次工具调用并落库 · 上下文最近 ${res.contextMessages} 条${refNote}${citeNote}`);
+      setNotice(`已执行 ${res.toolCalls.length} 次工具调用并落库${pendingNote} · 上下文最近 ${res.contextMessages} 条${refNote}${citeNote}`);
       await refresh();
     } catch (err) {
       setNotice(err instanceof Error ? err.message : String(err));
@@ -327,6 +436,16 @@ export default function ChatPage() {
         </div>
         <div className="chat-tools-block">
           <p className="chat-tool-count" data-state="chat-tool-count">可用工具 {tools.length} 个（mock · 零 token）</p>
+          <div className="chat-auto-setting" data-state="chat-auto-toggle">
+            <label>
+              <input
+                type="checkbox"
+                checked={autoExecute}
+                onChange={(e) => toggleAutoExecute(e.target.checked)}
+              />
+              自动执行（关闭时危险操作先预览再确认）
+            </label>
+          </div>
           <ul className="chat-tool-list" data-state="chat-tool-list">
             {shownTools.map((t) => (
               <li key={t.name}><code>{t.name}</code><span>{t.description.slice(0, 24)}…</span></li>
@@ -353,6 +472,13 @@ export default function ChatPage() {
           </p>
         )}
         {notice !== "" && <p className="chat-notice" data-state="chat-notice">{notice}</p>}
+        {gateError !== "" && <p className="chat-gate-error" data-state="chat-gate-error" role="alert">确认失败：{gateError}</p>}
+        {query.shot === "chat-gate-error" && (
+          <p className="chat-gate-error" data-state="chat-gate-error" role="alert">确认失败：非法 callId（该操作已被处理或不属于当前会话）</p>
+        )}
+        {query.shot === "chat-gate-preview" && (
+          <p className="chat-notice" data-state="chat-gate-preview-banner">操作预览：写操作不会立即执行，请先核对下列摘要再确认。</p>
+        )}
         {messages.length === 0 ? (
           <p className="empty" data-state="chat-empty-stream">
             {selectedId === null ? "先创建一个会话，再发送消息。" : "这个会话还没有消息——发一句试试（如「盘点待办和文档」）。"}
@@ -370,18 +496,48 @@ export default function ChatPage() {
                     {m.toolCalls.length === 0 ? (
                       <p className="muted">本条消息无工具回执</p>
                     ) : (
-                      m.toolCalls.map((t) => (
-                        <div key={t.id} className="tool-call" data-tool-name={t.name}>
-                          <code className="tool-name">{t.name}</code>
-                          <span className={`tool-ok ${t.ok ? "ok" : "fail"}`}>{t.ok ? "成功" : "失败"}</span>
-                          <span className="tool-summary">{t.summary}</span>
-                          {toolDetail && (
-                            <pre className="tool-args" data-state="tool-args">
-                              {JSON.stringify(t.arguments, null, 2)}
-                            </pre>
-                          )}
-                        </div>
-                      ))
+                      m.toolCalls.map((t) => {
+                        if (t.confirmStatus === "pending") {
+                          const preview = t.preview;
+                          return (
+                            <div key={t.id} className="pending-card" data-state="chat-pending-card" data-call-id={t.callId ?? t.id}>
+                              <p className="pending-badge">待确认 · 尚未执行</p>
+                              <p className="pending-title" data-state="chat-pending-preview">{preview?.title ?? "状态变更操作"}</p>
+                              <p className="pending-detail">{preview?.detail ?? t.summary}</p>
+                              <pre className="pending-args">{JSON.stringify(t.arguments, null, 2)}</pre>
+                              <div className="pending-actions">
+                                <button
+                                  type="button"
+                                  className="btn btn-primary btn-small"
+                                  data-state="chat-confirm-btn"
+                                  disabled={busy}
+                                  onClick={() => void resolveGate([t.callId ?? t.id], "confirm")}
+                                >确认执行</button>
+                                <button
+                                  type="button"
+                                  className="btn btn-small"
+                                  data-state="chat-discard-btn"
+                                  disabled={busy}
+                                  onClick={() => void resolveGate([t.callId ?? t.id], "discard")}
+                                >放弃</button>
+                              </div>
+                            </div>
+                          );
+                        }
+                        const statusLabel = t.confirmStatus === "discarded" ? "已放弃" : t.confirmStatus === "executed" ? "已确认" : (t.ok ? "成功" : "失败");
+                        return (
+                          <div key={t.id} className={`tool-call ${t.confirmStatus ? "tool-call-resolved" : ""}`} data-tool-name={t.name}>
+                            <code className="tool-name">{t.name}</code>
+                            <span className={`tool-ok ${t.ok ? "ok" : "fail"}`}>{statusLabel}</span>
+                            <span className="tool-summary">{t.summary}</span>
+                            {toolDetail && (
+                              <pre className="tool-args" data-state="tool-args">
+                                {JSON.stringify(t.arguments, null, 2)}
+                              </pre>
+                            )}
+                          </div>
+                        );
+                      })
                     )}
                   </div>
                 );

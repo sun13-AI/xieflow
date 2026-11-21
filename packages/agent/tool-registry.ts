@@ -331,6 +331,17 @@ export class ToolRegistry {
     }));
   }
 
+  /**
+   * r47：只校验不执行（闸门零半态）：未知工具 / 非法参数在此抛 ValidationError → HTTP 400。
+   * gated 模式下 pending 调用不进 handler，但入参必须先过同一校验，否则 4xx 探针会漏检。
+   */
+  validateCall(name: unknown, args: unknown): void {
+    const call: ToolCallRequest = normalizeToolCallRequest({ name, arguments: args ?? {} });
+    const def = this.tools.get(call.name);
+    if (!def) throw new ValidationError(`工具未注册：${call.name}`);
+    assertValidArguments(def, call.arguments);
+  }
+
   async execute(db: XieFlowDb, name: unknown, args: unknown): Promise<ToolResult> {
     const call: ToolCallRequest = normalizeToolCallRequest({ name, arguments: args ?? {} });
     const def = this.tools.get(call.name);

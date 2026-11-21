@@ -2384,6 +2384,17 @@ export interface MessageContent {
   readonly [key: string]: unknown;
 }
 
+/** r47：工具调用确认态（持久化在 messages.tool_calls_json；缺省 = 老行为「已执行」） */
+export const TOOL_CONFIRM_STATUSES = ["pending", "executed", "discarded"] as const;
+export type ToolConfirmStatus = (typeof TOOL_CONFIRM_STATUSES)[number];
+
+/** r47：人类可读操作摘要（待确认卡渲染 title / detail / text） */
+export interface ToolPreviewDetail {
+  readonly title: string;
+  readonly detail: string;
+  readonly text: string;
+}
+
 /** 一条落库的工具调用回执（tool_calls_json 的元素，逐条可查） */
 export interface ToolCallRecord {
   readonly id: string;
@@ -2393,6 +2404,12 @@ export interface ToolCallRecord {
   readonly summary: string;
   readonly data?: unknown;
   readonly error?: string;
+  /** r47 闸门：稳定 callId（与预览卡一一对应，跨 reload 可寻址） */
+  readonly callId?: string;
+  /** r47 闸门：pending 待确认 / executed 已执行 / discarded 已放弃（缺省视为 executed） */
+  readonly confirmStatus?: ToolConfirmStatus;
+  /** r47 闸门：待确认卡的人类可读摘要 */
+  readonly preview?: ToolPreviewDetail;
 }
 
 export interface Message {

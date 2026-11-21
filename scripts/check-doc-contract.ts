@@ -200,15 +200,16 @@ if (counts.e2e !== null && counts.audit !== null) {
   check(root.includes(quickRef), `README·速查行数字与 scripts 实测口径一致（${quickRef}）`);
 }
 
-const ROUND = "r46";
+const ROUND = "r47";
 const uiSec = sectionBody(root, "## 界面与测试对照");
 const scaleSec = sectionBody(root, "### 断言规模");
 check(uiSec !== null, "README·「界面与测试对照」节在场");
 check(scaleSec !== null, "README·「### 断言规模」节在场");
 check(
-  uiSec !== null && uiSec.includes(ROUND) && uiSec.includes("docs/ui/r45/01-dnd-handles.png") &&
-    uiSec.includes("docs/ui/shell/README.md") && uiSec.includes("沿用 r45") && uiSec.includes("不重拍"),
-  "README·「界面与测试对照」节声明当前轮 r46 沿用 r45 七矩阵 + 二十壳（无渲染层改动不重拍）",
+  uiSec !== null && uiSec.includes(ROUND) && uiSec.includes("docs/ui/r47/01-pending-card.png") &&
+    uiSec.includes("docs/ui/r47/07-error.png") && uiSec.includes("docs/ui/shell/README.md") &&
+    uiSec.includes("本轮重拍七态矩阵") && uiSec.includes("同批重拍"),
+  "README·「界面与测试对照」节声明当前轮 r47 重拍七矩阵 + 二十壳同批重拍（渲染层有改动）",
 );
 check(
   scaleSec !== null &&
@@ -217,21 +218,47 @@ check(
     counts.audit !== null &&
     scaleSec.includes(`e2e **${counts.e2e}**`) &&
     scaleSec.includes(`HTTP audit **${counts.audit}**`),
-  "README·「### 断言规模」节声明当前轮 r46 且数字与 scripts 口径一致",
+  "README·「### 断言规模」节声明当前轮 r47 且数字与 scripts 口径一致",
 );
 
-// ---------- screenshot / shell index (r45 render-change round) ----------
+// ---------- screenshot / shell index (r47 render-change round) ----------
 
-const roundIndex = readOrEmpty("docs/ui/r45/README.md");
+const roundIndex = readOrEmpty("docs/ui/r47/README.md");
 check(
-  roundIndex.includes("r45") && roundIndex.includes("01-dnd-handles.png") &&
-    roundIndex.includes("07-dnd-error.png") && roundIndex.includes("<!-- R45_HASHES_BEGIN -->"),
-  "r45 索引·七态矩阵与哈希块在场",
+  roundIndex.includes("r47") && roundIndex.includes("01-pending-card.png") &&
+    roundIndex.includes("07-error.png") && roundIndex.includes("<!-- R47_HASHES_BEGIN -->"),
+  "r47 索引·七态矩阵与哈希块在场",
 );
 const shellIndex = read("docs/ui/shell/README.md");
 check(
-  shellIndex.includes("r45") && shellIndex.includes("同批重拍") && shellIndex.includes("<!-- R45_HASHES_BEGIN -->"),
-  "shell 索引·声明 r45 二十 tab 壳同批重拍且 R45 哈希块在场",
+  shellIndex.includes("r47") && shellIndex.includes("同批重拍") && shellIndex.includes("<!-- R47_HASHES_BEGIN -->"),
+  "shell 索引·声明 r47 二十 tab 壳同批重拍且 R47 哈希块在场",
+);
+
+// ---------- r47：确认闸门规则集中 / api 路由 / web seam ----------
+
+const toolGate47 = read("packages/agent/toolGate.ts");
+check(
+  toolGate47.includes("export function needsConfirmation") &&
+    toolGate47.includes("export function buildToolPreview") &&
+    toolGate47.includes("export function planToolExecution") &&
+    toolGate47.includes("STATE_CHANGING_TOOLS"),
+  "r47·toolGate 三纯函数集中且复用 shared STATE_CHANGING_TOOLS（变异红相锚点）",
+);
+const api47src = read("apps/api/src/server.ts");
+check(
+  api47src.includes('post("/api/conversations/:id/confirm"') &&
+    api47src.includes("normalizeAutoExecute") &&
+    api47src.includes("findToolCallByCallId"),
+  "r47·api confirm 路由 + autoExecute 归一 + db 闸门寻址在场",
+);
+const web47src = read("apps/web/src/ChatPage.tsx");
+check(
+  web47src.includes('data-state="chat-pending-card"') &&
+    web47src.includes('data-state="chat-confirm-btn"') &&
+    web47src.includes('data-state="chat-discard-btn"') &&
+    web47src.includes('data-state="chat-auto-toggle"'),
+  "r47·web 待确认卡 / 确认 / 放弃 / 自动执行 seam 四件套在场",
 );
 
 // ---------- r44：图证与文档口径修正（U2-1 / U2-2 / U3） ----------
@@ -312,14 +339,19 @@ check(
     docsWeb45.includes('data-state="docs-dnd-notice"'),
   "r45·DocsPage 消费 shared 规则且手柄/插入线/回执 seam 在场",
 );
+// r45 历史索引仍在（r46 三修的持久记录）；r47 根 README 已推进到本轮矩阵，
+// 故 r45/r46 历史契约改读该持久索引，断言条数与意图不变。
+const roundIndex45 = readOrEmpty("docs/ui/r45/README.md");
 const r45Hashes = sectionBody(shellIndex, "## r45 哈希自查");
 const cs45 = r45Hashes === null ? { changed: null, same: null } : parseChangedSame(r45Hashes);
 const gc45 = r45Hashes === null ? { png: null, distinct: null } : parseGlobalCount(r45Hashes);
 check(cs45.changed === 9 && cs45.same === 11, "r45·shell R45 块 changed=9/same=11 如实披露");
 check(gc45.png === 379 && gc45.distinct === 377, "r45·shell R45 块全库计数 379/377 与实测一致");
 check(
-  roundIndex.includes("POST /api/blocks/:id/move") && roundIndex.includes("HTTP 400"),
-  "r45·七态索引载明真 HTTP move 与 4xx 错误态证据",
+  roundIndex45.includes("POST /api/blocks/:id/move") &&
+    roundIndex45.includes("HTTP 400") &&
+    roundIndex45.includes("共 5 张卡"),
+  "r45·七态索引载明真 HTTP move 与 4xx 错误态证据（r45 历史索引持久保留）",
 );
 
 // ---------- r46：索引口径修正（U2-1 / U2-2 / U2-3，无渲染层改动沿用 r45 壳图） ----------
@@ -334,12 +366,13 @@ check(
   "shell 索引·透明声明 r46 无渲染层改动沿用 r45 壳图不重拍",
 );
 
-const idx04 = lineWith(roundIndex, "04-dnd-cross-type.png");
-const idx05 = lineWith(roundIndex, "05-dnd-touch.png");
-const idx07 = lineWith(roundIndex, "07-dnd-error.png");
-const root04 = uiSec === null ? "" : lineWith(uiSec, "04-dnd-cross-type.png");
-const root05 = uiSec === null ? "" : lineWith(uiSec, "05-dnd-touch.png");
-const root07 = uiSec === null ? "" : lineWith(uiSec, "07-dnd-error.png");
+const idx04 = lineWith(roundIndex45, "04-dnd-cross-type.png");
+const idx05 = lineWith(roundIndex45, "05-dnd-touch.png");
+const idx07 = lineWith(roundIndex45, "07-dnd-error.png");
+// r47 根 README 已推进到本轮矩阵；r46 三口径在持久的 r45 索引中逐字锁定（断言条数不变）。
+const root04 = idx04;
+const root05 = idx05;
+const root07 = idx07;
 
 // U2-1：04 图画面正文块落末位；两处索引须引同一条真实 audit 断言 position 仍连号，不得再引标题块落末位。
 check(
@@ -348,7 +381,7 @@ check(
 );
 check(
   root04.includes("r45 跨类型拖拽 position 仍连号") && !root04.includes("标题块落末位"),
-  "r46 U2-1·根 README 04 与 r45 索引口径一致",
+  "r46 U2-1·r45 历史索引 04 口径持续锁定（根 README 已推进 r47，三修逐字保留）",
 );
 // U2-2：05 图按钮浅灰描边（Pillow 逐像素与 01 同区零差异），不得称蓝框强调。
 check(
@@ -357,7 +390,7 @@ check(
 );
 check(
   !root05.includes("蓝框") && root05.includes("浅灰描边"),
-  "r46 U2-2·根 README 05 与 r45 索引口径一致",
+  "r46 U2-2·r45 历史索引 05 口径持续锁定（无蓝框，根 README 已推进 r47）",
 );
 // U2-3：07 图红条逐字为共 5 张卡（看板词汇混用），索引须逐字引用画面原文，不得写成共 5 块。
 check(
@@ -366,7 +399,7 @@ check(
 );
 check(
   root07.includes("共 5 张卡") && !root07.includes("共 5 块"),
-  "r46 U2-3·根 README 07 逐字引用画面原文共 5 张卡",
+  "r46 U2-3·r45 历史索引 07 逐字锁定共 5 张卡（根 README 已推进 r47）",
 );
 
 // ---------- verdict ----------

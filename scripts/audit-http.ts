@@ -38,6 +38,7 @@ import { parseIcsCalendar, buildIcsCalendar, scheduleToIcsEvent, formatIcsDate }
 import { isServerMode } from "@xieflow/shared/auth";
 import { formatFormulaDisplay } from "@xieflow/shared/formula";
 import { createMockProvider, MOCK_PROVIDER_ID } from "@xieflow/agent";
+import { STATE_CHANGING_TOOLS } from "@xieflow/shared";
 // r45: drag-drop plan is a shared pure function; HTTP audit drives the real move route.
 import { planBlockDrop } from "@xieflow/shared/blockDnd";
 
@@ -1735,7 +1736,7 @@ async function audit() {
 
     // 真实对话：一次触发 3 个工具调用，其中 create_todo 真写库（waizhuan 查库验证路径）
     const msg = "帮我新建一个待办：r10 审计真实创建，然后列出文档";
-    const chat = await expectStatus("POST", `/api/conversations/${c1.json.id}/chat`, { message: msg }, 201, "r10 POST 真实对话 -> 201");
+    const chat = await expectStatus("POST", `/api/conversations/${c1.json.id}/chat`, { message: msg, autoExecute: true }, 201, "r10 POST 真实对话 -> 201（autoExecute 老行为）");
     eq(chat.json.intent, "create_todo+list_todos+list_documents", "r10 对话 intent 为三意图组合");
     eq(chat.json.toolCalls.length, 3, "r10 一次对话真实触发 3 个工具调用（≥2 达标）");
     eq(chat.json.toolCalls.map((t: { name: string }) => t.name), ["create_todo", "list_todos", "list_documents"], "r10 三个工具调用顺序锁定");
@@ -1809,14 +1810,14 @@ async function audit() {
     await expectStatus("POST", chatUrl, { message: "   " }, 400, "r11 空消息 -> 400（回归 r10）");
 
     // 第 1 轮：真建待办（跨轮指代的真实实体来源）
-    const t1 = await expectStatus("POST", chatUrl, { message: "新建待办：r11审计实体", context_window: 8 }, 201, "r11 第 1 轮对话 -> 201");
+    const t1 = await expectStatus("POST", chatUrl, { message: "新建待办：r11审计实体", context_window: 8, autoExecute: true }, 201, "r11 第 1 轮对话 -> 201（autoExecute 老行为）");
     eq(t1.json.contextWindow, 8, "r11 第 1 轮回显默认窗口 8");
     eq(t1.json.contextMessages, 0, "r11 首轮无历史上下文");
     const todoId1 = t1.json.toolCalls[0].data.todo.id as number;
     ok(todoId1 > 0, "r11 第 1 轮真建待办 id 可读");
 
     // 第 2 轮：「再建一个」引用第 1 轮真实标题，再建一条
-    const t2 = await expectStatus("POST", chatUrl, { message: "再建一个" }, 201, "r11 第 2 轮指代对话 -> 201");
+    const t2 = await expectStatus("POST", chatUrl, { message: "再建一个", autoExecute: true }, 201, "r11 第 2 轮指代对话 -> 201（老行为）");
     eq(t2.json.contextMessages, 3, "r11 第 2 轮注入 3 条真实落库消息");
     eq(t2.json.resolution.referenceKind, "repeat", "r11 第 2 轮回显 repeat 指代元数据");
     eq(t2.json.resolution.referencedTitle, "r11审计实体", "r11 指代来源为第 1 轮真标题");
@@ -1825,7 +1826,7 @@ async function audit() {
     ok(todoId2 > todoId1, "r11 第 2 轮真建第二条待办");
 
     // 第 3 轮：窗口足够大才包含被指代的创建消息（小窗口故意不带历史，指代不应硬解）
-    const t3 = await expectStatus("POST", chatUrl, { message: "把它改成：r11审计修正版", context_window: 8 }, 201, "r11 第 3 轮改标题对话 -> 201");
+    const t3 = await expectStatus("POST", chatUrl, { message: "把它改成：r11审计修正版", context_window: 8, autoExecute: true }, 201, "r11 第 3 轮改标题对话 -> 201（老行为）");
     eq(t3.json.contextWindow, 8, "r11 第 3 轮回显显式窗口 8");
     eq(t3.json.contextMessages, 6, "r11 第 3 轮注入前两轮全部 6 条消息");
     eq(t3.json.resolution.referenceKind, "retitle", "r11 第 3 轮回显 retitle 元数据");
@@ -1884,8 +1885,9 @@ async function audit() {
     ok(Array.isArray(beforeSch.json.schedules), "r11 日程区间查询返回数组（基线已含其他轮次日程）");
     const createSch = await expectStatus("POST", chat2, {
       message: "忽略",
+      autoExecute: true,
       toolCalls: [{ name: "create_schedule", arguments: { title: "r11审计日程", date: "2026-11-20", start: "10:00", end: "11:00" } }],
-    }, 201, "r11 create_schedule 经 HTTP -> 201");
+    }, 201, "r11 create_schedule 经 HTTP -> 201（老行为）");
     eq(createSch.json.toolCalls[0].ok, true, "r11 create_schedule 真执行 ok=true");
     const afterSch = await expectStatus("GET", "/api/schedules?from=2026-11-20&to=2026-11-20", undefined, 200, "r11 建日程后区间查询 -> 200");
     eq(afterSch.json.schedules.length, beforeSchCount + 1, "r11 create_schedule 经 HTTP 真建日程（区间计数 +1）");
@@ -1894,8 +1896,9 @@ async function audit() {
     eq(createdSch?.title, "r11审计日程", "r11 新建日程标题逐字回读");
     const badSch = await expectStatus("POST", chat2, {
       message: "忽略",
+      autoExecute: true,
       toolCalls: [{ name: "create_schedule", arguments: { title: "x", date: "bad", start: "10:00", end: "11:00" } }],
-    }, 201, "r11 非法日程日期对话 -> 201（handler 返 ok=false）");
+    }, 201, "r11 非法日程日期对话 -> 201（handler 返 ok=false，老行为）");
     eq(badSch.json.toolCalls[0].ok, false, "r11 非法日期不伪造成功回执");
 
     // 清理本轮自建探针：会话级联清消息/产物，另删真建的待办/文档/日程
@@ -4923,9 +4926,108 @@ async function auditR45(): Promise<void> {
     ok(!JSON.stringify(final45.json.documents).includes(KEY45), "r45 探针归零·列表不含本轮 key");
 }
 
+/** r47：AI 工具调用确认闸门——真 HTTP 层混合意图 / 确认 / 放弃 / 4xx / 向后兼容 */
+async function auditR47(): Promise<void> {
+  console.log("\n== AI workbench r47: tool confirmation gate (HTTP) ==");
+  const conv = await expectStatus("POST", "/api/conversations", { title: "r47 audit gate" }, 201, "r47 建闸门会话 -> 201");
+  const cid = conv.json.id as number;
+  const chatUrl = `/api/conversations/${cid}/chat`;
+  const confirmUrl = `/api/conversations/${cid}/confirm`;
+  const KEY47 = "r47HTTP拦截探针";
+  const todosBefore47 = (await req("GET", "/api/todos")).json.todos;
+  eq(STATE_CHANGING_TOOLS.length, 3, "r47 白名单 3 个状态变更工具（唯一口径）");
+
+  // 4xx：autoExecute 非法 / callIds 非法（先于成功写入，零半态）
+  await expectStatus("POST", chatUrl, { message: "盘点待办", autoExecute: "yes" }, 400, "r47 autoExecute 非布尔 -> 400");
+  await expectStatus("POST", chatUrl, { message: "盘点待办", autoExecute: 1 }, 400, "r47 autoExecute 数字 -> 400");
+  await expectStatus("POST", confirmUrl, { callIds: [] }, 400, "r47 confirm·空 callIds -> 400");
+  await expectStatus("POST", confirmUrl, { callIds: "x" }, 400, "r47 confirm·callIds 非数组 -> 400");
+  await expectStatus("POST", confirmUrl, { callIds: ["a", ""] }, 400, "r47 confirm·callIds 空项 -> 400");
+  await expectStatus("POST", confirmUrl, { callIds: ["a"], action: "explode" }, 400, "r47 confirm·非法 action -> 400");
+  await expectStatus("POST", confirmUrl, { callIds: ["never-exists"] }, 400, "r47 confirm·非法 callId -> 400");
+  await expectStatus("POST", "/api/conversations/99999/confirm", { callIds: ["x"] }, 404, "r47 confirm·会话不存在 -> 404");
+  const msgs4xx = await expectStatus("GET", `/api/conversations/${cid}/messages`, undefined, 200, "r47 4xx 后对话流 -> 200");
+  eq(msgs4xx.json.messages.length, 0, "r47 4xx 零半态·无任何消息落库");
+
+  // 混合意图：建待办（写）+ 列待办（读）——默认 autoExecute=false
+  const mixed = await expectStatus("POST", chatUrl, {
+    message: `新建待办：${KEY47}，然后列出待办`,
+  }, 201, "r47 默认闸门·混合对话 -> 201");
+  eq(mixed.json.autoExecute, false, "r47 默认闸门·autoExecute=false 回显");
+  eq(mixed.json.toolCalls.length, 2, "r47 混合对话·两调用落回执");
+  eq(mixed.json.toolCalls[0].confirmStatus, "pending", "r47 混合对话·写调用 pending");
+  eq(mixed.json.toolCalls[1].confirmStatus, "executed", "r47 混合对话·只读直接执行");
+  eq(mixed.json.toolCalls[1].ok, true, "r47 混合对话·只读回执 ok=true");
+  eq(mixed.json.pendingCalls.length, 1, "r47 混合对话·pendingCalls 恰 1");
+  const pendingId = mixed.json.pendingCalls[0].callId as string;
+  ok(String(pendingId).startsWith(`c${cid}-`), "r47 混合对话·callId 带会话前缀");
+  ok(mixed.json.toolCalls[0].preview?.title === "新建待办", "r47 混合对话·pending 带预览摘要");
+  ok(String(mixed.json.toolCalls[0].summary).includes("待确认"), "r47 混合对话·pending 摘要含待确认");
+
+  // 只读直接出结果（非零半态）
+  const todosAfterChat = (await req("GET", "/api/todos")).json.todos;
+  eq(todosAfterChat.length, todosBefore47.length, "r47 闸门·写 pending 期间零落库");
+  const listBody = mixed.json.toolCalls.find((t: any) => t.name === "list_todos");
+  ok(listBody.data && Array.isArray(listBody.data.todos), "r47 混合对话·只读调用真返回数据");
+
+  // reload 不丢：pending 回执在对话流中
+  const msgs = await expectStatus("GET", `/api/conversations/${cid}/messages`, undefined, 200, "r47 reload 对话流 -> 200");
+  const allCalls = msgs.json.messages.flatMap((m: any) => m.toolCalls ?? []);
+  eq(allCalls.filter((t: any) => t.confirmStatus === "pending").length, 1, "r47 reload·pending 回执不丢");
+  eq(allCalls.find((t: any) => t.callId === pendingId)?.name, "create_todo", "r47 reload·callId 可寻址");
+
+  // confirm 真执行落库
+  const confirmed = await expectStatus("POST", confirmUrl, { callIds: [pendingId] }, 200, "r47 confirm -> 200");
+  eq(confirmed.json.action, "confirm", "r47 confirm·action 回显");
+  eq(confirmed.json.resolved.length, 1, "r47 confirm·恰解决 1 项");
+  eq(confirmed.json.resolved[0].confirmStatus, "executed", "r47 confirm·状态 executed");
+  eq(confirmed.json.resolved[0].ok, true, "r47 confirm·真执行 ok=true");
+  const todosAfterConfirm = (await req("GET", "/api/todos")).json.todos;
+  eq(todosAfterConfirm.length, todosBefore47.length + 1, "r47 confirm·真建待办（+1）");
+  ok(todosAfterConfirm.some((t: any) => t.title === KEY47), "r47 confirm·真实标题入库");
+  // 重复确认 -> 409
+  await expectStatus("POST", confirmUrl, { callIds: [pendingId] }, 409, "r47 重复确认 -> 409");
+  const afterDup = (await req("GET", "/api/todos")).json.todos;
+  eq(afterDup.length, todosBefore47.length + 1, "r47 重复确认零副作用（无二次写库）");
+
+  // 越权 conversation：把 A 会话的 callId 拿到 B 会话确认 -> 400
+  const convB = await expectStatus("POST", "/api/conversations", { title: "r47 audit gate B" }, 201, "r47 建第二会话 -> 201");
+  await expectStatus("POST", `/api/conversations/${convB.json.id}/confirm`, { callIds: [pendingId] }, 400, "r47 越权 conversation -> 400");
+
+  // discard：放弃零写
+  const gated2 = await expectStatus("POST", chatUrl, { message: "新建待办：r47HTTP放弃探针" }, 201, "r47 放弃·新 pending -> 201");
+  const discardId = gated2.json.pendingCalls[0].callId as string;
+  const beforeDiscard = (await req("GET", "/api/todos")).json.todos.length;
+  const discarded = await expectStatus("POST", confirmUrl, { callIds: [discardId], action: "discard" }, 200, "r47 discard -> 200");
+  eq(discarded.json.resolved[0].confirmStatus, "discarded", "r47 discard·状态 discarded");
+  eq((await req("GET", "/api/todos")).json.todos.length, beforeDiscard, "r47 discard·放弃零写");
+  await expectStatus("POST", confirmUrl, { callIds: [discardId] }, 409, "r47 已放弃再确认 -> 409");
+
+  // 向后兼容：autoExecute=true 老行为立即写库、零 pending
+  const beforeOld = (await req("GET", "/api/todos")).json.todos.length;
+  const old = await expectStatus("POST", chatUrl, { message: "新建待办：r47老行为HTTP", autoExecute: true }, 201, "r47 老行为对话 -> 201");
+  eq(old.json.autoExecute, true, "r47 老行为·autoExecute=true 回显");
+  eq(old.json.pendingCalls.length, 0, "r47 老行为·零 pending");
+  eq(old.json.toolCalls[0].id, "tc-1", "r47 老行为·回执 id=tc-1");
+  eq((await req("GET", "/api/todos")).json.todos.length, beforeOld + 1, "r47 老行为·立即真建待办");
+
+  // 清理探针（只删本轮自建）
+  const finalTodos = (await req("GET", "/api/todos")).json.todos;
+  for (const t of finalTodos) {
+    if (typeof t.title === "string" && (t.title.includes("r47HTTP") || t.title.includes("r47老行为HTTP"))) {
+      await expectStatus("DELETE", `/api/todos/${t.id}`, undefined, 200, `r47 清理探针待办 ${t.id} -> 200`);
+    }
+  }
+  await expectStatus("DELETE", `/api/conversations/${cid}`, undefined, 200, "r47 清理会话 A -> 200");
+  await expectStatus("DELETE", `/api/conversations/${convB.json.id}`, undefined, 200, "r47 清理会话 B -> 200");
+  const afterClean = (await req("GET", "/api/todos")).json.todos;
+  ok(!JSON.stringify(afterClean).includes(KEY47), "r47 探针归零·列表不含本轮 key");
+}
+
 try {
   await audit();
   await auditR45();
+  await auditR47();
 } catch (err) {
   failures.push(`audit 抛错：${err instanceof Error ? err.message : String(err)}`);
   console.error(`audit crashed: ${err instanceof Error ? err.stack : String(err)}`);

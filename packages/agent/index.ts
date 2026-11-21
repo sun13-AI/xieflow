@@ -36,6 +36,20 @@ export {
   type ArtifactDraft,
 } from "./artifact-generators.js";
 export {
+  needsConfirmation,
+  confirmationToolCount,
+  confirmationToolNames,
+  buildToolPreview,
+  planToolExecution,
+  normalizeCallIds,
+  knownToolNames,
+  isKnownTool,
+  type ToolCallConfirmStatus,
+  type ToolPreview,
+  type GatedCall,
+  type ExecutionPlan,
+} from "./toolGate.js";
+export {
   TOOL_EVAL_CASES,
   RAG_EVAL_CASES,
   runToolReplay,
