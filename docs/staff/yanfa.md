@@ -52,3 +52,4 @@
 | r47 | 2026-11-21 | 工具确认闸门 | shared/agent toolGate 三纯函数 + chat autoExecute/confirm + 待确认卡；自曝补丁 validateCall 前置校验 | e2e 3830/audit 2891，闸门反转变异红相 |
 | r48 | 2026-11-21 | 遗留盘点收敛 | 28 条遗留三分类（真缺陷0/可接受16/取舍12/闭环11）+ watchdog 62→76 + 沿用 r47 壳图 | e2e 3830/audit 2891 持平，计数变异红相 |
 | r49 | 2026-11-21 | 工作区备份恢复 | 38 表白名单 + backup.ts 校验/计划 + 三路由 + 备份卡；sessions/users/change_log/entity_versions 排除 | e2e 3922/audit 2957，白名单变异红相；返工#1 数字口径对齐 |
+| r50 | 2026-11-21 | 复审收尾 | watchdog 86→98（台账 8 行+未触发区+5 类关键行防复发）+ 13 条期望值随轮推进（零删）+ 声明三处 | e2e 3922/audit 2957 持平，台账改坏变异红相 |
