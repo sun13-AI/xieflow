@@ -889,9 +889,27 @@ export class XieFlowDb {
     }
   }
 
-  /** r38：卡片读回时装配标签（老卡无标签行 -> []） */
-  private withCardLabels(card: BoardCard): BoardCard {
-    return { ...card, labels: this.listCardLabels(card.id) };
+  /** r38：卡片读回时装配标签（老卡无标签行 -> []）；r57：批量入口可传入预取分桶。 */
+  private withCardLabels(card: BoardCard, labelsByCard?: ReadonlyMap<number, string[]>): BoardCard {
+    return { ...card, labels: labelsByCard ? (labelsByCard.get(card.id) ?? []) : this.listCardLabels(card.id) };
+  }
+
+  /** r57：一次 IN 查询取回整组卡片标签，按 card_id 分桶（标签仍按字典序）。 */
+  private cardLabelBuckets(cardIds: readonly number[]): Map<number, string[]> {
+    const buckets = new Map<number, string[]>();
+    if (cardIds.length === 0) return buckets;
+    const placeholders = cardIds.map(() => "?").join(",");
+    const rows = this.db.all(
+      `SELECT card_id, label FROM card_labels WHERE card_id IN (${placeholders}) ORDER BY card_id, label`,
+      [...cardIds],
+    ) as { card_id: number; label: string }[];
+    for (const row of rows) {
+      const cardId = Number(row.card_id);
+      const bucket = buckets.get(cardId);
+      if (bucket) bucket.push(String(row.label));
+      else buckets.set(cardId, [String(row.label)]);
+    }
+    return buckets;
   }
 
   /** r38：负责人指派守卫（存在 + 在职），解析规则全在 shared/org */
@@ -969,15 +987,19 @@ export class XieFlowDb {
   }
 
   listBoardCards(columnId: number): BoardCard[] {
-    return this.db
+    const cards = this.db
       .all("SELECT * FROM cards WHERE column_id = ? ORDER BY position", [columnId])
-      .map((row) => this.withCardLabels(mapRowToBoardCard(row)));
+      .map(mapRowToBoardCard) as BoardCard[];
+    const labels = this.cardLabelBuckets(cards.map((card) => card.id));
+    return cards.map((card) => this.withCardLabels(card, labels));
   }
 
   listBoardCardsByProject(projectId: number): BoardCard[] {
-    return this.db
+    const cards = this.db
       .all("SELECT * FROM cards WHERE project_id = ? ORDER BY column_id, position", [projectId])
-      .map((row) => this.withCardLabels(mapRowToBoardCard(row)));
+      .map(mapRowToBoardCard) as BoardCard[];
+    const labels = this.cardLabelBuckets(cards.map((card) => card.id));
+    return cards.map((card) => this.withCardLabels(card, labels));
   }
 
   /** r38：逾期卡片列表（判定全在 shared/cardMeta collectOverdueCards） */
@@ -3684,18 +3706,38 @@ export class XieFlowDb {
       [id],
     );
     if (!row) return null;
-    const questions = this.db
-      .all(
-        "SELECT id, form_id, type, label, required, options_json, position FROM form_questions WHERE form_id = ? ORDER BY position, id",
-        [id],
-      )
-      .map(mapRowToFormQuestion);
-    return { ...mapRowToForm(row), questions };
+    const questionRows = this.db.all(
+      "SELECT id, form_id, type, label, required, options_json, position FROM form_questions WHERE form_id = ? ORDER BY position, id",
+      [id],
+    );
+    return this.assembleForm(row, questionRows);
+  }
+
+  /** r57：把已取到的 form 行与题目行装配成契约；批量/单条共用同一装配口径。 */
+  private assembleForm(
+    row: Record<string, any>,
+    questionRows: readonly Record<string, any>[],
+  ): FormWithQuestions {
+    return { ...mapRowToForm(row), questions: questionRows.map(mapRowToFormQuestion) };
   }
 
   listForms(): FormWithQuestions[] {
-    const rows = this.db.all("SELECT id, title, description, created_at, closed_at FROM forms ORDER BY id") as Record<string, unknown>[];
-    return rows.map((row) => this.formRows(Number(row.id))!).filter((f): f is FormWithQuestions => f !== null);
+    const rows = this.db.all("SELECT id, title, description, created_at, closed_at FROM forms ORDER BY id") as Record<string, any>[];
+    if (rows.length === 0) return [];
+    const ids = rows.map((row) => Number(row.id));
+    const placeholders = ids.map(() => "?").join(",");
+    const questionRows = this.db.all(
+      `SELECT id, form_id, type, label, required, options_json, position FROM form_questions WHERE form_id IN (${placeholders}) ORDER BY form_id, position, id`,
+      ids,
+    ) as Record<string, any>[];
+    const byForm = new Map<number, Record<string, any>[]>();
+    for (const q of questionRows) {
+      const formId = Number(q.form_id);
+      const bucket = byForm.get(formId);
+      if (bucket) bucket.push(q);
+      else byForm.set(formId, [q]);
+    }
+    return rows.map((row) => this.assembleForm(row, byForm.get(Number(row.id)) ?? []));
   }
 
   getForm(id: number): FormWithQuestions | null {

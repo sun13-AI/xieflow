@@ -38,6 +38,7 @@
 #   powershell -File scripts\shot.ps1 shots -Round r45 # capture r45 block drag handles / insertion line / dropped order matrix + 20-tab shell baseline
 #   powershell -File scripts\shot.ps1 shots -Round r41 # capture r41 form collection matrix + 20-tab shell baseline
 #   powershell -File scripts\shot.ps1 shots -Round r49 # capture r49 backup/restore matrix + 20-tab shell baseline
+#   powershell -File scripts\shot.ps1 shots -Round r57 # capture r57 todo render-refresh matrix + 20-tab shell baseline
 #   powershell -File scripts\shot.ps1 shots -Round r11 -Shot 08-docs-diff-inline # rework#1: re-capture ONLY the diff-inline evidence (no other matrix/shell re-shot)
 #   powershell -File scripts\shot.ps1 shots -Round r26 -Shot 09-notif-deeplink-target # r26 rework#2: seed 3 pending approvals, CDP-click the SECOND notification, capture ONLY 09 (no other matrix/shell re-shot)
 #   powershell -File scripts\shot.ps1 down            # stop servers
@@ -63,7 +64,7 @@ param(
   [Parameter(Position = 0)]
   [ValidateSet("up", "shots", "down", "status", "all")]
   [string]$Action = "status",
-  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r26", "r27", "r28", "r29", "r30", "r31", "r32", "r33", "r34", "r35", "r36", "r37", "r38", "r39", "r40", "r41", "r43", "r45", "r47", "r49")]
+  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r26", "r27", "r28", "r29", "r30", "r31", "r32", "r33", "r34", "r35", "r36", "r37", "r38", "r39", "r40", "r41", "r43", "r45", "r47", "r49", "r57")]
   [string]$Round = "r1",
   [Parameter()]
   [string]$Shot = ""
@@ -1040,7 +1041,20 @@ function Invoke-Shots {
     }
   }
 
-  if ($Round -eq "r49") {
+  if ($Round -eq "r57") {
+    # r57: P1-3 render-layer refresh. Same seven dependency seams as r34, re-captured
+    # from the memoized TodoItem rows; real CRUD/timing locked by e2e + audit + CDP.
+    $r57Base = "http://127.0.0.1:$WebPort/?page=todos"
+    $shots = @(
+      @{ name = "01-dep-empty";        url = "$r57Base&shot=dep-empty";         width = 1280; height = 900 },
+      @{ name = "02-dep-add";          url = "$r57Base&shot=dep-add";           width = 1280; height = 900 },
+      @{ name = "03-dep-blocked-list"; url = "$r57Base&shot=dep-blocked-list";  width = 1280; height = 900 },
+      @{ name = "04-dep-satisfied";    url = "$r57Base&shot=dep-satisfied";     width = 1280; height = 900 },
+      @{ name = "05-dep-cycle-error";  url = "$r57Base&shot=dep-cycle-error";   width = 1280; height = 900 },
+      @{ name = "06-dep-narrow";       url = "$r57Base&shot=dep-narrow&narrow=1"; width = 488; height = 1100 },
+      @{ name = "07-dep-error";        url = "$r57Base&shot=dep-error";         width = 1280; height = 900 }
+    )
+  } elseif ($Round -eq "r49") {
     # r49: seven deterministic ?shot= pins over the workbench backup card.
     $r49Base = "http://127.0.0.1:$WebPort/"
     $shots = @(
@@ -1747,7 +1761,7 @@ function Invoke-Shots {
     $out = Join-Path $UiDir ($s.name + ".png")
     # delete any stale png first: a failed capture must never look like a success
     if (Test-Path $out) { Remove-Item $out -Force }
-    if ($Round -eq "r39" -or $Round -eq "r40" -or $Round -eq "r41" -or $Round -eq "r43" -or $Round -eq "r47" -or $Round -eq "r49") {
+    if ($Round -eq "r39" -or $Round -eq "r40" -or $Round -eq "r41" -or $Round -eq "r43" -or $Round -eq "r47" -or $Round -eq "r49" -or $Round -eq "r57") {
       # r39/r40/r41/r43: CDP capture (Edge plain --screenshot intermittently wrote no PNG here)
       $helper = Join-Path $Root "scripts\r39-shot.mjs"
       & node $helper --browser "$browser" --url "$($s.url)" --out "$out" --width $($s.width) --height $($s.height)

@@ -260,7 +260,7 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r54 | M10 后·P0-1 补修：remote 业务路由统一 admin 闸门 | ✅已发版（审计原步骤重放 52/52 全关 P0-1；local 零回归） | v0.0.58 | e2e 3946 · audit 3120 | 审计 AUDIT-VERDICT: 通过 |
 | r55 | M10 后·CI ubuntu 重启探针跨平台修复（v0.0.58 红灯补发） | ✅已发版（spawn detached + Linux 进程组整组 kill；旧 tag 未挪；v0.0.61 三平台全绿） | v0.0.61 | e2e 3946 · audit 3120 | lead 亲修 + CI 验证 |
 | r56 | M10 后·质量审计 #2：性能与大列表（owner 选定审计方向第二维） | 🔴审计打回 P1×3/P2×3（listForms 2N+1、看板卡 N+1、Todos 输入卡顿）→ 修复中 | — | 修复后重报 | auditor-r56 AUDIT-VERDICT: 打回 |
-| r57 | M10 后·r56 性能问题修复（P1×3 全修 + 性能基线断言） | 🔨规划中 | — | — | — |
+| r57 | M10 后·r56 性能问题修复（P1×3 全修 + 性能基线断言） | 🟢研发完成（待 waizhuan 复验；不 push / 不打 tag） | — | e2e 3962 · audit 3127 | yanfa 报告已出；变异红相 1 组 + CDP 285ms |
 
 ## 🏁 项目总账（2026-11-19 · M10 收官）
 
@@ -1205,6 +1205,14 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 ---
 
 ## 记账区（每轮追加）
+
+### 2026-11-21 · r57 研发（yanfa-r57 · r56 性能审计 P1×3 修复）
+- 交付：按 lead 定方案零功能变化修三条 P1：`listForms` 改 forms + form_questions 两次 `all` 按 form_id 分桶（保留 `formRows(id)` 供 `getForm` 复用，`assembleForm` 单条/批量同源）；`listBoardCards*` 改一次 `card_labels WHERE card_id IN (...)` 按 card_id 分桶（保留 `withCardLabels` 单次入口）；Todos 行抽 `TodoItem.tsx` + `React.memo`、`candidates` 移入 `panelOpen` 分支、`App.todoById` 改 `useMemo` 并前置到认证早退之前（hooks 合法），四个回调 `useCallback` + `EMPTY_DEPS` 常量避免破 memo。P2×3 按方案只记账不改。
+- 实测：60 forms SQL 121→**2**、80 cards SQL 81→**2**；HTTP 120 forms 105.1→**3.2ms**、120 cards 53.8→**4.2ms**（5 次中位）；headless CDP 1000 待办 17 字输入 ScriptDuration 2192.3（r56 原测）→**285ms**（r57 同法实测，阈值 <500ms）。
+- 断言：e2e 3946→**3962（+16）** · audit 3120→**3127（+7）**，零删除；`pnpm run test:all` exit 0；DOC-CONTRACT 105→**111** checks（ROUND 推进 r57，r50~r54 历史专段保留，schema v27 未变）；check:text 0 命中；typecheck 5 包全绿。README 速查行 / 界面对照 / 断言规模三处同步。
+- **TDD 先红**：先落 23 条性能断言 → e2e 3953/9 红、audit 1 红（forms 105.1ms）→ 实现后全绿。**变异红相 1 组**：批量查询改回逐行 N+1 → e2e 3 红（121/81/81）→ 逐字节还原（SHA256 `D0A60C86…67BEF1F` 前后同值、`MUTATION-PROBE` 零残留）后全绿。
+- 截图：`docs/ui/r57/` 七态矩阵 7 张（7/7 互异）+ 20 tab 壳同批重拍（r49→r57 changed=6/same=14 如实披露，20/20 互异）；全库 400 PNG / 398 互异；索引 / shell README / 精简根 README 三处同一提交。
+- 工程纪律：零新依赖、零 token、未改 schema / 用户库；截图与 CDP 全走 scratch 库并删除、8787/5173/8788 收净、全程 headless；未 push / 未打 tag / 未发版。报告：`docs/feedback/2026-11-21-r57-yanfa.md`。
 
 ### 2026-11-21 · r54 研发（yanfa-r54 · P0-1 补修：remote 业务路由统一 admin 闸门）
 - 交付：按 lead 重定方案，`apps/api/src/server.ts` remote onRequest hook 增统一闸门——除 `PUBLIC_AUTH_PATHS`、`ALWAYS_PROTECTED_PATHS`（路由自带闸门）、`/api/auth/me`/`guard` 两个探针外，所有 `/api/*` 业务路由要求 `user:manage`；非 admin 经 `assertPermission` → `authErrorReply` 回 403 `FORBIDDEN`。local 单机匿名语义零变化；r53 六项修复与既有 admin 闸门原样保留（单工作区语义，不引入多租户/归属表）。

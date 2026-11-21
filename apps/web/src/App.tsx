@@ -23,7 +23,7 @@ import SyncCard from "./SyncCard";
 import BackupCard from "./BackupCard";
 import OfflineStatus from "./OfflineStatus";
 // 截图状态真实存在：加载中 / 空数据 / 正常 / 错误 / 窄屏（?narrow=1 显式钉态）
-import { useEffect, useRef, useState, type ReactElement } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import {
   shouldShowTabsMore,
   SEARCH_SOURCE_TYPES,
@@ -70,6 +70,7 @@ import {
 
 // r18 返工#1：业务 401 不再静默降级为空态（apiFetch 已清 token + 跳登录，这里只负责停止渲染假数据）
 const AUTH_401_MESSAGE = "登录态已失效，正在跳转登录页";
+const EMPTY_TODOS_R57: readonly Todo[] = [];
 
 type LoadState =
   | { phase: "loading" }
@@ -417,12 +418,18 @@ export default function App() {
     goToLogin("logout");
   }
 
+  // r57 P1-3：全局搜索输入每次 render 不再重建 1000 项 Map（hook 必须放在早退之前）。
+  const todosForMap = state.phase === "ready" ? state.todos : EMPTY_TODOS_R57;
+  const todoById = useMemo(
+    () => new Map(todosForMap.map((t) => [t.id, t])),
+    [todosForMap],
+  );
+
   // 认证页是独立路由：在 tab 壳之外整页渲染，因此不占主界面 tab 数量。
   if (authView === "login") return <LoginPage reason={query.get("reason")} />;
   if (authView === "register") return <RegisterPage reason={query.get("reason")} />;
 
   const pinnedToken = query.get("auth") === "in" ? "pinned-shot-token" : token;
-  const todoById = new Map(state.phase === "ready" ? state.todos.map((t) => [t.id, t]) : []);
 
   return (
     <main className={tab === "bases" || tab === "docs" || tab === "chat" || tab === "knowledge" || tab === "mindmap" || tab === "whiteboard" || tab === "approval" || tab === "assets" || tab === "unit-tasks" || tab === "org" || tab === "notifications" || tab === "reports" || tab === "work-reports" || tab === "meetings" || tab === "forms" ? "shell shell-wide" : "shell"}>

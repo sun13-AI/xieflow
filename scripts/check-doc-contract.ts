@@ -1,4 +1,5 @@
-// XieFlow r54 - DOC-CONTRACT watchdog (headless, zero deps, exit 0/1).
+// XieFlow r57 - DOC-CONTRACT watchdog (headless, zero deps, exit 0/1).
+// r57: r56 性能审计 P1×3 修复轮（listForms/listBoardCards 批量读 + Todos 渲染 memo）。
 // r54: P0-1 补修 round (remote business routes behind one admin gate; no render-layer
 // change, no new feature). The current round declaration must live in BOTH root
 // README sections; the danger-zone ledger (8 classification rows), the r51 precision
@@ -265,13 +266,14 @@ if (counts.e2e !== null && counts.audit !== null) {
   check(root.includes(quickRef), `README·速查行数字与 scripts 实测口径一致（${quickRef}）`);
 }
 
-const ROUND = "r54";
+const ROUND = "r57";
+const ROUND_LEGACY = "r54";
 const uiSec = sectionBody(root, "## 界面与测试对照");
 const scaleSec = sectionBody(root, "### 断言规模");
 check(uiSec !== null, "README·「界面与测试对照」节在场");
 check(scaleSec !== null, "README·「### 断言规模」节在场");
 check(
-  uiSec !== null && uiSec.includes(ROUND) && uiSec.includes("P0-1 补修轮") &&
+  uiSec !== null && uiSec.includes(ROUND_LEGACY) && uiSec.includes("P0-1 补修轮") &&
     uiSec.includes("无渲染层改动") && uiSec.includes("沿用 r49 图证") &&
     uiSec.includes("七态矩阵") && uiSec.includes("20 壳") &&
     uiSec.includes("docs/ui/r49/README.md") && uiSec.includes("docs/ui/shell/README.md") &&
@@ -282,7 +284,7 @@ check(
 );
 const docChecksInReadme = scaleSec === null ? null : (/DOC-CONTRACT \*\*(\d+)\*\*/.exec(scaleSec)?.[1] ?? null);
 check(
-  scaleSec !== null && scaleSec.includes(ROUND) && scaleSec.includes("P0-1 补修轮") &&
+  scaleSec !== null && scaleSec.includes(ROUND_LEGACY) && scaleSec.includes("P0-1 补修轮") &&
     scaleSec.includes("remote 统一 admin 闸门") && scaleSec.includes("P0-1 注册闸门") && scaleSec.includes("零删除") &&
     counts.e2e !== null &&
     counts.audit !== null &&
@@ -297,6 +299,48 @@ check(
     uiSec.includes("沿用 r49 七图") && uiSec.includes("20 壳") &&
     uiSec.includes("mtime") && uiSec.includes("逐字沿用"),
   "README·透明声明沿用 r49 七图 + 20 壳且 mtime/哈希逐字沿用（允许 r50/r51 措辞）",
+);
+
+// ---------- r57：性能 P1×3 修复轮（当前轮ROUND推进；r54 历史专段保留） ----------
+
+check(
+  uiSec !== null && uiSec.includes(ROUND) && uiSec.includes("P1×3 性能修复轮") &&
+    uiSec.includes("docs/ui/r57/README.md") && uiSec.includes("01-dep-empty.png") &&
+    uiSec.includes("07-dep-error.png") && uiSec.includes("20 壳") && uiSec.includes("同批重拍"),
+  "README·「界面与测试对照」节声明当前轮 r57 P1×3 性能修复轮（七态矩阵 + 20 壳同批重拍索引在场）",
+);
+check(
+  scaleSec !== null && scaleSec.includes(ROUND) && scaleSec.includes("P1×3 性能修复轮") &&
+    scaleSec.includes("listForms") && scaleSec.includes("listBoardCards") && scaleSec.includes("TodoItem") &&
+    counts.e2e !== null && counts.audit !== null &&
+    scaleSec.includes(`e2e **${counts.e2e}**`) && scaleSec.includes(`HTTP audit **${counts.audit}**`) &&
+    docChecksInReadme !== null && Number(docChecksInReadme) >= 108,
+  `README·「### 断言规模」节声明当前轮 r57 修复与数字一致（e2e ${counts.e2e} / audit ${counts.audit} / DOC-CONTRACT ${docChecksInReadme}）`,
+);
+check(
+  read("docs/plan.md").includes("r57 · r56 性能问题修复") &&
+    read("docs/plan.md").includes("P1×3 全修 + 性能基线断言"),
+  "r57·plan 任务单在场（lead 定方案，P1×3 全修）",
+);
+check(
+  read("docs/feedback/2026-11-21-r57-yanfa.md").includes("P1-1") &&
+    read("docs/feedback/2026-11-21-r57-yanfa.md").includes("P1-2") &&
+    read("docs/feedback/2026-11-21-r57-yanfa.md").includes("P1-3") &&
+    read("docs/feedback/2026-11-21-r57-yanfa.md").includes("变异红相"),
+  "r57·yanfa 报告逐项修复 + 变异红相留痕在场",
+);
+check(
+  read("scripts/shot.ps1").includes('-Round r57') &&
+    read("scripts/shot.ps1").includes('$r57Base&shot=dep-empty') &&
+    read("scripts/shot.ps1").includes('07-dep-error'),
+  "r57·shot.ps1 七态矩阵段与 20 壳基线同批重拍在场",
+);
+check(
+  read("scripts/e2e-test.ts").includes('r57 P1-1·listForms SQL 次数 ≤2') &&
+    read("scripts/audit-http.ts").includes('GET /api/forms 5 次中位数 <60ms') &&
+    read("scripts/r57-perf-cdp.mjs").includes('ScriptDuration') &&
+    read("scripts/r57-perf-cdp.mjs").includes('500'),
+  "r57·SQL 次数预算 + HTTP 耗时基线 + CDP 输入 ScriptDuration 阈值三线断言在场",
 );
 const r50Report = readOrEmpty("docs/feedback/2026-11-21-r50-yanfa.md");
 check(

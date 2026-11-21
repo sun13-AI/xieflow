@@ -5430,6 +5430,74 @@ async function auditR54(): Promise<void> {
   }
 }
 
+/** r57: HTTP route-layer timing baseline for the two batched read paths. */
+async function auditR57(): Promise<void> {
+  console.log("\n== Performance r57: batched listForms / listBoardCards HTTP baselines ==");
+  const stamp = `r57-${Date.now()}`;
+  const formIds: number[] = [];
+  let projectId = 0;
+  try {
+    // 120 forms x 1 question: pre-fix 241 SQL / ~140ms; post-fix 2 SQL.
+    let formsSeeded = true;
+    for (let i = 0; i < 120; i++) {
+      const r = await req("POST", "/api/forms", {
+        title: `${stamp}-form-${i}`,
+        questions: [{ type: "text", label: "问题", required: false, position: 0 }],
+      });
+      if (r.status !== 201 || typeof r.json?.id !== "number") formsSeeded = false;
+      else formIds.push(Number(r.json.id));
+    }
+    ok(formsSeeded, "r57·120 张带问题表单探针全部落库");
+
+    // 120 cards x 2 labels: pre-fix 121 SQL / ~90ms; post-fix 2 SQL.
+    const proj = await req("POST", "/api/projects", { name: `${stamp}-project`, description: "r57 perf" });
+    projectId = Number(proj.json?.id ?? 0);
+    let cardsSeeded = projectId > 0;
+    const cols = await req("GET", `/api/projects/${projectId}/columns`);
+    const colId = Number(cols.json?.columns?.[0]?.id ?? 0);
+    if (!colId) cardsSeeded = false;
+    if (cardsSeeded) {
+      for (let i = 0; i < 120; i++) {
+        const r = await req("POST", `/api/projects/${projectId}/columns/${colId}/cards`, {
+          title: `${stamp}-card-${i}`,
+          labels: ["性能", `组${i % 3}`],
+        });
+        if (r.status !== 201 || typeof r.json?.id !== "number") cardsSeeded = false;
+      }
+    }
+    ok(cardsSeeded, "r57·120 张带双标签卡片探针全部落库");
+
+    async function medianMs(path: string): Promise<number> {
+      const samples: number[] = [];
+      for (let i = 0; i < 5; i++) {
+        const t = performance.now();
+        const r = await req("GET", path);
+        samples.push(performance.now() - t);
+        if (r.status !== 200) throw new Error(`${path} -> ${r.status}`);
+      }
+      samples.sort((a, b) => a - b);
+      return samples[2]!;
+    }
+
+    const formsRes = await req("GET", "/api/forms");
+    eq(Array.isArray(formsRes.json) ? formsRes.json.length : formsRes.json?.forms?.length, 120, "r57·GET /api/forms 回带 120 张探针表单");
+    const formsMs = await medianMs("/api/forms");
+    ok(formsMs < 60, `r57·GET /api/forms 5 次中位数 <60ms（实测 ${formsMs.toFixed(1)}ms；r56 审计 120 条约 140ms）`);
+
+    const cardsRes = await req("GET", `/api/boards/${projectId}/cards`);
+    eq(Array.isArray(cardsRes.json) ? cardsRes.json.length : cardsRes.json?.cards?.length, 120, "r57·GET /api/boards/:id/cards 回带 120 张探针卡片");
+    const cardsMs = await medianMs(`/api/boards/${projectId}/cards`);
+    ok(cardsMs < 60, `r57·GET /api/boards/:id/cards 5 次中位数 <60ms（实测 ${cardsMs.toFixed(1)}ms；r56 审计 120 条约 90ms）`);
+  } finally {
+    let cleaned = true;
+    for (const id of formIds) {
+      if ((await req("DELETE", `/api/forms/${id}`)).status !== 200) cleaned = false;
+    }
+    if (projectId > 0 && (await req("DELETE", `/api/projects/${projectId}`)).status !== 200) cleaned = false;
+    ok(cleaned, "r57·性能探针全量清理（表单 + 项目级联卡片）");
+  }
+}
+
 /** r53: authenticated expectStatus (Bearer token, never a public-path bypass). */
 async function expectAuth(
   method: string,
@@ -5452,6 +5520,7 @@ try {
   await auditR49();
   await auditR53();
   await auditR54();
+  await auditR57();
 } catch (err) {
   failures.push(`audit 抛错：${err instanceof Error ? err.message : String(err)}`);
   console.error(`audit crashed: ${err instanceof Error ? err.stack : String(err)}`);

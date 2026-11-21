@@ -6,7 +6,6 @@ import {
   EMPTY_SUMMARY,
   MAX_TODO_TITLE,
   QUADRANT_LABELS,
-  TODO_STATUS_TRANSITIONS,
   computeTodoSummary,
   type Quadrant,
   type Todo,
@@ -14,8 +13,10 @@ import {
   type TodoSummary,
 } from "@xieflow/shared";
 import { SERVICE_DOWN_MESSAGE, fetchJsonOrThrow, apiFetch, isOfflineQueuedResponse, OFFLINE_QUEUED_MESSAGE } from "./httpClient";
+import TodoItem, { type BlockedInfo, type DepItem } from "./TodoItem";
 
 const QUADRANTS: Quadrant[] = ["q1", "q2", "q3", "q4"];
+const EMPTY_DEPS: readonly DepItem[] = [];
 
 interface TodosLoadState {
   phase: "loading" | "error" | "ready";
@@ -29,21 +30,6 @@ interface FetchResult {
   todos: Todo[];
   summary: TodoSummary;
   schemaVersion: number;
-}
-
-/** r34：被阻塞摘要（来自 GET /api/todos/blocked，web 零算法分支） */
-interface BlockedInfo {
-  blockedBy: number;
-  blockers: number[];
-  chain: number[];
-}
-
-/** r34：前置列表条目（来自 GET /api/todos/:id/dependencies） */
-interface DepItem {
-  todoId: number;
-  dependsOnTodoId: number;
-  title: string;
-  status: TodoStatus | null;
 }
 
 interface DepPin {
@@ -137,12 +123,6 @@ async function fetchTodos(): Promise<FetchResult> {
   };
   return { todos: data.todos, summary: data.summary, schemaVersion: 2 };
 }
-
-const STATUS_LABELS: Record<TodoStatus, string> = {
-  open: "进行中",
-  done: "已完成",
-  archived: "已归档",
-};
 
 /** 截图钉态种子数据（与 audit-http 断言场景同构：四象限齐、今/明/周计数齐） */
 function pinSeed(now: Date): Todo[] {
@@ -297,7 +277,7 @@ export default function TodosPage() {
   };
 
   /** 状态流转：PATCH /api/todos/:id，按 shared 状态机渲染可用操作 */
-  const transition = async (todo: Todo, to: TodoStatus): Promise<void> => {
+  const transition = useCallback(async (todo: Todo, to: TodoStatus): Promise<void> => {
     setBusyId(todo.id);
     setActionError(null);
     try {
@@ -318,10 +298,10 @@ export default function TodosPage() {
     } finally {
       setBusyId(null);
     }
-  };
+  }, [load]);
 
   /** r34：打开/关闭前置面板（打开时真读 GET /:id/dependencies） */
-  const togglePanel = async (todo: Todo): Promise<void> => {
+  const togglePanel = useCallback(async (todo: Todo): Promise<void> => {
     setActionError(null);
     if (panelTodoId === todo.id) {
       setPanelTodoId(null);
@@ -336,10 +316,10 @@ export default function TodosPage() {
     } catch (err: unknown) {
       setDepError(err instanceof Error ? err.message : SERVICE_DOWN_MESSAGE);
     }
-  };
+  }, [panelTodoId]);
 
   /** r34：添加前置（环/自依赖 400 红条、重复 409 红条；成功刷新列表与阻塞摘要） */
-  const addDep = async (todoId: number, dependsOnTodoId: number): Promise<void> => {
+  const addDep = useCallback(async (todoId: number, dependsOnTodoId: number): Promise<void> => {
     setDepError(null);
     try {
       const res = await apiFetch(`/api/todos/${todoId}/dependencies`, {
@@ -365,10 +345,10 @@ export default function TodosPage() {
     } catch (err: unknown) {
       setDepError(err instanceof Error ? err.message : SERVICE_DOWN_MESSAGE);
     }
-  };
+  }, [load]);
 
   /** r34：移除前置（成功刷新列表与阻塞摘要） */
-  const removeDep = async (todoId: number, dependsOnTodoId: number): Promise<void> => {
+  const removeDep = useCallback(async (todoId: number, dependsOnTodoId: number): Promise<void> => {
     setDepError(null);
     try {
       const res = await apiFetch(`/api/todos/${todoId}/dependencies/${dependsOnTodoId}`, { method: "DELETE" });
@@ -390,7 +370,7 @@ export default function TodosPage() {
     } catch (err: unknown) {
       setDepError(err instanceof Error ? err.message : SERVICE_DOWN_MESSAGE);
     }
-  };
+  }, [load]);
 
   if (state.phase === "loading") {
     return (
@@ -477,101 +457,23 @@ export default function TodosPage() {
                   <p className="empty">本象限暂无待办</p>
                 ) : (
                   <ul className="todo-list">
-                    {items.map((t) => {
-                      const blocked = blockedById[t.id];
-                      const deps = panelDeps[t.id] ?? [];
-                      const candidates = todos.filter(
-                        (x) => x.id !== t.id && !deps.some((d) => d.dependsOnTodoId === x.id),
-                      );
-                      const panelOpen = panelTodoId === t.id;
-                      return (
-                      <li key={t.id} className={`todo-item status-${t.status}${focusTodoId === t.id ? " todo-item-located" : ""}`} data-todo-id={t.id} data-state={focusTodoId === t.id ? "todo-item-located" : "todo-item"}>
-                        <div className="todo-title">
-                          {t.title}
-                          <span className={`status-pill pill-${t.status}`}>{STATUS_LABELS[t.status]}</span>
-                          {blocked && blocked.blockedBy > 0 && (
-                            <span className="blocked-pill" data-state="todo-blocked" title={`阻塞链：${blocked.chain.join(" → ")}`}>
-                              ⛔ 被 {blocked.blockedBy} 项阻塞
-                            </span>
-                          )}
-                          {deps.length > 0 && (!blocked || blocked.blockedBy === 0) && (
-                            <span className="satisfied-pill" data-state="dep-satisfied">✓ 前置已满足</span>
-                          )}
-                        </div>
-                        <div className="todo-due">
-                          {t.dueDate ? <>截止 {t.dueDate}</> : <span className="hint">无截止日</span>}
-                        </div>
-                        <div className="todo-actions">
-                          <button
-                            type="button"
-                            className="btn btn-small btn-ghost"
-                            data-action="dep-toggle"
-                            aria-expanded={panelOpen}
-                            onClick={() => void togglePanel(t)}
-                          >
-                            前置任务{deps.length > 0 ? `（${deps.length}）` : ""}
-                          </button>
-                          {TODO_STATUS_TRANSITIONS[t.status].map((to) => (
-                            <button
-                              key={to}
-                              type="button"
-                              className={`btn btn-small ${to === "archived" ? "btn-ghost" : "btn-secondary"}`}
-                              disabled={busyId === t.id}
-                              onClick={() => void transition(t, to)}
-                            >
-                              {to === "done" ? "完成" : to === "open" ? "重开" : "归档"}
-                            </button>
-                          ))}
-                        </div>
-                        {panelOpen && (
-                          <div className="dep-panel" data-state="dep-panel" data-todo-id={t.id}>
-                            <div className="dep-panel-head">前置任务 · {t.title}</div>
-                            {depError !== null && (
-                              <p className="error-message dep-cycle-error" data-state="dep-cycle-error" role="alert">{depError}</p>
-                            )}
-                            {deps.length === 0 ? (
-                              <p className="empty" data-state="dep-empty">还没有前置任务——从下方选择一项待办，设为完成后才能开始。</p>
-                            ) : (
-                              <ul className="dep-list">
-                                {deps.map((d) => (
-                                  <li key={d.dependsOnTodoId} data-state="dep-prereq" data-dep-id={d.dependsOnTodoId}>
-                                    <span>{d.title}</span>
-                                    <span className={`status-pill pill-${d.status ?? "open"}`}>{d.status === "done" ? "已完成" : d.status === "archived" ? "已归档" : "进行中"}</span>
-                                    <button
-                                      type="button"
-                                      className="btn btn-small btn-ghost"
-                                      data-action="dep-remove"
-                                      data-dep-id={d.dependsOnTodoId}
-                                      onClick={() => void removeDep(t.id, d.dependsOnTodoId)}
-                                    >
-                                      移除
-                                    </button>
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
-                            {candidates.length > 0 && (
-                              <div className="dep-candidates" data-state="dep-candidates">
-                                <span className="field-label">添加前置：</span>
-                                {candidates.map((cand) => (
-                                  <button
-                                    key={cand.id}
-                                    type="button"
-                                    className="btn btn-small btn-secondary dep-candidate"
-                                    data-action="dep-add"
-                                    data-dep-id={cand.id}
-                                    onClick={() => void addDep(t.id, cand.id)}
-                                  >
-                                    ＋ {cand.title}
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </li>
-                      );
-                    })}
+                    {items.map((t) => (
+                      <TodoItem
+                        key={t.id}
+                        todo={t}
+                        blocked={blockedById[t.id]}
+                        deps={panelDeps[t.id] ?? EMPTY_DEPS}
+                        panelOpen={panelTodoId === t.id}
+                        depError={depError}
+                        busy={busyId === t.id}
+                        focused={focusTodoId === t.id}
+                        todos={todos}
+                        onTogglePanel={togglePanel}
+                        onTransition={transition}
+                        onAddDep={addDep}
+                        onRemoveDep={removeDep}
+                      />
+                    ))}
                   </ul>
                 )}
               </section>
