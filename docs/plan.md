@@ -259,7 +259,8 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r53 | M10 后·r52 安全漏洞修复（P0/P1/P2 全修 + 回归断言） | 🟡5/6 关闭（P0-1 由 r54 补修关闭） | —（并入 v0.0.58） | e2e 3937 · audit 3014 | 审计 AUDIT-VERDICT: 打回（仅 P0-1） |
 | r54 | M10 后·P0-1 补修：remote 业务路由统一 admin 闸门 | ✅已发版（审计原步骤重放 52/52 全关 P0-1；local 零回归） | v0.0.58 | e2e 3946 · audit 3120 | 审计 AUDIT-VERDICT: 通过 |
 | r55 | M10 后·CI ubuntu 重启探针跨平台修复（v0.0.58 红灯补发） | ✅已发版（spawn detached + Linux 进程组整组 kill；旧 tag 未挪；v0.0.61 三平台全绿） | v0.0.61 | e2e 3946 · audit 3120 | lead 亲修 + CI 验证 |
-| r56 | M10 后·质量审计 #2：性能与大列表（owner 选定审计方向第二维） | 🔨规划中 | — | — | — |
+| r56 | M10 后·质量审计 #2：性能与大列表（owner 选定审计方向第二维） | 🔴审计打回 P1×3/P2×3（listForms 2N+1、看板卡 N+1、Todos 输入卡顿）→ 修复中 | — | 修复后重报 | auditor-r56 AUDIT-VERDICT: 打回 |
+| r57 | M10 后·r56 性能问题修复（P1×3 全修 + 性能基线断言） | 🔨规划中 | — | — | — |
 
 ## 🏁 项目总账（2026-11-19 · M10 收官）
 
@@ -1186,6 +1187,18 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 - 验收标准：审计报告逐条有实测数据（条数/耗时/节点数）；若修复则全量绿且断言只涨；双 VERDICT 通过
 - 前置：r55 已发版（v0.0.61，安全审计闭环）✅
 - 明确边界：审计 + 修真性能问题，不重构无问题代码；零新依赖、零 token；headless 实测不弹窗口
+
+### r57 · r56 性能问题修复（P1×3 全修 + 性能基线断言，lead 定方案）
+- 目标：修复 r56 实测的 3 条 P1（另有 3 条 P2 记账不改），保持零功能变化
+- lead 方案：
+  1. **P1-1 listForms 2N+1**（db/index.ts:3696-3699 + 3681-3694）：改为一次 `all` 取 forms + 一次 `all` 取全部 form_questions（`WHERE form_id IN (...)` 或全表后内存分桶）→ 按 form_id Map 装配；保留 `formRows(id)` 单次入口供 `getForm` 复用；断言 SQL 次数 ≤2/耗时
+  2. **P1-2 listBoardCards* N+1**（db/index.ts:971-981 + 893-895）：批量取 `card_labels WHERE card_id IN (...)` 一次回按 card_id 分桶；保留 `withCardLabels` 单次入口；断言 SQL 次数 ≤2
+  3. **P1-3 Todos 输入卡顿**（TodosPage.tsx:483-485 + App.tsx:425）：把 `candidates` 计算移入 `panelOpen &&` 分支或 useMemo；`todoById` 改 useMemo([state.todos])；抽 TodoItem 行组件 + React.memo；断言：1000 条下 17 字输入 ScriptDuration < 500ms（用 r56 的 CDP 方法）
+  4. **P2×3 记账不改**：待办页无虚拟化（冷渲染 2.07s 但热导航 0.41s）；备份 export 无流式（1.19MB/53ms 可接受）；搜索全表扫描（667ms@1000，输出有上限）
+- 工程纪律：TDD 先红——先写性能基线断言（SQL 次数 / 耗时阈值）确认红，再改实现；变异红相 ≥1 组（批量查询改回 N+1 → 次数断言红 → 还原全绿）；既有断言零回归；零新依赖、零 token；headless 实测；若改渲染层（P1-3）则 20 壳基线同批重拍 + 索引 README 同提交
+- 验收标准：审计员用 r56 原测量方法复测——P1 三项耗时/次数达阈值；全量绿；双 VERDICT 通过
+- 前置：r56 审计报告已出（v0.0.61）✅
+- 明确边界：只修性能不改功能；P2 记账不改
 
 ## 历史轮次（r1~r2 已收档，见下方记账区）
 
