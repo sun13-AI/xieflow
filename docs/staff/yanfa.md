@@ -44,3 +44,4 @@
 | r37 | 2026-11-21 | 表格分组汇总 | schema v24 views.group_spec + shared/tableGroups 三函数 + 分组下拉/汇总行/折叠 | e2e 3277/audit 2536，sum 虚增变异红相 |
 | r38 | 2026-11-21 | 卡片元数据 | schema v25 两可空列+card_labels + shared/cardMeta + 标签/负责人/截止日 UI；老卡零影响 | e2e 3377/audit 2616，逾期抑制变异红相 |
 | r39 | 2026-11-21 | 文案清理（续做） | 跨日种子硬编码→相对 today+2；check:text 6265 literals/24tsx 零命中；错误条纯用户文案 | e2e 3412/audit 2623，扫描器变异红相 |
+| r40 | 2026-11-21 | 口径清理 | 登录页去数字口径 + 扫描器 rN 正则加固（暴露 11 处真 rN）+ 2 组变异红相 | e2e 3430/audit 2641，check:text 零命中 |
