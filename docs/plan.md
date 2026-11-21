@@ -246,7 +246,7 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r40 | M10 后·口径清理与扫描器加固（登录页 tab 数 + rN 正则） | ✅已发版（首轮双通过；口径链闭合 + 11 处单位数 rN 清理） | v0.0.46 | e2e 3430 · audit 2641 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r41 | M10 后·轻量表单收集（创建/填写/汇总） | ✅已发版（首轮双通过；汇总手算全对 + 零半态） | v0.0.47 | e2e 3551 · audit 2703 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r42 | M10 后·README 版本号自动校验（watchdog） | ✅已发版（首轮双通过；DOC-CONTRACT 27 checks + 两处 vN 变异红相） | v0.0.48 | e2e 3551 · audit 2703 | 通过（waizhuan）+ UI 通过（阻断岗） |
-| r43 | M10 后·第十九轮（待定切片） | 🔨规划中 | — | — | — |
+| r43 | M10 后·会议室设备与智能推荐（按人数/设备筛可用） | 🔨规划中 | — | — | — |
 
 ## 🏁 项目总账（2026-11-19 · M10 收官）
 
@@ -921,6 +921,23 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 - 验收标准：全量绿，README 双节同步（精简版三处）；双 VERDICT 通过
 - 前置：r41 已发版（v0.0.47）✅
 - 明确边界：只加校验，不改产品逻辑；watchdog 自身需能被变异红相证明非恒真
+
+### r43 · 会议室设备与智能推荐（M10 后功能补强）
+- 目标：会议室只有 capacity/location、无设备字段，预约时需手工挑时段——补设备台账 + 按人数/设备/时段自动推荐可用会议室
+- 交付清单：
+  1. schema v26→v27：rooms 加 equipment TEXT 可空列（JSON 数组字符串，存量行 NULL 视为空设备）——原列不动
+  2. 推荐规则集中 packages/shared/roomRecommend.ts：normalizeEquipment(input)（白名单:投影/白板/视频会议/电话会议，去重排序）、roomMatchesNeed(room, need{attendees,equipment,start,end}, meetings)（容量≥人数 + 设备全含 + 时段不冲突 + active）、recommendRooms(rooms, need, meetings)（按容量最接近升序，纯函数）——api/web 零算法分支
+  3. api：rooms CRUD 扩 equipment、GET /api/rooms/recommend?attendees=&equipment=&start=&end=（可用会议室 + 冲突原因），4xx 校验（非法设备/时段倒挂/非数字人数）
+  4. web：会议室卡片显示设备徽标；预约表单加「帮我推荐」按钮（填人数/设备/时段→列出可用会议室+冲突原因，点选回填 roomId）
+  5. 断言：e2e ≥+35（设备归一/推荐口径/冲突原因/容量边界/向后兼容）、audit ≥+25（4xx：非法设备/时段倒挂/越权）
+  6. 截图 ≥7：会议室设备空态/设备徽标/推荐面板/推荐结果/冲突原因/窄屏/错误态
+- 验收标准：
+  1. 全量绿：e2e ≥3586、audit ≥2728，README 双节同步（精简版三处）
+  2. **推荐真实性**：waizhuan 造 3 会议室（不同容量/设备）+ 已有预约→按 8 人+投影+某时段推荐→手算只return符合条件的房间且按容量最接近排序；冲突房间给明确原因
+  3. **r28 会议零回归**（预约/冲突/边界相接/availability 断言全绿，只加 equipment 可空列）
+  4. 双 VERDICT（waizhuan + ui 阻断岗）通过
+- 前置：r42 已发版（v0.0.48）✅
+- 明确边界：设备是本地枚举不接外部目录；推荐只读不改预约数据；零新依赖、零 token
 
 ## 历史轮次（r1~r2 已收档，见下方记账区）
 
