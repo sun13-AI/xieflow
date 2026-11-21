@@ -261,7 +261,8 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r55 | M10 后·CI ubuntu 重启探针跨平台修复（v0.0.58 红灯补发） | ✅已发版（spawn detached + Linux 进程组整组 kill；旧 tag 未挪；v0.0.61 三平台全绿） | v0.0.61 | e2e 3946 · audit 3120 | lead 亲修 + CI 验证 |
 | r56 | M10 后·质量审计 #2：性能与大列表（owner 选定审计方向第二维） | ✅审计完成（P0×0/P1×3/P2×3，实测数据支撑；P1 由 r57 修复） | — | 审计后重报 | auditor-r56 AUDIT-VERDICT: 打回 |
 | r57 | M10 后·r56 性能问题修复（P1×3 全修 + 性能基线断言） | ✅已发版（审计原方法复测达标：listForms 2001→2 SQL / 看板 1001→2 SQL / 输入 2192→313ms） | v0.0.62 | e2e 3962 · audit 3127 | 审计 AUDIT-VERDICT: 通过 + UI 通过 |
-| r58 | M10 后·质量审计 #3：可访问性 a11y（键盘/对比度/语义） | 🔨规划中 | — | — | — |
+| r58 | M10 后·质量审计 #3：可访问性 a11y（键盘/对比度/语义） | 🟡审计打回 P1×2（日历格键盘不可达 + 激活 tab 对比度 4.28）→ 修复中 | — | 修复后重报 | auditor-r58 AUDIT-VERDICT: 打回 |
+| r59 | M10 后·r58 a11y 问题修复（P1×2 + 可选 P2 低成本项） | 🔨规划中 | — | — | — |
 
 ## 🏁 项目总账（2026-11-19 · M10 收官）
 
@@ -1212,6 +1213,18 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 - 验收标准：审计报告逐条有实测（Tab 序列/对比度数值/axe 结果）；若修复则全量绿且断言只涨+截图证据；双 VERDICT 通过
 - 前置：r57 已发版（v0.0.62，性能审计闭环）✅
 - 明确边界：审计 + 修真 a11y 问题，不重构无问题 UI；零新依赖（axe 若需引入则记账下轮，本轮可手工计算）、零 token；headless 实测不弹窗口
+
+### r59 · r58 a11y 问题修复（P1×2 + 低成本 P2）
+- 目标：修复 r58 实测的 2 条 P1（真实无障碍障碍），顺带清 2 条零成本 P2；保持零功能变化
+- lead 方案：
+  1. **P1-1 日历格键盘不可达**（SchedulesPage.tsx:574-580）：42 个 `<div role="button">` 日历格补 `tabIndex={0}` + `onKeyDown`（Enter/Space 触发与 onClick 同一建日程处理）；保持 role="button" 语义与视觉零变化；CDP 复测：Tab 能 focus 到格子、Enter 后 modal 出现
+  2. **P1-2 激活 tab 对比度 4.28 不达 AA**（styles.css:139-144 `.tab-active` #fff/#3370ff）：把 accent 主色微调为审计建议 `--accent-strong: #2f68e5`（约 4.66:1 ≥4.5）；需核对所有用该色的地方（按钮/徽标）不产生新的对比度回退；若影响面过大则只调 `.tab-active` 背景色
+  3. **P2 低成本**：18 模态补 `aria-modal="true"`；19 th 补 `scope="col"/"row"`（批量机械改动，零视觉变化）
+  4. 焦点可见零 :focus-visible（P2）：补全局 `:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }`，同时保留现有 outline auto（不抹除）
+- 工程纪律：TDD 先断言（对比度计算断言 / 键盘可达 CDP 断言 / aria 属性静态断言）先红后绿；变异红相 ≥1 组（对比度改回旧值 → 断言红 → 还原全绿）；既有断言零回归；改了渲染层（SchedulesPage + CSS + aria）→ 20 壳基线同批重拍 + 受影响矩阵（日程页焦点态/键盘触发态）+ 索引 README 同提交；headless 不弹窗口；零新依赖、零 token
+- 验收标准：审计员用 r58 原方法复测——P1×2 达标（日历格 Tab+Enter 可达、对比度 ≥4.5）；全量绿；双 VERDICT 通过
+- 前置：r58 审计报告已出（v0.0.62）✅
+- 明确边界：只修 a11y 问题不改功能；P2 中 focus-visible 弱替代已含，其余记账
 
 ## 历史轮次（r1~r2 已收档，见下方记账区）
 
