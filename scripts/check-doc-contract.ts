@@ -243,17 +243,18 @@ if (counts.e2e !== null && counts.audit !== null) {
   check(root.includes(quickRef), `README·速查行数字与 scripts 实测口径一致（${quickRef}）`);
 }
 
-const ROUND = "r48";
+const ROUND = "r49";
 const uiSec = sectionBody(root, "## 界面与测试对照");
 const scaleSec = sectionBody(root, "### 断言规模");
 check(uiSec !== null, "README·「界面与测试对照」节在场");
 check(scaleSec !== null, "README·「### 断言规模」节在场");
 check(
   uiSec !== null && uiSec.includes(ROUND) &&
-    uiSec.includes("docs/ui/r48/README.md") && uiSec.includes("docs/ui/r47/README.md") &&
-    uiSec.includes("本轮无渲染层改动") && uiSec.includes("沿用 r47") &&
-    uiSec.includes("真缺陷必修 0 / 已披露可接受 16 / 设计取舍保留 12"),
-  "README·「界面与测试对照」节声明当前轮 r48 纯文档分类、沿用 r47 壳图并三处透明声明（渲染层零改动）",
+    uiSec.includes("docs/ui/r49/README.md") && uiSec.includes("docs/ui/shell/README.md") &&
+    uiSec.includes("01-backup-card.png") && uiSec.includes("07-error.png") &&
+    uiSec.includes("数据备份与恢复") && uiSec.includes("二十 tab 数量不变") &&
+    uiSec.includes("二次确认"),
+  "README·「界面与测试对照」节声明当前轮 r49 备份卡七态矩阵 + 二十 tab 壳同批重拍",
 );
 check(
   scaleSec !== null &&
@@ -262,17 +263,17 @@ check(
     counts.audit !== null &&
     scaleSec.includes(`e2e **${counts.e2e}**`) &&
     scaleSec.includes(`HTTP audit **${counts.audit}**`) &&
-    scaleSec.includes("规模与 r47 持平"),
-  "README·「### 断言规模」节声明当前轮 r48 且数字与 scripts 口径一致（规模持平）",
+    scaleSec.includes("e2e +91") && scaleSec.includes("audit +66"),
+  "README·「### 断言规模」节声明当前轮 r49 且数字与 scripts 口径一致（e2e +91 / audit +66）",
 );
 
-// ---------- screenshot / shell index (r47 render-change baseline + r48 reuse declaration) ----------
+// ---------- screenshot / shell index (r47/r48 historical + r49 render-change baseline) ----------
 
 const baselineIndex = readOrEmpty("docs/ui/r47/README.md");
 check(
   baselineIndex.includes("r47") && baselineIndex.includes("01-pending-card.png") &&
     baselineIndex.includes("07-error.png") && baselineIndex.includes("<!-- R47_HASHES_BEGIN -->"),
-  "r47 索引·七态矩阵与哈希块在场（r48 沿用基线未动）",
+  "r47 索引·七态矩阵与哈希块在场（历史基线未动）",
 );
 const roundIndex48 = readOrEmpty("docs/ui/r48/README.md");
 check(
@@ -280,14 +281,24 @@ check(
     roundIndex48.includes("无渲染层改动") && roundIndex48.includes("零图片轻量索引"),
   "r48 索引·透明声明无渲染层改动、沿用 r47 矩阵与壳图不重拍（零图片）",
 );
+const roundIndex49 = readOrEmpty("docs/ui/r49/README.md");
+check(
+  roundIndex49.includes("r49") && roundIndex49.includes("01-backup-card.png") &&
+    roundIndex49.includes("05-confirm-dialog.png") && roundIndex49.includes("07-error.png") &&
+    roundIndex49.includes("<!-- R49_MATRIX_HASHES_BEGIN -->") &&
+    roundIndex49.includes("393 PNG / 391 互异"),
+  "r49 索引·七态矩阵 + 哈希块 + 全库 393/391 计数在场",
+);
 const shellIndex = read("docs/ui/shell/README.md");
 check(
-  shellIndex.includes("r47") && shellIndex.includes("同批重拍") && shellIndex.includes("<!-- R47_HASHES_BEGIN -->"),
-  "shell 索引·r47 二十 tab 壳同批重拍事实与 R47 哈希块在场（基线未动）",
+  shellIndex.includes("r47") && shellIndex.includes("<!-- R47_HASHES_BEGIN -->"),
+  "shell 索引·r47 历史哈希块保留（如实披露 changed/same）",
 );
 check(
-  shellIndex.includes("r48") && shellIndex.includes("沿用 r47 二十 tab 壳图") && shellIndex.includes("无渲染层改动"),
-  "shell 索引·透明声明 r48 无渲染层改动沿用 r47 壳图不重拍",
+  shellIndex.includes("r49") && shellIndex.includes("同批重拍") &&
+    shellIndex.includes("<!-- R49_HASHES_BEGIN -->") &&
+    shellIndex.includes("changed=9 / same=11") && shellIndex.includes("393 PNG / 391 互异"),
+  "shell 索引·r49 二十 tab 壳同批重拍事实 + R49 当前哈希块 + changed/same 披露在场",
 );
 
 // ---------- r47：确认闸门规则集中 / api 路由 / web seam ----------
@@ -488,6 +499,65 @@ check(
 check(
   ledger48.includes("D1 错误条内部术语") && ledger48.includes("D11 r47 闸门漏检") && ledger48.includes("D10 r35 U1-1"),
   "r48·11 条闭环链首尾可追溯",
+);
+
+// ---------- r49：备份规则集中 / api 三路由 / web 卡与二次确认 ----------
+
+const backupSrc = read("packages/shared/src/backup.ts");
+check(
+  backupSrc.includes("export const BACKUP_TABLES") &&
+    backupSrc.includes("export function buildBackupManifest") &&
+    backupSrc.includes("export function validateBackupFile") &&
+    backupSrc.includes("export function planRestore") &&
+    backupSrc.includes("export const BACKUP_CONFIRM_TOKEN = \"RESTORE_WORKSPACE\""),
+  "r49·shared/backup 白名单 + 清单 + 校验 + 恢复计划 + 确认令牌五件套集中",
+);
+check(
+  backupSrc.includes("if (!isBackupTable(name))") && backupSrc.includes("未知表或受保护表不属于备份白名单"),
+  "r49·未知表/受保护表校验分支在场（变异红相锚点）",
+);
+check(
+  read("packages/shared/package.json").includes('"./backup": "./src/backup.ts"'),
+  "r49·@xieflow/shared/backup 子路径已登记",
+);
+const dbSrc49 = read("packages/db/src/index.ts");
+check(
+  dbSrc49.includes("exportBackupSnapshot()") && dbSrc49.includes("applyBackupPlan(") &&
+    dbSrc49.includes('this.db.exec("BEGIN IMMEDIATE")') && dbSrc49.includes('this.db.exec("ROLLBACK")'),
+  "r49·db 层快照导出 + 单事务替换 + 回滚在场",
+);
+const apiSrc49 = read("apps/api/src/server.ts");
+check(
+  apiSrc49.includes('get("/api/backup/export"') &&
+    apiSrc49.includes('post("/api/backup/validate"') &&
+    apiSrc49.includes('post("/api/backup/restore"') &&
+    apiSrc49.includes("assertRestoreConfirmed(body.confirm)") &&
+    apiSrc49.includes("applyBackupPlan(plan"),
+  "r49·api 导出/校验/恢复三路由 + 二次确认 + 单事务接线在场",
+);
+const webSrc49 = read("apps/web/src/BackupCard.tsx");
+check(
+  webSrc49.includes('data-state="backup-card"') &&
+    webSrc49.includes('data-state="backup-file-input"') &&
+    webSrc49.includes('data-state="backup-preview-panel"') &&
+    webSrc49.includes('data-state="backup-confirm-dialog"') &&
+    webSrc49.includes('data-state="backup-confirm-checkbox"') &&
+    webSrc49.includes('data-state="backup-error"') &&
+    webSrc49.includes('data-state="backup-reload-btn"'),
+  "r49·web 备份卡七 seam 在场",
+);
+check(
+  read("apps/web/src/App.tsx").includes("<BackupCard />"),
+  "r49·工作台设置区已挂载备份卡（tab 数量不变）",
+);
+check(
+  root.includes("sessions") && root.includes("change_log") && root.includes("零半态"),
+  "README·r49 危险区声明（运行时表不备份 + 零半态）在场",
+);
+check(
+  read("scripts/shot.ps1").includes('-Round r49') &&
+    read("scripts/shot.ps1").includes('${r49Base}?shot=backup-card'),
+  "r49·shot.ps1 钉态矩阵段在场（PS5.1 ASCII 安全的 ${} 变量边界）",
 );
 
 // ---------- verdict ----------

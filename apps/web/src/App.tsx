@@ -20,6 +20,7 @@
 // r36：+ 报告 tab（日报/周报自动生成：时间窗汇总 + Markdown 预览 + 存为文档），壳基线扩为十九 tab。
 // r41：+ 表单 tab（无代码表单：创建 / 填写 / 汇总），壳基线扩为二十 tab。
 import SyncCard from "./SyncCard";
+import BackupCard from "./BackupCard";
 import OfflineStatus from "./OfflineStatus";
 // 截图状态真实存在：加载中 / 空数据 / 正常 / 错误 / 窄屏（?narrow=1 显式钉态）
 import { useEffect, useRef, useState, type ReactElement } from "react";
@@ -797,6 +798,7 @@ export default function App() {
                 )}
               </section>
               <SyncCard />
+              <BackupCard />
               <section className="card state-ready" data-state="ready">
                 <h2>工作台</h2>
                 {state.settings.length === 0 ? (

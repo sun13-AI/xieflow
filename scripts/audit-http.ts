@@ -42,6 +42,9 @@ import { STATE_CHANGING_TOOLS } from "@xieflow/shared";
 // r45: drag-drop plan is a shared pure function; HTTP audit drives the real move route.
 import { planBlockDrop } from "@xieflow/shared/blockDnd";
 
+// r49: backup rules are shared; audit drives the real HTTP routes with 4xx branches.
+import { BACKUP_CONFIRM_TOKEN, BACKUP_TABLES } from "@xieflow/shared/backup";
+
 const PORT = Number(process.env.XIEFLOW_API_PORT ?? 8788);
 const BASE = `http://127.0.0.1:${PORT}`;
 
@@ -5024,10 +5027,119 @@ async function auditR47(): Promise<void> {
   ok(!JSON.stringify(afterClean).includes(KEY47), "r47 探针归零·列表不含本轮 key");
 }
 
+// ---------- r49: workspace backup / restore over real HTTP ----------
+async function auditR49(): Promise<void> {
+  const stamp = `r49HTTP-${Date.now()}`;
+  const titleA = `${stamp}-A`;
+  const titleB = `${stamp}-B`;
+
+  // 0. seed two real todos + capture runtime sync state (must survive restore untouched)
+  const syncBefore = (await req("GET", "/api/sync/status")).json.total;
+  const a = await expectStatus("POST", "/api/todos", { title: titleA, quadrant: "q2" }, 201, "r49 建待办 A -> 201");
+  const b = await expectStatus("POST", "/api/todos", { title: titleB, quadrant: "q3" }, 201, "r49 建待办 B -> 201");
+  ok(a.json.id > 0 && b.json.id > 0, "r49 两个真实待办 id 递增分配");
+  ok((await req("GET", "/api/todos")).json.todos.some((t: any) => t.title === titleA), "r49 种子 A 在真实列表可见");
+
+  // 1. export: real snapshot + attachment headers + whitelist invariants
+  const rawExport = await fetch(`${BASE}/api/backup/export`, { signal: AbortSignal.timeout(5000) });
+  eq(rawExport.status, 200, "r49 导出 -> 200");
+  ok((rawExport.headers.get("content-disposition") ?? "").includes("attachment"), "r49 导出响应带附件下载头");
+  ok((rawExport.headers.get("content-disposition") ?? "").includes("xieflow-workspace-backup-"), "r49 导出文件名含备份前缀");
+  const backup = await rawExport.json() as any;
+  eq(backup.format, "xieflow-workspace-backup", "r49 导出格式标识正确");
+  eq(backup.formatVersion, 1, "r49 导出格式版本正确");
+  eq(backup.schemaVersion, 27, "r49 导出 schema 版本为当前版本");
+  eq(backup.manifest.tableCount, BACKUP_TABLES.length, "r49 导出清单表计数 = 白名单表数");
+  ok(backup.manifest.rowCount >= 2, "r49 导出清单行计数包含真实种子");
+  eq(Object.keys(backup.tables).length, BACKUP_TABLES.length, "r49 导出 tables 键数 = 白名单表数");
+  ok(backup.tables.sessions === undefined && backup.tables.change_log === undefined, "r49 导出不含 sessions/change_log");
+  ok(backup.tables.users === undefined && backup.tables.entity_versions === undefined, "r49 导出不含 users/entity_versions");
+  ok(backup.tables.todos.some((t: any) => t.title === titleA), "r49 导出的 todos 含真实待办 A 全字段");
+  ok(Date.parse(backup.createdAt) > 0, "r49 导出时间为合法时间");
+
+  // 2. validate: preview only, no writes
+  const valid = await expectStatus("POST", "/api/backup/validate", { backup }, 200, "r49 校验合法备份 -> 200");
+  eq(valid.json.valid, true, "r49 校验回执 valid=true");
+  eq(valid.json.manifest.tableCount, BACKUP_TABLES.length, "r49 校验回执清单表计数正确");
+  ok(valid.json.preview.some((p: any) => p.name === "todos"), "r49 校验预览含 todos 行数");
+  eq(valid.json.backupTables, 38, "r49 校验回执公布白名单表数");
+  ok(valid.json.message.includes("未写入"), "r49 校验如实声明零写入");
+  const bareValidate = await expectStatus("POST", "/api/backup/validate", backup, 200, "r49 裸备份对象也可校验 -> 200");
+  eq(bareValidate.json.valid, true, "r49 裸备份对象校验通过（兼容入口）");
+
+  // 3. 4xx: unknown/protected table, version, structure, malformed JSON
+  const badSessions = await expectStatus("POST", "/api/backup/validate", { backup: { ...backup, tables: { ...backup.tables, sessions: [] } } }, 422, "r49 未知表 sessions -> 422");
+  ok(badSessions.json.errors.some((e: string) => e.includes("sessions")), "r49 未知表错误列出 sessions");
+  const badLog = await expectStatus("POST", "/api/backup/validate", { backup: { ...backup, tables: { ...backup.tables, change_log: [] } } }, 422, "r49 未知表 change_log -> 422");
+  ok(badLog.json.errors.some((e: string) => e.includes("change_log")), "r49 未知表错误列出 change_log");
+  await expectStatus("POST", "/api/backup/validate", { backup: { ...backup, schemaVersion: 999 } }, 422, "r49 schema 版本不兼容 -> 422");
+  await expectStatus("POST", "/api/backup/validate", { backup: { ...backup, formatVersion: 99 } }, 422, "r49 备份格式版本不兼容 -> 422");
+  const badShape = await expectStatus("POST", "/api/backup/validate", { backup: { ...backup, tables: { todos: "oops" } } }, 422, "r49 表值非数组 -> 422");
+  ok(badShape.json.valid === false, "r49 结构错误回执 valid=false");
+  const malformed = await fetch(`${BASE}/api/backup/validate`, {
+    method: "POST", headers: { "content-type": "application/json" }, body: "{not-json",
+    signal: AbortSignal.timeout(5000),
+  });
+  eq(malformed.status, 400, "r49 坏 JSON -> 400");
+
+  // 4. restore 4xx: no confirm / wrong confirm / invalid backup / constraint failure (zero half-state)
+  const noConfirm = await expectStatus("POST", "/api/backup/restore", { backup }, 400, "r49 无二次确认 -> 400");
+  eq(noConfirm.json.code, "CONFIRM_REQUIRED", "r49 无确认错误码 CONFIRM_REQUIRED");
+  eq(noConfirm.json.requiredConfirm, BACKUP_CONFIRM_TOKEN, "r49 无确认回执明示所需令牌");
+  const wrongConfirm = await expectStatus("POST", "/api/backup/restore", { backup, confirm: "restore_workspace" }, 400, "r49 错拼确认令牌 -> 400");
+  eq(wrongConfirm.json.code, "CONFIRM_REQUIRED", "r49 错拼令牌错误码一致");
+  const invalidRestore = await expectStatus("POST", "/api/backup/restore", {
+    backup: { ...backup, tables: { ...backup.tables, sessions: [] } }, confirm: BACKUP_CONFIRM_TOKEN,
+  }, 422, "r49 非法备份带确认仍 -> 422");
+  ok(invalidRestore.json.valid === false, "r49 非法备份恢复回执 valid=false");
+  const beforeBad = (await req("GET", "/api/todos")).json.todos;
+  const badTodo = { id: 999999, title: `${stamp}-bad`, quadrant: "q9", status: "open", due_date: null,
+    created_at: "2026-11-21T00:00:00.000Z", updated_at: "2026-11-21T00:00:00.000Z" };
+  const constraintFail = await expectStatus("POST", "/api/backup/restore", {
+    backup: { ...backup, tables: { ...backup.tables, todos: [badTodo] } }, confirm: BACKUP_CONFIRM_TOKEN,
+  }, 400, "r49 事务中 CHECK 违规 -> 400");
+  eq(constraintFail.json.code, "RESTORE_ROLLED_BACK", "r49 约束失败错误码 RESTORE_ROLLED_BACK");
+  eq(JSON.stringify((await req("GET", "/api/todos")).json.todos), JSON.stringify(beforeBad), "r49 零半态：失败后待办表逐字节不变");
+  ok(!JSON.stringify(beforeBad).includes(`${stamp}-bad`), "r49 零半态：坏行未半路落库");
+
+  // 5. real round-trip: delete + change -> restore -> field-by-field readback
+  await expectStatus("DELETE", `/api/todos/${a.json.id}`, undefined, 200, "r49 删除种子 A -> 200");
+  const patchB = await expectStatus("PATCH", `/api/todos/${b.json.id}`, { status: "done" }, 200, "r49 改坏种子 B 状态 -> 200");
+  eq(patchB.json.status, "done", "r49 种子 B 状态已被改动");
+  ok(!(await req("GET", "/api/todos")).json.todos.some((t: any) => t.title === titleA), "r49 删除已生效（恢复前 A 不在）");
+  const restored = await expectStatus("POST", "/api/backup/restore", { backup, confirm: BACKUP_CONFIRM_TOKEN }, 200, "r49 正确确认恢复 -> 200");
+  eq(restored.json.ok, true, "r49 恢复回执 ok=true");
+  eq(restored.json.restoredTables, 38, "r49 恢复回执表数 = 白名单表数");
+  eq(restored.json.reloadRequired, true, "r49 恢复回执要求重载");
+  eq(restored.json.manifest.tableCount, 38, "r49 恢复回执清单表计数正确");
+  ok(restored.json.impact.includes("登录会话"), "r49 恢复回执声明运行时表不受影响");
+  const todosAfter = (await req("GET", "/api/todos")).json.todos;
+  const rowA = todosAfter.find((t: any) => t.id === a.json.id);
+  const rowB = todosAfter.find((t: any) => t.id === b.json.id);
+  ok(rowA !== undefined, "r49 往返：种子 A 按原 id 恢复");
+  eq(rowA?.title, titleA, "r49 往返：种子 A 标题逐字段相等");
+  eq(rowA?.quadrant, "q2", "r49 往返：种子 A 象限逐字段相等");
+  eq(rowA?.status, "open", "r49 往返：种子 A 状态逐字段相等");
+  eq(rowB?.title, titleB, "r49 往返：种子 B 标题逐字段相等");
+  eq(rowB?.quadrant, "q3", "r49 往返：种子 B 象限逐字段相等");
+  eq(rowB?.status, "open", "r49 往返：种子 B 状态回退到备份值");
+  const syncAfter = (await req("GET", "/api/sync/status")).json.total;
+  eq(syncAfter, syncBefore, "r49 危险区：change_log 关联同步计数恢复前后相等");
+
+  // 6. cleanup (only this round's probes)
+  for (const t of (await req("GET", "/api/todos")).json.todos) {
+    if (typeof t.title === "string" && t.title.includes(stamp)) {
+      await expectStatus("DELETE", `/api/todos/${t.id}`, undefined, 200, `r49 清理探针待办 ${t.id} -> 200`);
+    }
+  }
+  ok(!JSON.stringify((await req("GET", "/api/todos")).json.todos).includes(stamp), "r49 探针归零");
+}
+
 try {
   await audit();
   await auditR45();
   await auditR47();
+  await auditR49();
 } catch (err) {
   failures.push(`audit 抛错：${err instanceof Error ? err.message : String(err)}`);
   console.error(`audit crashed: ${err instanceof Error ? err.stack : String(err)}`);

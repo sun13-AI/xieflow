@@ -147,6 +147,18 @@ import {
   notificationDeepLinkParams,
   collectNotificationCandidates,
 } from "@xieflow/shared/notifications";
+// r49：工作区备份与恢复——规则全在 shared/backup，路由层只装配 HTTP 响应与 4xx 映射
+import {
+  BACKUP_CONFIRM_TOKEN,
+  BACKUP_TABLES,
+  assertRestoreConfirmed,
+  buildBackupFile,
+  buildBackupFileName,
+  describeRestoreImpact,
+  planRestore,
+  validateBackupFile,
+  type BackupSnapshot,
+} from "@xieflow/shared/backup";
 // r27：报表中心——所有算法/时间范围/环比口径只在 shared/reports，路由层零分支
 import {
   parseReportRange,
@@ -4643,6 +4655,85 @@ app.delete("/api/forms/:id", async (req, reply) => {
     return { deleted: true, id };
   } catch (err) {
     return formErrorReply(err, reply);
+  }
+});
+
+// ---- r49：工作区数据备份与恢复（总入口；规则集中 shared/backup） ----
+
+/** 请求体归一：预览/恢复都接受 { backup, confirm } 包装，也接受裸备份对象 */
+function backupFromBody(body: unknown): unknown {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return null;
+  const obj = body as Record<string, unknown>;
+  if (obj.backup !== undefined) return obj.backup;
+  const { confirm: _confirm, ...rest } = obj;
+  return rest;
+}
+
+app.get("/api/backup/export", async (_req, reply) => {
+  const store = requireDb();
+  const snapshot = store.exportBackupSnapshot();
+  const backup = buildBackupFile(snapshot);
+  return reply
+    .header("Content-Type", "application/json; charset=utf-8")
+    .header("Content-Disposition", `attachment; filename="${buildBackupFileName(backup.createdAt)}"`)
+    .send(backup);
+});
+
+app.post("/api/backup/validate", async (req, reply) => {
+  const backup = backupFromBody(req.body);
+  const result = validateBackupFile(backup);
+  if (!result.valid) {
+    return reply.code(422).send({
+      error: "备份文件校验未通过",
+      valid: false,
+      errors: result.errors,
+      preview: result.preview,
+    });
+  }
+  return {
+    valid: true,
+    errors: [],
+    manifest: result.manifest,
+    preview: result.preview,
+    backupTables: BACKUP_TABLES.length,
+    protectedTables: ["users", "sessions", "change_log", "entity_versions"],
+    message: "校验通过：预览仅读取，未写入任何数据。",
+  };
+});
+
+app.post("/api/backup/restore", async (req, reply) => {
+  try {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    assertRestoreConfirmed(body.confirm);
+    const backup = backupFromBody(body);
+    const validation = validateBackupFile(backup);
+    if (!validation.valid) {
+      return reply.code(422).send({
+        error: "备份文件校验未通过，未执行任何恢复",
+        valid: false,
+        errors: validation.errors,
+        preview: validation.preview,
+      });
+    }
+    const plan = planRestore(backup);
+    if (!plan.canApply) {
+      return reply.code(422).send({ error: "恢复计划校验未通过", errors: plan.errors });
+    }
+    const result = requireDb().applyBackupPlan(plan, (backup as { tables: BackupSnapshot }).tables);
+    return {
+      ok: true,
+      ...result,
+      manifest: plan.manifest,
+      protectedTables: plan.protectedTables,
+      impact: describeRestoreImpact(plan),
+      reloadRequired: true,
+      message: "恢复完成：请重新加载页面以载入新数据。",
+    };
+  } catch (err) {
+    if (err instanceof ValidationError) {
+      return reply.code(400).send({ error: err.message, code: "CONFIRM_REQUIRED", requiredConfirm: BACKUP_CONFIRM_TOKEN });
+    }
+    return reply.code(400).send({ error: err instanceof Error ? err.message : String(err), code: "RESTORE_ROLLED_BACK" });
   }
 });
 

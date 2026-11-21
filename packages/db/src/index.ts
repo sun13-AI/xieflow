@@ -101,6 +101,14 @@ import type {
   UnitTaskTreeNode,
 } from "@xieflow/shared";
 import {
+  BACKUP_RUNTIME_TABLES,
+  BACKUP_TABLES,
+  isBackupTable,
+  type BackupRow,
+  type BackupSnapshot,
+  type RestorePlan,
+} from "@xieflow/shared/backup";
+import {
   hashPassword,
   assertValidUsername,
   assertValidPassword,
@@ -636,6 +644,77 @@ export class XieFlowDb {
       id,
     ]);
     return this.getTodo(id)!;
+  }
+
+  // ---- r49：工作区备份与恢复（raw 直达白名单表；规则全在 shared/backup） ----
+
+  /** 导出白名单业务表快照：只 SELECT，不写任何状态；运行时表恒不在内。 */
+  exportBackupSnapshot(): BackupSnapshot {
+    const snapshot: BackupSnapshot = {};
+    for (const table of BACKUP_TABLES) {
+      snapshot[table] = this.db.all(`SELECT * FROM "${table}"`) as BackupRow[];
+    }
+    return snapshot;
+  }
+
+  /** 运行时表快照：供零半态断言核对 sessions / change_log 未被恢复触碰。 */
+  exportRuntimeTableSnapshot(): Record<string, BackupRow[]> {
+    const out: Record<string, BackupRow[]> = {};
+    for (const table of BACKUP_RUNTIME_TABLES) {
+      out[table] = this.db.all(`SELECT * FROM "${table}"`) as BackupRow[];
+    }
+    return out;
+  }
+
+  /**
+   * 应用恢复计划：单一 BEGIN IMMEDIATE 事务内先按反序清空白名单表、再按依赖顺序插入。
+   * 任一步失败整体 ROLLBACK（零半态）；运行时表 SQL 从不出现。
+   */
+  applyBackupPlan(plan: RestorePlan, snapshot: BackupSnapshot): { restoredTables: number; restoredRows: number } {
+    if (!plan.canApply) throw new Error(`恢复计划校验未通过：${plan.errors.join("；")}`);
+    for (const step of plan.steps) {
+      if (!isBackupTable(step.table)) throw new Error(`恢复计划含非白名单表：${step.table}`);
+    }
+    const wanted = [...BACKUP_TABLES].sort();
+    const given = Object.keys(snapshot).sort();
+    if (JSON.stringify(wanted) !== JSON.stringify(given)) {
+      throw new Error("快照表集合与白名单不一致，拒绝恢复");
+    }
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      for (let i = BACKUP_TABLES.length - 1; i >= 0; i--) {
+        this.db.exec(`DELETE FROM "${BACKUP_TABLES[i]}"`);
+      }
+      let restoredRows = 0;
+      for (const table of BACKUP_TABLES) {
+        const rows = snapshot[table] ?? [];
+        if (rows.length === 0) continue;
+        const cols = Object.keys(rows[0]!);
+        for (const col of cols) {
+          if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(col)) throw new Error(`非法列名：${table}.${col}`);
+        }
+        const colSql = cols.map((c) => `"${c}"`).join(", ");
+        const placeholders = cols.map(() => "?").join(", ");
+        const sql = `INSERT INTO "${table}" (${colSql}) VALUES (${placeholders})`;
+        for (const row of rows) {
+          const keys = Object.keys(row);
+          if (keys.length !== cols.length || keys.some((c, i) => c !== cols[i])) {
+            throw new Error(`表 ${table} 存在列结构不一致的行，整体回滚`);
+          }
+          const params = cols.map((c) => {
+            const v = row[c];
+            return typeof v === "boolean" ? (v ? 1 : 0) : (v ?? null);
+          });
+          this.db.run(sql, params);
+        }
+        restoredRows += rows.length;
+      }
+      this.db.exec("COMMIT");
+      return { restoredTables: BACKUP_TABLES.length, restoredRows };
+    } catch (err) {
+      this.db.exec("ROLLBACK");
+      throw err;
+    }
   }
 
   close(): void {

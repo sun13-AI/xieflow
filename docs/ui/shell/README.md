@@ -78,10 +78,14 @@
 > （当前界面基线仍是 r45 的二十张，详见 [r46 索引](../r46/README.md)）；按 r21 U2-1 先例在此透明声明。
 > **r48 继承性遗留盘点与分类（收敛轮，无渲染层改动）**：只盘点分类 + 纯文档，不重拍壳图，**沿用 r47 二十 tab 壳图**
 > （当前界面基线仍是 r47 的二十张，R47 当前哈希块未动，详见 [r48 索引](../r48/README.md)）；按 r21 U2-1 / r42 先例在此透明声明。
+> **r49 工作区数据备份与恢复（工作台设置区新增「数据备份与恢复」卡）**：tab 数量仍不变（二十）；
+> 徽章沿用 r39 纯用户文案 + schema 仍 v27 → **二十张同批重拍**（工作台壳可见备份卡，其余页因页体不含该卡多数沿用）。
+> 与 r47 同名字节 changed=9 / same=11（workbench / projects / board / chat / knowledge / whiteboard / approval / org / meetings
+> 变化，其余沿用），按 r25 先例如实披露，不称逐位全异；当前块见下方 R49 哈希块。
 
 | 文件 | 形态 | 对应断言 |
 |---|---|---|
-| workbench-tab-active.png | 工作台激活（默认页；schema **v18** + 里程碑 M10 多端与单机版 + 服务模式卡「本机/远端」 + 多端同步卡 + 纯用户文案徽章 + 顶栏在线状态区 + 登录按钮） | e2e「r23 schema v16 / 外壳 seam」；audit「r23 health / mode / todos 路由契约」 |
+| workbench-tab-active.png | 工作台激活（默认页；schema **v18** + 里程碑 M10 多端与单机版 + 服务模式卡「本机/远端」 + 多端同步卡 + **数据备份与恢复卡（导出/选文件/校验/恢复）** + 纯用户文案徽章 + 顶栏在线状态区 + 登录按钮） | e2e「r23 schema v16 / 外壳 seam」；e2e「r49 web·备份卡 seam」；audit「r49 导出/校验/恢复路由」 |
 | todos-tab-active.png | 待办激活（?page=todos；四象限 + 计数卡 + 徽标 + 纯用户文案徽章） | audit「GET 列表 -> 200」+ summary 计数组端到端形态 |
 | schedules-tab-active.png | 日程激活（?page=schedules；月视图 + 今天高亮 + 导出 .ics / 订阅设置 / 导入 .ics 三入口 + 纯用户文案徽章） | e2e「新库 schedules 为空 / r35 导出菜单 seam」；audit「GET 空区间 -> 200」 |
 | projects-tab-active.png | 项目激活（?page=projects；空态 + 新建入口 + 纯用户文案徽章） | audit「GET /api/projects -> 200」空列表形态 |
@@ -102,7 +106,22 @@
 | meetings-tab-active.png | **会议激活（r28 新增）**（?page=meetings；零会议室 / 零成员空态：「还没有会议室——先在下方新建一间。」/「该日期暂无可用会议室。」/「通讯录暂无成员。」+ 十九药丸壳 + 纯用户文案徽章；各轮 shell 零数据最小集惯例，不是三室态） | e2e「r28 十八 tab 与顶栏按钮在场 / 会议页消费 shared 唯一口径」；audit「r28 清理后本轮会议归零」 |
 | forms-tab-active.png | **表单激活（r41 新增）**（?page=forms；零表单空态「还没有表单。点『＋ 新建表单』创建第一张…」+ 二十药丸壳 + 纯用户文案徽章；各轮 shell 零数据最小集惯例，不是有数据态） | e2e「r41 App·二十 tab / 表单 tab 激活态 seam」；audit「r41 GET 空表单列表 -> 200」 |
 
-## r47 哈希自查（二十张互异，与当前文件逐字一致；R47 当前哈希块，以下 R45 及以下为历史块）
+## r49 哈希自查（二十张互异，与当前文件逐字一致；R49 当前哈希块，以下 R47 及以下为历史块）
+
+<!-- R49_HASHES_BEGIN -->
+`workbench=76871861` · `todos=ABD14B3D` · `schedules=3862FA46` · `projects=04F53EB5` ·
+`board=3ED65755` · `bases=39108DB8` · `docs=6E792EE8` · `chat=2BBC8080` ·
+`knowledge=93B6F063` · `mindmap=8FB50B92` · `whiteboard=9B4D04DE` · `approval=35BE6912` ·
+`assets=962259ED` · `unit-tasks=6ECDA61A` · `org=A3B5B1EF` · `notifications=DE039C98` ·
+`reports=5C730CA6` · `work-reports=84F0302A` · `meetings=1F76EF8A` · `forms=7DE7F01E` —— **20/20 互异**。
+<!-- R49_HASHES_END -->
+
+> r49 渲染层改动（工作台设置区备份卡 + 七态矩阵）→ 二十张同批重拍；
+> 徽章沿用 r39 纯用户文案，tab 数不变。捕获用 `scripts/r39-shot.mjs` 一次性 headless CDP，
+> `XIEFLOW_DB_PATH` scratch 库（截图进程不写用户库）。矩阵↔壳重叠 0；r47→r49 壳 changed=9 / same=11 如上，如实披露；
+> 全库 393 PNG / 391 互异（+7 = r49 矩阵新增；同态组仅 r4 已披露 2 组，r49 零新增）。
+
+## r47 哈希自查（二十张互异，历史块；当前块见上方 R49）
 
 <!-- R47_HASHES_BEGIN -->
 `workbench=25DB4F1A` · `todos=ABD14B3D` · `schedules=3862FA46` · `projects=3366A5DE` ·

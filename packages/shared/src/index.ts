@@ -4463,3 +4463,31 @@ export type {
   DropTargetCheck,
 } from "./blockDnd.js";
 
+// ---- r49：工作区数据备份与恢复（规则集中 backup.ts，根导出供 api / web / 断言共用） ----
+export {
+  BACKUP_FORMAT,
+  BACKUP_FORMAT_VERSION,
+  BACKUP_CONFIRM_TOKEN,
+  BACKUP_RUNTIME_TABLES,
+  BACKUP_TABLES,
+  isBackupTable,
+  buildBackupManifest,
+  buildBackupFile,
+  buildBackupFileName,
+  validateBackupFile,
+  planRestore,
+  assertRestoreConfirmed,
+  describeRestoreImpact,
+} from "./backup.js";
+export type {
+  BackupTableName,
+  BackupRow,
+  BackupSnapshot,
+  BackupTableCount,
+  BackupManifest,
+  BackupFile,
+  BackupValidation,
+  RestoreStep,
+  RestorePlan,
+} from "./backup.js";
+
