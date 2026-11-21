@@ -1,10 +1,11 @@
-// XieFlow r50 - DOC-CONTRACT watchdog (headless, zero deps, exit 0/1).
-// r50: milestone system-review round (no render-layer change, no new feature).
+// XieFlow r51 - DOC-CONTRACT watchdog (headless, zero deps, exit 0/1).
+// r51: ledger-precision round (no render-layer change, no new feature).
 // The current round declaration must live in BOTH root README sections; the
-// danger-zone ledger (8 classification rows) and the three transparent
-// "沿用 r49 七图 + 20 壳" declarations (README / r50 report / shell README R50
-// block) must be present. Any mismatch => exit 1.
-// Historical r43~r49 contracts below are kept intact (code/index facts still true).
+// danger-zone ledger (8 classification rows) and the transparent declarations
+// (README / r50 report / shell README R50 block) are kept as history. Any
+// mismatch => exit 1. r51 precision locks the git-evidenced corrections
+// (r16/cc11340, r20/73f02bb, backlog v0.0.15~v0.0.20) and rejects old values.
+// Historical r43~r50 contracts below are kept intact (code/index facts still true).
 // Authoritative sources:
 //   - schema version: packages/shared/src/index.ts  SCHEMA_VERSION constant
 //   - CI smoke regex: .github/workflows/ci.yml      schemaVersion grep -E group
@@ -266,34 +267,37 @@ if (counts.e2e !== null && counts.audit !== null) {
   check(root.includes(quickRef), `README·速查行数字与 scripts 实测口径一致（${quickRef}）`);
 }
 
-const ROUND = "r50";
+const ROUND = "r51";
 const uiSec = sectionBody(root, "## 界面与测试对照");
 const scaleSec = sectionBody(root, "### 断言规模");
 check(uiSec !== null, "README·「界面与测试对照」节在场");
 check(scaleSec !== null, "README·「### 断言规模」节在场");
 check(
-  uiSec !== null && uiSec.includes(ROUND) && uiSec.includes("里程碑体系复审轮") &&
+  uiSec !== null && uiSec.includes(ROUND) && uiSec.includes("台账精度修正") &&
     uiSec.includes("无渲染层改动") && uiSec.includes("沿用 r49 图证") &&
+    uiSec.includes("七态矩阵") && uiSec.includes("20 壳") &&
     uiSec.includes("docs/ui/r49/README.md") && uiSec.includes("docs/ui/shell/README.md") &&
     uiSec.includes("01-backup-card.png") && uiSec.includes("07-error.png") &&
     uiSec.includes("数据备份与恢复") && uiSec.includes("二十 tab 数量不变") &&
     uiSec.includes("二次确认"),
-  "README·「界面与测试对照」节声明当前轮 r50 里程碑复审（沿用 r49 图证、备份卡七态与二十 tab 壳索引在场）",
+  "README·「界面与测试对照」节声明当前轮 r51 台账精度修正（沿用 r49 图证、七态矩阵 + 20 壳索引在场）",
 );
+const docChecksInReadme = scaleSec === null ? null : (/DOC-CONTRACT \*\*(\d+)\*\*/.exec(scaleSec)?.[1] ?? null);
 check(
-  scaleSec !== null && scaleSec.includes(ROUND) && scaleSec.includes("规模与 r49 持平") &&
+  scaleSec !== null && scaleSec.includes(ROUND) && scaleSec.includes("规模与 r49/r50 持平") &&
     counts.e2e !== null &&
     counts.audit !== null &&
     scaleSec.includes(`e2e **${counts.e2e}**`) &&
     scaleSec.includes(`HTTP audit **${counts.audit}**`) &&
-    scaleSec.includes("e2e +92") && scaleSec.includes("audit +66"),
-  "README·「### 断言规模」节声明当前轮 r50 持平 r49 且数字与 scripts 口径一致（e2e +92 / audit +66）",
+    docChecksInReadme !== null && Number(docChecksInReadme) >= 98,
+  `README·「### 断言规模」节声明当前轮 r51 持平 r50/r49 且数字与 scripts 口径一致（e2e ${counts.e2e} / audit ${counts.audit} / DOC-CONTRACT ${docChecksInReadme}）`,
 );
 check(
-  uiSec !== null && uiSec.includes("r50 里程碑复审透明声明") &&
+  uiSec !== null &&
+    (uiSec.includes("r50 里程碑复审透明声明") || uiSec.includes("r51 台账精度修正透明声明")) &&
     uiSec.includes("沿用 r49 七图") && uiSec.includes("20 壳") &&
     uiSec.includes("mtime") && uiSec.includes("逐字沿用"),
-  "README·r50 透明声明沿用 r49 七图 + 20 壳且 mtime/哈希逐字沿用（三处之一）",
+  "README·透明声明沿用 r49 七图 + 20 壳且 mtime/哈希逐字沿用（允许 r50/r51 措辞）",
 );
 const r50Report = readOrEmpty("docs/feedback/2026-11-21-r50-yanfa.md");
 check(
@@ -631,6 +635,35 @@ check(
     ["users", "sessions", "change_log", "entity_versions"].every((t) => r.includes(t)),
   ),
   "r50·台账含 r49 四表排除红线关键行（users/sessions/change_log/entity_versions）",
+);
+
+// ---------- r51：台账精度修正防回退（git 实证锁定 + 旧值拒绝） ----------
+
+const r51Ledger = betweenMarkers(plan50, "## 危险区台账", "## 任务单");
+check(r51Ledger.length > 0, "r51·台账精度：危险区台账节可切分（防空串恒真）");
+check(
+  r51Ledger.includes("r16") && r51Ledger.includes("cc11340"),
+  "r51·台账精度·P4：CI 拆分轮次锁定 r16 + commit cc11340",
+);
+check(
+  r51Ledger.includes("r20") && r51Ledger.includes("73f02bb"),
+  "r51·台账精度·P4：tar exclude 轮次锁定 r20 + commit 73f02bb",
+);
+check(
+  r51Ledger.includes("v0.0.15~v0.0.20"),
+  "r51·台账精度·P3：backlog 范围锁定 v0.0.15~v0.0.20（六个 tag）",
+);
+check(
+  !r51Ledger.includes("v0.0.15~v0.0.25"),
+  "r51·台账精度·P3 防回退：旧口径 v0.0.15~v0.0.25 不得回填台账",
+);
+check(
+  !r51Ledger.includes("PID 26420"),
+  "r51·台账精度·P5 防回退：瞬时 PID 26420 不得回填台账",
+);
+check(
+  r51Ledger.includes("两个 node 进程") && r51Ledger.includes("命令行确属本仓库"),
+  "r51·台账精度·P5：PID 改为描述性「两个 node 进程 + 命令行核对属本仓库」",
 );
 
 // ---------- verdict ----------

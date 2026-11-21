@@ -254,7 +254,8 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r48 | M10 后·继承性遗留盘点与分类（收敛轮） | ✅已发版（首轮双通过；28 条遗留全分类、真缺陷 0、DOC-CONTRACT 76 checks） | v0.0.54 | e2e 3830 · audit 2891 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r49 | M10 后·工作区数据备份与恢复（总入口） | ✅已发版（waizhuan 初打回 P2 数字差 1→返工#1 三处对齐→复审通过；危险区四表排除确认） | v0.0.55 | e2e 3922 · audit 2957 | 通过（waizhuan 复审）+ UI 通过（阻断岗） |
 | r50 | M10 后·里程碑体系复审（第 50 轮检查点） | ✅已发版（首轮双通过；台账补齐 8 行 + 不做清单零越界 + DOC-CONTRACT 98） | v0.0.56 | e2e 3922 · audit 2957 | 通过（waizhuan）+ UI 通过（阻断岗） |
-| r51 | M10 后·台账精度修正（r50 P3/P4/P5） | 🔨规划中 | — | — | — |
+| r51 | M10 后·台账精度修正（r50 P3/P4/P5） | ✅已修（lead 亲修，待双 VERDICT） | — | e2e 3922 · audit 2957 | 待复验 |
+| r52 | M10 后·第三十一轮（待定切片） | 🔨规划中 | — | — | — |
 
 ## 🏁 项目总账（2026-11-19 · M10 收官）
 
@@ -303,11 +304,11 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 |---|---|---|---|---|
 | r3 | 版本号 0.0.4→0.0.5 补正 | 发版修正 | lead 确认属补发非挪旧 tag | 已发版 |
 | r15~r21 | 多次 `git push` / tag / Release | git push（lead 专用） | lead 亲自执行（API 通道 `push-via-api.mjs`） | 全部三平台绿 |
-| r19 前后 | CI 拆 `verify-core`(ubuntu/windows 门禁) + `verify-macos`(continue-on-error) | **修改 CI 发布配置** | lead 亲自改并记账：macOS runner 被 cancelled 曾误伤 release gate | 后续 CI 稳定 |
-| r21 前后 | backlog v0.0.15~v0.0.25 Release 资产补发（git archive tar.gz，未挪旧 tag） | 对外发布（Release） | lead 经 GitHub API 补建 Release + 上传资产 | 资产齐、旧 tag 未动 |
-| r22 前后 | `tar --exclude release` 修 v0.0.25 自包含打包失败 | CI 发布配置配套 | lead 亲自改 | 后续 release job 稳定 |
+| r16 | CI 拆 `verify-core`(ubuntu/windows 门禁) + `verify-macos`(continue-on-error)（commit `cc11340`） | **修改 CI 发布配置** | lead 亲自改并记账：macOS runner 被 cancelled 曾误伤 release gate | 后续 CI 稳定 |
+| r16~r20 | backlog v0.0.15~v0.0.20 六个 tag Release 资产补发（git archive tar.gz，未挪旧 tag，见本文件 CI 容错段） | 对外发布（Release） | lead 经 GitHub API 补建 Release + 上传资产 | 资产齐、旧 tag 未动 |
+| r20 | `tar --exclude release` 修自包含打包失败（commit `73f02bb`） | CI 发布配置配套 | lead 亲自改 | 后续 release job 稳定 |
 | r34~r49 | 每轮 `pnpm version patch` + tag + push（共 20+ 次） | git push（lead 专用） | lead 亲自执行，API 通道 tree sha 校验 | 全部成功 |
-| r48 | 收净 8787/5173 遗留 api/vite 进程（PID 26420/27744，复验遗留） | 进程管理（非用户数据） | lead 核对命令行确属本仓库后 Stop-Process | 端口归零、未删任何数据 |
+| r48 | 收净 8787/5173 遗留 api/vite 进程（复验遗留的两个 node 进程；具体 PID 属瞬时状态不可事后复验，已核对命令行确属本仓库后 Stop-Process） | 进程管理（非用户数据） | lead 亲自执行 | 端口归零、未删任何数据 |
 | r49 | 备份恢复白名单排除 users/sessions/change_log/entity_versions | **危险区红线：不删用户数据** | lead 裁决排除成立（认证身份/会话/同步游标不入快照） | waizhuan raw 核对证实四表不被替换 |
 
 **未触发区确认**：全程无密钥/token 文件写入（token 仅经 Windows Credential Manager 读取，不落盘）；无发邮件/IM/建公开仓库/发帖（开源仓库由 owner 本人于早期确认，非 agent 创建）；无 data/ 库文件删除（所有测试走 scratch 库）；无 major 升级、无单次 >10 依赖引入（根依赖零）；无生产/远端环境访问（仅 GitHub API 发布流程）。
