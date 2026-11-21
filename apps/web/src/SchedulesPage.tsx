@@ -534,7 +534,7 @@ export default function SchedulesPage() {
             <div className="ics-preview" data-state="ics-import-preview">
               <p className="hint">解析到 {icsPreview.count} 条事件（X-XIEFLOW-* 元数据用于还原重复规则）：</p>
               <table>
-                <thead><tr><th>标题</th><th>日期</th><th>时间</th><th>重复</th></tr></thead>
+                <thead><tr><th scope="col">标题</th><th scope="col">日期</th><th scope="col">时间</th><th scope="col">重复</th></tr></thead>
                 <tbody>
                   {icsPreview.drafts.map((d, i) => (
                     <tr key={`${d.title}-${i}`} data-row="ics-draft">
@@ -575,7 +575,14 @@ export default function SchedulesPage() {
                 key={c.date}
                 className={`cal-cell ${c.inMonth ? "" : "cal-outside"} ${c.date === today ? "cal-today" : ""}`}
                 data-date={c.date}
+                tabIndex={0}
                 onClick={() => openCreateOn(c.date)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    openCreateOn(c.date);
+                  }
+                }}
                 role={isPinned ? undefined : "button"}
               >
                 <span className="cal-day">{Number(c.date.slice(8, 10))}</span>
@@ -614,7 +621,7 @@ export default function SchedulesPage() {
 
       {modalOpen && (
         <div className="modal-backdrop" data-state="schedule-modal">
-          <div className="modal-card" role="dialog" aria-label={editing ? "编辑日程" : "新建日程"}>
+          <div className="modal-card" role="dialog" aria-modal="true" aria-label={editing ? "编辑日程" : "新建日程"}>
             <h2>{editing ? "编辑日程" : "新建日程"}</h2>
             <label className="field">
               <span className="field-label">标题（必填，最多 200 字，当前 {draft.title.length}）</span>

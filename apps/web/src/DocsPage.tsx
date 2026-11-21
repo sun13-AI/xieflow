@@ -1449,7 +1449,7 @@ export default function DocsPage() {
 
           {importOpen && doc && (
             <div className="modal-backdrop" data-state="docs-import-dialog">
-              <div className="modal-card docs-import-card" role="dialog" aria-label="导入 Markdown">
+              <div className="modal-card docs-import-card" role="dialog" aria-modal="true" aria-label="导入 Markdown">
                 <h2>导入 Markdown</h2>
                 <p className="hint">粘贴 Markdown → 预览 → 确认；确认时整篇替换，任一块不合法则一块不写（零半态）。</p>
                 <div className="field">
@@ -1479,7 +1479,7 @@ export default function DocsPage() {
                   <div className="docs-import-result" data-state="docs-import-preview-result">
                     <h3>预览：共 {importPreview.total} 块（展示前 {importPreview.preview.length} 块）</h3>
                     <table className="docs-preview-table">
-                      <thead><tr><th>#</th><th>类型</th><th>内容</th></tr></thead>
+                      <thead><tr><th scope="col">#</th><th scope="col">类型</th><th scope="col">内容</th></tr></thead>
                       <tbody>
                         {importPreview.preview.map((row, idx) => (
                           <tr key={idx} data-state="docs-preview-row">
@@ -1522,7 +1522,7 @@ export default function DocsPage() {
 
           {createOpen && (
             <div className="modal-backdrop" data-state="docs-create-dialog">
-              <div className="modal-card" role="dialog" aria-label="新建文档">
+              <div className="modal-card" role="dialog" aria-modal="true" aria-label="新建文档">
                 <h2>新建文档</h2>
                 <p className="hint">建好会自动放一个空正文块，直接输入即可（不会零块死路）。</p>
                 <div className="field">
@@ -1555,7 +1555,7 @@ export default function DocsPage() {
 
           {reviseId !== null && doc && (
             <div className="modal-backdrop" data-state="docs-revise-panel">
-              <div className="modal-card docs-revise-card" role="dialog" aria-label="块级 AI 修订">
+              <div className="modal-card docs-revise-card" role="dialog" aria-modal="true" aria-label="块级 AI 修订">
                 <h2>块级 AI 修订（mock · 零 token）</h2>
                 <p className="hint">建议只做预览：不点「采纳」服务端不写库；采纳才替换这一块的内容。</p>
                 <div className="field">
@@ -1623,7 +1623,7 @@ export default function DocsPage() {
 
           {trashOpen && (
             <div className="modal-backdrop" data-state="docs-trash-panel">
-              <div className="modal-card docs-trash-card" role="dialog" aria-label="回收站">
+              <div className="modal-card docs-trash-card" role="dialog" aria-modal="true" aria-label="回收站">
                 <div className="docs-versions-head">
                   <h2>回收站（{trashDocs.length}）</h2>
                   <button

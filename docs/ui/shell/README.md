@@ -109,7 +109,22 @@
 | meetings-tab-active.png | **会议激活（r28 新增）**（?page=meetings；零会议室 / 零成员空态：「还没有会议室——先在下方新建一间。」/「该日期暂无可用会议室。」/「通讯录暂无成员。」+ 十九药丸壳 + 纯用户文案徽章；各轮 shell 零数据最小集惯例，不是三室态） | e2e「r28 十八 tab 与顶栏按钮在场 / 会议页消费 shared 唯一口径」；audit「r28 清理后本轮会议归零」 |
 | forms-tab-active.png | **表单激活（r41 新增）**（?page=forms；零表单空态「还没有表单。点『＋ 新建表单』创建第一张…」+ 二十药丸壳 + 纯用户文案徽章；各轮 shell 零数据最小集惯例，不是有数据态） | e2e「r41 App·二十 tab / 表单 tab 激活态 seam」；audit「r41 GET 空表单列表 -> 200」 |
 
-## r57 哈希自查（二十张互异；当前 R57 块，下方 R49_HASHES 保留为 e2e 当前文件校验锚点并同步刷新值）
+## r59 哈希自查（二十张互异；当前 R59 块，下方 R57/R49 及以下为历史块）
+
+<!-- R59_HASHES_BEGIN -->
+`workbench=9F2B2D47` · `todos=301B55F1` · `schedules=B2D66695` · `projects=BF81236C` ·
+`board=97321C4F` · `bases=3F2E1B99` · `docs=16C992B0` · `chat=8689A054` ·
+`knowledge=53668D99` · `mindmap=D39522F2` · `whiteboard=1C60B1D1` · `approval=0AF9A729` ·
+`assets=3F6DE09A` · `unit-tasks=0232712D` · `org=4A921A17` · `notifications=9690CC18` ·
+`reports=D0820262` · `work-reports=417D07EC` · `meetings=AE90D618` · `forms=F74835A9` —— **20/20 互异**。
+<!-- R59_HASHES_END -->
+
+> r59 渲染层改动（`.tab-active` 改用 `--accent-strong`、全局 `:focus-visible`、日历格 tabIndex/onKeyDown、
+> 18 模态 aria-modal + 19 th scope）→ 二十张同批重拍；tab 数不变。因为激活态底色变化出现在每一张壳图，
+> r57→r59 同名字节 **changed=20 / same=0**，如实披露，不称逐位全异。捕获走一次性 headless CDP +
+> scratch `XIEFLOW_DB_PATH`，服务与浏览器全部收净；日程页焦点/键盘六态矩阵另见 [r59 索引](../r59/README.md)。
+
+## r57 哈希自查（二十张互异，历史块；当前块见上方 R59）
 
 <!-- R57_HASHES_BEGIN -->
 `workbench=76871861` · `todos=EA209828` · `schedules=3862FA46` · `projects=04F53EB5` ·
@@ -123,16 +138,16 @@
 > 徽章沿用纯用户文案，tab 数不变。捕获走一次性 headless CDP + scratch `XIEFLOW_DB_PATH`。
 > r49→r57 同名字节 changed=6 / same=14（todos / docs / chat / knowledge / whiteboard / org 变化，其余沿用），
 > 按 r25 先例如实披露，不称逐位全异；矩阵↔壳重叠 0；
-> 全库 400 PNG / 398 互异（+7 = r57 矩阵新增；同态组仅 r4 已披露 2 组）。
+> 全库 417 PNG / 415 互异（+6 = r59 日程焦点/键盘矩阵；+11 = r58 审计证据；+7 = r57 矩阵新增；同态组仅 r4 已披露 2 组）。
 
 ## r49 哈希自查（二十张互异，与当前文件逐字一致；R49 当前哈希块，以下 R47 及以下为历史块）
 
 <!-- R49_HASHES_BEGIN -->
-`workbench=76871861` · `todos=EA209828` · `schedules=3862FA46` · `projects=04F53EB5` ·
-`board=3ED65755` · `bases=39108DB8` · `docs=1DCE91A9` · `chat=B95B7ED8` ·
-`knowledge=B6BCB76E` · `mindmap=8FB50B92` · `whiteboard=57ABC543` · `approval=35BE6912` ·
-`assets=962259ED` · `unit-tasks=6ECDA61A` · `org=514A3356` · `notifications=DE039C98` ·
-`reports=5C730CA6` · `work-reports=84F0302A` · `meetings=1F76EF8A` · `forms=7DE7F01E` —— **20/20 互异**。
+`workbench=9F2B2D47` · `todos=301B55F1` · `schedules=B2D66695` · `projects=BF81236C` ·
+`board=97321C4F` · `bases=3F2E1B99` · `docs=16C992B0` · `chat=8689A054` ·
+`knowledge=53668D99` · `mindmap=D39522F2` · `whiteboard=1C60B1D1` · `approval=0AF9A729` ·
+`assets=3F6DE09A` · `unit-tasks=0232712D` · `org=4A921A17` · `notifications=9690CC18` ·
+`reports=D0820262` · `work-reports=417D07EC` · `meetings=AE90D618` · `forms=F74835A9` —— **20/20 互异**。
 <!-- R49_HASHES_END -->
 
 > r49 渲染层改动（工作台设置区备份卡 + 七态矩阵）→ 二十张同批重拍；

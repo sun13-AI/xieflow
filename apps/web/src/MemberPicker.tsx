@@ -102,7 +102,7 @@ export default function MemberPicker({
         </span>
       )}
       {open && (
-        <span className="mp-modal" data-state="member-picker" role="dialog" aria-label={`${label} — 从通讯录选人`}>
+        <span className="mp-modal" data-state="member-picker" role="dialog" aria-modal="true" aria-label={`${label} — 从通讯录选人`}>
           <span className="mp-head">
             <strong>选择{label}</strong>
             <button type="button" className="mp-close" data-action={`${seam}-pick-close`} onClick={() => setOpen(false)}>关闭</button>

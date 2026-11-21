@@ -5701,7 +5701,7 @@ try {
       });
       eq(mismatches, [], "r26 shell README 18 张哈希与实际文件逐字一致");
     }
-    ok(rootReadme.includes("e2e（3962 断言）+ HTTP 审计（3127 断言）"), "r23 口径随 r24 速查行推进");
+    ok(rootReadme.includes("e2e（3981 断言）+ HTTP 审计（3135 断言）"), "r23 口径随 r24 速查行推进");
     ok(
       ARCHIVE_README.includes("- e2e **2766** 项") && ARCHIVE_README.includes("- HTTP audit **2185** 项") &&
         ARCHIVE_README.includes("### r24 矩阵") && ARCHIVE_README.includes("e2e 1952 → **2041（+89）**"),
@@ -5945,7 +5945,7 @@ try {
       eq(mismatches, [], "shell README 18 张哈希与实际文件逐字一致");
     }
     ok((r24Index.match(/^\| \d\d-[^|]*\.png \|/gm) ?? []).length === 7, "r24 截图索引含七张矩阵行");
-    ok(rootReadme.includes("e2e（3962 断言）+ HTTP 审计（3127 断言）"), "r24 根 README 速查行数字同步");
+    ok(rootReadme.includes("e2e（3981 断言）+ HTTP 审计（3135 断言）"), "r24 根 README 速查行数字同步");
     ok(ARCHIVE_README.includes("### r24 矩阵") && ARCHIVE_README.includes("e2e 1952 → **2041（+89）**"), "r24 双节规模与矩阵索引历史行归档后仍同步");
   }
 
@@ -6101,7 +6101,7 @@ try {
     ok(shell25.includes("**r23 基线**") && shell25.includes("**r24 基线**"), "shell README 保留 r23/r24 历史对照行");
     ok(shell25.includes("90166EF8") || shell25.includes("物资壳"), "shell README 如实记录物资壳与 r23 同字节事实");
     ok((r25Index.match(/^\| \d\d-[^|]*\.png \|/gm) ?? []).length === 7, "r25 截图索引含七张矩阵行");
-    ok(root25.includes("e2e（3962 断言）+ HTTP 审计（3127 断言）"), "r25 根 README 速查行数字同步");
+    ok(root25.includes("e2e（3981 断言）+ HTTP 审计（3135 断言）"), "r25 根 README 速查行数字同步");
     ok(ARCHIVE_README.includes("### r25 矩阵") && ARCHIVE_README.includes("e2e 2041 → **2096（+55）**"), "r25 双节规模与矩阵索引历史行归档后仍同步");
   }
 
@@ -6330,7 +6330,7 @@ try {
     ok(shot26.includes('"r26"') && ["01-notif-empty", "02-notif-unread", "03-notif-filtered", "04-notif-read", "05-notif-refreshed", "06-narrow", "07-error", "08-notif-badge-decrement"].every((s) => shot26.includes(s)), "r26 shot.ps1 ValidateSet 与八张矩阵名齐备");
     ok(shell26.includes("<!-- R26_HASHES_BEGIN -->") && shell26.includes("<!-- R26_HASHES_END -->"), "r26 shell README 历史哈希块在场（当前块见 R28）");
     ok((r26Index.match(/^\| \[?\d\d-[^|\]]*\.png/gm) ?? []).length === 9, "r26 截图索引含九张矩阵行（返工#2 补 09）");
-    ok(root26.includes("e2e（3962 断言）+ HTTP 审计（3127 断言）"), "返工#1 根 README 速查行数字逐字同步");
+    ok(root26.includes("e2e（3981 断言）+ HTTP 审计（3135 断言）"), "返工#1 根 README 速查行数字逐字同步");
 
     // (J) 截图矩阵与十六 tab 壳基线（SHA 两两互异 + README 哈希逐字一致）
     const walkPng26 = (dir: string): string[] => {
@@ -8365,7 +8365,7 @@ try {
     const rootR37 = readFileSync("README.md", "utf8");
     ok(rootR37.includes("docs/ui/r49/01-backup-card.png") && rootR37.includes("docs/ui/shell/README.md"), "r37 根 README·矩阵索引已同步（三处之一）");
     ok(rootR37.includes("当前 r54"), "r37 根 README·断言规模节推进到当前 r37");
-    ok(rootR37.includes("e2e **3962**") && rootR37.includes("HTTP audit **3127**"), "r37 根 README·速查行断言规模同步");
+    ok(rootR37.includes("e2e **3981**") && rootR37.includes("HTTP audit **3135**"), "r37 根 README·速查行断言规模同步");
     const allPng37 = [...matrix37, ...shells37];
     eq(allPng37.length, 27, "r37 截图·本轮证据共 26 张");
   }
@@ -8557,7 +8557,7 @@ try {
     const rootR38 = readFileSync("README.md", "utf8");
     ok(rootR38.includes("docs/ui/r49/01-backup-card.png") && rootR38.includes("docs/ui/shell/README.md"), "r38 根 README·矩阵索引已同步（三处之一）");
     ok(rootR38.includes("当前 r54"), "r38 根 README·断言规模节推进到当前 r40");
-    ok(rootR38.includes("HTTP audit **3127**"), "r38 根 README·速查行 audit 规模同步");
+    ok(rootR38.includes("HTTP audit **3135**"), "r38 根 README·速查行 audit 规模同步");
   }
 
   // 60. r39：用户可见文案清理（错误体内部术语清零 + 机制防复发）
@@ -8606,7 +8606,7 @@ try {
   const rootR39 = readFileSync("README.md", "utf8");
   ok(rootR39.includes("docs/ui/r49/01-backup-card.png") && rootR39.includes("docs/ui/shell/README.md"), "r39 根 README·矩阵索引已同步（三处之一）");
   ok(rootR39.includes("当前 r54"), "r39 根 README·断言规模节推进到当前轮");
-  ok(rootR39.includes("e2e **3962**") && rootR39.includes("HTTP audit **3127**"), "r39 根 README·速查行断言规模同步");
+  ok(rootR39.includes("e2e **3981**") && rootR39.includes("HTTP audit **3135**"), "r39 根 README·速查行断言规模同步");
   const matrix39 = readdirSync("docs/ui/r39").filter((f) => f.endsWith(".png"));
   eq(matrix39.length, 7, "r39 截图·本轮错误态矩阵 7 张");
   eq(new Set(matrix39.map((p) => createHash("sha256").update(readFileSync(`docs/ui/r39/${p}`)).digest("hex"))).size, 7, "r39 截图·七张 SHA256 两两互异");
@@ -8630,10 +8630,10 @@ try {
   ok(scan40.includes("例：写 r2 复验材料"), "r40 扫描器自断言·单位数 rN placeholder 在场");
   ok(scan40.includes("ROUND_SELF_PROBES"), "r40 扫描器自断言·探针执行路径在场");
   const root40 = readFileSync("README.md", "utf8");
-  ok(root40.includes("e2e（3962 断言）") && root40.includes("HTTP 审计（3127 断言）"), "r40 根 README·速查行断言规模同步");
+  ok(root40.includes("e2e（3981 断言）") && root40.includes("HTTP 审计（3135 断言）"), "r40 根 README·速查行断言规模同步");
   ok(root40.includes("当前轮 r54"), "r40 根 README·当前轮对照表同步");
   ok(root40.includes("docs/ui/r49/01-backup-card.png"), "r40 根 README·登录页干净态索引同步");
-  ok(root40.includes("e2e **3962**") && root40.includes("HTTP audit **3127**"), "r40 根 README·断言规模行同步");
+  ok(root40.includes("e2e **3981**") && root40.includes("HTTP audit **3135**"), "r40 根 README·断言规模行同步");
   const docIdx40 = readFileSync("docs/ui/r40/README.md", "utf8");
   ok(docIdx40.includes("<!-- R40_HASHES_BEGIN -->") && docIdx40.includes("01-login-clean-text.png"), "r40 索引·哈希块与登录图在场");
   const shellIdx40 = readFileSync("docs/ui/shell/README.md", "utf8");
@@ -8859,7 +8859,7 @@ try {
     const root41 = readFileSync("README.md", "utf8");
     ok(root41.includes("当前轮 r54"), "r41 根 README·当前轮对照表同步");
     ok(root41.includes("docs/ui/r49/01-backup-card.png") && root41.includes("docs/ui/shell/README.md"), "r41 根 README·矩阵索引同步");
-    ok(root41.includes("e2e（3962 断言）") && root41.includes("HTTP 审计（3127 断言）"), "r41 根 README·速查行断言规模同步");
+    ok(root41.includes("e2e（3981 断言）") && root41.includes("HTTP 审计（3135 断言）"), "r41 根 README·速查行断言规模同步");
   }
 
   // 63. r43：会议室设备与智能推荐（归一 / 可用判定 / 冲突原因 / 容量排序 / 向后兼容）
@@ -9041,7 +9041,7 @@ try {
     const root43 = readFileSync("README.md", "utf8");
     ok(root43.includes("当前轮 r54"), "r43 根 README·当前轮对照表同步");
     ok(root43.includes("docs/ui/r49/01-backup-card.png") && root43.includes("docs/ui/shell/README.md"), "r43 根 README·矩阵索引同步");
-    ok(root43.includes("e2e（3962 断言）+ HTTP 审计（3127 断言）"), "r43 根 README·速查行断言规模同步");
+    ok(root43.includes("e2e（3981 断言）+ HTTP 审计（3135 断言）"), "r43 根 README·速查行断言规模同步");
     ok(root43.includes("CI smoke 正则随 schema 版本同步至 v27"), "r43 根 README·CI vN 文案同步");
     ok(root43.includes("迁移队列（当前 v27）"), "r43 根 README·迁移队列 vN 文案同步");
   }
@@ -9068,7 +9068,7 @@ try {
     ok(r41Block.includes("365 PNG / 363 互异") && !r41Block.includes("372 PNG"), "r44 U3-2·shell R41 历史块计数 365/363 归位");
     ok(!shellIdx44.slice(0, shellIdx44.indexOf("## r43 哈希自查")).includes("r37 徽章"), "r44 U3-3·shell 当前表图注无陈旧 r37");
     ok(root44.includes("当前轮 r54") && root44.includes("当前 r54"), "r44 根 README·三处当前轮口径同步");
-    ok(root44.includes("e2e（3962 断言）+ HTTP 审计（3127 断言）"), "r44 根 README·速查行断言规模同步");
+    ok(root44.includes("e2e（3981 断言）+ HTTP 审计（3135 断言）"), "r44 根 README·速查行断言规模同步");
   }
 
   // 65. r45：文档块拖拽排序（计划纯函数 / 边界钳制 / 真 DB move / 持久化 / r8-r9 零回归）
@@ -9552,7 +9552,7 @@ try {
     ok(api54.includes('if (serverMode !== "remote" && !ALWAYS_PROTECTED_PATHS.has(url)) return;'), "r54·local 单机模式完全不受影响");
     ok((api54.match(/assertPermission\(ctx\.user\.role, "user:manage"\)/g) ?? []).length >= 3, "r54·r53 既有 admin 闸门仍在（零回归）");
     ok(rootR54.includes("当前轮 r54") && rootR54.includes("当前 r54"), "r54 根 README·三处当前轮口径同步");
-    ok(rootR54.includes("e2e（3962 断言）+ HTTP 审计（3127 断言）"), "r54 根 README·速查行数字同步");
+    ok(rootR54.includes("e2e（3981 断言）+ HTTP 审计（3135 断言）"), "r54 根 README·速查行数字同步");
     ok(planR54.includes("remote 业务路由统一 admin 闸门"), "r54·plan 任务单在场");
   }
 
@@ -9628,6 +9628,69 @@ try {
     } finally {
       opened57.raw.close();
     }
+  }
+
+  // 62. r59 a11y 修复：对比度计算 + 键盘可达 CDP 脚本 + aria 静态契约（先红后绿）
+  section("r59 a11y 修复（P1×2 + 低成本 P2）");
+  {
+    const src59 = (p: string): string => {
+      try { return readFileSync(p, "utf8"); } catch { return ""; }
+    };
+    const css59 = src59("apps/web/src/styles.css");
+    const sched59 = src59("apps/web/src/SchedulesPage.tsx");
+    const cdp59 = src59("scripts/r59-a11y-cdp.mjs");
+    const webTsx59 = readdirSync("apps/web/src").filter((f) => f.endsWith(".tsx"));
+    const dialogs59 = webTsx59.flatMap((f) =>
+      [...src59(`apps/web/src/${f}`).matchAll(/<(?:div|span)\b[^>]*role="dialog"[^>]*>/g)].map((m) => m[0]),
+    );
+    const ths59 = webTsx59.flatMap((f) =>
+      [...src59(`apps/web/src/${f}`).matchAll(/<th\b[^>]*>/g)].map((m) => m[0]),
+    );
+    const cssVar59 = (name: string): string =>
+      new RegExp(`${name}\\s*:\\s*(#[0-9a-fA-F]{6})\\s*;`).exec(css59)?.[1] ?? "";
+    const lum59 = (hex: string): number => {
+      const raw = /^#?([0-9a-f]{6})$/i.exec(hex)?.[1];
+      if (!raw) return 0;
+      const [r, g, b] = [0, 2, 4]
+        .map((i) => parseInt(raw.slice(i, i + 2), 16) / 255)
+        .map((x) => (x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4)));
+      return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
+    };
+    const contrast59 = (fg: string, bg: string): number => {
+      const a = lum59(fg);
+      const b = lum59(bg);
+      return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+    };
+    const activeRule59 = /\.tab-active\s*{([^}]*)}/.exec(css59)?.[1] ?? "";
+    const activeVar59 = /background:\s*var\((--[\w-]+)\)/.exec(activeRule59)?.[1] ?? "";
+    const activeColor59 = activeVar59 ? cssVar59(activeVar59) : "";
+    const ratio59 = activeColor59 ? contrast59("#ffffff", activeColor59) : 0;
+    const cellStart59 = sched59.indexOf("key={c.date}");
+    const cellBlock59 = cellStart59 >= 0 ? sched59.slice(cellStart59, cellStart59 + 1200) : "";
+    const focusRule59 = /:focus-visible\s*{([^}]*)}/.exec(css59)?.[1] ?? "";
+
+    eq(activeVar59, "--accent-strong", "r59 P1-2·.tab-active 背景切到 --accent-strong");
+    eq(activeColor59, "#2f68e5", "r59 P1-2·--accent-strong 取审计建议 #2f68e5");
+    ok(ratio59 >= 4.5, `r59 P1-2·白字压激活底 ${ratio59.toFixed(2)}:1 ≥4.5（r58 实测 4.28）`);
+    ok(contrast59("#ffffff", "#3370ff") < 4.5, "r59 P1-2·旧 #3370ff 4.28:1 红相对照仍成立");
+    eq(cssVar59("--accent"), "#3370ff", "r59 P1-2·--accent 原值未动（按钮/图标零回退）");
+    ok(!/btn-primary[\s\S]{0,240}var\(--accent-strong\)/.test(css59), "r59 P1-2·主按钮未改用新强调色");
+    ok(/tabIndex=\{0\}/.test(cellBlock59), "r59 P1-1·日历格补 tabIndex={0}");
+    ok(/onKeyDown=\{\(e\)/.test(cellBlock59) && /e\.key === "Enter"/.test(cellBlock59) && /e\.key === " "/.test(cellBlock59), "r59 P1-1·Enter/Space 键盘处理在场");
+    ok(/preventDefault\(\)/.test(cellBlock59) && /openCreateOn\(c\.date\)/.test(cellBlock59), "r59 P1-1·键盘与点击同一处理且阻止默认滚动");
+    ok(cdp59.includes("Input.dispatchKeyEvent") && cdp59.includes("modalAfterEnter") && cdp59.includes("activeTabRatio") && cdp59.includes("R59_A11Y"), "r59 P1-1·CDP 键盘/对比度断言脚本在场");
+    eq(dialogs59.length, 18, "r59 P2·模态容器共 18 个");
+    ok(dialogs59.length === 18 && dialogs59.every((t) => t.includes('aria-modal="true"')), "r59 P2·18/18 模态带 aria-modal=true");
+    eq(ths59.length, 19, "r59 P2·表头 th 共 19 个");
+    ok(ths59.length === 19 && ths59.every((t) => /scope="(col|row)"/.test(t)), "r59 P2·19/19 th 带 scope");
+    ok(/outline:\s*2px solid var\(--accent-strong\)/.test(focusRule59) && /outline-offset:\s*2px/.test(focusRule59), "r59 P2·全局 :focus-visible 2px 焦点环 + offset");
+    ok(!/outline:\s*none/.test(focusRule59), "r59 P2·新焦点规则未抹除既有 outline");
+    const matrix59 = (() => {
+      try { return readdirSync("docs/ui/r59").filter((f) => f.endsWith(".png")).sort(); } catch { return [] as string[]; }
+    })();
+    ok(matrix59.length >= 5, `r59·日程焦点/键盘态截图 ≥5（实测 ${matrix59.length}）`);
+    eq(new Set(matrix59.map((f) => createHash("sha256").update(readFileSync(`docs/ui/r59/${f}`)).digest("hex"))).size, matrix59.length, "r59·矩阵 SHA256 两两互异");
+    ok(src59("docs/ui/r59/README.md").includes("R59_HASHES"), "r59·矩阵索引哈希自查块在场");
   }
 
   // 61. HTTP 冒烟 /api/health

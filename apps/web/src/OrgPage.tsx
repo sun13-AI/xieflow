@@ -385,7 +385,7 @@ export default function OrgPage() {
       )}
 
       {form !== null && (
-        <div className="org-modal" data-state="org-form" role="dialog" aria-label={form.kind === "department" ? "部门表单" : "人员表单"}>
+        <div className="org-modal" data-state="org-form" role="dialog" aria-modal="true" aria-label={form.kind === "department" ? "部门表单" : "人员表单"}>
           <div className="org-modal-card">
             <h3>{form.editingId === null ? "新建" : "编辑"}{form.kind === "department" ? "部门" : "人员"}</h3>
             <label>名称<input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>

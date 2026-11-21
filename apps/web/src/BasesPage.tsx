@@ -1244,7 +1244,7 @@ export default function BasesPage() {
         </section>
         {createOpen && (
           <div className="modal-backdrop" data-state="bases-create-modal">
-            <div className="modal-card" role="dialog" aria-label="新建表">
+            <div className="modal-card" role="dialog" aria-modal="true" aria-label="新建表">
               <h2>新建表</h2>
               <label className="field">
                 <span className="field-label">表名（必填）</span>
@@ -1572,12 +1572,12 @@ export default function BasesPage() {
           <thead>
             <tr>
               {visibleColumns.map((f) => (
-                <th key={f.id} data-field-id={f.id} data-field-type={f.type}>
+                <th scope="col" key={f.id} data-field-id={f.id} data-field-type={f.type}>
                   <span className="bases-col-name">{f.name}</span>
                   <span className="bases-col-type">{FIELD_TYPE_LABELS[f.type]}</span>
                 </th>
               ))}
-              <th className="bases-col-action">操作</th>
+              <th scope="col" className="bases-col-action">操作</th>
             </tr>
           </thead>
           <tbody>
@@ -1733,7 +1733,7 @@ export default function BasesPage() {
 
       {createOpen && (
         <div className="modal-backdrop" data-state="bases-create-modal">
-          <div className="modal-card" role="dialog" aria-label="新建表">
+          <div className="modal-card" role="dialog" aria-modal="true" aria-label="新建表">
             <h2>新建表</h2>
             <label className="field">
               <span className="field-label">表名（必填）</span>
@@ -1940,7 +1940,7 @@ function ViewEditor({
   const fieldOf = (id: string): TableField | undefined => fields.find((f) => String(f.id) === id);
   return (
     <div className="modal-backdrop" data-state="bases-view-editor">
-      <div className="modal-card bases-view-card" role="dialog" aria-label="视图编辑">
+      <div className="modal-card bases-view-card" role="dialog" aria-modal="true" aria-label="视图编辑">
         <h2>{draft.id === null ? "新建视图" : "编辑视图"}</h2>
         <p className="hint">
           视图保存的是「筛选 / 排序 / 隐藏列」三样口径——切到视图即可按保存的口径看数据。
@@ -2176,7 +2176,7 @@ function ImportDialog({
 }) {
   return (
     <div className="modal-backdrop" data-state="bases-import-dialog">
-      <div className="modal-card bases-import-card" role="dialog" aria-label="导入 CSV">
+      <div className="modal-card bases-import-card" role="dialog" aria-modal="true" aria-label="导入 CSV">
         <h2>导入 CSV</h2>
         <p className="hint">
           第一行是表头（列名 = 字段名）。逐行按字段类型归一与校验；<strong>任一行不合法就一行都不落库</strong>
@@ -2209,9 +2209,9 @@ function ImportDialog({
               <table className="bases-import-table">
                 <thead>
                   <tr>
-                    <th>数据行号</th>
+                    <th scope="col">数据行号</th>
                     {preview.headers.map((h) => (
-                      <th key={h}>{h}</th>
+                      <th scope="col" key={h}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -2365,7 +2365,7 @@ function FieldsPanel({
 
   return (
     <div className="modal-backdrop" data-state="bases-fields-panel">
-      <div className="modal-card bases-fields-card" role="dialog" aria-label="字段管理">
+      <div className="modal-card bases-fields-card" role="dialog" aria-modal="true" aria-label="字段管理">
         <h2>字段管理</h2>
         <p className="hint">
           字段类型决定单元格的取值校验、写入归一与排序口径（规则集中在 shared，api 与界面同源）。

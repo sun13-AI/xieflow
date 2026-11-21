@@ -217,7 +217,7 @@ export default function BackupCard() {
       )}
       {view.preview.length > 0 && (
         <table className="backup-preview-table" data-state="backup-preview-panel">
-          <thead><tr><th>业务表</th><th>行数</th></tr></thead>
+          <thead><tr><th scope="col">业务表</th><th scope="col">行数</th></tr></thead>
           <tbody>
             {view.preview.map((t) => (
               <tr key={t.name} data-state="backup-preview-row"><td>{t.name}</td><td>{t.rows}</td></tr>

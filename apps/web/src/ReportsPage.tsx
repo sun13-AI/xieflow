@@ -247,7 +247,7 @@ export default function ReportsPage(): ReactElement {
               <p className="empty" data-state="reports-detail-empty">该指标在时间范围内暂无数据——换一段时间范围或先去对应模块造数据。</p>
             ) : (
               <table className="reports-table" data-state="reports-table">
-                <thead><tr><th>对象</th><th>数值</th><th>说明</th></tr></thead>
+                <thead><tr><th scope="col">对象</th><th scope="col">数值</th><th scope="col">说明</th></tr></thead>
                 <tbody>
                   {shownDetail.detail.map((row) => (
                     <tr key={row.key} data-state="reports-row" data-key={row.key}>

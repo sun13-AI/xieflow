@@ -46,7 +46,7 @@ import { planBlockDrop } from "@xieflow/shared/blockDnd";
 import { BACKUP_CONFIRM_TOKEN, BACKUP_TABLES } from "@xieflow/shared/backup";
 // r53: restart probe spawns two throwaway api processes on a dedicated scratch db.
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
-import { existsSync, unlinkSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, unlinkSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -362,23 +362,32 @@ async function audit() {
 
   console.log("\n== todo <-> schedule two-way sync (r3) ==");
   {
-    // 方向一：待办设 due_date → 自动生成关联日程
-    const t = await expectStatus("POST", "/api/todos", { title: "写联动复验材料", quadrant: "q2", dueDate: "2026-11-23" }, 201, "POST 带截止日待办 -> 201");
+    // 方向一：待办设 due_date → 自动生成关联日程。
+    // r59 基线修复：原硬编码 2026-11-23 在 11-22 当天与「明天到期」样本 p(1) 撞窗，
+    // 改为 p(2) 相对日期，断言条数与语义不变（r39b 同类先例）。
+    const rel59 = (n: number): string => {
+      const d = new Date();
+      d.setDate(d.getDate() + n);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    };
+    const due2 = rel59(2);
+    const due3 = rel59(3);
+    const t = await expectStatus("POST", "/api/todos", { title: "写联动复验材料", quadrant: "q2", dueDate: due2 }, 201, "POST 带截止日待办 -> 201");
     linkTodo = t.json;
-    const afterCreate = await req("GET", "/api/schedules?from=2026-11-23&to=2026-11-23");
+    const afterCreate = await req("GET", `/api/schedules?from=${due2}&to=${due2}`);
     eq(afterCreate.json.schedules.length, 1, "建待办（带 dueDate）自动生成关联日程");
     const gen = afterCreate.json.schedules[0];
-    eq(gen.date, "2026-11-23", "生成日程 date = 待办 dueDate");
+    eq(gen.date, due2, "生成日程 date = 待办 dueDate");
     eq(gen.todoId, linkTodo.id, "生成日程 todo_id 关联该待办");
     eq(gen.start, "09:00", "生成日程默认 09:00 开始");
     eq(gen.end, "10:00", "生成日程默认 10:00 结束");
     eq(gen.title, linkTodo.title, "生成日程标题沿用待办标题");
 
     // 方向二：日程改期 → 回写待办 due_date
-    const moved = await expectStatus("PATCH", `/api/schedules/${gen.id}`, { date: "2026-11-24" }, 200, "PATCH 关联日程改期 -> 200");
-    eq(moved.json && moved.json.date, "2026-11-24", "日程本体已改期");
+    const moved = await expectStatus("PATCH", `/api/schedules/${gen.id}`, { date: due3 }, 200, "PATCH 关联日程改期 -> 200");
+    eq(moved.json && moved.json.date, due3, "日程本体已改期");
     const todoAfter = await req("GET", `/api/todos/${linkTodo.id}`);
-    eq(todoAfter.json && todoAfter.json.dueDate, "2026-11-24", "日程改期回写待办 dueDate（联动闭环）");
+    eq(todoAfter.json && todoAfter.json.dueDate, due3, "日程改期回写待办 dueDate（联动闭环）");
 
     // 待办侧改期 → 日程跟着变
     const todoMoved = await expectStatus(
@@ -4275,11 +4284,13 @@ async function auditR28(): Promise<void> {
     // ---- r36：日报 / 周报 / 存为文档（真 HTTP + 4xx + 零半态） ----
     {
       const KEY = `R36HTTP${Date.now()}`;
-      const pad = (n: number): string => String(n).padStart(2, "0");
       const now36 = new Date();
-      const TODAY = `${now36.getFullYear()}-${pad(now36.getMonth() + 1)}-${pad(now36.getDate())}`;
-      const tomorrow = new Date(now36.getFullYear(), now36.getMonth(), now36.getDate() + 1);
-      const TOMORROW = `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}`;
+      // r59 基线修复：workReports 用 updatedAt.slice(0,10)（UTC 日）入窗，
+      // 而报告周期用本地日；UTC+8 清晨两者跨日会让探针全部落窗外。
+      // 测试样本改用 UTC 日，与产品既有口径对齐（断言条数/语义不变）。
+      const TODAY = now36.toISOString().slice(0, 10);
+      const tomorrow = new Date(now36.getTime() + 86400000);
+      const TOMORROW = tomorrow.toISOString().slice(0, 10);
       const docIds: number[] = [];
       const todoIds: number[] = [];
       const scheduleIds: number[] = [];
@@ -5498,6 +5509,49 @@ async function auditR57(): Promise<void> {
   }
 }
 
+/** r59: a11y fix contracts (static source + computed contrast, no extra deps). */
+async function auditR59(): Promise<void> {
+  console.log("\n== r59 a11y: a11y contracts / computed contrast ==");
+  const read59 = (p: string): string => {
+    try { return readFileSync(p, "utf8"); } catch { return ""; }
+  };
+  const css59 = read59("apps/web/src/styles.css");
+  const sched59 = read59("apps/web/src/SchedulesPage.tsx");
+  const cdp59 = read59("scripts/r59-a11y-cdp.mjs");
+  const files59 = readdirSync("apps/web/src").filter((f) => f.endsWith(".tsx"));
+  const dialogs59 = files59.flatMap((f) =>
+    [...read59(`apps/web/src/${f}`).matchAll(/<(?:div|span)\b[^>]*role="dialog"[^>]*>/g)].map((m) => m[0]),
+  );
+  const ths59 = files59.flatMap((f) =>
+    [...read59(`apps/web/src/${f}`).matchAll(/<th\b[^>]*>/g)].map((m) => m[0]),
+  );
+  const lum59 = (hex: string): number => {
+    const raw = /^#?([0-9a-f]{6})$/i.exec(hex)?.[1];
+    if (!raw) return 0;
+    const [r, g, b] = [0, 2, 4]
+      .map((i) => parseInt(raw.slice(i, i + 2), 16) / 255)
+      .map((x) => (x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4)));
+    return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
+  };
+  const activeRule59 = /\.tab-active\s*{([^}]*)}/.exec(css59)?.[1] ?? "";
+  const activeVar59 = /background:\s*var\((--[\w-]+)\)/.exec(activeRule59)?.[1] ?? "";
+  const activeHex59 = activeVar59
+    ? new RegExp(`${activeVar59}\\s*:\\s*(#[0-9a-fA-F]{6})\\s*;`).exec(css59)?.[1] ?? ""
+    : "";
+  const a = lum59("#ffffff");
+  const b = lum59(activeHex59);
+  const ratio59 = activeHex59 ? (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05) : 0;
+
+  ok(dialogs59.length === 18, "r59·静态契约：18 个 role=dialog 模态容器在场");
+  ok(dialogs59.length === 18 && dialogs59.every((t) => t.includes('aria-modal="true"')), "r59·18/18 模态带 aria-modal=true");
+  ok(ths59.length === 19, "r59·静态契约：19 个 th 在场");
+  ok(ths59.length === 19 && ths59.every((t) => /scope="(col|row)"/.test(t)), "r59·19/19 th 带 scope");
+  ok(/tabIndex=\{0\}/.test(sched59) && /e\.key === "Enter"/.test(sched59) && /e\.key === " "/.test(sched59), "r59·日历格 tabIndex + Enter/Space 处理在场");
+  ok(ratio59 >= 4.5, `r59·HTTP 侧计算激活 tab 白字对比度 ${ratio59.toFixed(2)}:1 >= 4.5`);
+  ok(/:focus-visible\s*{[^}]*outline:\s*2px solid var\(--accent-strong\)/.test(css59), "r59·全局 :focus-visible 焦点环在场");
+  ok(cdp59.includes("R59_A11Y") && cdp59.includes("--shots"), "r59·CDP 断言脚本含输出标记与截图 seam");
+}
+
 /** r53: authenticated expectStatus (Bearer token, never a public-path bypass). */
 async function expectAuth(
   method: string,
@@ -5521,6 +5575,7 @@ try {
   await auditR53();
   await auditR54();
   await auditR57();
+  await auditR59();
 } catch (err) {
   failures.push(`audit 抛错：${err instanceof Error ? err.message : String(err)}`);
   console.error(`audit crashed: ${err instanceof Error ? err.stack : String(err)}`);

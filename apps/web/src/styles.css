@@ -4,6 +4,7 @@
   --ink: #1f2329;
   --ink-2: #646a73;
   --accent: #3370ff;
+  --accent-strong: #2f68e5;
   --danger: #d83931;
   --success: #2ea121;
   --warning: #ff8800;
@@ -137,10 +138,16 @@ body {
 }
 
 .tab-active {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
   color: #fff;
   font-weight: 600;
+}
+
+/* r59: keyboard focus stays visible; existing :focus / UA outlines are not removed. */
+:focus-visible {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 2px;
 }
 
 /* ---- r2：今/明/周汇总计数卡 ---- */

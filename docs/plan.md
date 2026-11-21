@@ -262,7 +262,7 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r56 | M10 后·质量审计 #2：性能与大列表（owner 选定审计方向第二维） | ✅审计完成（P0×0/P1×3/P2×3，实测数据支撑；P1 由 r57 修复） | — | 审计后重报 | auditor-r56 AUDIT-VERDICT: 打回 |
 | r57 | M10 后·r56 性能问题修复（P1×3 全修 + 性能基线断言） | ✅已发版（审计原方法复测达标：listForms 2001→2 SQL / 看板 1001→2 SQL / 输入 2192→313ms） | v0.0.62 | e2e 3962 · audit 3127 | 审计 AUDIT-VERDICT: 通过 + UI 通过 |
 | r58 | M10 后·质量审计 #3：可访问性 a11y（键盘/对比度/语义） | 🟡审计打回 P1×2（日历格键盘不可达 + 激活 tab 对比度 4.28）→ 修复中 | — | 修复后重报 | auditor-r58 AUDIT-VERDICT: 打回 |
-| r59 | M10 后·r58 a11y 问题修复（P1×2 + 可选 P2 低成本项） | 🔨规划中 | — | — | — |
+| r59 | M10 后·r58 a11y 问题修复（P1×2 + 可选 P2 低成本项） | 🟡研发完成待复验（P1×2 已修：42/42 日历格键盘可达、激活 tab 4.28→4.96:1；18 模态 + 19 th + 全局 focus-visible） | — | e2e 3981 · audit 3135 | 待 auditor-r59 / waizhuan 复验 |
 
 ## 🏁 项目总账（2026-11-19 · M10 收官）
 
@@ -1231,6 +1231,14 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 ---
 
 ## 记账区（每轮追加）
+
+### 2026-11-22 · r59 研发（yanfa-r59 · r58 a11y P1×2 + 低成本 P2 修复）
+- 交付：按 lead 定方案零功能变化修 P1×2——`SchedulesPage.tsx` 42 个日历格补 `tabIndex={0}` + Enter/Space `onKeyDown`（与 `onClick` 同一 `openCreateOn(c.date)`）；`styles.css` 新增 `--accent-strong:#2f68e5`，仅 `.tab-active` 背景/边框切换，`--accent` 与按钮色原样不动。低成本 P2 三项同批完成：16 处模态补 `aria-modal="true"`（合计 18/18）、19 个 `th` 补 `scope="col"`、全局 `:focus-visible` 2px 焦点环且保留既有 outline；其余 P2 按方案只记账不改。
+- 实测：headless CDP 42/42 格 `tabindex=0` 且真 Tab 覆盖 42/42 无重复，Tab 聚焦首格后 Enter / Space 各开 modal 1 次；焦点格 outline `rgb(47,104,229) solid 2px`；激活 tab 白字对比度 r58 **4.28:1** → r59 **4.96:1**（WCAG 2.x 公式实算，审计建议 4.66 为估算）。主按钮 6.29:1 与次要文本零回退。
+- 断言：e2e 3962→**3981（+19）** · audit 3127→**3135（+8）**，零删除；`pnpm run test:all` exit 0（含新增 `pnpm test:a11y` CDP 13 断言 ALL GREEN）；DOC-CONTRACT 111→**119 checks**（ROUND 推进 r59，r54/r57 历史专段保留，schema v27 未变）；check:text 7087 literals / 27 tsx / 0 命中；typecheck 5 包全绿。README 速查行 / 界面对照 / 断言规模三处同步。
+- **TDD 先红**：先落 e2e 19 + audit 8 + CDP 13 断言 → e2e 11 红 / audit 5 红 / CDP 10 红（对比度 4.28、Tab 覆盖 0/42、Enter/Space modal=0、aria 缺项）后才改实现。**变异红相 1 组**：`.tab-active` 背景临时改回 `var(--accent)` → e2e 3 红 / audit 1 红 / CDP 2 红；备份逐字节还原 `SHA256 5B9D1987…86D0` 前后同值、`match=True`、全绿。
+- 截图：`docs/ui/r59/` 六态矩阵 6 张（6/6 SHA256 互异，逐张目验）+ `docs/ui/shell/` 20 壳同批重拍；激活底色变更出现在每张壳图，r57→r59 **changed=20 / same=0** 如实披露；全库 **417 PNG / 415 互异**；矩阵索引 / shell README / 根 README 三处同一提交。
+- 工程纪律：零新依赖、零 token、未改 schema / 用户库；接手时 audit 11 条日期漂移红按相对日/UTC 日样本修复（条数语义不变）后再接任务；scratch 库与 8787/5173/headless 进程全收净；未 push / 未打 tag / 未发版。报告：`docs/feedback/2026-11-21-r59-yanfa.md`。
 
 ### 2026-11-21 · r57 研发（yanfa-r57 · r56 性能审计 P1×3 修复）
 - 交付：按 lead 定方案零功能变化修三条 P1：`listForms` 改 forms + form_questions 两次 `all` 按 form_id 分桶（保留 `formRows(id)` 供 `getForm` 复用，`assembleForm` 单条/批量同源）；`listBoardCards*` 改一次 `card_labels WHERE card_id IN (...)` 按 card_id 分桶（保留 `withCardLabels` 单次入口）；Todos 行抽 `TodoItem.tsx` + `React.memo`、`candidates` 移入 `panelOpen` 分支、`App.todoById` 改 `useMemo` 并前置到认证早退之前（hooks 合法），四个回调 `useCallback` + `EMPTY_DEPS` 常量避免破 memo。P2×3 按方案只记账不改。

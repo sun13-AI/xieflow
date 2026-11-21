@@ -716,7 +716,7 @@ export default function BoardPage() {
 
       {modalOpen && (
         <div className="modal-backdrop" data-state="board-modal">
-          <div className="modal-card" role="dialog" aria-label={editingCardId === null ? "新建卡片" : "编辑卡片"}>
+          <div className="modal-card" role="dialog" aria-modal="true" aria-label={editingCardId === null ? "新建卡片" : "编辑卡片"}>
             <h2>{editingCardId === null ? "新建卡片" : "编辑卡片"}</h2>
             <label className="field">
               <span className="field-label">

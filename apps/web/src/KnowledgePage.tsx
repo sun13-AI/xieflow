@@ -312,7 +312,7 @@ export default function KnowledgePage() {
 
       {ingestOpen && (
         <div className="kb-modal-backdrop" data-state="knowledge-ingest-dialog">
-          <div className="kb-modal" role="dialog" aria-label="知识库入库">
+          <div className="kb-modal" role="dialog" aria-modal="true" aria-label="知识库入库">
             <h3>知识文档入库</h3>
             <label className="kb-field">
               标题

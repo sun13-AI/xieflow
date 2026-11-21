@@ -201,7 +201,7 @@ export default function SyncCard() {
               实体 <code>{active.entityType}:{active.entityId}</code> · 服务端当前版本 {active.currentVersion}
             </p>
             <table className="sync-diff-table">
-              <thead><tr><th>字段</th><th>本地</th><th>远端</th></tr></thead>
+              <thead><tr><th scope="col">字段</th><th scope="col">本地</th><th scope="col">远端</th></tr></thead>
               <tbody>
                 {active.fields.map((f) => (
                   <tr key={f.field}>

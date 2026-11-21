@@ -39,6 +39,7 @@
 #   powershell -File scripts\shot.ps1 shots -Round r41 # capture r41 form collection matrix + 20-tab shell baseline
 #   powershell -File scripts\shot.ps1 shots -Round r49 # capture r49 backup/restore matrix + 20-tab shell baseline
 #   powershell -File scripts\shot.ps1 shots -Round r57 # capture r57 todo render-refresh matrix + 20-tab shell baseline
+#   powershell -File scripts\shot.ps1 shots -Round r59 # capture 20-tab shell baseline after a11y render change (r59 matrix via r59-a11y-cdp.mjs --shots)
 #   powershell -File scripts\shot.ps1 shots -Round r11 -Shot 08-docs-diff-inline # rework#1: re-capture ONLY the diff-inline evidence (no other matrix/shell re-shot)
 #   powershell -File scripts\shot.ps1 shots -Round r26 -Shot 09-notif-deeplink-target # r26 rework#2: seed 3 pending approvals, CDP-click the SECOND notification, capture ONLY 09 (no other matrix/shell re-shot)
 #   powershell -File scripts\shot.ps1 down            # stop servers
@@ -64,7 +65,7 @@ param(
   [Parameter(Position = 0)]
   [ValidateSet("up", "shots", "down", "status", "all")]
   [string]$Action = "status",
-  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r26", "r27", "r28", "r29", "r30", "r31", "r32", "r33", "r34", "r35", "r36", "r37", "r38", "r39", "r40", "r41", "r43", "r45", "r47", "r49", "r57")]
+  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r26", "r27", "r28", "r29", "r30", "r31", "r32", "r33", "r34", "r35", "r36", "r37", "r38", "r39", "r40", "r41", "r43", "r45", "r47", "r49", "r57", "r59")]
   [string]$Round = "r1",
   [Parameter()]
   [string]$Shot = ""

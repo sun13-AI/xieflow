@@ -1,5 +1,6 @@
-// XieFlow r57 - DOC-CONTRACT watchdog (headless, zero deps, exit 0/1).
-// r57: r56 性能审计 P1×3 修复轮（listForms/listBoardCards 批量读 + Todos 渲染 memo）。
+// XieFlow r59 - DOC-CONTRACT watchdog (headless, zero deps, exit 0/1).
+// r59: r58 a11y P1×2 修复轮（日历格键盘可达 + 激活 tab 对比度 AA + 低成本 P2 语义增强）。
+// r57: 性能 P1×3 修复轮（listForms/listBoardCards 批量读 + Todos 渲染 memo）保留为历史专段。
 // r54: P0-1 补修 round (remote business routes behind one admin gate; no render-layer
 // change, no new feature). The current round declaration must live in BOTH root
 // README sections; the danger-zone ledger (8 classification rows), the r51 precision
@@ -266,7 +267,8 @@ if (counts.e2e !== null && counts.audit !== null) {
   check(root.includes(quickRef), `README·速查行数字与 scripts 实测口径一致（${quickRef}）`);
 }
 
-const ROUND = "r57";
+const ROUND = "r59";
+const ROUND_PREV = "r57";
 const ROUND_LEGACY = "r54";
 const uiSec = sectionBody(root, "## 界面与测试对照");
 const scaleSec = sectionBody(root, "### 断言规模");
@@ -301,21 +303,21 @@ check(
   "README·透明声明沿用 r49 七图 + 20 壳且 mtime/哈希逐字沿用（允许 r50/r51 措辞）",
 );
 
-// ---------- r57：性能 P1×3 修复轮（当前轮ROUND推进；r54 历史专段保留） ----------
+// ---------- r57：性能 P1×3 历史专段保留（ROUND 推进 r59 后不得丢失） ----------
 
 check(
-  uiSec !== null && uiSec.includes(ROUND) && uiSec.includes("P1×3 性能修复轮") &&
+  uiSec !== null && uiSec.includes(ROUND_PREV) && uiSec.includes("P1×3 性能修复轮") &&
     uiSec.includes("docs/ui/r57/README.md") && uiSec.includes("01-dep-empty.png") &&
     uiSec.includes("07-dep-error.png") && uiSec.includes("20 壳") && uiSec.includes("同批重拍"),
-  "README·「界面与测试对照」节声明当前轮 r57 P1×3 性能修复轮（七态矩阵 + 20 壳同批重拍索引在场）",
+  "README·「界面与测试对照」节保留 r57 P1×3 性能修复轮历史专段",
 );
 check(
-  scaleSec !== null && scaleSec.includes(ROUND) && scaleSec.includes("P1×3 性能修复轮") &&
+  scaleSec !== null && scaleSec.includes(ROUND_PREV) && scaleSec.includes("P1×3 性能修复轮") &&
     scaleSec.includes("listForms") && scaleSec.includes("listBoardCards") && scaleSec.includes("TodoItem") &&
     counts.e2e !== null && counts.audit !== null &&
-    scaleSec.includes(`e2e **${counts.e2e}**`) && scaleSec.includes(`HTTP audit **${counts.audit}**`) &&
+    scaleSec.includes("e2e **3962**") && scaleSec.includes("HTTP audit **3127**") &&
     docChecksInReadme !== null && Number(docChecksInReadme) >= 108,
-  `README·「### 断言规模」节声明当前轮 r57 修复与数字一致（e2e ${counts.e2e} / audit ${counts.audit} / DOC-CONTRACT ${docChecksInReadme}）`,
+  "README·「### 断言规模」节保留 r57 历史口径（e2e 3962 / audit 3127）",
 );
 check(
   read("docs/plan.md").includes("r57 · r56 性能问题修复") &&
@@ -342,6 +344,61 @@ check(
     read("scripts/r57-perf-cdp.mjs").includes('500'),
   "r57·SQL 次数预算 + HTTP 耗时基线 + CDP 输入 ScriptDuration 阈值三线断言在场",
 );
+
+// ---------- r59：a11y P1×2 + 低成本 P2 修复轮（当前轮；r54/r57 历史专段保留） ----------
+
+const r59Index = readOrEmpty("docs/ui/r59/README.md");
+const r59Report = readOrEmpty("docs/feedback/2026-11-21-r59-yanfa.md");
+check(
+  uiSec !== null && uiSec.includes(ROUND) && uiSec.includes("a11y 修复轮") &&
+    uiSec.includes("docs/ui/r59/README.md") && uiSec.includes("01-schedule-month.png") &&
+    uiSec.includes("06-tab-active.png") && uiSec.includes("20 壳") && uiSec.includes("同批重拍") &&
+    uiSec.includes("changed=20/same=0"),
+  "README·「界面与测试对照」节声明当前轮 r59 a11y 修复轮（六态矩阵 + 20 壳同批重拍索引在场）",
+);
+check(
+  scaleSec !== null && scaleSec.includes(ROUND) && scaleSec.includes("a11y 修复轮") &&
+    scaleSec.includes("--accent-strong") && scaleSec.includes("4.96:1") && scaleSec.includes("42/42") &&
+    counts.e2e !== null && counts.audit !== null &&
+    scaleSec.includes(`e2e **${counts.e2e}**`) && scaleSec.includes(`HTTP audit **${counts.audit}**`) &&
+    docChecksInReadme !== null && Number(docChecksInReadme) >= 116,
+  `README·「### 断言规模」节声明当前轮 r59 修复与数字一致（e2e ${counts.e2e} / audit ${counts.audit} / DOC-CONTRACT ${docChecksInReadme}）`,
+);
+check(
+  read("docs/plan.md").includes("r59 · r58 a11y 问题修复") &&
+    read("docs/plan.md").includes("P1×2 + 低成本 P2"),
+  "r59·plan 任务单在场（lead 定方案，P1×2 + 低成本 P2）",
+);
+check(
+  r59Report.includes("P1-1") && r59Report.includes("P1-2") &&
+    r59Report.includes("4.96") && r59Report.includes("变异红相"),
+  "r59·yanfa 报告逐项修复 + 实测对比度/键盘 + 变异红相在场",
+);
+check(
+  read("scripts/shot.ps1").includes('-Round r59') &&
+    read("scripts/shot.ps1").includes('r59-a11y-cdp.mjs'),
+  "r59·shot.ps1 ValidateSet 已纳入 r59 且矩阵来源脚注在场",
+);
+check(
+  read("scripts/e2e-test.ts").includes('r59 P1-2·白字压激活底') &&
+    read("scripts/audit-http.ts").includes('r59·18/18 模态带 aria-modal=true') &&
+    read("scripts/r59-a11y-cdp.mjs").includes('R59_A11Y') &&
+    read("scripts/r59-a11y-cdp.mjs").includes('activeTabRatio'),
+  "r59·计算对比度 / aria 静态 / CDP 键盘三线断言在场",
+);
+check(
+  r59Index.includes("01-schedule-month.png") && r59Index.includes("06-tab-active.png") &&
+    r59Index.includes("R59_HASHES") && r59Index.includes("changed=20 / same=0") &&
+    r59Index.includes("417 PNG / 415 互异"),
+  "r59·矩阵索引六态 + 哈希块 + 20 壳 changed/same + 全库计数在场",
+);
+check(
+  read("docs/ui/shell/README.md").includes("<!-- R59_HASHES_BEGIN -->") &&
+    read("docs/ui/shell/README.md").includes("<!-- R59_HASHES_END -->") &&
+    read("docs/ui/shell/README.md").includes("r57→r59 同名字节 **changed=20 / same=0**"),
+  "r59·shell README 当前 R59 哈希块与 20/20 changed 披露在场",
+);
+
 const r50Report = readOrEmpty("docs/feedback/2026-11-21-r50-yanfa.md");
 check(
   r50Report.includes("r50") && r50Report.includes("沿用 r49 七图") &&

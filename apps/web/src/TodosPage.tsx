@@ -484,7 +484,7 @@ export default function TodosPage() {
 
       {modalOpenPinned && (
         <div className="modal-backdrop" data-state="todo-modal">
-          <div className="modal-card" role="dialog" aria-label="新建待办">
+          <div className="modal-card" role="dialog" aria-modal="true" aria-label="新建待办">
             <h2>新建待办</h2>
             <label className="field">
               <span className="field-label">

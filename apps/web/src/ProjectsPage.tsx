@@ -152,7 +152,7 @@ export default function ProjectsPage({ onOpenBoard }: { onOpenBoard?: () => void
 
       {modalOpen && (
         <div className="modal-backdrop" data-state="project-modal">
-          <div className="modal-card" role="dialog" aria-label="新建项目">
+          <div className="modal-card" role="dialog" aria-modal="true" aria-label="新建项目">
             <h2>新建项目</h2>
             <label className="field">
               <span className="field-label">
