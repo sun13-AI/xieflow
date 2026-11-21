@@ -2766,16 +2766,21 @@ async function audit() {
     eq(authedStatus.status, 200, "r19 remote 带 token 访问 status -> 200");
     const authedChanges = await authReq("GET", "/api/sync/changes?since=0&limit=10", adminToken);
     eq(authedChanges.status, 200, "r19 remote 带 token 拉变更 -> 200");
+    // r54：remote 下普通用户业务写入统一 403；r19 原「记自己名下 200」语义移到 local 单机模式锁定。
+    const remoteMemberApply = await authReq("POST", "/api/sync/apply", memberToken, {
+      entityType: ET, entityId: "r19-overreach", operation: "create", payload: { title: "ok" }, expectedVersion: 0,
+    });
+    eq(remoteMemberApply.status, 403, "r54 remote 下 user 同步写入 -> 403（r19 原 200 路径）");
+    await authReq("POST", "/api/auth/mode", adminToken, { mode: "local" });
     const overreach = await authReq("POST", "/api/sync/apply", memberToken, {
       entityType: ET, entityId: "r19-overreach", operation: "create", payload: {}, expectedVersion: 0,
       userId: adminLogin.json.user.id,
     });
-    eq(overreach.status, 403, "r19 普通用户把变更记到别人名下 -> 403");
+    eq(overreach.status, 403, "r19 普通用户把变更记到别人名下 -> 403（local 单机语义）");
     const memberOwn = await authReq("POST", "/api/sync/apply", memberToken, {
       entityType: ET, entityId: "r19-overreach", operation: "create", payload: { title: "ok" }, expectedVersion: 0,
     });
-    eq(memberOwn.status, 200, "r19 普通用户记自己名下 -> 200");
-    await authReq("POST", "/api/auth/mode", adminToken, { mode: "local" });
+    eq(memberOwn.status, 200, "r19 普通用户记自己名下 -> 200（local 单机语义）");
     // 清理
     await authReq("DELETE", `/api/auth/users/${memberReg.json.user.id}`, adminToken);
     await authReq("DELETE", `/api/auth/users/${adminLogin.json.user.id}`, adminToken);
@@ -5221,6 +5226,7 @@ async function auditR53(): Promise<void> {
   let extraId = -1;
   let assetId = -1;
   let approvalId = -1;
+  let nonInitiatorApprovalId = -1;
   let adminToken = "";
   let userToken = "";
   try {
@@ -5273,29 +5279,42 @@ async function auditR53(): Promise<void> {
       title: `${stamp}-approval`, type: "leave", applicantId: adminName, currentAssignee: adminName,
     }, 201, "r53 P1-1·admin 建审批 -> 201");
     approvalId = createdApproval.json.id;
+    // r54：remote 下 user 业务写入统一 403；P1-1 原 actor 冒充语义仍由 admin 会话伪造 actor -> 403 ACTOR_FORGED 锁定。
+    await expectAuth("POST", `/api/approvals/${approvalId}/submit`, userToken, { actor: adminName }, 403, "r54 remote 下 user 审批提交 -> 403（闸门）");
     await expectAuth("POST", `/api/approvals/${approvalId}/submit`, userToken, { actor: adminName }, 403, "r53 P1-1·普通用户伪造 actor 提交 -> 403");
     const draftCheck = await expectAuth("GET", `/api/approvals/${approvalId}`, adminToken, undefined, 200, "r53 P1-1·伪造被拒后审批回读 -> 200");
     eq(draftCheck.json.status, "draft", "r53 P1-1·伪造被拒后审批仍 draft");
-    await expectAuth("POST", `/api/approvals/${approvalId}/submit`, adminToken, { actor: "someone-else" }, 403, "r53 P1-1·admin 冒用他人 actor -> 403");
-    await expectAuth("POST", `/api/approvals/${approvalId}/submit`, userToken, {}, 400, "r53 P1-1·非发起人 session 提交 -> 400（actor 来自会话）");
+    const forged = await expectAuth("POST", `/api/approvals/${approvalId}/submit`, adminToken, { actor: "someone-else" }, 403, "r53 P1-1·admin 冒用他人 actor -> 403");
+    eq(forged.json.code, "ACTOR_FORGED", "r53 P1-1·冒充他人 actor 错误码 ACTOR_FORGED（零回归）");
+    // 非发起人 400 语义由 admin 会话 + user 发起人的审批保留（remote 下 user 自身业务写入已被 r54 闸门 403）
+    const nonInitiator = await expectAuth("POST", "/api/approvals", adminToken, {
+      title: `${stamp}-approval-noninitiator`, type: "leave", applicantId: userName, currentAssignee: adminName,
+    }, 201, "r53 P1-1·建 user 发起的审批 -> 201");
+    nonInitiatorApprovalId = nonInitiator.json.id;
+    await expectAuth("POST", `/api/approvals/${nonInitiatorApprovalId}/submit`, adminToken, {}, 400, "r53 P1-1·非发起人 session 提交 -> 400（actor 来自会话）");
     const submitted = await expectAuth("POST", `/api/approvals/${approvalId}/submit`, adminToken, {}, 200, "r53 P1-1·admin 不传 actor 按会话提交 -> 200");
     eq(submitted.json.status, "pending", "r53 P1-1·提交后 pending");
     const steps = await expectAuth("GET", `/api/approvals/${approvalId}/steps`, adminToken, undefined, 200, "r53 P1-1·步骤回读 -> 200");
     eq(steps.json.steps[0]?.assignee, adminName, "r53 P1-1·提交步骤 assignee = 会话用户（忽略 body 声明）");
     const approved = await expectAuth("POST", `/api/approvals/${approvalId}/approve`, adminToken, {}, 200, "r53 P1-1·会话审批人通过 -> 200");
     eq(approved.json.status, "approved", "r53 P1-1·通过后终态 approved");
+    await expectAuth("POST", "/api/auth/mode", adminToken, { mode: "remote" }, 200, "r53 P1-1·切回 remote -> 200");
 
     // P2-3: 物资 operator 从会话派生
     const createdAsset = await expectAuth("POST", "/api/assets", adminToken, {
       name: `${stamp}-asset`, category: "office", quantity: 5, unit: "pcs", location: "loc", custodian: "cust",
     }, 201, "r53 P2-3·建物资 -> 201");
     assetId = createdAsset.json.id;
-    const tx = await expectAuth("POST", `/api/assets/${assetId}/transactions`, userToken, {
+    // remote 下 user 业务写入统一 403；原「body.operator 伪造被忽略」语义改由 admin 会话回读锁定（来源仍是会话）。
+    await expectAuth("POST", `/api/assets/${assetId}/transactions`, userToken, {
       type: "in", quantity: 1, to: "r53-loc", operator: "forged-operator",
-    }, 201, "r53 P2-3·user 入库（body.operator 伪造）-> 201");
-    eq(tx.json.operator, userName, "r53 P2-3·流水 operator = 会话用户，忽略 body.operator");
+    }, 403, "r54 remote 下 user 物资流水写入 -> 403（闸门）");
+    const tx = await expectAuth("POST", `/api/assets/${assetId}/transactions`, adminToken, {
+      type: "in", quantity: 1, to: "r53-loc", operator: "forged-operator",
+    }, 201, "r53 P2-3·admin 入库（body.operator 伪造）-> 201");
+    eq(tx.json.operator, adminName, "r53 P2-3·流水 operator = 会话用户，忽略 body.operator");
     const txs = await expectAuth("GET", `/api/assets/${assetId}/transactions`, adminToken, undefined, 200, "r53 P2-3·流水回读 -> 200");
-    eq(txs.json.transactions[0]?.operator, userName, "r53 P2-3·落库流水 operator 为会话用户");
+    eq(txs.json.transactions[0]?.operator, adminName, "r53 P2-3·落库流水 operator 为会话用户");
 
     // P2-2: 公开 settings/health 只返白名单键
     const pubSettings = await req("GET", "/api/settings");
@@ -5308,11 +5327,101 @@ async function auditR53(): Promise<void> {
   } finally {
     if (assetId > 0) await expectAuth("DELETE", `/api/assets/${assetId}`, adminToken, undefined, 200, "r53 清理探针物资 -> 200").catch(() => {});
     if (approvalId > 0) await expectAuth("DELETE", `/api/approvals/${approvalId}`, adminToken, undefined, 200, "r53 清理探针审批 -> 200").catch(() => {});
+    if (nonInitiatorApprovalId > 0) await expectAuth("DELETE", `/api/approvals/${nonInitiatorApprovalId}`, adminToken, undefined, 200, "r53 清理非发起人探针审批 -> 200").catch(() => {});
     if (adminToken) {
       if (extraId > 0) await expectAuth("DELETE", `/api/auth/users/${extraId}`, adminToken, undefined, 200, "r53 清理 admin 建账号 -> 200").catch(() => {});
       await expectAuth("POST", "/api/auth/mode", adminToken, { mode: "local" }, 200, "r53 终态切回 local -> 200").catch(() => {});
       if (userId > 0) await expectAuth("DELETE", `/api/auth/users/${userId}`, adminToken, undefined, 200, "r53 清理普通用户 -> 200").catch(() => {});
       if (adminId > 0) await expectAuth("DELETE", `/api/auth/users/${adminId}`, adminToken, undefined, 200, "r53 清理管理员 -> 200").catch(() => {});
+    }
+  }
+}
+
+// ---------- r54: remote 业务路由统一 admin 闸门（审计 P0-1 复现步骤转真 HTTP 断言） ----------
+async function auditR54(): Promise<void> {
+  console.log("\n== Security r54: remote admin gate over business routes ==");
+  const stamp = `r54sec-${Date.now().toString(36)}`;
+  const adminName = `${stamp}-admin`;
+  const userName = `${stamp}-user`;
+  const pw = "R54-Strong-Pass-2026";
+  let adminId = -1;
+  let userId = -1;
+  let adminToken = "";
+  let userToken = "";
+  try {
+    await expectStatus("POST", "/api/auth/mode", { mode: "local" }, 200, "r54 基线·切回 local -> 200");
+    const adminReg = await expectStatus("POST", "/api/auth/register", { username: adminName, password: pw }, 201, "r54 基线·local 注册 admin -> 201");
+    adminId = adminReg.json.user.id;
+    eq(adminReg.json.user.role, "admin", "r54 基线·首用户 role=admin");
+    const userReg = await expectStatus("POST", "/api/auth/register", { username: userName, password: pw }, 201, "r54 基线·local 注册 user -> 201");
+    userId = userReg.json.user.id;
+    eq(userReg.json.user.role, "user", "r54 基线·第二用户 role=user");
+    adminToken = (await expectStatus("POST", "/api/auth/login", { username: adminName, password: pw }, 200, "r54 admin 登录 -> 200")).json.token;
+    userToken = (await expectStatus("POST", "/api/auth/login", { username: userName, password: pw }, 200, "r54 user 登录 -> 200")).json.token;
+    await expectAuth("POST", "/api/auth/mode", adminToken, { mode: "remote" }, 200, "r54 admin 切 remote -> 200");
+    eq((await req("GET", "/api/auth/mode")).json.mode, "remote", "r54 模式确为 remote（闸门前提）");
+    // 认证探针必须仍对 user 可用（方案第 2 条）
+    await expectAuth("GET", "/api/auth/me", userToken, undefined, 200, "r54 remote 下 user 访问 me 探针 -> 200");
+    await expectAuth("GET", "/api/auth/guard", userToken, undefined, 200, "r54 remote 下 user 访问 guard 探针 -> 200");
+
+    // 审计员 r53 原复现步骤：匿名注册已关 → admin 建 user → admin 建文档 → user GET/DELETE 应 403
+    const anon = await expectStatus("POST", "/api/auth/register", { username: `${stamp}-anon`, password: pw }, 403, "r54 复现·remote 匿名注册 -> 403");
+    eq(anon.json.code, "REGISTER_CLOSED", "r54 复现·匿名注册错误码 REGISTER_CLOSED");
+    const doc = await expectAuth("POST", "/api/documents", adminToken, { title: `${stamp}-admin-secret-doc` }, 201, "r54 复现·admin 建秘密文档 -> 201");
+    const docId = doc.json.id as number;
+    const userRead = await expectAuth("GET", `/api/documents/${docId}`, userToken, undefined, 403, "r54 复现·user GET admin 文档 -> 403（审计原结果 200）");
+    eq(userRead.json.code, "FORBIDDEN", "r54 复现·user GET 403 错误码 FORBIDDEN");
+    const userDelete = await expectAuth("DELETE", `/api/documents/${docId}`, userToken, undefined, 403, "r54 复现·user DELETE admin 文档 -> 403（审计原结果 200）");
+    eq(userDelete.json.code, "FORBIDDEN", "r54 复现·user DELETE 403 错误码 FORBIDDEN");
+    const adminRead = await expectAuth("GET", `/api/documents/${docId}`, adminToken, undefined, 200, "r54 复现·越权失败后 admin 回读 -> 200");
+    eq(adminRead.json.title, `${stamp}-admin-secret-doc`, "r54 复现·文档未被 user 软删，标题原样");
+
+    // 代表性业务路由种子（全部在 remote 下由 admin 创建，顺带验证 admin 写入不受闸门影响）
+    const todo = await expectAuth("POST", "/api/todos", adminToken, { title: `${stamp}-todo`, quadrant: "q1" }, 201, "r54 种子·todo -> 201");
+    const proj = await expectAuth("POST", "/api/projects", adminToken, { name: `${stamp}-project` }, 201, "r54 种子·project -> 201");
+    const cols = await expectAuth("GET", `/api/projects/${proj.json.id}/columns`, adminToken, undefined, 200, "r54 种子·project 默认列 -> 200");
+    const colId = cols.json.columns[0].id as number;
+    const card = await expectAuth("POST", `/api/projects/${proj.json.id}/columns/${colId}/cards`, adminToken, { title: `${stamp}-card` }, 201, "r54 种子·board card -> 201");
+    const sched = await expectAuth("POST", "/api/schedules", adminToken, { title: `${stamp}-schedule`, date: "2026-11-21", start: "09:00", end: "10:00", repeat: "none" }, 201, "r54 种子·schedule -> 201");
+    const tbl = await expectAuth("POST", "/api/tables", adminToken, { name: `${stamp}-table` }, 201, "r54 种子·table -> 201");
+    const appr = await expectAuth("POST", "/api/approvals", adminToken, {
+      title: `${stamp}-approval`, type: "leave", applicantId: adminName, currentAssignee: adminName,
+    }, 201, "r54 种子·approval -> 201");
+    const asset = await expectAuth("POST", "/api/assets", adminToken, {
+      name: `${stamp}-asset`, category: "office", quantity: 1, unit: "pcs", location: "loc", custodian: "cust",
+    }, 201, "r54 种子·asset -> 201");
+    const form = await expectAuth("POST", "/api/forms", adminToken, { title: `${stamp}-form`, questions: [] }, 201, "r54 种子·form -> 201");
+    const mindmap = await expectAuth("POST", "/api/mindmaps", adminToken, { title: `${stamp}-mindmap`, contentMarkdown: "# r54" }, 201, "r54 种子·mindmap -> 201");
+
+    // 10 个指定业务族 + 1 个额外族（保证 ≥10 组 admin 200 的 GET/DELETE 配对）；
+    // backup 无 DELETE 路由，DELETE 探针打在 /api/backup/export 上：user 仍须 403，admin 为 404（无路由），如实记录。
+    const probes = [
+      { label: "documents", get: `/api/documents/${docId}`, del: `/api/documents/${docId}`, adminDel: 200 },
+      // board 必须排在 projects 之前：admin DELETE project 会级联删卡，否则后续卡片探针 404。
+      { label: "board", get: `/api/cards/${card.json.id}`, del: `/api/cards/${card.json.id}`, adminDel: 200 },
+      { label: "projects", get: `/api/projects/${proj.json.id}`, del: `/api/projects/${proj.json.id}`, adminDel: 200 },
+      { label: "todos", get: `/api/todos/${todo.json.id}`, del: `/api/todos/${todo.json.id}`, adminDel: 200 },
+      { label: "schedules", get: `/api/schedules/${sched.json.id}`, del: `/api/schedules/${sched.json.id}`, adminDel: 200 },
+      { label: "assets", get: `/api/assets/${asset.json.id}`, del: `/api/assets/${asset.json.id}`, adminDel: 200 },
+      { label: "tables", get: `/api/tables/${tbl.json.id}`, del: `/api/tables/${tbl.json.id}`, adminDel: 200 },
+      { label: "approvals", get: `/api/approvals/${appr.json.id}`, del: `/api/approvals/${appr.json.id}`, adminDel: 200 },
+      { label: "backup", get: "/api/backup/export", del: "/api/backup/export", adminDel: 404 },
+      { label: "forms", get: `/api/forms/${form.json.id}`, del: `/api/forms/${form.json.id}`, adminDel: 200 },
+      { label: "mindmaps", get: `/api/mindmaps/${mindmap.json.id}`, del: `/api/mindmaps/${mindmap.json.id}`, adminDel: 200 },
+    ];
+    for (const p of probes) {
+      const ug = await expectAuth("GET", p.get, userToken, undefined, 403, `r54 ${p.label}·user GET -> 403`);
+      eq(ug.json.code, "FORBIDDEN", `r54 ${p.label}·user GET 403 错误码 FORBIDDEN`);
+      const ud = await expectAuth("DELETE", p.del, userToken, undefined, 403, `r54 ${p.label}·user DELETE -> 403`);
+      eq(ud.json.code, "FORBIDDEN", `r54 ${p.label}·user DELETE 403 错误码 FORBIDDEN`);
+      await expectAuth("GET", p.get, adminToken, undefined, 200, `r54 ${p.label}·admin GET -> 200`);
+      await expectAuth("DELETE", p.del, adminToken, undefined, p.adminDel, `r54 ${p.label}·admin DELETE -> ${p.adminDel}`);
+    }
+  } finally {
+    if (adminToken) {
+      await expectAuth("POST", "/api/auth/mode", adminToken, { mode: "local" }, 200, "r54 终态切回 local -> 200").catch(() => {});
+      if (userId > 0) await expectAuth("DELETE", `/api/auth/users/${userId}`, adminToken, undefined, 200, "r54 清理 user 账号 -> 200").catch(() => {});
+      if (adminId > 0) await expectAuth("DELETE", `/api/auth/users/${adminId}`, adminToken, undefined, 200, "r54 清理 admin 账号 -> 200").catch(() => {});
     }
   }
 }
@@ -5338,6 +5447,7 @@ try {
   await auditR47();
   await auditR49();
   await auditR53();
+  await auditR54();
 } catch (err) {
   failures.push(`audit 抛错：${err instanceof Error ? err.message : String(err)}`);
   console.error(`audit crashed: ${err instanceof Error ? err.stack : String(err)}`);

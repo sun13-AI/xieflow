@@ -257,7 +257,7 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r51 | M10 后·台账精度修正（r50 P3/P4/P5） | ✅已发版（首轮双通过；台账四证核实 + DOC-CONTRACT 105 精度防回退） | v0.0.57 | e2e 3922 · audit 2957 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r52 | M10 后·质量审计 #1：注入与越权（安全维度） | 🔴审计打回 P0×2/P1×2/P2×3 → 修复中 | — | 修复后重报 | auditor-r52 AUDIT-VERDICT: 打回（注入/XSS 零问题，越权/认证四类真漏洞） |
 | r53 | M10 后·r52 安全漏洞修复（P0/P1/P2 全修 + 回归断言） | 🟡5/6 关闭（审计重放 P0-1 未关：已认证 user 仍跨用户读写删） | —（r54 补修后发版） | e2e 3937 · audit 3014 | 审计 AUDIT-VERDICT: 打回（仅 P0-1） |
-| r54 | M10 后·P0-1 补修：remote 业务路由统一 admin 闸门 | 🔨规划中 | — | — | — |
+| r54 | M10 后·P0-1 补修：remote 业务路由统一 admin 闸门 | ✅研发完成（待复验） | —（复验通过后发版） | e2e 3946 · audit 3120 | TDD 红 68 → 绿 0；变异红相 1 组（24 红） |
 
 ## 🏁 项目总账（2026-11-19 · M10 收官）
 
@@ -1177,6 +1177,14 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 ---
 
 ## 记账区（每轮追加）
+
+### 2026-11-21 · r54 研发（yanfa-r54 · P0-1 补修：remote 业务路由统一 admin 闸门）
+- 交付：按 lead 重定方案，`apps/api/src/server.ts` remote onRequest hook 增统一闸门——除 `PUBLIC_AUTH_PATHS`、`ALWAYS_PROTECTED_PATHS`（路由自带闸门）、`/api/auth/me`/`guard` 两个探针外，所有 `/api/*` 业务路由要求 `user:manage`；非 admin 经 `assertPermission` → `authErrorReply` 回 403 `FORBIDDEN`。local 单机匿名语义零变化；r53 六项修复与既有 admin 闸门原样保留（单工作区语义，不引入多租户/归属表）。
+- 审计复现转断言：审计员 r53 原步骤（匿名注册 403 → admin 建 user → admin 建秘密文档 → user GET/DELETE 应 403 → admin 回读 200 且未软删）全部落到 `scripts/audit-http.ts`；`auditR54()` 另覆盖 11 个业务族 user GET/DELETE 403 + FORBIDDEN 与 admin GET 200（board 排在 projects 前避免级联删卡；backup 无 DELETE 路由，user 探针仍 403、admin 为 404 如实披露）。r19/r53 既有 user-token 业务断言在 remote 改 403，原 actor/operator/归属语义等价改由 admin 会话或 local 模式保留，零删除。
+- 断言：e2e 3937→**3946（+9，接线断言）** · audit 3014→**3120（+106）**；`pnpm run test:all` exit 0；DOC-CONTRACT **105** checks（ROUND r54，r50~r53 历史专段保留，schema v27 未变）；check:text 7047 literals / 26 tsx / 0 命中；typecheck 5 包全绿。README 速查行 / 当前轮界面对照 / 断言规模行三处同步。
+- **TDD 先红**：先落审计复现断言跑 audit → 68 红（user GET/DELETE admin 文档实测 200，与审计原结果一致）→ 实现闸门后 0 红。**变异红相 1 组**：把闸门条件改坏为仅 `req.method === "DELETE"` 生效 → audit 24 红（10 族 user GET 全 200 + 复现 GET 200 + user POST/流水写入放行）→ 逐字节还原（SHA256 `957F9FE0…2BC0` 前后同值、`req.method === "DELETE"` 零残留）后全绿。
+- 工程纪律：scratch DB + 临时端口（8788/18791/18799），进程全收净；零 token 落盘、零新依赖、零密钥文件；无渲染层改动，沿用 r49 七图 + 20 壳三处透明声明；未 push / 未打 tag / 未发版 / 未动 `data/xieflow.db`。
+- 报告：`docs/feedback/2026-11-21-r54-yanfa.md`（三态纪律 + 闸门方案 + 变异红相 + 审计复现转断言）。
 
 ### 2026-11-21 · r53 研发（yanfa-r53 · r52 安全漏洞修复，lead 定方案）
 - 交付：按 `r52-audit.md` 真实复现逐项关闭——P0-1 remote 注册闸门（403 `REGISTER_CLOSED` / admin `user:manage` 建账号，local 保留公开注册）；P0-2 `BACKUP_PROTECTED_SETTING_KEYS` 排除 `server.mode` + db 双防线 + `resolveStartupMode` ENV 优先 + restore admin；P1-1 审批 actor/actorMemberId 从会话派生（伪造 403 `ACTOR_FORGED`）；P1-2 备份三路由 remote admin 闸门；P2-2 公开 settings/health 白名单；P2-3 物资 operator 从会话派生。P2-1 autoExecute 按 C9 记账不改。零新依赖、零 token、无多租户/归属表。

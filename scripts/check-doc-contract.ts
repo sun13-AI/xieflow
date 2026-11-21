@@ -1,9 +1,9 @@
-// XieFlow r53 - DOC-CONTRACT watchdog (headless, zero deps, exit 0/1).
-// r53: security-fix round (no render-layer change, no new feature). The current
-// round declaration must live in BOTH root README sections; the danger-zone
-// ledger (8 classification rows), the r51 precision section and the transparent
-// declarations (README / r50 report / shell README R50 block) are kept as
-// history. Any mismatch => exit 1. Historical r43~r51 contracts stay intact.
+// XieFlow r54 - DOC-CONTRACT watchdog (headless, zero deps, exit 0/1).
+// r54: P0-1 补修 round (remote business routes behind one admin gate; no render-layer
+// change, no new feature). The current round declaration must live in BOTH root
+// README sections; the danger-zone ledger (8 classification rows), the r51 precision
+// section and the transparent declarations (README / r50 report / shell README R50 block)
+// are kept as history. Any mismatch => exit 1. Historical r43~r53 contracts stay intact.
 // Authoritative sources:
 //   - schema version: packages/shared/src/index.ts  SCHEMA_VERSION constant
 //   - CI smoke regex: .github/workflows/ci.yml      schemaVersion grep -E group
@@ -265,35 +265,35 @@ if (counts.e2e !== null && counts.audit !== null) {
   check(root.includes(quickRef), `README·速查行数字与 scripts 实测口径一致（${quickRef}）`);
 }
 
-const ROUND = "r53";
+const ROUND = "r54";
 const uiSec = sectionBody(root, "## 界面与测试对照");
 const scaleSec = sectionBody(root, "### 断言规模");
 check(uiSec !== null, "README·「界面与测试对照」节在场");
 check(scaleSec !== null, "README·「### 断言规模」节在场");
 check(
-  uiSec !== null && uiSec.includes(ROUND) && uiSec.includes("安全漏洞修复轮") &&
+  uiSec !== null && uiSec.includes(ROUND) && uiSec.includes("P0-1 补修轮") &&
     uiSec.includes("无渲染层改动") && uiSec.includes("沿用 r49 图证") &&
     uiSec.includes("七态矩阵") && uiSec.includes("20 壳") &&
     uiSec.includes("docs/ui/r49/README.md") && uiSec.includes("docs/ui/shell/README.md") &&
     uiSec.includes("01-backup-card.png") && uiSec.includes("07-error.png") &&
     uiSec.includes("数据备份与恢复") && uiSec.includes("二十 tab 数量不变") &&
     uiSec.includes("二次确认"),
-  "README·「界面与测试对照」节声明当前轮 r53 安全漏洞修复（沿用 r49 图证、七态矩阵 + 20 壳索引在场）",
+  "README·「界面与测试对照」节声明当前轮 r54 P0-1 补修轮（沿用 r49 图证、七态矩阵 + 20 壳索引在场）",
 );
 const docChecksInReadme = scaleSec === null ? null : (/DOC-CONTRACT \*\*(\d+)\*\*/.exec(scaleSec)?.[1] ?? null);
 check(
-  scaleSec !== null && scaleSec.includes(ROUND) && scaleSec.includes("安全漏洞修复轮") &&
-    scaleSec.includes("P0-1 注册闸门") && scaleSec.includes("零删除") &&
+  scaleSec !== null && scaleSec.includes(ROUND) && scaleSec.includes("P0-1 补修轮") &&
+    scaleSec.includes("remote 统一 admin 闸门") && scaleSec.includes("P0-1 注册闸门") && scaleSec.includes("零删除") &&
     counts.e2e !== null &&
     counts.audit !== null &&
     scaleSec.includes(`e2e **${counts.e2e}**`) &&
     scaleSec.includes(`HTTP audit **${counts.audit}**`) &&
     docChecksInReadme !== null && Number(docChecksInReadme) >= 98,
-  `README·「### 断言规模」节声明当前轮 r53 安全修复且数字与 scripts 口径一致（e2e ${counts.e2e} / audit ${counts.audit} / DOC-CONTRACT ${docChecksInReadme}）`,
+  `README·「### 断言规模」节声明当前轮 r54 P0-1 补修且数字与 scripts 口径一致（e2e ${counts.e2e} / audit ${counts.audit} / DOC-CONTRACT ${docChecksInReadme}）`,
 );
 check(
   uiSec !== null &&
-    (uiSec.includes("r50 里程碑复审透明声明") || uiSec.includes("r51 台账精度修正透明声明") || uiSec.includes("r53 安全修复透明声明")) &&
+    (uiSec.includes("r50 里程碑复审透明声明") || uiSec.includes("r51 台账精度修正透明声明") || uiSec.includes("r53 安全修复透明声明") || uiSec.includes("r54 补修透明声明")) &&
     uiSec.includes("沿用 r49 七图") && uiSec.includes("20 壳") &&
     uiSec.includes("mtime") && uiSec.includes("逐字沿用"),
   "README·透明声明沿用 r49 七图 + 20 壳且 mtime/哈希逐字沿用（允许 r50/r51 措辞）",

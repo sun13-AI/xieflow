@@ -401,6 +401,12 @@ const PUBLIC_AUTH_PATHS = new Set([
 ]);
 /** 无论 local/remote 都强制鉴权的探针路由（audit 用它锁 401 与真实全链路） */
 const ALWAYS_PROTECTED_PATHS = new Set(["/api/auth/me", "/api/auth/guard", "/api/auth/users"]);
+/**
+ * r54 P0-1 补修：remote 下允许非 admin 访问的仅两个认证探针。
+ * 单工作区语义——一个数据所有者 = admin；其余 /api/* 业务路由统一 user:manage 闸门。
+ * local 模式单机匿名语义不变；路径均按原始 URL（去 query）精确匹配。
+ */
+const REMOTE_NON_ADMIN_PATHS = new Set(["/api/auth/me", "/api/auth/guard"]);
 
 function responseCleared(reply: FastifyReply): FastifyReply {
   return reply.header("X-Xieflow-Auth-Cleared", "1").code(401).send({
@@ -449,6 +455,20 @@ app.addHook("onRequest", async (req, reply) => {
   const ctx = resolveAuth(req);
   if (!ctx) return responseCleared(reply);
   (req as AuthRequest).auth = ctx;
+  // r54 统一 admin 闸门：remote 业务路由（除公开入口 / 强保护路由自带闸门 / 认证探针）
+  // 一律要求 user:manage；非 admin 由 assertPermission → authErrorReply 回 403 FORBIDDEN。
+  // local 单机模式完全不受影响；r53 各路由既有闸门原样保留，形成双层防线。
+  if (
+    serverMode === "remote" &&
+    !ALWAYS_PROTECTED_PATHS.has(url) &&
+    !REMOTE_NON_ADMIN_PATHS.has(url)
+  ) {
+    try {
+      assertPermission(ctx.user.role, "user:manage");
+    } catch (err) {
+      return authErrorReply(err, reply);
+    }
+  }
   return;
 });
 
