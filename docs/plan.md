@@ -242,7 +242,7 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r36 | M10 后·日报与周报自动生成 | ✅已发版（首轮双通过；汇总手算 88/88 + 变异红相独立复现） | v0.0.42 | e2e 3167 · audit 2471 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r37 | M10 后·表格分组视图与汇总行 | ✅已发版（首轮双通过；分组手算 66/66 + r7 零回归） | v0.0.43 | e2e 3277 · audit 2536 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r38 | M10 后·看板卡片元数据（标签/负责人/截止日，向后兼容） | ✅已发版（首轮双通过；向后兼容 65/65 + 元数据重启不丢） | v0.0.44 | e2e 3377 · audit 2616 | 通过（waizhuan）+ UI 通过（阻断岗） |
-| r39 | M10 后·用户可见文案清理（错误条内部术语，连续 4 轮挂账必修） | 🔨规划中 | — | — | — |
+| r39 | M10 后·用户可见文案清理（错误条内部术语，连续 4 轮挂账必修） | 🔨研发完成（前任会话中断→r39b 续做收尾；待双 VERDICT + 发版） | — | e2e 3412 · audit 2623 | 待复验 |
 
 ## 🏁 项目总账（2026-11-19 · M10 收官）
 
@@ -883,6 +883,14 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 ---
 
 ## 记账区（每轮追加）
+
+### 2026-11-21 · r39 研发（yanfa-r39b · 续做收尾：用户可见文案清理 + 机制防复发）
+- 接手状态：前任 yanfa-r39 会话中断（12h gap），工作树 18 文件半成品、无提交/报告/截图；基线 `pnpm run test:all` 红 1 条 `summary.tomorrow = 1 (got 2, want 1)`。根因是 audit 首个样本硬编码 `2026-11-22` 恰为当日「明天」，与既有明天样本撞车（r22 同类先例）。按相对日期 `today+2` 改写样本日期与读回值，**条数/期望口径不变**，复跑全绿；报告自曝。
+- 交付：在半成品基础上续做，不推倒重写。用户可见字符串内部术语（截图钉态 / audit / e2e / 4xx / seam / shot= / rNN）清零；注释、`shot ===` 守卫、`shot-note` / `seam-note` 图注 seam 标记原样保留（宪法第一条诚实性）。新增 `scripts/check-user-facing-text.ts` 扫描断言（6265 literals / 24 tsx / 0 命中），`package.json` `check:text` 接入 `test:all`。
+- 变异红相：把 `BoardPage.tsx:312` 错误条改回「· 截图钉态对应 audit 4xx 非法标签」→ 扫描断言 1 红 / exit 1；逐字节还原（SHA `309CA6D4…0107F39F4` 前后同值）后全绿。首次误把断言改成不可达分支（扫描仍绿）已自曝并作废，不计为有效红相。
+- 断言：e2e 3377 → **3412（+35）** · audit 2616 → **2623（+7）**，零删除；新增 r39 文案纯用户断言 + 4xx 错误体零术语断言 + 截图/索引/哈希一致性断言；README 速查行 / 当前轮对照表 / 断言规模行三处同步；`pnpm run test:all` exit 0。
+- 截图：`docs/ui/r39/` 7 张错误态/提示态 + 十九 tab 壳同批重拍；26/26 SHA256 互异、矩阵↔壳重叠 0、全库 356 PNG / 354 互异，26 张逐张 `read_image` 目验；`scripts/r39-shot.mjs` 一次性 headless CDP 捕获（remote 模式捕获期 seam 已在两处索引如实披露，不改产品代码/数据库/用户数据）。
+- 纪律：全程 headless、服务收净、零 token、不动用户数据、未 push/未打 tag/未发版、不改 CI 发布配置。待 waizhuan 复验 + UI 阻断岗双 VERDICT 后由 lead 发版。
 
 ### 2026-11-21 · r38 研发（yanfa-r38 · M10 后功能补强：看板卡片元数据，向后兼容）
 - 交付：`packages/shared/src/cardMeta.ts` 唯一口径（MAX_CARD_LABELS/MAX_CARD_LABEL_LENGTH · normalizeCardLabels trim/去重/上限/禁空 · assertValidCardLabel/assertValidCardDueDate · isCompletionColumnName 完成列识别 · isOverdue 本地日期口径且完成列抑制 · collectOverdueCards · filterCardsByLabel · cardMetaSummary 标签数/逾期态/负责人摘要 · asCardWithMeta）；`@xieflow/shared/cardMeta` 子路径登记；`SCHEMA_VERSION` 24→25，`BoardCard` 扩三可空字段，api/web 零算法分支；零新依赖、零 token

@@ -59,7 +59,7 @@ function pinnedState(shot: string): SyncView | null {
   if (shot === "sync-conflicts") return { ...EMPTY, lastSyncAt: earlier, pending: 3, conflicts: [conflict], totalVersions: 6 };
   if (shot === "sync-modal") return { ...EMPTY, lastSyncAt: earlier, pending: 3, conflicts: [conflict], totalVersions: 6, modalOpen: true };
   if (shot === "sync-success") return { ...EMPTY, lastSyncAt: now, totalVersions: 7, success: true, message: "同步完成：拉取 3 条变更，写入 0 冲突。" };
-  if (shot === "sync-error") return { ...EMPTY, lastSyncAt: earlier, pending: 3, error: "同步失败：HTTP 500（截图钉态），请稍后重试。" };
+  if (shot === "sync-error") return { ...EMPTY, lastSyncAt: earlier, pending: 3, error: "同步失败：HTTP 500，请稍后重试。" };
   return null;
 }
 

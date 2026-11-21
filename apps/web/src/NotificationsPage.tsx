@@ -73,7 +73,7 @@ function displayTime(iso: string): string {
 export default function NotificationsPage({ onNavigate }: NotificationsProps): ReactElement {
   const query = readQuery();
   const [phase, setPhase] = useState<Phase>(() => (query.shot === "notif-loading" ? "loading" : query.shot === "notif-error" ? "error" : "ready"));
-  const [error, setError] = useState(query.shot === "notif-error" ? `${SERVICE_DOWN_MESSAGE}（r26 通知链路错误态）` : "");
+  const [error, setError] = useState(query.shot === "notif-error" ? `${SERVICE_DOWN_MESSAGE}` : "");
   const [items, setItems] = useState<Notification[]>(() => {
     if (query.shot === "notif-empty") return [];
     if (query.shot === "notif-read" || query.shot === "notif-read-badge") return SHOT_NOTIFICATIONS.map((n, i) => (i === 0 ? { ...n, readAt: SHOT_TIME } : n));

@@ -64,9 +64,9 @@ function pinDeps34(shot: string): DepPin | null {
   const mk = (id: number, title: string, status: TodoStatus = "open"): Todo => ({
     id, title, quadrant: "q1", status, dueDate: null, createdAt: iso, updatedAt: iso,
   });
-  const A = mk(101, "r34 A 需求评审");
-  const B = mk(102, "r34 B 接口开发");
-  const C = mk(103, "r34 C 联调验收");
+  const A = mk(101, "A 需求评审");
+  const B = mk(102, "B 接口开发");
+  const C = mk(103, "C 联调验收");
   const depItem = (todoId: number, d: Todo): DepItem => ({
     todoId, dependsOnTodoId: d.id, title: d.title, status: d.status,
   });
@@ -93,7 +93,7 @@ function pinDeps34(shot: string): DepPin | null {
     };
   }
   if (shot === "dep-satisfied") {
-    const aDone = mk(101, "r34 A 需求评审", "done");
+    const aDone = mk(101, "A 需求评审", "done");
     return {
       todos: [aDone, B, C],
       blocked: { [C.id]: { blockedBy: 1, blockers: [B.id], chain: [B.id] } },
@@ -111,7 +111,7 @@ function pinDeps34(shot: string): DepPin | null {
       },
       panelTodoId: A.id,
       deps: { [A.id]: [depItem(A.id, C)], [B.id]: [depItem(B.id, A)], [C.id]: [depItem(C.id, B)] },
-      error: "循环依赖：r34 A 需求评审(#101) → r34 B 接口开发(#102) → r34 C 联调验收(#103) → r34 A 需求评审(#101)",
+      error: "循环依赖：A 需求评审(#101) → B 接口开发(#102) → C 联调验收(#103) → A 需求评审(#101)",
     };
   }
   if (shot === "dep-error") {
@@ -228,7 +228,7 @@ export default function TodosPage() {
     if (shot === "todo-error") {
       setState({
         phase: "error",
-        message: SERVICE_DOWN_MESSAGE + "（截图钉态：真实场景为 api 停机时 vite 代理 5xx）",
+        message: SERVICE_DOWN_MESSAGE,
       });
       return;
     }

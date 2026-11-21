@@ -61,6 +61,13 @@ function eq(actual: unknown, expected: unknown, label: string): void {
   ok(a === e, `${label}${a === e ? "" : ` (got ${a}, want ${e})`}`);
 }
 
+// r39: HTTP 4xx error bodies are the raw material of UI error bars; assert
+// they carry no tester vocabulary before the web layer ever renders them.
+const INTERNAL_TERM_39 = /截图钉态|截图钉注|钉注|audit|e2e|4xx|seam|shot=|r\d{2}(?!\d)/i;
+function cleanError39(res: { json: any }, label: string): void {
+  ok(!INTERNAL_TERM_39.test(String(res.json?.error ?? "")), label);
+}
+
 async function req(method: string, path: string, body?: unknown): Promise<{ status: number; json: any }> {
   const res = await fetch(`${BASE}${path}`, {
     method,
@@ -167,11 +174,17 @@ async function audit() {
   console.log("\n== POST /api/todos (create) ==");
   let created;
   {
-    const r = await expectStatus("POST", "/api/todos", { title: "写 r2 审计脚本", quadrant: "q1", dueDate: "2026-11-22" }, 201, "POST 合法体 -> 201");
+    // r39: 首个样本 dueDate 由硬编码改为相对今天的固定偏移，避免跨日后与「明天到期」样本碰撞（r22 同类先例）；断言口径不变。
+    const firstTodoDate = ((): string => {
+      const d0 = new Date();
+      const x = new Date(d0.getFullYear(), d0.getMonth(), d0.getDate() + 2);
+      return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
+    })();
+    const r = await expectStatus("POST", "/api/todos", { title: "写 r2 审计脚本", quadrant: "q1", dueDate: firstTodoDate }, 201, "POST 合法体 -> 201");
     eq(r.json && r.json.title, "写 r2 审计脚本", "创建后 title 读回");
     eq(r.json && r.json.quadrant, "q1", "创建后 quadrant 读回");
     eq(r.json && r.json.status, "open", "创建后初始状态 open");
-    eq(r.json && r.json.dueDate, "2026-11-22", "创建后 dueDate 读回");
+    eq(r.json && r.json.dueDate, firstTodoDate, "创建后 dueDate 读回");
     created = r.json;
     await expectStatus("POST", "/api/todos", { title: "", quadrant: "q1" }, 400, "POST 空标题 -> 400");
     await expectStatus("POST", "/api/todos", { title: "   ", quadrant: "q1" }, 400, "POST 纯空白标题 -> 400");
@@ -226,7 +239,7 @@ async function audit() {
     const sm = r.json && r.json.summary;
     eq(sm && sm.today, 1, "summary.today = 1（今天到期 open）");
     eq(sm && sm.tomorrow, 1, "summary.tomorrow = 1");
-    eq(sm && sm.week, 3, "summary.week = 3（今+明+2026-11-22 在 [今天,今天+6] 窗口内；八天后窗外）");
+    eq(sm && sm.week, 3, "summary.week = 3（今+明+相对今日+2 天在 [今天,今天+6] 窗口内；八天后窗外）");
     eq(sm && sm.byQuadrant && sm.byQuadrant.q1, 1, "byQuadrant.q1 = 1（首轮创建）");
     eq(sm && sm.byQuadrant && sm.byQuadrant.q2, 1, "byQuadrant.q2 = 1");
     eq(sm && sm.byQuadrant && sm.byQuadrant.q3, 1, "byQuadrant.q3 = 1");
@@ -3947,6 +3960,7 @@ async function auditR28(): Promise<void> {
       await expectStatus("DELETE", `/api/blocks/${firstBlock32}`, undefined, 200, "r32 删除默认首块 -> 200");
       const emptyHtml32 = await expectStatus("GET", `/api/documents/${empty32.json.id}/export.html`, undefined, 422, "r32 空文档导出 HTML -> 422");
       ok(String(emptyHtml32.json.error).includes("空文档"), "r32 空文档错误文案明确");
+      cleanError39(emptyHtml32, "r39 4xx·空文档错误体零内部术语");
       await expectStatus("GET", `/api/documents/${empty32.json.id}/export.doc`, undefined, 422, "r32 空文档导出 Word -> 422");
       await expectStatus("GET", `/api/documents/${empty32.json.id}/print-preview`, undefined, 422, "r32 空文档预览 -> 422");
 
@@ -4030,11 +4044,14 @@ async function auditR28(): Promise<void> {
       // 4xx：空 q / 超长 q / 非法 types / 越权源 / 非法 limit
       const emptyQ33 = await expectStatus("GET", "/api/search?q=", undefined, 400, "r33 4xx·空 q -> 400");
       ok(String(emptyQ33.json.error).includes("为空"), "r33 4xx·空 q 文案明确");
+      cleanError39(emptyQ33, "r39 4xx·空 q 错误体零内部术语");
       const missingQ33 = await expectStatus("GET", "/api/search", undefined, 400, "r33 4xx·缺 q -> 400");
       ok(String(missingQ33.json.error).includes("字符串"), "r33 4xx·缺 q 文案明确");
+      cleanError39(missingQ33, "r39 4xx·缺 q 错误体零内部术语");
       await expectStatus("GET", `/api/search?q=${"x".repeat(201)}`, undefined, 400, "r33 4xx·超长 q -> 400");
       const badTypes33 = await expectStatus("GET", `/api/search?q=${encodeURIComponent(KEY)}&types=todos,evil`, undefined, 400, "r33 4xx·非法 types -> 400");
       ok(String(badTypes33.json.error).includes("非法搜索源"), "r33 4xx·非法 types 文案明确");
+      cleanError39(badTypes33, "r39 4xx·非法 types 错误体零内部术语");
       const privileged33 = await expectStatus("GET", `/api/search?q=${encodeURIComponent(KEY)}&types=users`, undefined, 400, "r33 4xx·越权源 users -> 400");
       ok(String(privileged33.json.error).includes("users"), "r33 4xx·越权源回带源名");
       await expectStatus("GET", `/api/search?q=${encodeURIComponent(KEY)}&limit=0`, undefined, 400, "r33 4xx·limit=0 -> 400");
@@ -4101,6 +4118,7 @@ async function auditR28(): Promise<void> {
       ok(String(self34.json.error).includes("自身"), "r34 4xx·自依赖文案明确");
       const cycle34 = await expectStatus("POST", `/api/todos/${A}/dependencies`, { dependsOnTodoId: C }, 400, "r34 4xx·A→B→C 后加 C→A 成环 -> 400");
       ok(String(cycle34.json.error).includes("循环依赖"), "r34 4xx·环文案明确");
+      cleanError39(cycle34, "r39 4xx·循环依赖错误体零内部术语");
       ok(Array.isArray(cycle34.json.cycle), "r34 4xx·环响应回带 cycle 路径供 UI 红条");
       const dup34 = await expectStatus("POST", `/api/todos/${B}/dependencies`, { dependsOnTodoId: A }, 409, "r34 4xx·重复依赖 -> 409");
       eq(dup34.json.code, "DUPLICATE_DEPENDENCY", "r34 4xx·重复依赖码在场");
@@ -4219,6 +4237,7 @@ async function auditR28(): Promise<void> {
       eq([imported.date, imported.start, imported.end, imported.repeat], ["2026-11-21", "10:00", "11:30", "none"], "r35 写入·字段与预览草稿逐项一致");
       const badIcs = await expectStatus("POST", "/api/schedules/import.ics", { ics: "garbage" }, 400, "r35 4xx·坏 ICS -> 400");
       ok(String(badIcs.json.error).includes("ICS"), "r35 4xx·坏 ICS 错误文案含 ICS");
+      cleanError39(badIcs, "r39 4xx·坏 ICS 错误体零内部术语");
       await expectStatus("POST", "/api/schedules/import.ics", {}, 400, "r35 4xx·缺 ics -> 400");
       await expectStatus("POST", "/api/schedules/import.ics", { ics: importIcs.replace("VERSION:2.0", "VERSION:1.0") }, 400, "r35 4xx·非 2.0 日历 -> 400");
       eq(await countMine(), afterCommit, "r35 4xx·坏 ICS 后零半态（未多写）");
@@ -4538,7 +4557,8 @@ async function auditR28(): Promise<void> {
       // 4xx：非法标签 / 停用成员 / 不存在成员 / 非法日期 / 越权 / 非数字 id
       await expectStatus("POST", `/api/projects/${pid}/columns/${todoCol}/cards`, { title: `${KEY}-空标签`, labels: ["  "] }, 400, "r38 4xx·全空标签 -> 400");
       await expectStatus("POST", `/api/projects/${pid}/columns/${todoCol}/cards`, { title: `${KEY}-非数组标签`, labels: "前端" }, 400, "r38 4xx·非数组标签 -> 400");
-      await expectStatus("POST", `/api/projects/${pid}/columns/${todoCol}/cards`, { title: `${KEY}-超长标签`, labels: ["x".repeat(41)] }, 400, "r38 4xx·超长标签 -> 400");
+      const longLabel39 = await expectStatus("POST", `/api/projects/${pid}/columns/${todoCol}/cards`, { title: `${KEY}-超长标签`, labels: ["x".repeat(41)] }, 400, "r38 4xx·超长标签 -> 400");
+      cleanError39(longLabel39, "r39 4xx·超长标签错误体零内部术语");
       await expectStatus("POST", `/api/projects/${pid}/columns/${todoCol}/cards`, {
         title: `${KEY}-过多标签`, labels: Array.from({ length: 11 }, (_, i) => `标签${i}`),
       }, 400, "r38 4xx·标签超上限 -> 400");

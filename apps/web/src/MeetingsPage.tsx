@@ -90,7 +90,7 @@ export default function MeetingsPage(): ReactElement {
   const [newRoomName, setNewRoomName] = useState("");
   const [conflict, setConflict] = useState<number[]>(query.shot === "meetings-conflict" ? [11, 12] : []);
   const [message, setMessage] = useState("");
-  const [error, setError] = useState(query.shot === "meetings-error" ? `${SERVICE_DOWN_MESSAGE}（r28 会议链路错误态）` : "");
+  const [error, setError] = useState(query.shot === "meetings-error" ? `${SERVICE_DOWN_MESSAGE}` : "");
   const [phase, setPhase] = useState<"loading" | "ready" | "error">(
     query.shot === "meetings-error" ? "error" : PINNED.has(query.shot) ? "ready" : "loading",
   );

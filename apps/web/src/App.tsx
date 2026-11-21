@@ -77,10 +77,10 @@ type PageTab = "home" | "todos" | "schedules" | "projects" | "board" | "bases" |
 
 /** r33 截图钉态结果（真实形态与 /api/search 一致；只用于确定性捕获，不是业务数据源） */
 const SHOT_SEARCH_RESULTS: readonly SearchResult[] = [
-  { type: "meetings", id: 11, title: "R33 全局搜索评审会", snippet: "2026-11-21 09:00-10:00 · 第一会议室 · 张三", score: 45, tab: "meetings", deepLink: buildSearchDeepLink("meetings", 11) },
-  { type: "todos", id: 2, title: "整理 R33 全局搜索材料", snippet: "紧急且重要 · 进行中", score: 45, tab: "todos", deepLink: buildSearchDeepLink("todos", 2) },
-  { type: "documents", id: 3, title: "R33 全局搜索设计说明", snippet: "文档 · 更新于 2026-11-21", score: 30, tab: "docs", deepLink: buildSearchDeepLink("documents", 3) },
-  { type: "knowledge_docs", id: 4, title: "跨模块检索规范", snippet: "正文提到 R33 全局搜索与直达约定", score: 15, tab: "knowledge", deepLink: buildSearchDeepLink("knowledge_docs", 4) },
+  { type: "meetings", id: 11, title: "全局搜索评审会", snippet: "2026-11-21 09:00-10:00 · 第一会议室 · 张三", score: 45, tab: "meetings", deepLink: buildSearchDeepLink("meetings", 11) },
+  { type: "todos", id: 2, title: "整理全局搜索材料", snippet: "紧急且重要 · 进行中", score: 45, tab: "todos", deepLink: buildSearchDeepLink("todos", 2) },
+  { type: "documents", id: 3, title: "全局搜索设计说明", snippet: "文档 · 更新于 2026-11-21", score: 30, tab: "docs", deepLink: buildSearchDeepLink("documents", 3) },
+  { type: "knowledge_docs", id: 4, title: "跨模块检索规范", snippet: "正文提到全局搜索与直达约定", score: 15, tab: "knowledge", deepLink: buildSearchDeepLink("knowledge_docs", 4) },
 ];
 
 /** r33 高亮渲染：切分口径在 shared，本组件只产 span，零搜索算法分支 */
@@ -244,7 +244,7 @@ export default function App() {
     const now = new Date();
     if (shot === "loading") return { phase: "loading" };
     if (shot === "error")
-      return { phase: "error", message: "ECONNREFUSED 127.0.0.1:8787（截图钉态）" };
+      return { phase: "error", message: "服务未启动或网络异常，请稍后重试。" };
     if (shot === "empty")
       return { phase: "ready", settings: [], schemaVersion: 5, todaySchedules: [], todos: [] };
     if (shot === "ready" || shot === "workbench")
@@ -266,7 +266,7 @@ export default function App() {
     searchPin === "search-empty" ? ""
       : searchPin === "search-single" ? "会议"
         : searchPin === "search-typing" ? "R33"
-          : searchPin !== "" ? "R33 全局搜索" : "",
+          : searchPin !== "" ? "全局搜索" : "",
   );
   const [searchResults, setSearchResults] = useState<readonly SearchResult[]>(
     searchPin === "search-empty" || searchPin === "search-error" ? []
@@ -276,7 +276,7 @@ export default function App() {
   );
   const [searchSelected, setSearchSelected] = useState(searchPin === "search-keyboard" ? 1 : -1);
   const [searchLoading, setSearchLoading] = useState(false);
-  const [searchError, setSearchError] = useState(searchPin === "search-error" ? "真实 4xx 探针：HTTP 400 · 搜索词不能为空（截图钉态）" : "");
+  const [searchError, setSearchError] = useState(searchPin === "search-error" ? "搜索词不能为空，请输入关键词后重试。" : "");
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -658,7 +658,7 @@ export default function App() {
           <span className="tabs-more-fade" aria-hidden="true" />
           <button type="button" className="tabs-more" aria-label="更多导航" onClick={toggleNav}>更多 ›</button>
         </div>
-        <span className="badge">r38 · 看板卡片元数据（标签/负责人/截止日）</span>
+        <span className="badge">界面文案已优化（错误提示更清晰）</span>
         <OfflineStatus />
         <button type="button" className="nav-toggle" data-state="nav-toggle" aria-label="展开导航" onClick={toggleNav}>☰</button>
         <span className="auth-controls" data-state="auth-controls">

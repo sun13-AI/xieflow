@@ -113,7 +113,7 @@ export default function ReportsPage(): ReactElement {
     isReportMetric(query.metric) ? query.metric : query.shot === "reports-drilldown" ? "approvalSla" : "todoCompletion",
   );
   const [phase, setPhase] = useState<Phase>(query.shot === "reports-error" ? "error" : PINNED.has(query.shot) ? "ready" : "loading");
-  const [error, setError] = useState(query.shot === "reports-error" ? `${SERVICE_DOWN_MESSAGE}（r27 报表链路错误态）` : "");
+  const [error, setError] = useState(query.shot === "reports-error" ? `${SERVICE_DOWN_MESSAGE}` : "");
   const [overview, setOverview] = useState<ReportOverview | null>(() => (PINNED.has(query.shot) ? pinnedOverview(query.shot, initialRange) : null));
   const [detail, setDetail] = useState<ReportMetricResult | null>(null);
 

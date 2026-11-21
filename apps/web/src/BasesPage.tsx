@@ -567,7 +567,7 @@ export default function BasesPage() {
     if (shot === "bases-error") {
       setState({
         phase: "error",
-        message: SERVICE_DOWN_MESSAGE + "（截图钉态：真实场景为 api 停机时 vite 代理 5xx）",
+        message: SERVICE_DOWN_MESSAGE,
       });
       return;
     }
@@ -607,7 +607,7 @@ export default function BasesPage() {
       const table: BaseTable = {
         id: 1,
         name: "装修预算表",
-        description: shot === "bases-formula-float" || shot === "bases-formula-float-grid" ? "r31 浮点展示格式化钉态" : "r30 公式字段截图钉态",
+        description: shot === "bases-formula-float" || shot === "bases-formula-float-grid" ? "浮点展示格式化示例" : "公式字段示例",
         createdAt: now.toISOString(),
         updatedAt: now.toISOString(),
       };
@@ -679,7 +679,7 @@ export default function BasesPage() {
       const table: BaseTable = {
         id: 1,
         name: "装修预算表 · 分组视图",
-        description: "r37 表格分组与汇总行截图钉态",
+        description: "表格分组与汇总行示例",
         createdAt: now.toISOString(),
         updatedAt: now.toISOString(),
       };
@@ -722,7 +722,7 @@ export default function BasesPage() {
         aggregator,
         aggregateFieldId: String(amountId),
       });
-      setGroupError(shot === "bases-group-error" ? "分组失败：聚合字段不存在（截图钉态）" : null);
+      setGroupError(shot === "bases-group-error" ? "分组失败：聚合字段不存在，请重新选择取值字段。" : null);
       setCollapsedGroups(shot === "bases-group-collapsed" ? { "select:未开始": true } : {});
       setGroupDropdownOpen(shot === "bases-group-dropdown");
       return;

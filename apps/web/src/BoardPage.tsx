@@ -244,7 +244,7 @@ export default function BoardPage() {
       return;
     }
     if (shot === "board-error") {
-      setState({ phase: "error", message: SERVICE_DOWN_MESSAGE + "（截图钉态：真实场景为 api 停机时 vite 代理 5xx）" });
+      setState({ phase: "error", message: SERVICE_DOWN_MESSAGE });
       return;
     }
     if (shot === "board-data" || shot === "board-modal") {
@@ -309,7 +309,7 @@ export default function BoardPage() {
     if (shot === "board-meta-error") {
       const seed = pinSeedBoardMeta(new Date());
       setState({ phase: "ready", ...seed });
-      setSubmitError("卡片失败：标签过长（最多 40 字）· 截图钉态对应 audit 4xx 非法标签");
+      setSubmitError("卡片失败：标签过长（最多 40 字），请缩短后重试。");
       setModalOpen(true);
       return;
     }

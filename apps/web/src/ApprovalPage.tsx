@@ -109,7 +109,7 @@ export default function ApprovalPage() {
   const [state, setState] = useState<PageState>(() => {
     if (query.shot === "approval-loading") return { phase: "loading" };
     if (query.shot === "approval-error") return { phase: "error", message: SERVICE_DOWN_MESSAGE };
-    if (query.shot === "approval-r25-error") return { phase: "error", message: `${SERVICE_DOWN_MESSAGE}（r25 动作链路错误态）` };
+    if (query.shot === "approval-r25-error") return { phase: "error", message: `${SERVICE_DOWN_MESSAGE}` };
     if (query.shot === "approval-empty") return { phase: "ready", approvals: [] };
     if (query.shot === "approval-timeline-badge" || query.shot === "approval-actor-badge") return { phase: "ready", approvals: [PIN_APPROVAL] };
     if (query.shot === "approval-picker" || query.shot === "approval-picked" || query.shot === "approval-manual-hint") return { phase: "ready", approvals: [] };

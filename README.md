@@ -13,7 +13,7 @@ pnpm install
 powershell -File scripts\start.ps1 start   # api:8787 + web:5173
 powershell -File scripts\start.ps1 stop
 # 开发模式：pnpm dev:api / pnpm dev:web
-pnpm run test:all    # typecheck + e2e（3377 断言）+ HTTP 审计（2616 断言）
+pnpm run test:all    # typecheck + 文案扫描 + e2e（3412 断言）+ HTTP 审计（2623 断言）
 ```
 
 - 打包：`pnpm run pack`（免安装目录 `release/xieflow-portable/`，双击 `start.cmd` 即用）/ `pnpm run dist`（setup zip）；均单端口 8080，数据落目录内 `data/`
@@ -26,18 +26,18 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 
 ## 界面与测试对照
 
-按宪法第一条：**界面更新必须带截图证据（每次，无例外）**，截图与实现同一提交。当前轮 r38 看板卡片元数据（7 张 + 十九 tab 壳基线）：
+按宪法第一条：**界面更新必须带截图证据（每次，无例外）**，截图与实现同一提交。当前轮 r39 用户可见文案清理（错误态 7 张 + 十九 tab 壳基线）：
 
 | 截图 | 形态 | 对应断言 |
 |---|---|---|
-| [01-card-empty.png](docs/ui/r38/01-card-empty.png) | 卡片元数据空态：无项目 / 无卡片 | e2e「r38 向后兼容·老卡 labels 为空数组」；audit「r38 向后兼容·老卡 labels=[]」 |
-| [02-card-labels.png](docs/ui/r38/02-card-labels.png) | 标签 chip：卡片正面「前端 / 紧急」+ 筛选栏「前端」命中 2 张 | audit「r38 建卡·标签 trim/去重回带」；audit「r38 筛选·前端标签 2 张」 |
-| [03-card-assignee.png](docs/ui/r38/03-card-assignee.png) | 负责人编辑面板：复用 r24 MemberPicker 从通讯录选人 | audit「r38 建卡·负责人摘要姓名/部门回带」 |
-| [04-card-due.png](docs/ui/r38/04-card-due.png) | 截止日设置：编辑面板 date 输入 + 卡片正面日期 | audit「r38 建卡·截止日回带」 |
-| [05-card-overdue.png](docs/ui/r38/05-card-overdue.png) | 逾期红标：待办列逾期卡标红，已完成列同日不标红 | audit「r38 手算·逾期恰好 1 张」；e2e「r38 逾期·完成列不标红」 |
-| [06-card-narrow.png](docs/ui/r38/06-card-narrow.png) | 488px 窄屏：标签 chip 与筛选栏在场 | 截图 seam + SHA 自查 |
-| [07-card-error.png](docs/ui/r38/07-card-error.png) | 错误红条：标签过长（4xx）+ 编辑面板保留 | audit「r38 4xx·超长标签 -> 400」 |
-| [shell/](docs/ui/shell/README.md) | 十九 tab 壳基线（r38 同批重拍，tab 数不变，徽章推进） | e2e「shell README R38 哈希逐字一致」 |
+| [01-board-meta-error-clean-text.png](docs/ui/r39/01-board-meta-error-clean-text.png) | 看板错误条「卡片失败：标签过长（最多 40 字），请缩短后重试。」+ 新徽章 | e2e「r39 BoardPage 错误条纯用户文案」；audit「r39 超长标签错误体零内部术语」 |
+| [02-bases-group-error-clean-text.png](docs/ui/r39/02-bases-group-error-clean-text.png) | 表格分组错误条「聚合字段不存在，请重新选择取值字段。」+ 网格保留 | e2e「r39 BasesPage 错误条纯用户文案」；audit「r39 非法 types 错误体零内部术语」 |
+| [03-bases-service-error-clean-text.png](docs/ui/r39/03-bases-service-error-clean-text.png) | 表格页服务错误条纯用户话术，无 seam 标记 | check:text「6265 literals 零命中」 |
+| [04-schedule-error-clean-text.png](docs/ui/r39/04-schedule-error-clean-text.png) | 日程页服务错误条纯用户话术 | check:text「6265 literals 零命中」 |
+| [05-work-reports-error-clean-text.png](docs/ui/r39/05-work-reports-error-clean-text.png) | 报告错误条「服务未启动或网络异常，请稍后重试。」+ 重试按钮，无 r36 标记 | e2e「r39 WorkReportsPage 轮次错误态零残留」 |
+| [06-search-error-clean-text.png](docs/ui/r39/06-search-error-clean-text.png) | 全局搜索错误气泡「搜索词不能为空，请输入关键词后重试。」 | audit「r39 空 q / 缺 q 错误体零内部术语」 |
+| [07-login-clean-text.png](docs/ui/r39/07-login-clean-text.png) | 登录提示「远端模式下需登录访问业务数据；本地模式可直接体验。」+ 纯用户徽章 | check:text 扫描断言；e2e「r39 用户可见文案」节 |
+| [shell/](docs/ui/shell/README.md) | 十九 tab 壳基线（r39 同批重拍，tab 数不变，徽章改纯用户文案） | e2e「shell README R39 哈希逐字一致」 |
 
 **历史逐轮截图索引（r1~r32 全量、逐张对照断言）见 [README 归档](docs/README-ARCHIVE.md) 与 [docs/ui/](docs/ui/) 各轮 README**；矩阵 SHA256 互异、同态组仅 r4 已披露 2 组。
 
@@ -45,7 +45,7 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 
 ### 断言规模（每轮更新，下降 = 回归 = 冻结发版）
 
-- **当前 r38**：e2e **3377**（服务离线口径；api 在线 +1）· HTTP audit **2616** · typecheck 5 包全绿；**无一条断言被删**，仅期望值/标签随行为推进。
+- **当前 r39**：e2e **3412**（服务离线口径；api 在线 +1）· HTTP audit **2623** · check:text 文案扫描 **6265 literals / 24 tsx / 0 命中** · typecheck 5 包全绿；**无一条断言被删**，仅期望值/标签随行为推进。
 - 纪律：断言只涨不缩；禁自洽占位；关键行为做变异红相留痕（改坏实现 → 断言变红 → 逐字节还原全绿）。
 - **逐轮规模变化（r1~r32 的完整记账）见 [README 归档](docs/README-ARCHIVE.md)**；CI smoke 正则随 schema 版本同步至 v25；CI 三平台 verify + tag 触发 Release。
 

@@ -90,7 +90,7 @@ export default function KnowledgePage() {
   });
   const [ingestOpen, setIngestOpen] = useState(query.shot === "knowledge-ingest-dialog");
   const [sourceType, setSourceType] = useState<SourceType>("text");
-  const [newTitle, setNewTitle] = useState(query.shot === "knowledge-ingest-dialog" ? "r12 入库演示" : "");
+  const [newTitle, setNewTitle] = useState(query.shot === "knowledge-ingest-dialog" ? "入库演示" : "");
   const [newContent, setNewContent] = useState(query.shot === "knowledge-ingest-dialog" ? "协流知识库支持纯文本入库，自动分块后做本地 TF-IDF 检索。" : "");
   const [newSourceId, setNewSourceId] = useState("");
   const [searchDraft, setSearchDraft] = useState(query.q);

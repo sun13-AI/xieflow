@@ -38,7 +38,7 @@ function AuthShell({ kind, title, subtitle, reason, shot }: AuthShellProps) {
   useEffect(() => {
     if (shot === "login-error") setError("用户名或密码错误（HTTP 401）——请检查账号与密码后重试");
     if (shot === "register-error") setError("弱密码被拒绝（HTTP 400）：密码至少 8 位");
-    if (shot === "login") setNotice("演示账号：r18_shot_user；远端模式下需登录访问业务数据。");
+    if (shot === "login") setNotice("远端模式下需登录访问业务数据；本地模式可直接体验。");
     if (shot === "register") setNotice("账号落 users 表；密码只存 PBKDF2 摘要，不明文落库。");
   }, [shot]);
 
@@ -80,7 +80,7 @@ function AuthShell({ kind, title, subtitle, reason, shot }: AuthShellProps) {
     <main className="auth-shell" data-state={kind}>
       <section className="auth-card card">
         <div className="auth-brand">协流 XieFlow</div>
-        <span className="auth-badge">r18 · 账号与网络版服务（M9 起步）</span>
+        <span className="auth-badge">账号与网络版服务</span>
         <h1>{title}</h1>
         <p className="auth-subtitle">{subtitle}</p>
 

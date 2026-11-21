@@ -46,7 +46,7 @@ const PIN_SOURCE: WorkReportSource = {
     { id: 13, title: "明日复盘", date: "2026-11-22", start: "15:00", end: "16:00" },
   ],
   blocked: [{ todoId: 5, blockers: [3] }],
-  documents: [{ id: 21, title: "r36 报告设计说明", createdAt: "2026-11-21T07:00:00.000Z", updatedAt: "2026-11-21T11:00:00.000Z" }],
+  documents: [{ id: 21, title: "报告设计说明", createdAt: "2026-11-21T07:00:00.000Z", updatedAt: "2026-11-21T11:00:00.000Z" }],
 };
 const PIN_EMPTY: WorkReportSource = { todos: [], schedules: [], blocked: [], documents: [] };
 
@@ -105,7 +105,7 @@ export default function WorkReportsPage(): ReactElement {
   const [phase, setPhase] = useState<"loading" | "ready" | "error">(
     query.shot === "wr-error" ? "error" : pinned ? "ready" : "loading",
   );
-  const [error, setError] = useState(query.shot === "wr-error" ? `${SERVICE_DOWN_MESSAGE}（r36 报告链路错误态）` : "");
+  const [error, setError] = useState(query.shot === "wr-error" ? `${SERVICE_DOWN_MESSAGE}` : "");
   const [report, setReport] = useState<WorkReportResponse | null>(() => pinned && query.shot !== "wr-error"
     ? pinReport(query.shot, query.shot === "wr-weekly" ? "weekly" : "daily")
     : null,

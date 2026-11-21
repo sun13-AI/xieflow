@@ -31,6 +31,7 @@
 #   powershell -File scripts\shot.ps1 shots -Round r31 # capture r31 bases empty-text + formula float-display matrix + 18-tab shell baseline
 #   powershell -File scripts\shot.ps1 shots -Round r24 # capture r24 member-picker matrix + 15-tab shell baseline
 #   powershell -File scripts\shot.ps1 shots -Round r36 # capture r36 report tab matrix + 19-tab shell baseline
+#   powershell -File scripts\shot.ps1 shots -Round r39 # capture r39 user-facing text cleanup error states + 19-tab shell baseline
 #   powershell -File scripts\shot.ps1 shots -Round r11 -Shot 08-docs-diff-inline # rework#1: re-capture ONLY the diff-inline evidence (no other matrix/shell re-shot)
 #   powershell -File scripts\shot.ps1 shots -Round r26 -Shot 09-notif-deeplink-target # r26 rework#2: seed 3 pending approvals, CDP-click the SECOND notification, capture ONLY 09 (no other matrix/shell re-shot)
 #   powershell -File scripts\shot.ps1 down            # stop servers
@@ -56,7 +57,7 @@ param(
   [Parameter(Position = 0)]
   [ValidateSet("up", "shots", "down", "status", "all")]
   [string]$Action = "status",
-  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r26", "r27", "r28", "r29", "r30", "r31", "r32", "r33", "r34", "r35", "r36", "r37", "r38")]
+  [ValidateSet("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "r26", "r27", "r28", "r29", "r30", "r31", "r32", "r33", "r34", "r35", "r36", "r37", "r38", "r39")]
   [string]$Round = "r1",
   [Parameter()]
   [string]$Shot = ""
@@ -180,35 +181,24 @@ function Invoke-ShellBaseline {
     @{ page = "unit-tasks"; file = "unit-tasks-tab-active" },
     @{ page = "org";       file = "org-tab-active" },
     @{ page = "notifications"; file = "notifications-tab-active" },
-    @{ page = "reports";       file = "reports-tab-active" },
-    @{ page = "work-reports";  file = "work-reports-tab-active" },
+    @{ page = "reports";       file = "reports-tab-active";       shot = "reports-empty" },
+    @{ page = "work-reports";  file = "work-reports-tab-active";  shot = "wr-empty" },
     @{ page = "meetings";      file = "meetings-tab-active" }
   )
   foreach ($t in $tabs) {
     $url = "http://127.0.0.1:$WebPort/"
     if ($t.page -ne "") { $url = $url + "?page=" + $t.page }
+    # r39: pin reports/work-reports to built-in empty states under remote mode
+    # so no auth error bar leaks into the shell evidence.
+    if ($t.shot) { $url = $url + "&shot=" + $t.shot }
     $out = Join-Path $shellDir ($t.file + ".png")
     if (Test-Path $out) { Remove-Item $out -Force }
-    $args = @(
-      "--headless=new", "--disable-gpu", "--hide-scrollbars",
-      "--force-device-scale-factor=1",
-      "--screenshot=$out", "--window-size=1280,800",
-      "--virtual-time-budget=6000", $url
-    )
-    # r5 fix: same hang-proof capture as the round matrix (wait for the png,
-    # then kill a lingering browser tree - never leave a headless browser behind)
-    $proc = Start-Process -FilePath $BrowserPath -ArgumentList $args -PassThru -WindowStyle Hidden
-    $deadline = (Get-Date).AddSeconds(45)
-    while ((-not (Test-Path $out)) -and ((Get-Date) -lt $deadline)) { Start-Sleep -Milliseconds 300 }
-    $captured = Test-Path $out
-    $exited = $proc.WaitForExit(5000)
-    if (-not $exited) {
-      & taskkill /PID $proc.Id /T /F 2>$null | Out-Null
-      Write-Output "note: shell $($t.file) browser lingered -> killed"
-    } elseif ($proc.ExitCode -ne 0) {
-      Write-Output "warn: shell $($t.file) exit=$($proc.ExitCode)"
-    }
-    if ($captured) {
+    # r39: Edge plain --screenshot intermittently writes no PNG on this box;
+    # use the one-shot headless CDP helper (same as the r39 matrix).
+    $helper = Join-Path $Root "scripts\r39-shot.mjs"
+    & node $helper --browser "$BrowserPath" --url "$url" --out "$out" --width 1280 --height 800
+    if ($LASTEXITCODE -ne 0) { throw "shell baseline CDP shot failed: $($t.file)" }
+    if (Test-Path $out) {
       $kb = [math]::Round((Get-Item $out).Length / 1KB)
       Write-Output "shell baseline ok: $($t.file).png ($kb KB)"
     } else {
@@ -1025,7 +1015,28 @@ function Invoke-Shots {
     }
   }
 
-  if ($Round -eq "r38") {
+  if ($Round -eq "r39") {
+    # r39: user-facing text cleanup. Re-capture the error states whose copy changed,
+    # plus the global-search error pin and the top-bar badge (user-facing text only).
+    try {
+      Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/auth/mode" -Method Post `
+        -ContentType "application/json; charset=utf-8" `
+        -Body ([System.Text.Encoding]::UTF8.GetBytes('{"mode":"local"}')) | Out-Null
+      Write-Output "r39 service mode set to local"
+    } catch {
+      Write-Output "warn: r39 mode switch failed ($($_.Exception.Message))"
+    }
+    $r39Web = "http://127.0.0.1:$WebPort/"
+    $shots = @(
+      @{ name = "01-board-meta-error-clean-text"; url = "${r39Web}?page=board&shot=board-meta-error"; width = 1280; height = 900 },
+      @{ name = "02-bases-group-error-clean-text"; url = "${r39Web}?page=bases&shot=bases-group-error"; width = 1280; height = 900 },
+      @{ name = "03-bases-service-error-clean-text"; url = "${r39Web}?page=bases&shot=bases-error"; width = 1280; height = 900 },
+      @{ name = "04-schedule-error-clean-text"; url = "${r39Web}?page=schedules&shot=schedule-error"; width = 1280; height = 900 },
+      @{ name = "05-work-reports-error-clean-text"; url = "${r39Web}?page=work-reports&shot=wr-error"; width = 1280; height = 900 },
+      @{ name = "06-search-error-clean-text"; url = "${r39Web}?shot=search-error"; width = 1280; height = 900 },
+      @{ name = "07-login-clean-text"; url = "${r39Web}?page=login&shot=login"; width = 1280; height = 900 }
+    )
+  } elseif ($Round -eq "r38") {
     # r38: force local mode BEFORE capturing (fresh browser profile defaults to
     # remote login otherwise); all seven pins are deterministic ?shot= states.
     try {
@@ -1639,6 +1650,13 @@ function Invoke-Shots {
     $out = Join-Path $UiDir ($s.name + ".png")
     # delete any stale png first: a failed capture must never look like a success
     if (Test-Path $out) { Remove-Item $out -Force }
+    if ($Round -eq "r39") {
+      # r39: CDP capture (Edge plain --screenshot intermittently wrote no PNG here)
+      $helper = Join-Path $Root "scripts\r39-shot.mjs"
+      & node $helper --browser "$browser" --url "$($s.url)" --out "$out" --width $($s.width) --height $($s.height)
+      if ($LASTEXITCODE -ne 0) { throw "r39 CDP shot failed: $($s.name)" }
+      $captured = Test-Path $out
+    } else {
     $args = @(
       "--headless=new", "--disable-gpu", "--hide-scrollbars",
       "--force-device-scale-factor=1",
@@ -1659,6 +1677,7 @@ function Invoke-Shots {
       Write-Output "note: $($s.name) browser lingered after capture -> killed (headless cleanup)"
     } elseif ($proc.ExitCode -ne 0) {
       Write-Output "warn: $($s.name) exit=$($proc.ExitCode)"
+    }
     }
     if (-not $captured) { throw "screenshot failed: $out" }
     $kb = [math]::Round((Get-Item $out).Length / 1KB)

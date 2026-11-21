@@ -288,7 +288,7 @@ export default function DocsPage() {
     if (shot === "docs-error") {
       setState({
         phase: "error",
-        message: SERVICE_DOWN_MESSAGE + "（截图钉态：真实场景为 api 停机时 vite 代理 5xx）",
+        message: SERVICE_DOWN_MESSAGE,
       });
       return;
     }
@@ -657,7 +657,7 @@ export default function DocsPage() {
     try {
       const res = await apiFetch("/api/documents/99999999/export.html");
       const text = await res.text();
-      setErrorText(`真实 4xx 探针：HTTP ${res.status} · ${text.slice(0, 140)}`);
+      setErrorText(`文档读取失败（HTTP ${res.status}）：${text.slice(0, 140)}`);
     } catch (err: unknown) {
       setErrorText(err instanceof Error ? err.message : SERVICE_DOWN_MESSAGE);
     }

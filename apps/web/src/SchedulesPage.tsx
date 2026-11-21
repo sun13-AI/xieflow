@@ -300,7 +300,7 @@ export default function SchedulesPage() {
       return;
     }
     if (shot === "schedule-error") {
-      setState({ phase: "error", message: SERVICE_DOWN_MESSAGE + "（截图钉态：真实场景为 api 停机时 vite 代理 5xx）" });
+      setState({ phase: "error", message: SERVICE_DOWN_MESSAGE });
       return;
     }
     if (shot === "schedule-modal") {
