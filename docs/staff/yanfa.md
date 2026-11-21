@@ -46,3 +46,4 @@
 | r39 | 2026-11-21 | 文案清理（续做） | 跨日种子硬编码→相对 today+2；check:text 6265 literals/24tsx 零命中；错误条纯用户文案 | e2e 3412/audit 2623，扫描器变异红相 |
 | r40 | 2026-11-21 | 口径清理 | 登录页去数字口径 + 扫描器 rN 正则加固（暴露 11 处真 rN）+ 2 组变异红相 | e2e 3430/audit 2641，check:text 零命中 |
 | r42 | 2026-11-21 | DOC-CONTRACT | 新 watchdog 27 checks（schema 权威源→README vN/规模/两节）+ 11 自探针防恒真 + 接 test:all | e2e 3551/audit 2703 不变，vN 变异红相 |
+| r44 | 2026-11-21 | 图证口径修正 | 05 时段 seam 统一 14:30 + 07 纯用户文案 + shell 计数归位；DOC-CONTRACT 扩到 43 | e2e 3677/audit 2802，2 组变异红相 |
