@@ -101,6 +101,9 @@ function todayStr(): string {
 
 export default function MeetingsPage(): ReactElement {
   const query = readQuery();
+  // r44 U2-1: conflict seam pins the form window to the same 14:30-15:00 slot
+  // the recommendation result uses, so the screenshot explains its #21 conflict.
+  const conflictPin = query.shot === "meetings-recommend-conflicts";
   const initialDate = query.date !== "" ? query.date : R43_DATE;
   const shotRooms = query.shot === "meetings-equipment-empty" ? SHOT_ROOMS_NO_EQUIP
     : R43_SHOTS.has(query.shot) ? SHOT_ROOMS_EQUIP : SHOT_ROOMS;
@@ -113,7 +116,7 @@ export default function MeetingsPage(): ReactElement {
   const [roomId, setRoomId] = useState(query.roomId !== "" ? Number(query.roomId) : 1);
   const [form, setForm] = useState<BookingForm>({
     title: "", roomId: query.roomId !== "" ? query.roomId : "1",
-    date: initialDate, start: "09:00", end: "10:00", organizer: "", attendees: [],
+    date: initialDate, start: conflictPin ? "14:30" : "09:00", end: conflictPin ? "15:00" : "10:00", organizer: "", attendees: [],
   });
   const [newRoomName, setNewRoomName] = useState("");
   const [newRoomEquipment, setNewRoomEquipment] = useState<readonly string[]>([]);
@@ -128,7 +131,7 @@ export default function MeetingsPage(): ReactElement {
   const [needEquipment, setNeedEquipment] = useState<readonly string[]>(R43_SHOTS.has(query.shot) ? ["投影"] : []);
   const [recommendResult, setRecommendResult] = useState<RoomRecommendation | null>(() => {
     if (query.shot !== "meetings-recommend-results" && query.shot !== "meetings-recommend-conflicts") return null;
-    const conflict = query.shot === "meetings-recommend-conflicts";
+    const conflict = conflictPin;
     const need = parseRecommendNeed({
       attendees: 8, equipment: "投影", date: R43_DATE,
       start: conflict ? "14:30" : "10:00", end: conflict ? "15:00" : "11:00",
@@ -320,10 +323,10 @@ export default function MeetingsPage(): ReactElement {
       {phase === "loading" && <p className="state-loading" data-state="meetings-loading">正在装配会议室与时段…</p>}
       {phase === "error" && (
         <div className="state-error" role="alert" data-state="meetings-error">
-          <h2>连接失败</h2>
+          <h2>{recommendError !== "" ? "输入有误" : "连接失败"}</h2>
           <p className="error-message">{error || recommendError}</p>
-          <p className="hint">请确认 api 服务已启动（pnpm dev:api），然后重试。</p>
-          <button type="button" onClick={() => { setError(""); void load(date, roomId); }}>重试</button>
+          <p className="hint">{recommendError !== "" ? "请检查人数/设备/时段后重试。" : "请确认 api 服务已启动（pnpm dev:api），然后重试。"}</p>
+          {recommendError === "" && <button type="button" onClick={() => { setError(""); void load(date, roomId); }}>重试</button>}
         </div>
       )}
       {phase === "ready" && (

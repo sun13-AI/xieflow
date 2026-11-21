@@ -62,32 +62,51 @@
 > **r43 tab 数量仍不变（二十）**：会议室卡片加设备徽标 +预约表单加「帮我推荐」面板，不新增 tab；
 > 徽章沿用 r39 纯用户文案 + schema v27 → **二十张同批重拍**。与 r41 同名字节 changed=6 / same=14
 > （todos / schedules / board / knowledge / meetings / forms 变化，其余沿用），
-> 按 r25 先例如实披露，不称逐位全异。当前块见下方 R43 哈希块。
+> 按 r25 先例如实披露，不称逐位全异。当前 R43 哈希块见下方（r44 重拍后为历史对照）。
+> **r44 图证与文档口径修正（MeetingsPage 校验错误帧文案 + 05 时段 seam 同批重拍）**：tab 数量仍不变（二十）；
+> 徽章沿用 r39 纯用户文案 + schema 仍 v27 → **二十张同批重拍**。与 r43 同名字节 changed=6 / same=14
+> （forms / meetings / mindmap / todos / unit-tasks / whiteboard 变化，其余沿用），按 r25 先例如实披露，
+> 不称逐位全异；当前块见下方 R44 哈希块。
 
 | 文件 | 形态 | 对应断言 |
 |---|---|---|
-| workbench-tab-active.png | 工作台激活（默认页；schema **v18** + 里程碑 M10 多端与单机版 + 服务模式卡「本机/远端」 + 多端同步卡 + r37 徽章 + 顶栏在线状态区 + 登录按钮） | e2e「r23 schema v16 / 外壳 seam」；audit「r23 health / mode / todos 路由契约」 |
-| todos-tab-active.png | 待办激活（?page=todos；四象限 + 计数卡 + 徽标 + r37 徽章） | audit「GET 列表 -> 200」+ summary 计数组端到端形态 |
-| schedules-tab-active.png | 日程激活（?page=schedules；月视图 + 今天高亮 + 导出 .ics / 订阅设置 / 导入 .ics 三入口 + r37 徽章） | e2e「新库 schedules 为空 / r35 导出菜单 seam」；audit「GET 空区间 -> 200」 |
-| projects-tab-active.png | 项目激活（?page=projects；空态 + 新建入口 + r37 徽章） | audit「GET /api/projects -> 200」空列表形态 |
-| board-tab-active.png | 看板激活（?page=board；无项目空态引导 + r37 徽章） | audit「GET /api/projects -> 200」空列表形态的看板侧消费 |
-| bases-tab-active.png | 表格激活（?page=bases；零表首次使用空态 + 空态文案「8 种字段类型齐备（含公式）」+「＋ 新建表」+ 十九药丸壳 + r37 徽章） | audit「r31 GET /api/tables -> 200」空列表形态；e2e「r31 空态文案八类 / 旧七类零残留」 |
-| docs-tab-active.png | 文档激活（?page=docs；零文档首次使用空态 + 工具栏「回收站 / 导入 Markdown / 导出 .md / 导出 ▾ / ＋ 新建文档 / 打印预览」+ 十九药丸壳 + r37 徽章） | audit「r29 GET 文档列表 / 回收站 -> 200」空列表形态；e2e「建文档默认首块自动在场 + 零版本」「r32 导出菜单 seam」 |
-| chat-tab-active.png | AI 工作台激活（?page=chat；真实 0 会话态三栏引导 + 12 工具目录 + r37 徽章） | audit「r11 GET /api/tools -> 200」；e2e「默认注册表恰 12 个工具」 |
-| knowledge-tab-active.png | 知识库激活（?page=knowledge；真实 0 篇文档态 + 入库引导 + 十九药丸壳 + r37 徽章） | audit「r12 GET 知识库文档列表 -> 200」空列表形态 |
-| mindmap-tab-active.png | 导图激活（?page=mindmap；真实 0 张导图态 + Markdown 源/树视图双栏空态 + r37 徽章） | audit「r14 清理后导图归零」；e2e「新库导图列表为空」 |
-| whiteboard-tab-active.png | 白板激活（?page=whiteboard；真实 0 张白板态 + 无限画布网格 + 工具条空态 + r37 徽章） | audit「r15 清理后白板归零」；e2e「新库白板列表为空」 |
-| approval-tab-active.png | 审批激活（?page=approval；真实 0 条审批态 + 三视角切换 + 空列表引导 + 选人入口 + r37 徽章） | audit「r16 清理后审批归零」；e2e「新库审批列表为空」 |
-| assets-tab-active.png | 物资激活（?page=assets；真实 0 笔物资态 + 左栏空列表引导 + 右栏未选引导 + r37 徽章；折叠态无选人入口） | audit「r17 清理后物资归零」；e2e「新库物资列表为空」 |
-| unit-tasks-tab-active.png | 单位任务激活（?page=unit-tasks；真实 0 条任务态 + 「＋ 新建任务」入口 + 空树引导 + r37 徽章） | audit「r17 清理后任务归零」；e2e「空任务列表装配为空树」 |
-| org-tab-active.png | **组织激活（r23 新增）**（?page=org；真实 0 部门 0 人员空态 + 部门树面板 + 人员卡片面板 + 新建部门/人员入口 + r37 徽章） | audit「r23 GET /api/org/tree -> 200 且 tree=[] / members=[]」；e2e「r23 部门树 / 搜索 / schema v16」 |
-| notifications-tab-active.png | **通知激活（r26 新增）**（?page=notifications；零通知空态 + 六类筛选 + 计数口径图例 + 十九药丸壳 + r37 徽章） | e2e「r26 通知 tab / deep-link seam」；audit「GET /api/notifications 空列表」 |
-| reports-tab-active.png | **报表激活（r27 新增）**（?page=reports；六张 KPI 卡 + 时间范围 + 明细空态 + 十九药丸壳 + r37 徽章） | e2e「r27 十七 tab 类型含报表页 / 报表页消费 shared 口径」；audit「GET /api/reports/overview 空库六指标全 0」 |
-| work-reports-tab-active.png | **报告激活（r36 新增）**（?page=work-reports；真实 0 数据日报空态 + 日报/周报切换 + 日期锚点 + 「生成报告 / 存为文档 / 打印」三按钮 + 十九药丸壳 + r37 徽章） | e2e「r36 App·十九 tab / 报告 tab 激活态 seam」；audit「GET /api/reports/daily 空库六段皆暂无 / summary 全 0」 |
-| meetings-tab-active.png | **会议激活（r28 新增）**（?page=meetings；零会议室 / 零成员空态：「还没有会议室——先在下方新建一间。」/「该日期暂无可用会议室。」/「通讯录暂无成员。」+ 十九药丸壳 + r37 徽章；各轮 shell 零数据最小集惯例，不是三室态） | e2e「r28 十八 tab 与顶栏按钮在场 / 会议页消费 shared 唯一口径」；audit「r28 清理后本轮会议归零」 |
+| workbench-tab-active.png | 工作台激活（默认页；schema **v18** + 里程碑 M10 多端与单机版 + 服务模式卡「本机/远端」 + 多端同步卡 + 纯用户文案徽章 + 顶栏在线状态区 + 登录按钮） | e2e「r23 schema v16 / 外壳 seam」；audit「r23 health / mode / todos 路由契约」 |
+| todos-tab-active.png | 待办激活（?page=todos；四象限 + 计数卡 + 徽标 + 纯用户文案徽章） | audit「GET 列表 -> 200」+ summary 计数组端到端形态 |
+| schedules-tab-active.png | 日程激活（?page=schedules；月视图 + 今天高亮 + 导出 .ics / 订阅设置 / 导入 .ics 三入口 + 纯用户文案徽章） | e2e「新库 schedules 为空 / r35 导出菜单 seam」；audit「GET 空区间 -> 200」 |
+| projects-tab-active.png | 项目激活（?page=projects；空态 + 新建入口 + 纯用户文案徽章） | audit「GET /api/projects -> 200」空列表形态 |
+| board-tab-active.png | 看板激活（?page=board；无项目空态引导 + 纯用户文案徽章） | audit「GET /api/projects -> 200」空列表形态的看板侧消费 |
+| bases-tab-active.png | 表格激活（?page=bases；零表首次使用空态 + 空态文案「8 种字段类型齐备（含公式）」+「＋ 新建表」+ 十九药丸壳 + 纯用户文案徽章） | audit「r31 GET /api/tables -> 200」空列表形态；e2e「r31 空态文案八类 / 旧七类零残留」 |
+| docs-tab-active.png | 文档激活（?page=docs；零文档首次使用空态 + 工具栏「回收站 / 导入 Markdown / 导出 .md / 导出 ▾ / ＋ 新建文档 / 打印预览」+ 十九药丸壳 + 纯用户文案徽章） | audit「r29 GET 文档列表 / 回收站 -> 200」空列表形态；e2e「建文档默认首块自动在场 + 零版本」「r32 导出菜单 seam」 |
+| chat-tab-active.png | AI 工作台激活（?page=chat；真实 0 会话态三栏引导 + 12 工具目录 + 纯用户文案徽章） | audit「r11 GET /api/tools -> 200」；e2e「默认注册表恰 12 个工具」 |
+| knowledge-tab-active.png | 知识库激活（?page=knowledge；真实 0 篇文档态 + 入库引导 + 十九药丸壳 + 纯用户文案徽章） | audit「r12 GET 知识库文档列表 -> 200」空列表形态 |
+| mindmap-tab-active.png | 导图激活（?page=mindmap；真实 0 张导图态 + Markdown 源/树视图双栏空态 + 纯用户文案徽章） | audit「r14 清理后导图归零」；e2e「新库导图列表为空」 |
+| whiteboard-tab-active.png | 白板激活（?page=whiteboard；真实 0 张白板态 + 无限画布网格 + 工具条空态 + 纯用户文案徽章） | audit「r15 清理后白板归零」；e2e「新库白板列表为空」 |
+| approval-tab-active.png | 审批激活（?page=approval；真实 0 条审批态 + 三视角切换 + 空列表引导 + 选人入口 + 纯用户文案徽章） | audit「r16 清理后审批归零」；e2e「新库审批列表为空」 |
+| assets-tab-active.png | 物资激活（?page=assets；真实 0 笔物资态 + 左栏空列表引导 + 右栏未选引导 + 纯用户文案徽章；折叠态无选人入口） | audit「r17 清理后物资归零」；e2e「新库物资列表为空」 |
+| unit-tasks-tab-active.png | 单位任务激活（?page=unit-tasks；真实 0 条任务态 + 「＋ 新建任务」入口 + 空树引导 + 纯用户文案徽章） | audit「r17 清理后任务归零」；e2e「空任务列表装配为空树」 |
+| org-tab-active.png | **组织激活（r23 新增）**（?page=org；真实 0 部门 0 人员空态 + 部门树面板 + 人员卡片面板 + 新建部门/人员入口 + 纯用户文案徽章） | audit「r23 GET /api/org/tree -> 200 且 tree=[] / members=[]」；e2e「r23 部门树 / 搜索 / schema v16」 |
+| notifications-tab-active.png | **通知激活（r26 新增）**（?page=notifications；零通知空态 + 六类筛选 + 计数口径图例 + 十九药丸壳 + 纯用户文案徽章） | e2e「r26 通知 tab / deep-link seam」；audit「GET /api/notifications 空列表」 |
+| reports-tab-active.png | **报表激活（r27 新增）**（?page=reports；六张 KPI 卡 + 时间范围 + 明细空态 + 十九药丸壳 + 纯用户文案徽章） | e2e「r27 十七 tab 类型含报表页 / 报表页消费 shared 口径」；audit「GET /api/reports/overview 空库六指标全 0」 |
+| work-reports-tab-active.png | **报告激活（r36 新增）**（?page=work-reports；真实 0 数据日报空态 + 日报/周报切换 + 日期锚点 + 「生成报告 / 存为文档 / 打印」三按钮 + 十九药丸壳 + 纯用户文案徽章） | e2e「r36 App·十九 tab / 报告 tab 激活态 seam」；audit「GET /api/reports/daily 空库六段皆暂无 / summary 全 0」 |
+| meetings-tab-active.png | **会议激活（r28 新增）**（?page=meetings；零会议室 / 零成员空态：「还没有会议室——先在下方新建一间。」/「该日期暂无可用会议室。」/「通讯录暂无成员。」+ 十九药丸壳 + 纯用户文案徽章；各轮 shell 零数据最小集惯例，不是三室态） | e2e「r28 十八 tab 与顶栏按钮在场 / 会议页消费 shared 唯一口径」；audit「r28 清理后本轮会议归零」 |
 | forms-tab-active.png | **表单激活（r41 新增）**（?page=forms；零表单空态「还没有表单。点『＋ 新建表单』创建第一张…」+ 二十药丸壳 + 纯用户文案徽章；各轮 shell 零数据最小集惯例，不是有数据态） | e2e「r41 App·二十 tab / 表单 tab 激活态 seam」；audit「r41 GET 空表单列表 -> 200」 |
 
-## r43 哈希自查（二十张互异，与当前文件逐字一致；R43 当前哈希块，以下 R41 及以下为历史块）
+## r44 哈希自查（二十张互异，与当前文件逐字一致；R44 当前哈希块，以下 R43 及以下为历史块）
+
+<!-- R44_HASHES_BEGIN -->
+`workbench=25DB4F1A` · `todos=ABD14B3D` · `schedules=85F8FA3E` · `projects=04F53EB5` ·
+`board=BACD8D5A` · `bases=39108DB8` · `docs=6E792EE8` · `chat=A49B5562` ·
+`knowledge=B6BCB76E` · `mindmap=36F18B32` · `whiteboard=9B4D04DE` · `approval=24722CCA` ·
+`assets=962259ED` · `unit-tasks=1CBB42DB` · `org=514A3356` · `notifications=DE039C98` ·
+`reports=5C730CA6` · `work-reports=84F0302A` · `meetings=1F76EF8A` · `forms=106B3347` —— **20/20 互异**。
+<!-- R44_HASHES_END -->
+
+> r44 渲染层改动（MeetingsPage 校验错误帧纯用户文案 + 05 时段 seam）→ 二十张同批重拍；徽章沿用 r39 纯用户文案。
+> 捕获用 `scripts/r39-shot.mjs` 一次性 headless CDP（seam 网络钉态：`/api/auth/mode` 钉 local、401 钉空态探针），
+> **不改产品代码 / 数据库 / 用户数据**（本轮仅 `?shot=` 钉态输入与用户可见文案）；截图走 `XIEFLOW_DB_PATH` scratch 库并删除。
+> 矩阵↔壳重叠 0；r43→r44 壳 changed=6 / same=14 如上，如实披露；全库 372 PNG / 370 互异（同态组仅 r4 已披露 2 组）。
+
+## r43 哈希自查（R43 当前哈希块原样保留作历史对照；当前块见上方 R44 块，以下 R41 及以下为历史块）
 
 <!-- R43_HASHES_BEGIN -->
 `workbench=25DB4F1A` · `todos=EA209828` · `schedules=85F8FA3E` · `projects=04F53EB5` ·
@@ -100,7 +119,7 @@
 > r43 渲染层改动（会议室设备徽标 + 推荐面板）→ 二十张同批重拍；徽章沿用 r39 纯用户文案。
 > 捕获用 `scripts/r39-shot.mjs` 一次性 headless CDP（seam 网络钉态：`/api/auth/mode` 钉 local、401 钉空态），
 > **不改产品代码 / 数据库 / 用户数据**；截图走 `XIEFLOW_DB_PATH` scratch 库并删除。
-> 矩阵↔壳重叠 0；r41→r43 壳 changed=8/same=12 如上，如实披露。
+> 矩阵↔壳重叠 0；r41→r43 壳 changed=6 / same=14 如上，如实披露；全库 372 PNG / 370 互异（同态组仅 r4 已披露 2 组）。
 
 ## r41 哈希自查（二十张互异，与当前文件逐字一致；R41 当前哈希块，以下 R40 及以下为历史块）
 
@@ -116,7 +135,7 @@
 > 捕获用 `scripts/r39-shot.mjs` 一次性 headless CDP（与 r39/r40 同款 seam 网络钉态：`/api/auth/mode` 钉 local、
 > 401 钉最小空态 JSON；报表 / 报告用 `?shot=reports-empty` / `?shot=wr-empty`），
 > **不改产品代码 / 数据库 / 用户数据**；截图与 CDP 走 `XIEFLOW_DB_PATH` scratch 库并删除。
-> 矩阵↔壳重叠 0；全库 372 PNG / 370 互异（同态组仅 r4 已披露 2 组）。
+> 矩阵↔壳重叠 0；全库 365 PNG / 363 互异（r41 实测；同态组仅 r4 已披露 2 组）。
 
 ## r40 哈希自查（十九张互异，R40 块原样保留为历史块；当前文件见上方 R41 块）
 

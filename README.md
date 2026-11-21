@@ -13,7 +13,7 @@ pnpm install
 powershell -File scripts\start.ps1 start   # api:8787 + web:5173
 powershell -File scripts\start.ps1 stop
 # 开发模式：pnpm dev:api / pnpm dev:web
-pnpm run test:all    # typecheck + 文档契约 + 文案扫描 + e2e（3665 断言）+ HTTP 审计（2802 断言）
+pnpm run test:all    # typecheck + 文档契约 + 文案扫描 + e2e（3677 断言）+ HTTP 审计（2802 断言）
 ```
 
 - 打包：`pnpm run pack`（免安装目录 `release/xieflow-portable/`，双击 `start.cmd` 即用）/ `pnpm run dist`（setup zip）；均单端口 8080，数据落目录内 `data/`
@@ -26,7 +26,7 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 
 ## 界面与测试对照
 
-按宪法第一条：**界面更新必须带截图证据（每次，无例外）**，截图与实现同一提交。当前轮 r43 会议室设备与智能推荐（设备徽标 + 帮我推荐面板；七张矩阵 + 二十 tab 壳同批重拍，tab 数不变）：
+按宪法第一条：**界面更新必须带截图证据（每次，无例外）**，截图与实现同一提交。当前轮 r44 图证与文档口径修正（05 时段 seam 钉为 14:30–15:00 + 07 校验错误纯用户文案；七张矩阵 + 二十 tab 壳同批重拍，沿用 r43 目录与文件名，tab 数不变）：
 
 | 截图 | 形态 | 对应断言 |
 |---|---|---|
@@ -34,10 +34,10 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 | [02-equipment-badges.png](docs/ui/r43/02-equipment-badges.png) | 会议室卡片设备徽标（投影/白板/视频会议/电话会议） | e2e「r43 web·设备徽标 seam」；audit「会议室列表设备字段真回带」 |
 | [03-recommend-panel.png](docs/ui/r43/03-recommend-panel.png) | 预约表单「帮我推荐」面板：人数/设备四项/时段输入 + 按钮 | e2e「r43 web·帮我推荐按钮 seam」；audit「GET /api/rooms/recommend -> 200」 |
 | [04-recommend-results.png](docs/ui/r43/04-recommend-results.png) | 推荐结果：8 人+投影按容量最接近升序（8 座在前、12 座在后），点选回填 | e2e「r43 推荐·容量最接近升序」；audit「手算·按容量最接近升序」 |
-| [05-recommend-conflicts.png](docs/ui/r43/05-recommend-conflicts.png) | 冲突原因：容量不足/设备缺失/时段冲突回带会议 id/停用 | e2e「r43 原因·按序给全」；audit「冲突原因·回带冲突会议 id」 |
+| [05-recommend-conflicts.png](docs/ui/r43/05-recommend-conflicts.png) | 冲突原因：画面表单 14:30–15:00 与 #21 冲突时段同源，容量/设备/停用原因回带 | e2e「r43 原因·按序给全」；audit「冲突原因·回带冲突会议 id」 |
 | [06-recommend-narrow.png](docs/ui/r43/06-recommend-narrow.png) | 窄屏 488px：推荐面板纵排 + 底部导航「更多 ›」 | e2e「r43 截图·七张 SHA256 互异」；headless CDP 钉态 |
-| [07-recommend-error.png](docs/ui/r43/07-recommend-error.png) | 错误态：非法人数/设备的 400 红条 | e2e「r43 需求·非法设备被拒」；audit「4xx·非法设备 -> 400」 |
-| [shell/](docs/ui/shell/README.md) | 二十 tab 壳基线（r43 同批重拍，会议页含设备徽标） | e2e「r43 截图·二十 tab 壳同批重拍 20 张」 |
+| [07-recommend-error.png](docs/ui/r43/07-recommend-error.png) | 错误态：校验错误 +「输入有误，请检查人数/设备/时段」纯用户文案（无连接失败框架） | e2e「r43 需求·非法设备被拒」；audit「4xx·非法设备 -> 400」 |
+| [shell/](docs/ui/shell/README.md) | 二十 tab 壳基线（r44 同批重拍，r43→r44 changed=6/same=14） | e2e「r43 截图·二十 tab 壳同批重拍 20 张」 |
 
 **历史逐轮截图索引（r1~r32 全量、逐张对照断言）见 [README 归档](docs/README-ARCHIVE.md) 与 [docs/ui/](docs/ui/) 各轮 README**；矩阵 SHA256 互异、同态组仅 r4 已披露 2 组。
 
@@ -45,8 +45,8 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 
 ### 断言规模（每轮更新，下降 = 回归 = 冻结发版）
 
-- **当前 r43**：e2e **3665**（服务离线口径；api 在线 +1）· HTTP audit **2802** · check:text 文案扫描 **0 命中** · typecheck 5 包全绿；**无一条断言被删**（+114 / +99），仅期望值/标签随行为推进。
-- **r43 渲染层**：会议室设备徽标 + 推荐面板 → 七张矩阵 + 二十 tab 壳同批重拍（tab 数不变）；DOC-CONTRACT 文档契约套件随 schema v27 同步。
+- **当前 r44**：e2e **3677**（服务离线口径；api 在线 +1）· HTTP audit **2802** · check:text 文案扫描 **0 命中** · typecheck 5 包全绿；**无一条断言被删**（+12 / +0），仅期望值/标签随轮次推进。
+- **r44 渲染层**：MeetingsPage 校验错误帧纯用户文案 + 05 时段 seam → 七张矩阵 + 二十 tab 壳同批重拍（tab 数不变，schema 仍 v27）；DOC-CONTRACT 文档契约套件随本轮口径同步。
 - 纪律：断言只涨不缩；禁自洽占位；关键行为做变异红相留痕（改坏实现 → 断言变红 → 逐字节还原全绿）。
 - **逐轮规模变化（r1~r32 的完整记账）见 [README 归档](docs/README-ARCHIVE.md)**；CI smoke 正则随 schema 版本同步至 v27；CI 三平台 verify + tag 触发 Release。
 

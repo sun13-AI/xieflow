@@ -108,6 +108,25 @@ export function sectionBody(doc: string, heading: string): string | null {
   return body.join("\n");
 }
 
+/** r44: "changed=N / same=M" disclosure inside a shell-hash block. */
+export function parseChangedSame(block: string): { changed: number | null; same: number | null } {
+  const m = block.match(/changed\s*=\s*(\d+)\s*\/\s*same\s*=\s*(\d+)/);
+  return { changed: m ? Number(m[1]) : null, same: m ? Number(m[2]) : null };
+}
+
+/** r44: "全库 N PNG / M 互异" global count inside a shell-hash block. */
+export function parseGlobalCount(block: string): { png: number | null; distinct: number | null } {
+  const m = block.match(/全库\s*(\d+)\s*PNG\s*\/\s*(\d+)\s*互异/);
+  return { png: m ? Number(m[1]) : null, distinct: m ? Number(m[2]) : null };
+}
+
+/** r44: the input-error / service-error copy split in MeetingsPage's error frame. */
+export function parseInputErrorCopy(src: string): { title: string | null; hint: string | null } {
+  const title = src.match(/recommendError\s*!==\s*""\s*\?\s*"([^"]+)"\s*:\s*"连接失败"/);
+  const hint = src.match(/recommendError\s*!==\s*""\s*\?\s*"([^"]+)"\s*:\s*"请确认 api/);
+  return { title: title?.[1] ?? null, hint: hint?.[1] ?? null };
+}
+
 // ---------- self-probes: parsers must be real, not vacuous ----------
 
 const PROBES: readonly (readonly [string, number | null])[] = [
@@ -133,6 +152,20 @@ const probeCounts = parsePublishedCounts(
 check(probeCounts.e2e === 9 && probeCounts.audit === 2703, "self-probe·取最后一条 e2e 口径 + 唯一 audit 口径");
 const probeSection = sectionBody("## A\nalpha\n\n## B\nbeta", "## A");
 check(probeSection !== null && probeSection.includes("alpha") && !probeSection.includes("beta"), "self-probe·章节切分");
+const probeCS = parseChangedSame("blah changed=6 / same=14 blah");
+const probeCSBad = parseChangedSame("blah changed=8 / same=12 blah");
+const probeCSNone = parseChangedSame("no counts here");
+check(probeCS.changed === 6 && probeCS.same === 14, "self-probe·changed=6/same=14 可解析");
+check(probeCSBad.changed === 8 && probeCSBad.same === 12, "self-probe·旧 8/12 口径可检出");
+check(probeCSNone.changed === null && probeCSNone.same === null, "self-probe·无 changed/same -> null");
+const probeGC = parseGlobalCount("全库 372 PNG / 370 互异（同态组仅 r4）");
+const probeGCOld = parseGlobalCount("全库 365 PNG / 363 互异");
+check(probeGC.png === 372 && probeGC.distinct === 370, "self-probe·全库 372/370 可解析");
+check(probeGCOld.png === 365 && probeGCOld.distinct === 363, "self-probe·全库 365/363 可检出");
+const probeCopy = parseInputErrorCopy('x recommendError !== "" ? "输入有误" : "连接失败" y recommendError !== "" ? "请检查人数/设备/时段后重试。" : "请确认 api 服务已启动（pnpm dev:api），然后重试。" z');
+const probeCopyNone = parseInputErrorCopy('static <h2>连接失败</h2>');
+check(probeCopy.title === "输入有误" && probeCopy.hint === "请检查人数/设备/时段后重试。", "self-probe·输入错误文案双分支可解析");
+check(probeCopyNone.title === null && probeCopyNone.hint === null, "self-probe·无输入错误分支 -> null");
 
 // ---------- authoritative sources ----------
 
@@ -160,7 +193,7 @@ if (counts.e2e !== null && counts.audit !== null) {
   check(root.includes(quickRef), `README·速查行数字与 scripts 实测口径一致（${quickRef}）`);
 }
 
-const ROUND = "r43";
+const ROUND = "r44";
 const uiSec = sectionBody(root, "## 界面与测试对照");
 const scaleSec = sectionBody(root, "### 断言规模");
 check(uiSec !== null, "README·「界面与测试对照」节在场");
@@ -168,7 +201,7 @@ check(scaleSec !== null, "README·「### 断言规模」节在场");
 check(
   uiSec !== null && uiSec.includes(ROUND) && uiSec.includes("docs/ui/r43/01-equipment-empty.png") &&
     uiSec.includes("docs/ui/shell/README.md") && uiSec.includes("同批重拍"),
-  "README·「界面与测试对照」节声明当前轮 r43 七张矩阵 + 二十 tab 壳同批重拍",
+  "README·「界面与测试对照」节声明当前轮 r44 七张矩阵 + 二十 tab 壳同批重拍",
 );
 check(
   scaleSec !== null &&
@@ -177,20 +210,77 @@ check(
     counts.audit !== null &&
     scaleSec.includes(`e2e **${counts.e2e}**`) &&
     scaleSec.includes(`HTTP audit **${counts.audit}**`),
-  "README·「### 断言规模」节声明当前轮 r43 且数字与 scripts 口径一致",
+  "README·「### 断言规模」节声明当前轮 r44 且数字与 scripts 口径一致",
 );
 
 // ---------- screenshot / shell index (r43 render-change round) ----------
 
 const roundIndex = readOrEmpty("docs/ui/r43/README.md");
 check(
-  roundIndex.includes(ROUND) && roundIndex.includes("01-equipment-empty.png") && roundIndex.includes("07-recommend-error.png"),
+  roundIndex.includes("r43") && roundIndex.includes("01-equipment-empty.png") && roundIndex.includes("07-recommend-error.png"),
   "r43 索引·七态矩阵文件在场",
 );
 const shellIndex = read("docs/ui/shell/README.md");
 check(
-  shellIndex.includes(ROUND) && shellIndex.includes("同批重拍") && shellIndex.includes("<!-- R43_HASHES_BEGIN -->"),
+  shellIndex.includes("r43") && shellIndex.includes("同批重拍") && shellIndex.includes("<!-- R43_HASHES_BEGIN -->"),
   "shell 索引·声明 r43 二十 tab 壳同批重拍且 R43 哈希块在场",
+);
+
+// ---------- r44：图证与文档口径修正（U2-1 / U2-2 / U3） ----------
+
+const r44Index = readOrEmpty("docs/ui/r44/README.md");
+check(
+  r44Index.includes("r44") && r44Index.includes("docs/ui/r43/05-recommend-conflicts.png") &&
+    r44Index.includes("docs/ui/r43/07-recommend-error.png") && r44Index.includes("同批重拍"),
+  "r44 索引·重拍声明与七态矩阵链接在场",
+);
+
+// U2-1：05 图注时段必须与 MeetingsPage 的冲突钉态同源（14:30–15:00），不再留 09:00–10:00。
+const meetingsSrc = read("apps/web/src/MeetingsPage.tsx");
+const roundIdx = read("docs/ui/r43/README.md");
+const line05 = roundIdx.split(/\r?\n/).find((l) => l.includes("05-recommend-conflicts.png")) ?? "";
+check(
+  meetingsSrc.includes('const conflictPin = query.shot === "meetings-recommend-conflicts"') &&
+    /start:\s*conflictPin \? "14:30" : "09:00",\s*end:\s*conflictPin \? "15:00" : "10:00"/.test(meetingsSrc),
+  "r44 U2-1·MeetingsPage 冲突时段 seam 钉为 14:30–15:00（表单与推荐结果同源）",
+);
+check(
+  line05.includes("14:30") && line05.includes("15:00") && !line05.includes("09:00"),
+  "r44 U2-1·r43 索引 05 图注时段 14:30–15:00 与画面 seam 一致",
+);
+
+// U2-2：校验错误帧为纯用户文案，不带开发命令；服务错误帧保留在另一分支。
+const inputCopy = parseInputErrorCopy(meetingsSrc);
+check(
+  inputCopy.title === "输入有误" && inputCopy.hint !== null &&
+    inputCopy.hint.includes("请检查人数/设备/时段") && !inputCopy.hint.includes("pnpm"),
+  "r44 U2-2·校验错误帧为「输入有误 / 请检查人数/设备/时段」纯用户文案",
+);
+const line07 = roundIdx.split(/\r?\n/).find((l) => l.includes("07-recommend-error.png")) ?? "";
+check(
+  line07.includes("输入有误") && !line07.includes("连接失败") && !line07.includes("pnpm"),
+  "r44 U2-2·r43 索引 07 图注改为输入有误文案（无连接失败/开发命令）",
+);
+
+// U3：shell README 三处口径修正（changed/same、全库计数归位、陈旧 r37 徽章）。
+const shellR43 = sectionBody(shellIndex, "## r43 哈希自查");
+const shellR41 = sectionBody(shellIndex, "## r41 哈希自查");
+const cs43 = shellR43 === null ? { changed: null, same: null } : parseChangedSame(shellR43);
+check(
+  cs43.changed === 6 && cs43.same === 14 && (shellR43 === null || !shellR43.includes("changed=8 / same=12")),
+  "r44 U3-1·shell R43 块 changed=6/same=14 如实披露（旧 8/12 已清除）",
+);
+const gc43 = shellR43 === null ? { png: null, distinct: null } : parseGlobalCount(shellR43);
+check(gc43.png === 372 && gc43.distinct === 370, "r44 U3-2·shell R43 块全库计数归位 372/370");
+const gc41 = shellR41 === null ? { png: null, distinct: null } : parseGlobalCount(shellR41);
+check(
+  gc41.png === 365 && gc41.distinct === 363 && (shellR41 === null || !shellR41.includes("372 PNG")),
+  "r44 U3-2·shell R41 历史块计数恢复 365/363（r43 数不再串位）",
+);
+const shellTable = shellIndex.slice(0, shellIndex.indexOf("## r43 哈希自查"));
+check(
+  !shellTable.includes("r37 徽章") && shellTable.includes("纯用户文案徽章"),
+  "r44 U3-3·shell 当前表图注改为纯用户文案徽章（陈旧 r37 已清除）",
 );
 
 // ---------- verdict ----------
