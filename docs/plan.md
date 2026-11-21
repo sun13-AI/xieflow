@@ -252,7 +252,7 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r46 | M10 后·索引口径修正（r45 U2 图证/文案） | ✅已发版（首轮双通过；三处口径闭合 + DOC-CONTRACT 59 checks） | v0.0.52 | e2e 3731 · audit 2838 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r47 | M10 后·AI 工具调用确认闸门（危险操作先预览后执行） | ✅已发版（首轮双通过；闸门 51/51 + r10/r11 零回归） | v0.0.53 | e2e 3830 · audit 2891 | 通过（waizhuan）+ UI 通过（阻断岗） |
 | r48 | M10 后·继承性遗留盘点与分类（收敛轮） | ✅已发版（首轮双通过；28 条遗留全分类、真缺陷 0、DOC-CONTRACT 76 checks） | v0.0.54 | e2e 3830 · audit 2891 | 通过（waizhuan）+ UI 通过（阻断岗） |
-| r49 | M10 后·工作区数据备份与恢复（总入口） | 🔨研发完成（待双 VERDICT） | — | e2e 3921 · audit 2957 | 待复验 |
+| r49 | M10 后·工作区数据备份与恢复（总入口） | 🔨研发完成（待双 VERDICT） | — | e2e 3922 · audit 2957 | 待复验 |
 
 ## 🏁 项目总账（2026-11-19 · M10 收官）
 
@@ -1103,11 +1103,20 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 
 ## 记账区（每轮追加）
 
+### 2026-11-21 · r49 返工 #1（断言数字口径对齐 · waizhuan P2-1）
+- 问题：r49 发布口径把 e2e 实测 3922（在线 3923）误写为 3921；`check-doc-contract.ts:parsePublishedCounts` 从 `e2e-test.ts` 最后一条 `e2e（N 断言）` 取数，与 e2e 自身期望串同源，故 `test:all` 自洽绿但文案与实测差 1（宪法第四条「禁自洽占位」反面）。
+- 修订（只改数字口径/文案，断言条数零改）：README 速查行/断言规模行 3921→3922、在线 +1 = 3923、+91→+92、补「DOC-CONTRACT **86** checks」；`e2e-test.ts` 11 处发布口径期望串 3921→3922；`check-doc-contract.ts` 两处 +91→+92；`plan.md:255/1110` 与 r49 三份报告叙述数字同步。
+- TDD 先断言红相：先改 11 处期望串与 watchdog 口径、README 保持旧值 → `check:doc-contract` 2 FAIL/84 ok（exit 1）、`pnpm test` 11 红（3911 通过 / 11 失败，exit 1）；补 README 后全绿。
+- 三处对齐实测：`pnpm run test:all` exit 0，e2e **3922**（离线）；scratch api 8787 下 e2e **3923**（在线，探针后端口收净）；`DOC-CONTRACT: ALL GREEN (86 checks; schema v27; e2e 3922; audit 2957)`。README 速查行 `e2e（3922 断言）`、规模行 `e2e **3922**` / `DOC-CONTRACT **86** checks` / `api 在线 +1 = 3923` 与实测逐字相等。
+- 变异红相 1 组：仅把 README 口径改回 3921 → watchdog 2 FAIL + e2e 11 红；从改前备份逐字节还原（`SHA256 80950736…19093E3` 前后同值、`MATCH=True`）后全绿，证明 watchdog 不再从错误源自洽。
+- 截图：本轮纯数字口径修复，**无渲染层改动，沿用 r49 七图 + 二十 tab 壳图**，不新增/不重拍；三处透明声明见根 README「界面与测试对照」、本条与 `r49-yanfa.md`「返工 #1」节。
+- 纪律：全程 headless、服务收净、零 token、不 push 不打 tag；与 r49 报告同一提交 `r49: 返工#1 …`。
+
 ### 2026-11-21 · r49 研发（yanfa-r49 · M10 后功能补强：工作区数据备份与恢复总入口）
 - 交付：`packages/shared/backup.ts` 唯一口径——BACKUP_TABLES 38 张业务表白名单（排除 sessions/change_log/entity_versions/users 四类认证与同步运行时表）、buildBackupManifest / buildBackupFile / buildBackupFileName（版本/时间/表计数）、validateBackupFile（结构/格式版本/schema 版本/白名单/行形状，拒绝未知表）、planRestore（先全量校验再生成 76 步计划，校验失败零步骤）、assertRestoreConfirmed（confirm=RESTORE_WORKSPACE）；api/web 零算法分支；零新依赖、零 token
 - api：`GET /api/backup/export`（全量白名单表 JSON 快照 + 附件下载头）、`POST /api/backup/validate`（预览零写入）、`POST /api/backup/restore`（二次确认 + 单 BEGIN IMMEDIATE 事务反序清空/正序插入，任一步失败 ROLLBACK）；4xx：无确认/错拼确认 400（CONFIRM_REQUIRED）、坏 JSON 400、未知表/版本不兼容/结构错 422、约束违规 400（RESTORE_ROLLED_BACK）
 - web：工作台设置区新增「数据备份与恢复」卡（导出落盘 / 选文件预览校验 / 表计数与版本 / 二次确认对话框 / 恢复后重载提示），二十 tab 数量不变；七 seam 齐全、窄屏可达
-- 断言：e2e 3830→**3921（+91）** · audit 2891→**2957（+66）**，零删除；typecheck 5 包；`pnpm run test:all` exit 0；DOC-CONTRACT 76→**86 checks**；check:text 7047 literals / 26 tsx / 0 命中
+- 断言：e2e 3830→**3922（+92）** · audit 2891→**2957（+66）**，零删除；typecheck 5 包；`pnpm run test:all` exit 0；DOC-CONTRACT 76→**86 checks**；check:text 7047 literals / 26 tsx / 0 命中
 - **变异红相 1 组（白名单校验失效）**：把 shared/backup `if (!isBackupTable(name))` 临时改 `if (false && …)` → e2e 2 红（未知 sessions/change_log 不再被拒）、audit 2 红（422 错误清单不含表名）；逐字节还原（SHA256 `112CBAC5…7CF89` 前后同值、`false &&` 零残留）后 `test:all` 全绿
 - 「用户第一次用」全链路（headless CDP 真点 19/19）：HTTP 造已知待办→导出快照→改状态→浏览器真点导出按钮→文件输入真选备份→校验预览 38 表→开确认对话框（未勾选禁用/勾选启用）→真点确认恢复→HTTP 逐字段回读→点重新加载→数据仍在→探针清理、端口收净
 - 截图：`docs/ui/r49/` 7 张 + 二十 tab 壳同批重拍；7/7、20/20 SHA256 互异，矩阵↔壳重叠 0，全库 393 PNG / 391 互异（同态组仅 r4 已披露 2 组），逐张 `read_image` 目验；索引 / shell README R49 块 / 精简版根 README 三处同一提交

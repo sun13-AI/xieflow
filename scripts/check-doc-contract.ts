@@ -263,8 +263,8 @@ check(
     counts.audit !== null &&
     scaleSec.includes(`e2e **${counts.e2e}**`) &&
     scaleSec.includes(`HTTP audit **${counts.audit}**`) &&
-    scaleSec.includes("e2e +91") && scaleSec.includes("audit +66"),
-  "README·「### 断言规模」节声明当前轮 r49 且数字与 scripts 口径一致（e2e +91 / audit +66）",
+    scaleSec.includes("e2e +92") && scaleSec.includes("audit +66"),
+  "README·「### 断言规模」节声明当前轮 r49 且数字与 scripts 口径一致（e2e +92 / audit +66）",
 );
 
 // ---------- screenshot / shell index (r47/r48 historical + r49 render-change baseline) ----------

@@ -5701,7 +5701,7 @@ try {
       });
       eq(mismatches, [], "r26 shell README 18 张哈希与实际文件逐字一致");
     }
-    ok(rootReadme.includes("e2e（3921 断言）+ HTTP 审计（2957 断言）"), "r23 口径随 r24 速查行推进");
+    ok(rootReadme.includes("e2e（3922 断言）+ HTTP 审计（2957 断言）"), "r23 口径随 r24 速查行推进");
     ok(
       ARCHIVE_README.includes("- e2e **2766** 项") && ARCHIVE_README.includes("- HTTP audit **2185** 项") &&
         ARCHIVE_README.includes("### r24 矩阵") && ARCHIVE_README.includes("e2e 1952 → **2041（+89）**"),
@@ -5945,7 +5945,7 @@ try {
       eq(mismatches, [], "shell README 18 张哈希与实际文件逐字一致");
     }
     ok((r24Index.match(/^\| \d\d-[^|]*\.png \|/gm) ?? []).length === 7, "r24 截图索引含七张矩阵行");
-    ok(rootReadme.includes("e2e（3921 断言）+ HTTP 审计（2957 断言）"), "r24 根 README 速查行数字同步");
+    ok(rootReadme.includes("e2e（3922 断言）+ HTTP 审计（2957 断言）"), "r24 根 README 速查行数字同步");
     ok(ARCHIVE_README.includes("### r24 矩阵") && ARCHIVE_README.includes("e2e 1952 → **2041（+89）**"), "r24 双节规模与矩阵索引历史行归档后仍同步");
   }
 
@@ -6101,7 +6101,7 @@ try {
     ok(shell25.includes("**r23 基线**") && shell25.includes("**r24 基线**"), "shell README 保留 r23/r24 历史对照行");
     ok(shell25.includes("90166EF8") || shell25.includes("物资壳"), "shell README 如实记录物资壳与 r23 同字节事实");
     ok((r25Index.match(/^\| \d\d-[^|]*\.png \|/gm) ?? []).length === 7, "r25 截图索引含七张矩阵行");
-    ok(root25.includes("e2e（3921 断言）+ HTTP 审计（2957 断言）"), "r25 根 README 速查行数字同步");
+    ok(root25.includes("e2e（3922 断言）+ HTTP 审计（2957 断言）"), "r25 根 README 速查行数字同步");
     ok(ARCHIVE_README.includes("### r25 矩阵") && ARCHIVE_README.includes("e2e 2041 → **2096（+55）**"), "r25 双节规模与矩阵索引历史行归档后仍同步");
   }
 
@@ -6330,7 +6330,7 @@ try {
     ok(shot26.includes('"r26"') && ["01-notif-empty", "02-notif-unread", "03-notif-filtered", "04-notif-read", "05-notif-refreshed", "06-narrow", "07-error", "08-notif-badge-decrement"].every((s) => shot26.includes(s)), "r26 shot.ps1 ValidateSet 与八张矩阵名齐备");
     ok(shell26.includes("<!-- R26_HASHES_BEGIN -->") && shell26.includes("<!-- R26_HASHES_END -->"), "r26 shell README 历史哈希块在场（当前块见 R28）");
     ok((r26Index.match(/^\| \[?\d\d-[^|\]]*\.png/gm) ?? []).length === 9, "r26 截图索引含九张矩阵行（返工#2 补 09）");
-    ok(root26.includes("e2e（3921 断言）+ HTTP 审计（2957 断言）"), "返工#1 根 README 速查行数字逐字同步");
+    ok(root26.includes("e2e（3922 断言）+ HTTP 审计（2957 断言）"), "返工#1 根 README 速查行数字逐字同步");
 
     // (J) 截图矩阵与十六 tab 壳基线（SHA 两两互异 + README 哈希逐字一致）
     const walkPng26 = (dir: string): string[] => {
@@ -8364,7 +8364,7 @@ try {
     const rootR37 = readFileSync("README.md", "utf8");
     ok(rootR37.includes("docs/ui/r49/01-backup-card.png") && rootR37.includes("docs/ui/shell/README.md"), "r37 根 README·矩阵索引已同步（三处之一）");
     ok(rootR37.includes("当前 r49"), "r37 根 README·断言规模节推进到当前 r37");
-    ok(rootR37.includes("e2e **3921**") && rootR37.includes("HTTP audit **2957**"), "r37 根 README·速查行断言规模同步");
+    ok(rootR37.includes("e2e **3922**") && rootR37.includes("HTTP audit **2957**"), "r37 根 README·速查行断言规模同步");
     const allPng37 = [...matrix37, ...shells37];
     eq(allPng37.length, 27, "r37 截图·本轮证据共 26 张");
   }
@@ -8605,7 +8605,7 @@ try {
   const rootR39 = readFileSync("README.md", "utf8");
   ok(rootR39.includes("docs/ui/r49/01-backup-card.png") && rootR39.includes("docs/ui/shell/README.md"), "r39 根 README·矩阵索引已同步（三处之一）");
   ok(rootR39.includes("当前 r49"), "r39 根 README·断言规模节推进到当前轮");
-  ok(rootR39.includes("e2e **3921**") && rootR39.includes("HTTP audit **2957**"), "r39 根 README·速查行断言规模同步");
+  ok(rootR39.includes("e2e **3922**") && rootR39.includes("HTTP audit **2957**"), "r39 根 README·速查行断言规模同步");
   const matrix39 = readdirSync("docs/ui/r39").filter((f) => f.endsWith(".png"));
   eq(matrix39.length, 7, "r39 截图·本轮错误态矩阵 7 张");
   eq(new Set(matrix39.map((p) => createHash("sha256").update(readFileSync(`docs/ui/r39/${p}`)).digest("hex"))).size, 7, "r39 截图·七张 SHA256 两两互异");
@@ -8629,10 +8629,10 @@ try {
   ok(scan40.includes("例：写 r2 复验材料"), "r40 扫描器自断言·单位数 rN placeholder 在场");
   ok(scan40.includes("ROUND_SELF_PROBES"), "r40 扫描器自断言·探针执行路径在场");
   const root40 = readFileSync("README.md", "utf8");
-  ok(root40.includes("e2e（3921 断言）") && root40.includes("HTTP 审计（2957 断言）"), "r40 根 README·速查行断言规模同步");
+  ok(root40.includes("e2e（3922 断言）") && root40.includes("HTTP 审计（2957 断言）"), "r40 根 README·速查行断言规模同步");
   ok(root40.includes("当前轮 r49"), "r40 根 README·当前轮对照表同步");
   ok(root40.includes("docs/ui/r49/01-backup-card.png"), "r40 根 README·登录页干净态索引同步");
-  ok(root40.includes("e2e **3921**") && root40.includes("HTTP audit **2957**"), "r40 根 README·断言规模行同步");
+  ok(root40.includes("e2e **3922**") && root40.includes("HTTP audit **2957**"), "r40 根 README·断言规模行同步");
   const docIdx40 = readFileSync("docs/ui/r40/README.md", "utf8");
   ok(docIdx40.includes("<!-- R40_HASHES_BEGIN -->") && docIdx40.includes("01-login-clean-text.png"), "r40 索引·哈希块与登录图在场");
   const shellIdx40 = readFileSync("docs/ui/shell/README.md", "utf8");
@@ -8858,7 +8858,7 @@ try {
     const root41 = readFileSync("README.md", "utf8");
     ok(root41.includes("当前轮 r49"), "r41 根 README·当前轮对照表同步");
     ok(root41.includes("docs/ui/r49/01-backup-card.png") && root41.includes("docs/ui/shell/README.md"), "r41 根 README·矩阵索引同步");
-    ok(root41.includes("e2e（3921 断言）") && root41.includes("HTTP 审计（2957 断言）"), "r41 根 README·速查行断言规模同步");
+    ok(root41.includes("e2e（3922 断言）") && root41.includes("HTTP 审计（2957 断言）"), "r41 根 README·速查行断言规模同步");
   }
 
   // 63. r43：会议室设备与智能推荐（归一 / 可用判定 / 冲突原因 / 容量排序 / 向后兼容）
@@ -9040,7 +9040,7 @@ try {
     const root43 = readFileSync("README.md", "utf8");
     ok(root43.includes("当前轮 r49"), "r43 根 README·当前轮对照表同步");
     ok(root43.includes("docs/ui/r49/01-backup-card.png") && root43.includes("docs/ui/shell/README.md"), "r43 根 README·矩阵索引同步");
-    ok(root43.includes("e2e（3921 断言）+ HTTP 审计（2957 断言）"), "r43 根 README·速查行断言规模同步");
+    ok(root43.includes("e2e（3922 断言）+ HTTP 审计（2957 断言）"), "r43 根 README·速查行断言规模同步");
     ok(root43.includes("CI smoke 正则随 schema 版本同步至 v27"), "r43 根 README·CI vN 文案同步");
     ok(root43.includes("迁移队列（当前 v27）"), "r43 根 README·迁移队列 vN 文案同步");
   }
@@ -9067,7 +9067,7 @@ try {
     ok(r41Block.includes("365 PNG / 363 互异") && !r41Block.includes("372 PNG"), "r44 U3-2·shell R41 历史块计数 365/363 归位");
     ok(!shellIdx44.slice(0, shellIdx44.indexOf("## r43 哈希自查")).includes("r37 徽章"), "r44 U3-3·shell 当前表图注无陈旧 r37");
     ok(root44.includes("当前轮 r49") && root44.includes("当前 r49"), "r44 根 README·三处当前轮口径同步");
-    ok(root44.includes("e2e（3921 断言）+ HTTP 审计（2957 断言）"), "r44 根 README·速查行断言规模同步");
+    ok(root44.includes("e2e（3922 断言）+ HTTP 审计（2957 断言）"), "r44 根 README·速查行断言规模同步");
   }
 
   // 65. r45：文档块拖拽排序（计划纯函数 / 边界钳制 / 真 DB move / 持久化 / r8-r9 零回归）

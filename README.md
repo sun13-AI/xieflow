@@ -13,7 +13,7 @@ pnpm install
 powershell -File scripts\start.ps1 start   # api:8787 + web:5173
 powershell -File scripts\start.ps1 stop
 # 开发模式：pnpm dev:api / pnpm dev:web
-pnpm run test:all    # typecheck + 文档契约 + 文案扫描 + e2e（3921 断言）+ HTTP 审计（2957 断言）
+pnpm run test:all    # typecheck + 文档契约 + 文案扫描 + e2e（3922 断言）+ HTTP 审计（2957 断言）
 ```
 
 - 打包：`pnpm run pack`（免安装目录 `release/xieflow-portable/`，双击 `start.cmd` 即用）/ `pnpm run dist`（setup zip）；均单端口 8080，数据落目录内 `data/`
@@ -39,6 +39,8 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 | [07-error.png](docs/ui/r49/07-error.png) | 错误态：未知表被拒红条「已拒绝，未写入任何数据」 | audit「r49 未知表 change_log -> 422」+「CHECK 违规 -> 400」 |
 | [shell/](docs/ui/shell/README.md) | 二十 tab 壳基线（r49 同批重拍，r47→r49 changed=9/same=11 如实披露） | e2e「r49 截图·二十 tab 壳同批重拍 20 张」 |
 
+> **返工 #1 透明声明**：本轮为纯数字口径修复，**无渲染层改动，沿用 r49 七图 + 二十 tab 壳图**，不新增/不重拍截图；上表索引与哈希块逐字沿用 r49，未作改动。
+
 **r49 危险区声明**：备份白名单只含 38 张业务表，`sessions` / `change_log` / `entity_versions` / `users` 四类认证与同步运行时表既不导出也不替换；恢复先全量校验再单事务替换，坏 JSON / 未知表 / 版本不兼容 / 无二次确认一律拒绝且零半态（详见 [docs/plan.md r49 任务单](docs/plan.md)）。
 
 **历史逐轮截图索引（r1~r32 全量、逐张对照断言）见 [README 归档](docs/README-ARCHIVE.md) 与 [docs/ui/](docs/ui/) 各轮 README**；矩阵 SHA256 互异、同态组仅 r4 已披露 2 组。
@@ -47,7 +49,7 @@ M0 立项 ✅ → M1 待办+日程 ✅ → M2 项目+看板 ✅ → M3 多维表
 
 ### 断言规模（每轮更新，下降 = 回归 = 冻结发版）
 
-- **当前 r49**：e2e **3921**（服务离线口径；api 在线 +1）· HTTP audit **2957** · check:text 文案扫描 **0 命中** · typecheck 5 包全绿；**无一条断言被删**（e2e +91 / audit +66 全为 r49 备份恢复新增，DOC-CONTRACT 独立套件另计）。
+- **当前 r49**：e2e **3922**（服务离线口径；api 在线 +1 = 3923）· HTTP audit **2957** · check:text 文案扫描 **0 命中** · typecheck 5 包全绿；**无一条断言被删**（e2e +92 / audit +66 全为 r49 备份恢复新增，DOC-CONTRACT **86** checks 独立套件）。
 - **r49 渲染层有改动**：工作台设置区新增备份卡 → 七张矩阵 + 二十 tab 壳同批重拍（r47→r49 changed=9/same=11 如实披露）；schema 仍 v27。
 - 纪律：断言只涨不缩；禁自洽占位；关键行为做变异红相留痕（改坏实现 → 断言变红 → 逐字节还原全绿）。
 - **逐轮规模变化（r1~r32 的完整记账）见 [README 归档](docs/README-ARCHIVE.md)**；CI smoke 正则随 schema 版本同步至 v27；CI 三平台 verify + tag 触发 Release。
