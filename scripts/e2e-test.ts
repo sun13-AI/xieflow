@@ -7796,7 +7796,7 @@ try {
     ok(shellIdx34.includes("<!-- R34_HASHES_BEGIN -->") && shellIdx34.includes("R34 当前哈希块"), "r34 壳索引·R34 当前哈希块在场");
     const rootR34 = readFileSync("README.md", "utf8");
     ok(rootR34.includes("docs/ui/r49/01-backup-card.png") && rootR34.includes("docs/ui/shell/README.md"), "r34 历史 seam·根 README 当前矩阵索引已同步");
-    ok(rootR34.includes("当前 r49"), "r34 历史 seam·根 README 断言规模节推进到当前轮");
+    ok(rootR34.includes("当前 r50"), "r34 历史 seam·根 README 断言规模节推进到当前轮");
   }
 
   // 71. r35：日历 ICS 导出与订阅（TDD：断言先于实现落地，宪法四条）
@@ -7945,7 +7945,7 @@ try {
     eq(SCHEMA_VERSION, 27, "r35 schema·r35 本轮无变化（当前 v24）");
     const rootR35 = readFileSync("README.md", "utf8");
     ok(rootR35.includes("docs/ui/r49/01-backup-card.png") && rootR35.includes("docs/ui/shell/README.md"), "r35 根 README·矩阵索引已同步（三处之一）");
-    ok(rootR35.includes("当前 r49"), "r35 根 README·断言规模节推进到当前 r37");
+    ok(rootR35.includes("当前 r50"), "r35 根 README·断言规模节推进到当前 r37");
 
     // (G) 截图矩阵 + 十八 tab 壳（同批重拍，哈希互异）
     const walkPng35 = (dir: string): string[] => {
@@ -8141,7 +8141,7 @@ try {
     ok(!/"(marked|markdown-it|showdown|turndown|dayjs|luxon)"/.test(pkg36), "r36 零新依赖·清单无 Markdown/日期库");
     const rootR36 = readFileSync("README.md", "utf8");
     ok(rootR36.includes("docs/ui/r49/01-backup-card.png") && rootR36.includes("docs/ui/shell/README.md"), "r36 根 README·矩阵索引已同步（三处之一）");
-    ok(rootR36.includes("当前 r49"), "r36 根 README·断言规模节推进到当前 r37");
+    ok(rootR36.includes("当前 r50"), "r36 根 README·断言规模节推进到当前 r37");
 
     // (H) 截图矩阵 + 十九 tab 壳（同批重拍，哈希互异）
     const walkPng36 = (dir: string): string[] => readdirSync(dir).filter((n) => n.endsWith(".png")).map((n) => `${dir}/${n}`);
@@ -8363,7 +8363,7 @@ try {
     ok(shellIdx37.includes("bases-tab-active.png"), "r37 壳索引·表格 tab 激活态图在场");
     const rootR37 = readFileSync("README.md", "utf8");
     ok(rootR37.includes("docs/ui/r49/01-backup-card.png") && rootR37.includes("docs/ui/shell/README.md"), "r37 根 README·矩阵索引已同步（三处之一）");
-    ok(rootR37.includes("当前 r49"), "r37 根 README·断言规模节推进到当前 r37");
+    ok(rootR37.includes("当前 r50"), "r37 根 README·断言规模节推进到当前 r37");
     ok(rootR37.includes("e2e **3922**") && rootR37.includes("HTTP audit **2957**"), "r37 根 README·速查行断言规模同步");
     const allPng37 = [...matrix37, ...shells37];
     eq(allPng37.length, 27, "r37 截图·本轮证据共 26 张");
@@ -8555,7 +8555,7 @@ try {
     ok(shellIdx38.includes("<!-- R38_HASHES_BEGIN -->") && shellIdx38.includes("R38 当前哈希块"), "r38 壳索引·R38 当前哈希块在场");
     const rootR38 = readFileSync("README.md", "utf8");
     ok(rootR38.includes("docs/ui/r49/01-backup-card.png") && rootR38.includes("docs/ui/shell/README.md"), "r38 根 README·矩阵索引已同步（三处之一）");
-    ok(rootR38.includes("当前 r49"), "r38 根 README·断言规模节推进到当前 r40");
+    ok(rootR38.includes("当前 r50"), "r38 根 README·断言规模节推进到当前 r40");
     ok(rootR38.includes("HTTP audit **2957**"), "r38 根 README·速查行 audit 规模同步");
   }
 
@@ -8604,7 +8604,7 @@ try {
   ok(shellIdx39.includes("<!-- R39_HASHES_BEGIN -->") && shellIdx39.includes("R41 当前哈希块"), "r39 壳索引·当前哈希块随 r41 推进在场");
   const rootR39 = readFileSync("README.md", "utf8");
   ok(rootR39.includes("docs/ui/r49/01-backup-card.png") && rootR39.includes("docs/ui/shell/README.md"), "r39 根 README·矩阵索引已同步（三处之一）");
-  ok(rootR39.includes("当前 r49"), "r39 根 README·断言规模节推进到当前轮");
+  ok(rootR39.includes("当前 r50"), "r39 根 README·断言规模节推进到当前轮");
   ok(rootR39.includes("e2e **3922**") && rootR39.includes("HTTP audit **2957**"), "r39 根 README·速查行断言规模同步");
   const matrix39 = readdirSync("docs/ui/r39").filter((f) => f.endsWith(".png"));
   eq(matrix39.length, 7, "r39 截图·本轮错误态矩阵 7 张");
@@ -8630,7 +8630,7 @@ try {
   ok(scan40.includes("ROUND_SELF_PROBES"), "r40 扫描器自断言·探针执行路径在场");
   const root40 = readFileSync("README.md", "utf8");
   ok(root40.includes("e2e（3922 断言）") && root40.includes("HTTP 审计（2957 断言）"), "r40 根 README·速查行断言规模同步");
-  ok(root40.includes("当前轮 r49"), "r40 根 README·当前轮对照表同步");
+  ok(root40.includes("当前轮 r50"), "r40 根 README·当前轮对照表同步");
   ok(root40.includes("docs/ui/r49/01-backup-card.png"), "r40 根 README·登录页干净态索引同步");
   ok(root40.includes("e2e **3922**") && root40.includes("HTTP audit **2957**"), "r40 根 README·断言规模行同步");
   const docIdx40 = readFileSync("docs/ui/r40/README.md", "utf8");
@@ -8856,7 +8856,7 @@ try {
     ok(shellIdx41.includes("<!-- R41_HASHES_BEGIN -->") && shellIdx41.includes("R41 当前哈希块"), "r41 壳索引·R41 当前哈希块在场");
     ok(shellIdx41.includes("forms-tab-active.png"), "r41 壳索引·表单 tab 激活态图在场");
     const root41 = readFileSync("README.md", "utf8");
-    ok(root41.includes("当前轮 r49"), "r41 根 README·当前轮对照表同步");
+    ok(root41.includes("当前轮 r50"), "r41 根 README·当前轮对照表同步");
     ok(root41.includes("docs/ui/r49/01-backup-card.png") && root41.includes("docs/ui/shell/README.md"), "r41 根 README·矩阵索引同步");
     ok(root41.includes("e2e（3922 断言）") && root41.includes("HTTP 审计（2957 断言）"), "r41 根 README·速查行断言规模同步");
   }
@@ -9038,7 +9038,7 @@ try {
     const shellIdx43 = readFileSync("docs/ui/shell/README.md", "utf8");
     ok(shellIdx43.includes("<!-- R43_HASHES_BEGIN -->") && shellIdx43.includes("R43 当前哈希块"), "r43 壳索引·R43 当前哈希块在场");
     const root43 = readFileSync("README.md", "utf8");
-    ok(root43.includes("当前轮 r49"), "r43 根 README·当前轮对照表同步");
+    ok(root43.includes("当前轮 r50"), "r43 根 README·当前轮对照表同步");
     ok(root43.includes("docs/ui/r49/01-backup-card.png") && root43.includes("docs/ui/shell/README.md"), "r43 根 README·矩阵索引同步");
     ok(root43.includes("e2e（3922 断言）+ HTTP 审计（2957 断言）"), "r43 根 README·速查行断言规模同步");
     ok(root43.includes("CI smoke 正则随 schema 版本同步至 v27"), "r43 根 README·CI vN 文案同步");
@@ -9066,7 +9066,7 @@ try {
     ok(r43Block.includes("372 PNG / 370 互异"), "r44 U3-2·shell R43 块全库计数 372/370 归位");
     ok(r41Block.includes("365 PNG / 363 互异") && !r41Block.includes("372 PNG"), "r44 U3-2·shell R41 历史块计数 365/363 归位");
     ok(!shellIdx44.slice(0, shellIdx44.indexOf("## r43 哈希自查")).includes("r37 徽章"), "r44 U3-3·shell 当前表图注无陈旧 r37");
-    ok(root44.includes("当前轮 r49") && root44.includes("当前 r49"), "r44 根 README·三处当前轮口径同步");
+    ok(root44.includes("当前轮 r50") && root44.includes("当前 r50"), "r44 根 README·三处当前轮口径同步");
     ok(root44.includes("e2e（3922 断言）+ HTTP 审计（2957 断言）"), "r44 根 README·速查行断言规模同步");
   }
 
@@ -9167,7 +9167,7 @@ try {
     const shells45 = readdirSync("docs/ui/shell").filter((f) => f.endsWith(".png"));
     eq(shells45.length, 20, "r45 截图·二十 tab 壳同批重拍 20 张");
     eq(new Set(shells45.map((p) => createHash("sha256").update(readFileSync(`docs/ui/shell/${p}`)).digest("hex"))).size, 20, "r45 截图·壳 20 张 SHA256 互异");
-    ok(root45.includes("当前轮 r49") && root45.includes("当前 r49"), "r45 根 README·三处当前轮口径同步");
+    ok(root45.includes("当前轮 r50") && root45.includes("当前 r50"), "r45 根 README·三处当前轮口径同步");
   }
 
   // 62. r47：AI 工具调用确认闸门（规则集中 / 预览 / 拦截 / 确认执行 / 放弃零写 / 向后兼容）
@@ -9348,7 +9348,7 @@ try {
     eq(shells47.length, 20, "r47 截图·二十 tab 壳同批重拍 20 张");
     eq(new Set(shells47.map((p) => createHash("sha256").update(readFileSync(`docs/ui/shell/${p}`)).digest("hex"))).size, 20, "r47 截图·壳 20 张 SHA256 互异");
     const root47 = readFileSync("README.md", "utf8");
-    ok(root47.includes("当前轮 r49") && root47.includes("当前 r49"), "r47 根 README·三处当前轮口径同步");
+    ok(root47.includes("当前轮 r50") && root47.includes("当前 r50"), "r47 根 README·三处当前轮口径同步");
     r47Db.close();
   }
 
@@ -9487,7 +9487,7 @@ try {
     eq(shells49.length, 20, "r49 截图·二十 tab 壳同批重拍 20 张");
     eq(new Set(shells49.map((p) => createHash("sha256").update(readFileSync(`docs/ui/shell/${p}`)).digest("hex"))).size, 20, "r49 截图·壳 20 张 SHA256 互异");
     const root49 = readFileSync("README.md", "utf8");
-    ok(root49.includes("当前轮 r49") && root49.includes("当前 r49"), "r49 根 README·当前轮口径同步");
+    ok(root49.includes("当前轮 r50") && root49.includes("当前 r50"), "r49 根 README·当前轮口径同步");
     r49a.close();
     r49b.close();
   }

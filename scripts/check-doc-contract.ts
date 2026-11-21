@@ -1,10 +1,10 @@
-// XieFlow r48 - DOC-CONTRACT watchdog (headless, zero deps, exit 0/1).
-// r48: pure documentation/convergence round (legacy ledger classification);
-// no render-layer change, so the compact root README must transparently declare
-// "沿用 r47 壳图 / 无渲染层改动" in both the UI and scale sections, keep the
-// r47 matrix links as the current evidence baseline, and carry the three-category
-// 遗留总账 counts in docs/plan.md. Any mismatch => exit 1.
-// Historical r43~r47 contracts below are kept intact (code/index facts still true).
+// XieFlow r50 - DOC-CONTRACT watchdog (headless, zero deps, exit 0/1).
+// r50: milestone system-review round (no render-layer change, no new feature).
+// The current round declaration must live in BOTH root README sections; the
+// danger-zone ledger (8 classification rows) and the three transparent
+// "沿用 r49 七图 + 20 壳" declarations (README / r50 report / shell README R50
+// block) must be present. Any mismatch => exit 1.
+// Historical r43~r49 contracts below are kept intact (code/index facts still true).
 // Authoritative sources:
 //   - schema version: packages/shared/src/index.ts  SCHEMA_VERSION constant
 //   - CI smoke regex: .github/workflows/ci.yml      schemaVersion grep -E group
@@ -156,6 +156,21 @@ export function lineWith(doc: string, marker: string): string {
   return doc.split(/\r?\n/).find((l) => l.includes(marker)) ?? "";
 }
 
+/**
+ * r50: slice the 危险区台账 table out of plan.md and return its data rows.
+ * Rows start with "| rN" (e.g. "| r3 | ...", "| r15~r21 | ..."); the
+ * 未触发区确认 paragraph is also tracked. Empty when the section is missing.
+ */
+export function parseDangerLedger(plan: string): { rows: string[]; confirmed: boolean } {
+  const body = betweenMarkers(plan, "## 危险区台账", "## 任务单");
+  if (!body) return { rows: [], confirmed: false };
+  const rows = body
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => /^\|\s*r\d+/.test(l));
+  return { rows, confirmed: body.includes("未触发区确认") };
+}
+
 // ---------- self-probes: parsers must be real, not vacuous ----------
 
 const PROBES: readonly (readonly [string, number | null])[] = [
@@ -197,6 +212,14 @@ check(probeCopy.title === "输入有误" && probeCopy.hint === "请检查人数/
 check(probeCopyNone.title === null && probeCopyNone.hint === null, "self-probe·无输入错误分支 -> null");
 check(lineWith("aa\nbb foo cc\ndd", "foo") === "bb foo cc", "self-probe·lineWith 命中行提取");
 check(lineWith("aa\nbb", "zzz") === "", "self-probe·lineWith 未命中 -> 空串");
+const probeLedgerDoc = (n: number): string =>
+  `## 危险区台账\n${Array.from({ length: n }, (_, i) => `| r${i + 1} | 动作${i} | 类别 | lead | 结果 |`).join("\n")}\n未触发区确认：无\n## 任务单`;
+const probeLedger8 = parseDangerLedger(probeLedgerDoc(8));
+const probeLedger7 = parseDangerLedger(probeLedgerDoc(7));
+const probeLedgerNone = parseDangerLedger("无台账节");
+check(probeLedger8.rows.length === 8 && probeLedger8.confirmed, "self-probe·r50 台账 8 行可解析");
+check(probeLedger7.rows.length === 7 && probeLedger7.confirmed, "self-probe·r50 台账 7 行可检出（非恒真）");
+check(probeLedgerNone.rows.length === 0 && !probeLedgerNone.confirmed, "self-probe·r50 缺台账 -> 空");
 const probeLedger = parseLedgerCounts("真缺陷必修 0 / 已披露可接受 16 / 设计取舍保留 12，另 11 条已闭环链");
 check(
   probeLedger.must === 0 && probeLedger.accepted === 16 && probeLedger.tradeoff === 12 && probeLedger.closed === 11,
@@ -243,28 +266,47 @@ if (counts.e2e !== null && counts.audit !== null) {
   check(root.includes(quickRef), `README·速查行数字与 scripts 实测口径一致（${quickRef}）`);
 }
 
-const ROUND = "r49";
+const ROUND = "r50";
 const uiSec = sectionBody(root, "## 界面与测试对照");
 const scaleSec = sectionBody(root, "### 断言规模");
 check(uiSec !== null, "README·「界面与测试对照」节在场");
 check(scaleSec !== null, "README·「### 断言规模」节在场");
 check(
-  uiSec !== null && uiSec.includes(ROUND) &&
+  uiSec !== null && uiSec.includes(ROUND) && uiSec.includes("里程碑体系复审轮") &&
+    uiSec.includes("无渲染层改动") && uiSec.includes("沿用 r49 图证") &&
     uiSec.includes("docs/ui/r49/README.md") && uiSec.includes("docs/ui/shell/README.md") &&
     uiSec.includes("01-backup-card.png") && uiSec.includes("07-error.png") &&
     uiSec.includes("数据备份与恢复") && uiSec.includes("二十 tab 数量不变") &&
     uiSec.includes("二次确认"),
-  "README·「界面与测试对照」节声明当前轮 r49 备份卡七态矩阵 + 二十 tab 壳同批重拍",
+  "README·「界面与测试对照」节声明当前轮 r50 里程碑复审（沿用 r49 图证、备份卡七态与二十 tab 壳索引在场）",
 );
 check(
-  scaleSec !== null &&
-    scaleSec.includes(ROUND) &&
+  scaleSec !== null && scaleSec.includes(ROUND) && scaleSec.includes("规模与 r49 持平") &&
     counts.e2e !== null &&
     counts.audit !== null &&
     scaleSec.includes(`e2e **${counts.e2e}**`) &&
     scaleSec.includes(`HTTP audit **${counts.audit}**`) &&
     scaleSec.includes("e2e +92") && scaleSec.includes("audit +66"),
-  "README·「### 断言规模」节声明当前轮 r49 且数字与 scripts 口径一致（e2e +92 / audit +66）",
+  "README·「### 断言规模」节声明当前轮 r50 持平 r49 且数字与 scripts 口径一致（e2e +92 / audit +66）",
+);
+check(
+  uiSec !== null && uiSec.includes("r50 里程碑复审透明声明") &&
+    uiSec.includes("沿用 r49 七图") && uiSec.includes("20 壳") &&
+    uiSec.includes("mtime") && uiSec.includes("逐字沿用"),
+  "README·r50 透明声明沿用 r49 七图 + 20 壳且 mtime/哈希逐字沿用（三处之一）",
+);
+const r50Report = readOrEmpty("docs/feedback/2026-11-21-r50-yanfa.md");
+check(
+  r50Report.includes("r50") && r50Report.includes("沿用 r49 七图") &&
+    r50Report.includes("20 壳") && r50Report.includes("mtime") && r50Report.includes("逐字沿用"),
+  "r50 报告·透明声明沿用 r49 七图 + 20 壳（三处之二）",
+);
+const roundIndex50 = readOrEmpty("docs/ui/r50/README.md");
+check(
+  roundIndex50.includes("r50") && roundIndex50.includes("无渲染层改动") &&
+    roundIndex50.includes("沿用 r49") && roundIndex50.includes("mtime") &&
+    roundIndex50.includes("逐字沿用"),
+  "r50 索引·零图片轻量索引透明声明在场",
 );
 
 // ---------- screenshot / shell index (r47/r48 historical + r49 render-change baseline) ----------
@@ -299,6 +341,11 @@ check(
     shellIndex.includes("<!-- R49_HASHES_BEGIN -->") &&
     shellIndex.includes("changed=9 / same=11") && shellIndex.includes("393 PNG / 391 互异"),
   "shell 索引·r49 二十 tab 壳同批重拍事实 + R49 当前哈希块 + changed/same 披露在场",
+);
+check(
+  shellIndex.includes("**r50 里程碑体系复审") && shellIndex.includes("沿用 r49 七图") &&
+    shellIndex.includes("20 壳") && shellIndex.includes("mtime") && shellIndex.includes("逐字沿用"),
+  "shell 索引·R50 块沿用 r49 七图 + 20 壳声明在场（三处之三）",
 );
 
 // ---------- r47：确认闸门规则集中 / api 路由 / web seam ----------
@@ -558,6 +605,32 @@ check(
   read("scripts/shot.ps1").includes('-Round r49') &&
     read("scripts/shot.ps1").includes('${r49Base}?shot=backup-card'),
   "r49·shot.ps1 钉态矩阵段在场（PS5.1 ASCII 安全的 ${} 变量边界）",
+);
+
+// ---------- r50：危险区台账防复发（8 行分类表 + 未触发区确认） ----------
+
+const plan50 = read("docs/plan.md");
+const dangerLedger = parseDangerLedger(plan50);
+check(
+  dangerLedger.rows.length === 8,
+  `r50·docplan 危险区台账 8 行分类表在场（实际 ${dangerLedger.rows.length} 行）`,
+);
+check(dangerLedger.confirmed, "r50·docplan 危险区台账「未触发区确认」在场");
+check(
+  dangerLedger.rows.some((r) => r.includes("CI") && r.includes("verify-core") && r.includes("verify-macos")) &&
+    dangerLedger.rows.some((r) => r.includes("Release") && r.includes("补发")),
+  "r50·台账含 CI 拆分（verify-core/macos）+ Release backlog 补发关键行（变异红相锚点）",
+);
+check(
+  dangerLedger.rows.some((r) => r.includes("push") && r.includes("tag")) &&
+    dangerLedger.rows.some((r) => r.includes("进程") && r.includes("收净")),
+  "r50·台账含 20+ 次 push/tag + r48 进程收净关键行",
+);
+check(
+  dangerLedger.rows.some((r) =>
+    ["users", "sessions", "change_log", "entity_versions"].every((t) => r.includes(t)),
+  ),
+  "r50·台账含 r49 四表排除红线关键行（users/sessions/change_log/entity_versions）",
 );
 
 // ---------- verdict ----------

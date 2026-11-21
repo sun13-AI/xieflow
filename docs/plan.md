@@ -296,7 +296,20 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 
 ## 危险区台账
 
-（空。本轮未触发危险区：无密钥写入、无对外发布、无用户数据删除、依赖均为新增非升级。r3 唯一越界嫌疑项：版本号 0.0.4→0.0.5 的补正，见 yanfa r3 报告自曝节，待 lead 确认）
+> 宪法第五条：危险区动作需 lead 审批并记录。本台账 r50 里程碑复审补齐 r1~r49 全部 lead 动作（此前仅 r3 留一行「空」，属缺记，r50 修复）。
+
+| 轮次 | 危险区动作 | 类别 | lead 审批/执行 | 结果 |
+|---|---|---|---|---|
+| r3 | 版本号 0.0.4→0.0.5 补正 | 发版修正 | lead 确认属补发非挪旧 tag | 已发版 |
+| r15~r21 | 多次 `git push` / tag / Release | git push（lead 专用） | lead 亲自执行（API 通道 `push-via-api.mjs`） | 全部三平台绿 |
+| r19 前后 | CI 拆 `verify-core`(ubuntu/windows 门禁) + `verify-macos`(continue-on-error) | **修改 CI 发布配置** | lead 亲自改并记账：macOS runner 被 cancelled 曾误伤 release gate | 后续 CI 稳定 |
+| r21 前后 | backlog v0.0.15~v0.0.25 Release 资产补发（git archive tar.gz，未挪旧 tag） | 对外发布（Release） | lead 经 GitHub API 补建 Release + 上传资产 | 资产齐、旧 tag 未动 |
+| r22 前后 | `tar --exclude release` 修 v0.0.25 自包含打包失败 | CI 发布配置配套 | lead 亲自改 | 后续 release job 稳定 |
+| r34~r49 | 每轮 `pnpm version patch` + tag + push（共 20+ 次） | git push（lead 专用） | lead 亲自执行，API 通道 tree sha 校验 | 全部成功 |
+| r48 | 收净 8787/5173 遗留 api/vite 进程（PID 26420/27744，复验遗留） | 进程管理（非用户数据） | lead 核对命令行确属本仓库后 Stop-Process | 端口归零、未删任何数据 |
+| r49 | 备份恢复白名单排除 users/sessions/change_log/entity_versions | **危险区红线：不删用户数据** | lead 裁决排除成立（认证身份/会话/同步游标不入快照） | waizhuan raw 核对证实四表不被替换 |
+
+**未触发区确认**：全程无密钥/token 文件写入（token 仅经 Windows Credential Manager 读取，不落盘）；无发邮件/IM/建公开仓库/发帖（开源仓库由 owner 本人于早期确认，非 agent 创建）；无 data/ 库文件删除（所有测试走 scratch 库）；无 major 升级、无单次 >10 依赖引入（根依赖零）；无生产/远端环境访问（仅 GitHub API 发布流程）。
 
 ## 任务单
 
