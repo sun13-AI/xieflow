@@ -47,3 +47,4 @@
 | r42 | 2026-11-21 | watchdog 复验 | 权威源三方吻合 + 独立 v26→v25 精确 1 红 + SHA 还原全绿 + 壳沿用声明真实 | VERDICT 通过 |
 | r44 | 2026-11-21 | 图证复验 | 父提交取改前图比对 + changed 8/12 改坏精确 1 FAIL + SHA 还原 | VERDICT 通过 |
 | r45 | 2026-11-21 | 拖拽复验 | 自写真输入 CDP 23/23（Mouse+Drag Intercept 非合成事件）+ r8/r9 零回归 | VERDICT 通过 |
+| r46 | 2026-11-21 | 口径复验 | 三处逐条实验 + Pillow 独立 diff=0 + 3 组改回不实各精确 1 FAIL | VERDICT 通过 |
