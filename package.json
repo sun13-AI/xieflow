@@ -17,7 +17,7 @@
     "check:text": "tsx scripts/check-user-facing-text.ts",
     "check:doc-contract": "tsx scripts/check-doc-contract.ts",
     "test:a11y": "node scripts/r59-a11y-cdp.mjs",
-    "test:all": "pnpm typecheck && pnpm check:doc-contract && pnpm check:text && pnpm test && node scripts/run-ps1.js scripts/audit-http.ps1 && pnpm test:a11y",
+    "test:all": "pnpm typecheck && pnpm check:doc-contract && pnpm check:text && pnpm test && node scripts/run-ps1.js scripts/audit-http.ps1",
     "pack": "node scripts/pack.js",
     "dist": "node scripts/pack.js dist",
     "shot:up": "pwsh scripts/shot.ps1 up",

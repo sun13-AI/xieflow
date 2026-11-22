@@ -262,7 +262,8 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r56 | M10 后·质量审计 #2：性能与大列表（owner 选定审计方向第二维） | ✅审计完成（P0×0/P1×3/P2×3，实测数据支撑；P1 由 r57 修复） | — | 审计后重报 | auditor-r56 AUDIT-VERDICT: 打回 |
 | r57 | M10 后·r56 性能问题修复（P1×3 全修 + 性能基线断言） | ✅已发版（审计原方法复测达标：listForms 2001→2 SQL / 看板 1001→2 SQL / 输入 2192→313ms） | v0.0.62 | e2e 3962 · audit 3127 | 审计 AUDIT-VERDICT: 通过 + UI 通过 |
 | r58 | M10 后·质量审计 #3：可访问性 a11y（键盘/对比度/语义） | 🟡审计打回 P1×2（日历格键盘不可达 + 激活 tab 对比度 4.28）→ 修复中 | — | 修复后重报 | auditor-r58 AUDIT-VERDICT: 打回 |
-| r59 | M10 后·r58 a11y 问题修复（P1×2 + 可选 P2 低成本项） | 🟡研发完成待复验（P1×2 已修：42/42 日历格键盘可达、激活 tab 4.28→4.96:1；18 模态 + 19 th + 全局 focus-visible） | — | e2e 3981 · audit 3135 | 待 auditor-r59 / waizhuan 复验 |
+| r59 | M10 后·r58 a11y 问题修复（P1×2 + 可选 P2 低成本项） | ✅已发版（审计复测键盘 0/42→42/42、对比度 4.28→4.96；v0.0.63 三平台红灯由 r60 修正） | v0.0.63 → v0.0.64 | e2e 3981 · audit 3135 | 审计 AUDIT-VERDICT: 通过 + UI 通过 |
+| r60 | M10 后·CI 稳定性修复：a11y CDP 从 test:all 移出（v0.0.63 三平台红灯） | 🔨修复中 | v0.0.64 | e2e 3981 · audit 3135 | lead 亲修 + CI 验证 |
 
 ## 🏁 项目总账（2026-11-19 · M10 收官）
 
@@ -317,7 +318,8 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r34~r49 | 每轮 `pnpm version patch` + tag + push（共 20+ 次） | git push（lead 专用） | lead 亲自执行，API 通道 tree sha 校验 | 全部成功 |
 | r48 | 收净 8787/5173 遗留 api/vite 进程（复验遗留的两个 node 进程；具体 PID 属瞬时状态不可事后复验，已核对命令行确属本仓库后 Stop-Process） | 进程管理（非用户数据） | lead 亲自执行 | 端口归零、未删任何数据 |
 | r49 | 备份恢复白名单排除 users/sessions/change_log/entity_versions | **危险区红线：不删用户数据** | lead 裁决排除成立（认证身份/会话/同步游标不入快照） | waizhuan raw 核对证实四表不被替换 |
-| r55 | v0.0.58 CI ubuntu verify-core 红：r53 重启探针在 Linux 上 tsx 子进程持端口导致收净误判（windows 绿） | **测试 harness 跨平台修复**（非 CI 配置变更） | lead 亲自修：spawn detached + Linux 进程组整组 kill；不挪旧 tag，发 v0.0.59/v0.0.60 补发 | v0.0.58 tag 保留，修复版另发 |
+| r55 | v0.0.58 CI ubuntu verify-core 红：r53 重启探针在 Linux 上 tsx 子进程持端口导致收净误判（windows 绿） | **测试 harness 跨平台修复**（非 CI 配置变更） | lead 亲自修：spawn detached + Linux 进程组整组 kill；不挪旧 tag，发 v0.0.59/v0.0.60/v0.0.61 补发 | v0.0.58 tag 保留，v0.0.61 三平台全绿 |
+| r60 | v0.0.63 CI 三平台红：r59 a11y CDP 脚本在 CI 超时等 dev web（依赖 vite/Edge 启动，脆弱） | **测试编排调整**（非 CI 配置变更） | lead 亲修：把 `test:a11y` 从 `test:all` 移出——a11y 核心断言已在 e2e 静态锁定，运行时 CDP 真验证由审查岗本地执行（r59 已复测通过） | v0.0.63 tag 保留，v0.0.64 补发 |
 
 **未触发区确认**：全程无密钥/token 文件写入（token 仅经 Windows Credential Manager 读取，不落盘）；无发邮件/IM/建公开仓库/发帖（开源仓库由 owner 本人于早期确认，非 agent 创建）；无 data/ 库文件删除（所有测试走 scratch 库）；无 major 升级、无单次 >10 依赖引入（根依赖零）；无生产/远端环境访问（仅 GitHub API 发布流程）。
 
