@@ -55,3 +55,4 @@
 | r51 | 2026-11-21 | 精度复验 | git show 四证独立核实 + 旧值零命中 + 台账改回旧值精确 2 FAIL + SHA 还原 | VERDICT 通过 |
 | r52-54 | 2026-11-21 | 安全复验 | 审计员原步骤重放：r53 5/6 关→r54 P0-1 52/52 全关 + local 零回归 | AUDIT-VERDICT 通过 |
 | r56-57 | 2026-11-21 | 性能复测 | 审计原方法复测三 P1 全达标 + 三主接口恒 1 SQL 无回归 | AUDIT-VERDICT 通过 |
+| r61-62 | 2026-11-22 | 零半态复验 | 审计原注入法 63/63：TRIGGER 打断 ICS 第 2 条 + [有效,非法] confirm 均 before==after | AUDIT-VERDICT 通过 |
