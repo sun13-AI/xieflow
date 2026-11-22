@@ -265,7 +265,7 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 | r59 | M10 后·r58 a11y 问题修复（P1×2 + 可选 P2 低成本项） | ✅已发版（审计复测键盘 0/42→42/42、对比度 4.28→4.96；v0.0.63 三平台红灯由 r60 修正） | v0.0.63 → v0.0.64 | e2e 3981 · audit 3135 | 审计 AUDIT-VERDICT: 通过 + UI 通过 |
 | r60 | M10 后·CI 稳定性修复：a11y CDP 从 test:all 移出（v0.0.63 三平台红灯） | ✅已发版（v0.0.64 三平台全绿） | v0.0.64 | e2e 3981 · audit 3135 | lead 亲修 + CI 验证 |
 | r61 | M10 后·质量审计 #4：代码健壮性与数据完整性 | 🟡审计打回 P1×2（r35 ICS / r47 confirm 零半态泄漏）+ P2×5 → 修复中 | — | 修复后重报 | auditor-r61 AUDIT-VERDICT: 打回 |
-| r62 | M10 后·r61 零半态漏洞修复（P1×2） | 🔨规划中 | — | — | — |
+| r62 | M10 后·r61 零半态漏洞修复（P1×2） | 🟢研发完成待复验（P1×2 注入复现转断言已绿；未发版） | — | e2e 3995 · audit 3167 | yanfa 报告已出，待 waizhuan 复验 |
 
 ## 🏁 项目总账（2026-11-19 · M10 收官）
 
@@ -1258,6 +1258,12 @@ M0 立项 → M1 待办+日程 → M2 项目+看板 → M3 多维表格 → M4 �
 ---
 
 ## 记账区（每轮追加）
+
+### 2026-11-22 · r62 研发（yanfa-r62 · r61 零半态漏洞修复 P1×2）
+- 交付：按 lead 定方案零功能变化修 P1×2——db 新增 `createSchedules(drafts)` 单事务批量写（守卫 → `BEGIN IMMEDIATE` → 逐条 INSERT/读回 → `COMMIT`，异常 `ROLLBACK`），api ICS commit 一次调用替换 `.map(createSchedule)`，`planIcsImport` 前置整体校验保留；批量 confirm 循环前新增 `locatedBatch` 全量预校验（存在性/归属会话/pending/action），全通过后才逐条执行，任一非法 4xx 零执行（重复确认仍 409）。P2×5 按方案记账不改。
+- 断言：e2e 3981→**3995（+14）** · audit 3135→**3167（+32）**，零删除；`pnpm run test:all` exit 0；DOC-CONTRACT 119→**125 checks**（ROUND 推进 r62，r54/r57/r59 历史专段保留；schema v27 未变）；check:text 0 命中；typecheck 5 包全绿。README 速查行 / 界面对照 / 断言规模三处同步。
+- **TDD 先红**：审计注入复现转断言（HTTP 侧 scratch 库临时 TRIGGER `RAISE(ABORT)` + `[有效,非法]` callId）→ e2e 8 红 / audit 核心 5 红，与审计实测 before/after 一致 → 实现后全绿。**变异红相 2 组**：① API 改回逐条 createSchedule → e2e 2 红 / audit 2 红（got 1 want 0）；② 预校验改回边校验边执行 → audit 8 红（got 9 want 8）。两组均从备份逐字节还原（`SHA256 EC13E9EF…B5A8123` 前后同值、`MATCH=True`），db 文件 SHA `F895920F…D668B` 未变。
+- 工程纪律：零新依赖、零 token、未改 schema / 用户库；无渲染层改动，沿用 r59 六态矩阵 + 20 壳并三处透明声明；scratch 库/变异备份收净；未 push / 未打 tag / 未发版。报告：`docs/feedback/2026-11-21-r62-yanfa.md`。
 
 ### 2026-11-22 · r59 研发（yanfa-r59 · r58 a11y P1×2 + 低成本 P2 修复）
 - 交付：按 lead 定方案零功能变化修 P1×2——`SchedulesPage.tsx` 42 个日历格补 `tabIndex={0}` + Enter/Space `onKeyDown`（与 `onClick` 同一 `openCreateOn(c.date)`）；`styles.css` 新增 `--accent-strong:#2f68e5`，仅 `.tab-active` 背景/边框切换，`--accent` 与按钮色原样不动。低成本 P2 三项同批完成：16 处模态补 `aria-modal="true"`（合计 18/18）、19 个 `th` 补 `scope="col"`、全局 `:focus-visible` 2px 焦点环且保留既有 outline；其余 P2 按方案只记账不改。

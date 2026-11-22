@@ -894,9 +894,8 @@ app.post("/api/schedules/import.ics", async (req, reply) => {
       return { events: plan.events, drafts: plan.drafts, count: plan.count };
     }
     const store = requireDb();
-    const schedules = plan.drafts.map((d) =>
-      store.createSchedule(d.title, d.date, d.start, d.end, null, d.repeat),
-    );
+    // r62 P1-1：整批草稿交给 db 层单事务写入（任一条失败 ROLLBACK，零半态）
+    const schedules = store.createSchedules(plan.drafts);
     return reply.code(201).send({ count: schedules.length, schedules });
   } catch (err) {
     return toErrorReply(err, reply);
@@ -2855,14 +2854,13 @@ app.post("/api/conversations/:id/confirm", async (req, reply) => {
       throw new ValidationError('action 只能是 "confirm" 或 "discard"');
     }
 
-    const resolved: Array<{
-      callId: string;
-      name: string;
-      confirmStatus: "executed" | "discarded";
-      ok: boolean;
-      summary: string;
-    }> = [];
+    // r62 P1-2：批次执行前先全量校验全部 callId（存在性 / 归属会话 / pending / action 合法性），
+    // 全部通过后才逐条执行；任一非法直接 4xx 且零执行（r61 审计实测的半态根因）。
+    const locatedBatch: Array<NonNullable<ReturnType<XieFlowDb["findToolCallByCallId"]>>> = [];
     for (const callId of callIds) {
+      if (action !== "confirm" && action !== "discard") {
+        throw new ValidationError('action 只能是 "confirm" 或 "discard"');
+      }
       const located = requireDb().findToolCallByCallId(callId);
       if (!located) throw new ValidationError(`非法 callId：${callId}`);
       if (located.conversationId !== id) {
@@ -2872,6 +2870,19 @@ app.post("/api/conversations/:id/confirm", async (req, reply) => {
         // 409 语义：重复确认已处理的调用
         return reply.code(409).send({ error: `重复确认：callId ${callId} 已处理`, code: "ALREADY_CONFIRMED" });
       }
+      locatedBatch.push(located);
+    }
+
+    const resolved: Array<{
+      callId: string;
+      name: string;
+      confirmStatus: "executed" | "discarded";
+      ok: boolean;
+      summary: string;
+    }> = [];
+    for (let i = 0; i < locatedBatch.length; i += 1) {
+      const callId = callIds[i]!;
+      const located = locatedBatch[i]!;
       if (action === "discard") {
         const updated = requireDb().resolvePendingToolCall(located.messageId, callId, {
           confirmStatus: "discarded",

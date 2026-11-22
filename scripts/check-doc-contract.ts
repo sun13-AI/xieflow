@@ -1,5 +1,6 @@
-// XieFlow r59 - DOC-CONTRACT watchdog (headless, zero deps, exit 0/1).
-// r59: r58 a11y P1×2 修复轮（日历格键盘可达 + 激活 tab 对比度 AA + 低成本 P2 语义增强）。
+// XieFlow r62 - DOC-CONTRACT watchdog (headless, zero deps, exit 0/1).
+// r62: r61 零半态漏洞修复轮（P1×2：ICS 单事务批量写 + confirm 全量预校验；无渲染层改动）。
+// r59: a11y P1×2 修复轮（日历格键盘可达 + 激活 tab 对比度 AA + 低成本 P2 语义增强）保留为历史专段。
 // r57: 性能 P1×3 修复轮（listForms/listBoardCards 批量读 + Todos 渲染 memo）保留为历史专段。
 // r54: P0-1 补修 round (remote business routes behind one admin gate; no render-layer
 // change, no new feature). The current round declaration must live in BOTH root
@@ -267,7 +268,7 @@ if (counts.e2e !== null && counts.audit !== null) {
   check(root.includes(quickRef), `README·速查行数字与 scripts 实测口径一致（${quickRef}）`);
 }
 
-const ROUND = "r59";
+const ROUND = "r62";
 const ROUND_PREV = "r57";
 const ROUND_LEGACY = "r54";
 const uiSec = sectionBody(root, "## 界面与测试对照");
@@ -303,7 +304,7 @@ check(
   "README·透明声明沿用 r49 七图 + 20 壳且 mtime/哈希逐字沿用（允许 r50/r51 措辞）",
 );
 
-// ---------- r57：性能 P1×3 历史专段保留（ROUND 推进 r59 后不得丢失） ----------
+// ---------- r57：性能 P1×3 历史专段保留（ROUND 推进 r62 后不得丢失） ----------
 
 check(
   uiSec !== null && uiSec.includes(ROUND_PREV) && uiSec.includes("P1×3 性能修复轮") &&
@@ -345,24 +346,24 @@ check(
   "r57·SQL 次数预算 + HTTP 耗时基线 + CDP 输入 ScriptDuration 阈值三线断言在场",
 );
 
-// ---------- r59：a11y P1×2 + 低成本 P2 修复轮（当前轮；r54/r57 历史专段保留） ----------
+// ---------- r59：a11y P1×2 历史专段保留（ROUND 推进 r62 后不得丢失） ----------
 
 const r59Index = readOrEmpty("docs/ui/r59/README.md");
 const r59Report = readOrEmpty("docs/feedback/2026-11-21-r59-yanfa.md");
 check(
-  uiSec !== null && uiSec.includes(ROUND) && uiSec.includes("a11y 修复轮") &&
+  uiSec !== null && uiSec.includes("r59") && uiSec.includes("a11y 修复轮") &&
     uiSec.includes("docs/ui/r59/README.md") && uiSec.includes("01-schedule-month.png") &&
     uiSec.includes("06-tab-active.png") && uiSec.includes("20 壳") && uiSec.includes("同批重拍") &&
     uiSec.includes("changed=20/same=0"),
-  "README·「界面与测试对照」节声明当前轮 r59 a11y 修复轮（六态矩阵 + 20 壳同批重拍索引在场）",
+  "README·「界面与测试对照」节保留 r59 a11y 修复轮历史专段（六态矩阵 + 20 壳同批重拍索引在场）",
 );
 check(
-  scaleSec !== null && scaleSec.includes(ROUND) && scaleSec.includes("a11y 修复轮") &&
+  scaleSec !== null && scaleSec.includes("r59") && scaleSec.includes("a11y 修复轮") &&
     scaleSec.includes("--accent-strong") && scaleSec.includes("4.96:1") && scaleSec.includes("42/42") &&
     counts.e2e !== null && counts.audit !== null &&
     scaleSec.includes(`e2e **${counts.e2e}**`) && scaleSec.includes(`HTTP audit **${counts.audit}**`) &&
     docChecksInReadme !== null && Number(docChecksInReadme) >= 116,
-  `README·「### 断言规模」节声明当前轮 r59 修复与数字一致（e2e ${counts.e2e} / audit ${counts.audit} / DOC-CONTRACT ${docChecksInReadme}）`,
+  `README·「### 断言规模」节保留 r59 历史口径并与当前 scripts 数字一致（e2e ${counts.e2e} / audit ${counts.audit} / DOC-CONTRACT ${docChecksInReadme}）`,
 );
 check(
   read("docs/plan.md").includes("r59 · r58 a11y 问题修复") &&
@@ -397,6 +398,47 @@ check(
     read("docs/ui/shell/README.md").includes("<!-- R59_HASHES_END -->") &&
     read("docs/ui/shell/README.md").includes("r57→r59 同名字节 **changed=20 / same=0**"),
   "r59·shell README 当前 R59 哈希块与 20/20 changed 披露在场",
+);
+
+// ---------- r62：r61 零半态漏洞修复轮（当前轮；r54/r57/r59 历史专段保留） ----------
+
+const r62Report = readOrEmpty("docs/feedback/2026-11-21-r62-yanfa.md");
+check(
+  uiSec !== null && uiSec.includes(ROUND) && uiSec.includes("零半态修复轮") &&
+    uiSec.includes("无渲染层改动") && uiSec.includes("沿用 r59 图证") &&
+    uiSec.includes("docs/ui/r59/README.md") && uiSec.includes("docs/ui/shell/README.md"),
+  "README·「界面与测试对照」节声明当前轮 r62 零半态修复轮（无渲染层改动、沿用 r59 图证与 20 壳）",
+);
+check(
+  scaleSec !== null && scaleSec.includes(ROUND) && scaleSec.includes("零半态修复轮") &&
+    scaleSec.includes("createSchedules") && scaleSec.includes("全量预校验") &&
+    counts.e2e !== null && counts.audit !== null &&
+    scaleSec.includes(`e2e **${counts.e2e}**`) && scaleSec.includes(`HTTP audit **${counts.audit}**`) &&
+    docChecksInReadme !== null && Number(docChecksInReadme) >= 125,
+  `README·「### 断言规模」节声明当前轮 r62 修复与数字一致（e2e ${counts.e2e} / audit ${counts.audit} / DOC-CONTRACT ${docChecksInReadme}）`,
+);
+check(
+  read("docs/plan.md").includes("r62 · r61 零半态漏洞修复") &&
+    read("docs/plan.md").includes("P1×2，lead 定方案"),
+  "r62·plan 任务单在场（lead 定方案，P1×2）",
+);
+check(
+  r62Report.includes("P1-1") && r62Report.includes("P1-2") &&
+    r62Report.includes("注入复现") && r62Report.includes("变异红相") &&
+    r62Report.includes("已做并验过"),
+  "r62·yanfa 报告逐项修法 + 注入复现转断言 + 变异红相 + 三态纪律在场",
+);
+check(
+  read("scripts/e2e-test.ts").includes("r62 P1-1·注入失败整体回滚") &&
+    read("scripts/audit-http.ts").includes("r62 P1-1·400 后日程数 before==after") &&
+    read("scripts/audit-http.ts").includes("r62 P1-2·400 后待办数 before==after"),
+  "r62·db 层回滚 + HTTP 400 零半态三线断言在场",
+);
+check(
+  read("apps/api/src/server.ts").includes("createSchedules(plan.drafts)") &&
+    read("apps/api/src/server.ts").includes("const locatedBatch") &&
+    read("packages/db/src/index.ts").includes("createSchedules(drafts"),
+  "r62·api 单事务批量写入口 + 全量预校验 + db 批量写实现在场",
 );
 
 const r50Report = readOrEmpty("docs/feedback/2026-11-21-r50-yanfa.md");

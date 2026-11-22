@@ -46,6 +46,9 @@ import { planBlockDrop } from "@xieflow/shared/blockDnd";
 import { BACKUP_CONFIRM_TOKEN, BACKUP_TABLES } from "@xieflow/shared/backup";
 // r53: restart probe spawns two throwaway api processes on a dedicated scratch db.
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
+// r62: audit-side injection opens the wrapper's scratch db to install a temporary
+// SQLite TRIGGER, reproducing the auditor's original mid-batch failure method.
+import { openDatabaseRaw } from "@xieflow/db";
 import { existsSync, readFileSync, readdirSync, unlinkSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -4269,6 +4272,63 @@ async function auditR28(): Promise<void> {
       await expectStatus("POST", "/api/schedules/import.ics", { ics: importIcs.replace("VERSION:2.0", "VERSION:1.0") }, 400, "r35 4xx·非 2.0 日历 -> 400");
       eq(await countMine(), afterCommit, "r35 4xx·坏 ICS 后零半态（未多写）");
 
+      // r62 P1-1：审计员原注入法复测——第 2 条 INSERT 用临时 TRIGGER RAISE(ABORT) 打断，
+      // 真 HTTP 断言 400 且日程数 before==after（修复前实测 before=0 / after=1 泄漏）
+      {
+        const KEY62 = `R62ICS${Date.now()}`;
+        const mkEvent62 = (suffix: string, day: string, start: string, end: string) =>
+          scheduleToIcsEvent({
+            id: 0, title: `${KEY62}-${suffix}`, date: day, start, end,
+            todoId: null, repeat: "none", createdAt: "", updatedAt: "",
+          } as any);
+        const ics62 = buildIcsCalendar([
+          mkEvent62("A", "2026-11-21", "09:00", "10:00"),
+          mkEvent62("B", "2026-11-22", "10:00", "11:00"),
+        ], { calendarName: "r62 audit injection" });
+        const count62 = async (): Promise<number> => {
+          const r = await expectStatus("GET", rangeUrl, undefined, 200, "r62 P1-1·回查注入日程 -> 200");
+          return r.json.schedules.filter((s: any) => s.title.startsWith(KEY62)).length;
+        };
+        eq(await count62(), 0, "r62 P1-1·注入前探针日程 0 条");
+        const dbPath62 = process.env.XIEFLOW_DB_PATH ?? "";
+        ok(dbPath62.length > 0, "r62 P1-1·审计注入复用 wrapper scratch 库路径");
+        const trg62 = `r62_abort_2nd_${Date.now()}`;
+        let injected62: ReturnType<typeof openDatabaseRaw> | null = null;
+        try {
+          if (dbPath62) {
+            injected62 = openDatabaseRaw({ path: dbPath62 });
+            injected62.raw.exec(
+              `CREATE TRIGGER ${trg62} BEFORE INSERT ON schedules WHEN NEW.title = '${KEY62}-B' ` +
+              `BEGIN SELECT RAISE(ABORT, 'r62-audit-injected'); END;`,
+            );
+          }
+          const before62 = await count62();
+          const failed62 = await expectStatus(
+            "POST", "/api/schedules/import.ics", { ics: ics62, commit: true }, 400,
+            "r62 P1-1·第 2 条注入失败 -> 400",
+          );
+          ok(String(failed62.json.error).includes("r62-audit-injected"), "r62 P1-1·400 错误来自第 2 条注入点");
+          eq(await count62(), before62, "r62 P1-1·400 后日程数 before==after（零半态）");
+        } finally {
+          if (injected62) {
+            injected62.raw.exec(`DROP TRIGGER IF EXISTS ${trg62}`);
+            injected62.db.close();
+          }
+        }
+        const ok62 = await expectStatus(
+          "POST", "/api/schedules/import.ics", { ics: ics62, commit: true }, 201,
+          "r62 P1-1·撤销注入后同 ICS 正常导入 -> 201",
+        );
+        eq(ok62.json.count, 2, "r62 P1-1·正常导入计数 2");
+        eq(await count62(), 2, "r62 P1-1·两条日程全部落库（非数据本身非法）");
+        const ids62 = (await expectStatus("GET", rangeUrl, undefined, 200, "r62 P1-1·回查清理目标 -> 200")).json.schedules
+          .filter((s: any) => s.title.startsWith(KEY62)).map((s: any) => s.id);
+        for (const id62 of ids62) {
+          await expectStatus("DELETE", `/api/schedules/${id62}`, undefined, 200, `r62 P1-1·清理探针日程 ${id62} -> 200`);
+        }
+        eq(await count62(), 0, "r62 P1-1·探针日程归零");
+      }
+
       for (const id of [imported?.id, s2.json.id, s1.json.id]) {
         if (id) await expectStatus("DELETE", `/api/schedules/${id}`, undefined, 200, `r35 清理日程 ${id} -> 200`);
       }
@@ -4988,6 +5048,27 @@ async function auditR47(): Promise<void> {
   ok(mixed.json.toolCalls[0].preview?.title === "新建待办", "r47 混合对话·pending 带预览摘要");
   ok(String(mixed.json.toolCalls[0].summary).includes("待确认"), "r47 混合对话·pending 摘要含待确认");
 
+  // r62 P1-2：审计员原注入 [有效, 非法] —— 400 且零执行（修复前实测 before=0 / after=1）
+  {
+    const beforeMix62 = (await req("GET", "/api/todos")).json.todos.length;
+    const badMix62 = await expectStatus(
+      "POST", confirmUrl, { callIds: [pendingId, "r62-INVALID-CALL-ID"] }, 400,
+      "r62 P1-2·[有效, 非法] -> 400",
+    );
+    ok(String(badMix62.json.error).includes("非法 callId"), "r62 P1-2·400 由全量预校验给出");
+    eq((await req("GET", "/api/todos")).json.todos.length, beforeMix62, "r62 P1-2·400 后待办数 before==after（零执行）");
+    const msgs62 = await expectStatus("GET", `/api/conversations/${cid}/messages`, undefined, 200, "r62 P1-2·回查消息 -> 200");
+    const calls62 = msgs62.json.messages.flatMap((m: any) => m.toolCalls ?? []);
+    eq(calls62.find((t: any) => t.callId === pendingId)?.confirmStatus, "pending", "r62 P1-2·有效 callId 仍 pending（未被提前执行/改写）");
+    eq(calls62.some((t: any) => t.callId === "r62-INVALID-CALL-ID"), false, "r62 P1-2·非法 callId 未落回执");
+    const badAction62 = await expectStatus(
+      "POST", confirmUrl, { callIds: [pendingId], action: "explode" }, 400,
+      "r62 P1-2·有效 callId + 非法 action -> 400",
+    );
+    ok(String(badAction62.json.error).includes("action"), "r62 P1-2·非法 action 文案在场");
+    eq((await req("GET", "/api/todos")).json.todos.length, beforeMix62, "r62 P1-2·非法 action 零执行");
+  }
+
   // 只读直接出结果（非零半态）
   const todosAfterChat = (await req("GET", "/api/todos")).json.todos;
   eq(todosAfterChat.length, todosBefore47.length, "r47 闸门·写 pending 期间零落库");
@@ -5013,6 +5094,19 @@ async function auditR47(): Promise<void> {
   await expectStatus("POST", confirmUrl, { callIds: [pendingId] }, 409, "r47 重复确认 -> 409");
   const afterDup = (await req("GET", "/api/todos")).json.todos;
   eq(afterDup.length, todosBefore47.length + 1, "r47 重复确认零副作用（无二次写库）");
+
+  // r62 P1-2 续：[未处理, 已处理] 也必须零执行（confirmStatus 全量预校验）
+  {
+    const gated3 = await expectStatus("POST", chatUrl, { message: "新建待办：r62混合重复探针" }, 201, "r62 P1-2·新 pending -> 201");
+    const id3 = gated3.json.pendingCalls[0].callId as string;
+    const before3 = (await req("GET", "/api/todos")).json.todos.length;
+    await expectStatus("POST", confirmUrl, { callIds: [id3, pendingId] }, 409, "r62 P1-2·[未处理, 已处理] -> 409");
+    eq((await req("GET", "/api/todos")).json.todos.length, before3, "r62 P1-2·409 后待办数 before==after（零执行）");
+    const msgs3 = await expectStatus("GET", `/api/conversations/${cid}/messages`, undefined, 200, "r62 P1-2·回查 409 批次 -> 200");
+    const calls3 = msgs3.json.messages.flatMap((m: any) => m.toolCalls ?? []);
+    eq(calls3.find((t: any) => t.callId === id3)?.confirmStatus, "pending", "r62 P1-2·首项未因后续非法被提前执行");
+    await expectStatus("POST", confirmUrl, { callIds: [id3], action: "discard" }, 200, "r62 P1-2·清理新 pending -> 200");
+  }
 
   // 越权 conversation：把 A 会话的 callId 拿到 B 会话确认 -> 400
   const convB = await expectStatus("POST", "/api/conversations", { title: "r47 audit gate B" }, 201, "r47 建第二会话 -> 201");

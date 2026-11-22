@@ -109,6 +109,8 @@ import {
   type BackupSnapshot,
   type RestorePlan,
 } from "@xieflow/shared/backup";
+// r62：ICS 草稿类型唯一口径在 shared/ics（api 前置规划 + db 单事务批量写同源）
+import type { IcsScheduleDraft } from "@xieflow/shared/ics";
 import {
   hashPassword,
   assertValidUsername,
@@ -549,6 +551,41 @@ export class XieFlowDb {
     const row = this.db.get("SELECT * FROM schedules WHERE id = ?", [res.lastInsertRowid]);
     if (!row) throw new Error("日程写入后读回失败");
     return mapRowToSchedule(row);
+  }
+
+  /**
+   * r62 P1-1：ICS 导入 commit 的单事务批量写（零半态）。
+   * api 层 planIcsImport 已完成整体校验；这里先逐条过 shared 守卫，
+   * 再 BEGIN IMMEDIATE → 逐条 INSERT → COMMIT，任一条失败整体 ROLLBACK，
+   * 绝不留下「400 但前半段日程已落库」的半态。
+   */
+  createSchedules(drafts: readonly IcsScheduleDraft[]): Schedule[] {
+    for (const d of drafts) {
+      assertValidScheduleTitle(d.title);
+      assertValidScheduleDate(d.date);
+      assertValidScheduleRange(d.start, d.end);
+      assertValidScheduleRepeat(d.repeat);
+    }
+    const created: Schedule[] = [];
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      for (const d of drafts) {
+        const now = new Date().toISOString();
+        const res = this.db.run(
+          `INSERT INTO schedules (title, date, start_time, end_time, todo_id, repeat, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [d.title, d.date, d.start, d.end, null, d.repeat, now, now],
+        );
+        const row = this.db.get("SELECT * FROM schedules WHERE id = ?", [res.lastInsertRowid]);
+        if (!row) throw new Error("日程写入后读回失败");
+        created.push(mapRowToSchedule(row));
+      }
+      this.db.exec("COMMIT");
+    } catch (err: unknown) {
+      this.db.exec("ROLLBACK");
+      throw err;
+    }
+    return created;
   }
 
   getSchedule(id: number): Schedule | null {
